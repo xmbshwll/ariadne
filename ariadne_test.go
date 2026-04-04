@@ -1,0 +1,144 @@
+package ariadne
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+func TestLoadConfigFromEnv(t *testing.T) {
+	config := LoadConfigFromEnv(func(key string) string {
+		switch key {
+		case "SPOTIFY_CLIENT_ID":
+			return " spotify-client "
+		case "SPOTIFY_CLIENT_SECRET":
+			return " spotify-secret "
+		case "APPLE_MUSIC_STOREFRONT":
+			return " GB "
+		case "APPLE_MUSIC_KEY_ID":
+			return " music-key "
+		case "APPLE_MUSIC_TEAM_ID":
+			return " team-id "
+		case "APPLE_MUSIC_PRIVATE_KEY_PATH":
+			return " /tmp/AuthKey_TEST.p8 "
+		case "TIDAL_CLIENT_ID":
+			return " tidal-client "
+		case "TIDAL_CLIENT_SECRET":
+			return " tidal-secret "
+		default:
+			return ""
+		}
+	})
+
+	if config.AppleMusicStorefront != "gb" {
+		t.Fatalf("apple music storefront = %q, want gb", config.AppleMusicStorefront)
+	}
+	if config.Spotify.ClientID != "spotify-client" || config.Spotify.ClientSecret != "spotify-secret" {
+		t.Fatalf("unexpected spotify config: %#v", config.Spotify)
+	}
+	if config.AppleMusic.KeyID != "music-key" || config.AppleMusic.TeamID != "team-id" || config.AppleMusic.PrivateKeyPath != "/tmp/AuthKey_TEST.p8" {
+		t.Fatalf("unexpected apple music config: %#v", config.AppleMusic)
+	}
+	if config.TIDAL.ClientID != "tidal-client" || config.TIDAL.ClientSecret != "tidal-secret" {
+		t.Fatalf("unexpected tidal config: %#v", config.TIDAL)
+	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	config := DefaultConfig()
+	if config.AppleMusicStorefront != "us" {
+		t.Fatalf("apple music storefront = %q, want us", config.AppleMusicStorefront)
+	}
+}
+
+func TestNewWithAdaptersResolveAlbum(t *testing.T) {
+	resolver := NewWithAdapters(
+		[]SourceAdapter{librarySourceAdapter{}},
+		[]TargetAdapter{libraryTargetAdapter{}},
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	if err != nil {
+		t.Fatalf("ResolveAlbum error: %v", err)
+	}
+	if resolution.Source.Service != ServiceDeezer {
+		t.Fatalf("source service = %q, want deezer", resolution.Source.Service)
+	}
+	match := resolution.Matches[ServiceSpotify]
+	if match.Best == nil {
+		t.Fatalf("expected spotify best match")
+	}
+	if match.Best.Candidate.CandidateID != "spotify-1" {
+		t.Fatalf("candidate id = %q, want spotify-1", match.Best.Candidate.CandidateID)
+	}
+}
+
+type librarySourceAdapter struct{}
+
+func (librarySourceAdapter) Service() ServiceName {
+	return ServiceDeezer
+}
+
+func (librarySourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
+	if raw != "https://fixture.test/source" {
+		return nil, errors.New("unsupported")
+	}
+	return &ParsedAlbumURL{
+		Service:      ServiceDeezer,
+		EntityType:   "album",
+		ID:           "src-1",
+		CanonicalURL: raw,
+		RawURL:       raw,
+	}, nil
+}
+
+func (librarySourceAdapter) FetchAlbum(_ context.Context, parsed ParsedAlbumURL) (*CanonicalAlbum, error) {
+	return &CanonicalAlbum{
+		Service:           parsed.Service,
+		SourceID:          parsed.ID,
+		SourceURL:         parsed.CanonicalURL,
+		Title:             "Fixture Album",
+		NormalizedTitle:   "fixture album",
+		Artists:           []string{"Fixture Artist"},
+		NormalizedArtists: []string{"fixture artist"},
+		UPC:               "123456789012",
+		TrackCount:        2,
+		Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
+	}, nil
+}
+
+type libraryTargetAdapter struct{}
+
+func (libraryTargetAdapter) Service() ServiceName {
+	return ServiceSpotify
+}
+
+func (libraryTargetAdapter) SearchByUPC(_ context.Context, upc string) ([]CandidateAlbum, error) {
+	if upc == "" {
+		return nil, nil
+	}
+	return []CandidateAlbum{{
+		CanonicalAlbum: CanonicalAlbum{
+			Service:           ServiceSpotify,
+			SourceID:          "spotify-1",
+			SourceURL:         "https://open.spotify.com/album/spotify-1",
+			Title:             "Fixture Album",
+			NormalizedTitle:   "fixture album",
+			Artists:           []string{"Fixture Artist"},
+			NormalizedArtists: []string{"fixture artist"},
+			UPC:               upc,
+			TrackCount:        2,
+			Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
+		},
+		CandidateID: "spotify-1",
+		MatchURL:    "https://open.spotify.com/album/spotify-1",
+	}}, nil
+}
+
+func (libraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (libraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
+	return nil, nil
+}

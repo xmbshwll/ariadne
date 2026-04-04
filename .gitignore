@@ -1,0 +1,6 @@
+bin/
+.env
+*.p8
+.DS_Store
+coverage.out
+service-samples
