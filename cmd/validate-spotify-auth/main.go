@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
@@ -24,8 +25,6 @@ import (
 const (
 	defaultSpotifyAPIBaseURL  = "https://api.spotify.com/v1"
 	defaultSpotifyAuthBaseURL = "https://accounts.spotify.com/api"
-	defaultSampleURLPath      = "service-samples/spotify/sample-url.txt"
-	defaultOutputDir          = "service-samples/spotify"
 	searchLimit               = 5
 )
 
@@ -35,8 +34,9 @@ var (
 	errSpotifyISRCMissing         = errors.New("spotify track detail payloads did not include any external_ids.isrc values")
 	errSpotifyMetadataMissing     = errors.New("album payload did not provide enough metadata for search validation")
 
-	errSpotifyValidateUsage  = errors.New("usage: go run ./cmd/validate-spotify-auth [-url <spotify-album-url>] [-sample-url-file <path>] [-out-dir <dir>]")
-	errSpotifySampleURLEmpty = errors.New("spotify sample url file is empty")
+	errSpotifyValidateUsage     = errors.New("usage: go run ./cmd/validate-spotify-auth [-url <spotify-album-url>] [-sample-url-file <path>] [-out-dir <dir>]")
+	errSpotifySampleURLEmpty    = errors.New("spotify sample url file is empty")
+	errSpotifySampleURLRequired = errors.New("provide either -url or -sample-url-file")
 
 	errSpotifyTokenStatus  = errors.New("unexpected spotify token status")
 	errSpotifyTokenMissing = errors.New("spotify token response did not include access_token")
@@ -61,9 +61,13 @@ func run(args []string) error {
 		return errSpotifyCredentialsRequired
 	}
 
-	rawURL, err := loadSampleURL(opts.sampleURL, opts.sampleURLPath)
+	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "spotify", errSpotifySampleURLRequired, errSpotifySampleURLEmpty)
 	if err != nil {
-		return err
+		return fmt.Errorf("load spotify sample url: %w", err)
+	}
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-spotify-validation-")
+	if err != nil {
+		return fmt.Errorf("resolve spotify output dir: %w", err)
 	}
 	parsed, err := parse.SpotifyAlbumURL(rawURL)
 	if err != nil {
@@ -119,10 +123,6 @@ func run(args []string) error {
 		return fmt.Errorf("search spotify by metadata: %w", err)
 	}
 
-	if err := os.MkdirAll(opts.outputDir, 0o755); err != nil {
-		return fmt.Errorf("create output dir: %w", err)
-	}
-
 	summary := map[string]any{
 		"sample_url":         rawURL,
 		"album_id":           parsed.ID,
@@ -135,31 +135,31 @@ func run(args []string) error {
 		"track_isrc_samples": isrcs,
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
 		"artifacts": map[string]string{
-			"source_payload_api":    filepath.ToSlash(filepath.Join(opts.outputDir, "source-payload-api.json")),
-			"search_upc_results":    filepath.ToSlash(filepath.Join(opts.outputDir, "search-upc-results.json")),
-			"search_isrc_results":   filepath.ToSlash(filepath.Join(opts.outputDir, "search-isrc-results.json")),
-			"search_metadata":       filepath.ToSlash(filepath.Join(opts.outputDir, "search-metadata-results.json")),
-			"authenticated_summary": filepath.ToSlash(filepath.Join(opts.outputDir, "authenticated-summary.json")),
+			"source_payload_api":    filepath.ToSlash(filepath.Join(outputDir, "source-payload-api.json")),
+			"search_upc_results":    filepath.ToSlash(filepath.Join(outputDir, "search-upc-results.json")),
+			"search_isrc_results":   filepath.ToSlash(filepath.Join(outputDir, "search-isrc-results.json")),
+			"search_metadata":       filepath.ToSlash(filepath.Join(outputDir, "search-metadata-results.json")),
+			"authenticated_summary": filepath.ToSlash(filepath.Join(outputDir, "authenticated-summary.json")),
 		},
 	}
 
-	if err := writePrettyJSON(filepath.Join(opts.outputDir, "source-payload-api.json"), albumBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "source-payload-api.json"), albumBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(opts.outputDir, "search-upc-results.json"), upcBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-upc-results.json"), upcBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(opts.outputDir, "search-isrc-results.json"), isrcBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-isrc-results.json"), isrcBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(opts.outputDir, "search-metadata-results.json"), metadataBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-metadata-results.json"), metadataBody); err != nil {
 		return err
 	}
-	if err := writeJSON(filepath.Join(opts.outputDir, "authenticated-summary.json"), summary); err != nil {
+	if err := writeJSON(filepath.Join(outputDir, "authenticated-summary.json"), summary); err != nil {
 		return err
 	}
 
-	fmt.Printf("wrote Spotify authenticated artifacts to %s\n", opts.outputDir)
+	fmt.Printf("wrote Spotify authenticated artifacts to %s\n", outputDir)
 	return nil
 }
 
@@ -173,10 +173,8 @@ type options struct {
 
 func parseFlags(args []string) (options, error) {
 	opts := options{
-		sampleURLPath: defaultSampleURLPath,
-		outputDir:     defaultOutputDir,
-		apiBaseURL:    defaultSpotifyAPIBaseURL,
-		authBaseURL:   defaultSpotifyAuthBaseURL,
+		apiBaseURL:  defaultSpotifyAPIBaseURL,
+		authBaseURL: defaultSpotifyAuthBaseURL,
 	}
 
 	fs := flag.NewFlagSet("validate-spotify-auth", flag.ContinueOnError)
@@ -193,21 +191,6 @@ func parseFlags(args []string) (options, error) {
 		return options{}, errSpotifyValidateUsage
 	}
 	return opts, nil
-}
-
-func loadSampleURL(rawURL string, path string) (string, error) {
-	if strings.TrimSpace(rawURL) != "" {
-		return strings.TrimSpace(rawURL), nil
-	}
-	content, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("read spotify sample url file: %w", err)
-	}
-	value := strings.TrimSpace(string(content))
-	if value == "" {
-		return "", fmt.Errorf("%w: %s", errSpotifySampleURLEmpty, path)
-	}
-	return value, nil
 }
 
 func fetchToken(ctx context.Context, authBaseURL, clientID, clientSecret string) (string, error) {

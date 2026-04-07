@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -111,6 +112,49 @@ func TestResolverResolveAlbum(t *testing.T) {
 	}
 }
 
+func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
+	release := make(chan struct{})
+	spotifyStarted := make(chan struct{}, 1)
+	appleMusicStarted := make(chan struct{}, 1)
+
+	resolver := New(
+		[]SourceAdapter{stubSourceAdapter{}},
+		[]TargetAdapter{
+			blockingTargetAdapter{service: model.ServiceSpotify, started: spotifyStarted, release: release},
+			blockingTargetAdapter{service: model.ServiceAppleMusic, started: appleMusicStarted, release: release},
+		},
+		score.DefaultWeights(),
+	)
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
+		resultCh <- err
+	}()
+
+	waitStarted := func(name string, started <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for %s target to start", name)
+		}
+	}
+
+	waitStarted("spotify", spotifyStarted)
+	waitStarted("apple music", appleMusicStarted)
+	close(release)
+
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("ResolveAlbum error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for ResolveAlbum to return")
+	}
+}
+
 type stubSourceAdapter struct{}
 
 func (stubSourceAdapter) Service() model.ServiceName {
@@ -153,6 +197,16 @@ func (stubTargetAdapter) Service() model.ServiceName {
 	return model.ServiceSpotify
 }
 
+type blockingTargetAdapter struct {
+	service model.ServiceName
+	started chan<- struct{}
+	release <-chan struct{}
+}
+
+func (a blockingTargetAdapter) Service() model.ServiceName {
+	return a.service
+}
+
 func (stubTargetAdapter) SearchByUPC(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
 	if upc == "" {
 		return nil, nil
@@ -179,6 +233,23 @@ func (stubTargetAdapter) SearchByMetadata(_ context.Context, album model.Canonic
 	return []model.CandidateAlbum{
 		{CandidateID: "album-2", MatchURL: "https://open.spotify.com/album/2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify, SourceID: "album-2", SourceURL: "https://open.spotify.com/album/2", Title: "Abbey Road", NormalizedTitle: "abbey road", Artists: []string{"The Beatles Complete On Ukulele"}, NormalizedArtists: []string{"the beatles complete on ukulele"}, TrackCount: 17, ReleaseDate: "2020-01-01", Tracks: []model.CanonicalTrack{{ISRC: "OTHER0001"}}}},
 	}, nil
+}
+
+func (a blockingTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (a blockingTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (a blockingTargetAdapter) SearchByMetadata(_ context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	select {
+	case a.started <- struct{}{}:
+	default:
+	}
+	<-a.release
+	return nil, nil
 }
 
 func TestResolverCrossServiceFixtures(t *testing.T) {

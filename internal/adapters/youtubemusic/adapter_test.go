@@ -12,8 +12,8 @@ import (
 )
 
 func TestAdapter(t *testing.T) {
-	sourcePage := mustReadYouTubeMusicFixture(t, filepath.Join("..", "..", "..", "service-samples", "youtube-music", "source-page.html"))
-	searchPage := mustReadYouTubeMusicFixture(t, filepath.Join("..", "..", "..", "service-samples", "youtube-music", "search-page.html"))
+	sourcePage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "source-page.html"))
+	searchPage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "search-page.html"))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

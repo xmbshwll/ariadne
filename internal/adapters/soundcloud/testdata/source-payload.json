@@ -1,0 +1,1049 @@
+{
+  "artwork_url": "https://i1.sndcdn.com/artworks-c52728ae-2fb7-4dfb-86ff-0fb7505ff73f-0-large.jpg",
+  "created_at": "2020-06-04T18:06:43Z",
+  "description": null,
+  "duration": 3545027,
+  "embeddable_by": "all",
+  "genre": "Hip Hop",
+  "id": 1064525038,
+  "kind": "playlist",
+  "label_name": null,
+  "last_modified": "2021-04-26T16:08:05Z",
+  "license": "all-rights-reserved",
+  "likes_count": 58,
+  "managed_by_feeds": true,
+  "permalink": "cats-dogs-6",
+  "permalink_url": "https://soundcloud.com/evidence-official/sets/cats-dogs-6",
+  "public": true,
+  "purchase_title": null,
+  "purchase_url": null,
+  "release_date": "2011-09-27T00:00:00Z",
+  "reposts_count": 4,
+  "secret_token": null,
+  "sharing": "public",
+  "tag_list": "",
+  "title": "Cats & Dogs",
+  "uri": "https://api.soundcloud.com/playlists/soundcloud%3Aplaylists%3A1064525038",
+  "user_id": 203411282,
+  "set_type": "album",
+  "is_album": true,
+  "published_at": "2011-09-27T00:00:00Z",
+  "display_date": "2011-09-27T00:00:00Z",
+  "user": {
+    "avatar_url": "https://i1.sndcdn.com/avatars-a37QlQDGBa9Mf1ht-vtG7Dw-large.jpg",
+    "city": null,
+    "comments_count": 0,
+    "country_code": null,
+    "created_at": null,
+    "creator_subscriptions": [
+      {
+        "product": {
+          "id": "creator-pro-unlimited"
+        }
+      }
+    ],
+    "creator_subscription": {
+      "product": {
+        "id": "creator-pro-unlimited"
+      }
+    },
+    "description": "biggerpicture.ffm.to/recordings",
+    "followers_count": 7359,
+    "followings_count": 0,
+    "first_name": "",
+    "full_name": "",
+    "groups_count": 0,
+    "id": 203411282,
+    "kind": "user",
+    "last_modified": "2024-04-09T15:38:43Z",
+    "last_name": "",
+    "likes_count": 0,
+    "playlist_likes_count": 0,
+    "permalink": "evidence-official",
+    "permalink_url": "https://soundcloud.com/evidence-official",
+    "playlist_count": 32,
+    "reposts_count": null,
+    "track_count": 338,
+    "uri": "https://api.soundcloud.com/users/soundcloud%3Ausers%3A203411282",
+    "urn": "soundcloud:users:203411282",
+    "username": "Evidence",
+    "verified": true,
+    "visuals": {
+      "urn": "soundcloud:users:203411282",
+      "enabled": true,
+      "visuals": [
+        {
+          "urn": "soundcloud:visuals:220864644",
+          "entry_time": 0,
+          "visual_url": "https://i1.sndcdn.com/visuals-000203411282-fuQ4vB-original.jpg"
+        }
+      ],
+      "tracking": null
+    },
+    "badges": {
+      "pro": false,
+      "creator_mid_tier": false,
+      "pro_unlimited": true,
+      "verified": true
+    },
+    "station_urn": "soundcloud:system-playlists:artist-stations:203411282",
+    "station_permalink": "artist-stations:203411282",
+    "date_of_birth": null
+  },
+  "tracks": [
+    {
+      "artwork_url": "https://i1.sndcdn.com/artworks-mkKtNalXecOH-0-large.jpg",
+      "caption": null,
+      "commentable": true,
+      "comment_count": 0,
+      "created_at": "2016-03-23T16:04:08Z",
+      "description": null,
+      "downloadable": false,
+      "download_count": 0,
+      "duration": 147179,
+      "full_duration": 147174,
+      "embeddable_by": "all",
+      "genre": "Hip-Hop/Rap",
+      "has_downloads_left": false,
+      "id": 254617771,
+      "kind": "track",
+      "label_name": "Rhymesayers",
+      "last_modified": "2025-11-13T20:02:41Z",
+      "license": "all-rights-reserved",
+      "likes_count": 87,
+      "permalink": "the-liner-notes-feat-aloe-1",
+      "permalink_url": "https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1",
+      "playback_count": 2767,
+      "public": true,
+      "publisher_metadata": {
+        "id": 254617771,
+        "urn": "soundcloud:tracks:254617771",
+        "artist": "Evidence",
+        "album_title": "Cats & Dogs",
+        "contains_music": true,
+        "upc_or_ean": "826257014467",
+        "isrc": "USBWK1100093",
+        "explicit": true,
+        "p_line": "2011 Rhymesayers Entertainment LLC",
+        "p_line_for_display": "\u2117 2011 Rhymesayers Entertainment LLC",
+        "c_line": "2011 Rhymesayers Entertainment LLC",
+        "c_line_for_display": "\u00a9 2011 Rhymesayers Entertainment LLC",
+        "writer_composer": "Evidence",
+        "release_title": "The Liner Notes (feat. Aloe Blacc)"
+      },
+      "purchase_title": null,
+      "purchase_url": null,
+      "release_date": "2011-09-27T00:00:00Z",
+      "reposts_count": 0,
+      "secret_token": null,
+      "sharing": "public",
+      "state": "finished",
+      "streamable": true,
+      "tag_list": "",
+      "title": "The Liner Notes (feat. Aloe Blacc)",
+      "uri": "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A254617771",
+      "urn": "soundcloud:tracks:254617771",
+      "user_id": 203411282,
+      "visuals": null,
+      "waveform_url": "https://wave.sndcdn.com/WPakSTyNvijv_m.json",
+      "display_date": "2011-09-27T00:00:00Z",
+      "media": {
+        "transcodings": [
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/cf8e1224-4af0-4c2c-9b92-ea64bf1e20cc/stream/cbc-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 147179,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/cf8e1224-4af0-4c2c-9b92-ea64bf1e20cc/stream/ctr-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 147179,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/c11d893a-26a3-4e4a-bd0f-ed523b150472/stream/cbc-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 147179,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/c11d893a-26a3-4e4a-bd0f-ed523b150472/stream/ctr-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 147179,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/11e1715a-7729-4999-af41-1fcec18f7882/stream/hls",
+            "preset": "opus_0_0",
+            "duration": 147140,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/ogg; codecs=\"opus\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/a5df9658-eb5e-4370-a20f-a460d94b51a2/stream/hls",
+            "preset": "mp3_1_0",
+            "duration": 147174,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617771/a5df9658-eb5e-4370-a20f-a460d94b51a2/stream/progressive",
+            "preset": "mp3_1_0",
+            "duration": 147174,
+            "snipped": false,
+            "format": {
+              "protocol": "progressive",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          }
+        ]
+      },
+      "station_urn": "soundcloud:system-playlists:track-stations:254617771",
+      "station_permalink": "track-stations:254617771",
+      "track_authorization": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW8iOiJERSIsInN1YiI6IiIsInJpZCI6IjI5ZWY2M2ViLWRmYjItNDY5My04M2Q2LTExMTZhMGY3OTUxMiIsImlhdCI6MTc3NTA3NTU3Mn0.vke9EKNbuB8Mq9enoOPLfxiDf-s_t1VXYYAJIaB4Ro4",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE",
+      "user": {
+        "avatar_url": "https://i1.sndcdn.com/avatars-a37QlQDGBa9Mf1ht-vtG7Dw-large.jpg",
+        "first_name": "",
+        "followers_count": 7359,
+        "full_name": "",
+        "id": 203411282,
+        "kind": "user",
+        "last_modified": "2024-04-09T15:38:43Z",
+        "last_name": "",
+        "permalink": "evidence-official",
+        "permalink_url": "https://soundcloud.com/evidence-official",
+        "uri": "https://api.soundcloud.com/users/soundcloud%3Ausers%3A203411282",
+        "urn": "soundcloud:users:203411282",
+        "username": "Evidence",
+        "verified": true,
+        "city": null,
+        "country_code": null,
+        "badges": {
+          "pro": false,
+          "creator_mid_tier": false,
+          "pro_unlimited": true,
+          "verified": true
+        },
+        "station_urn": "soundcloud:system-playlists:artist-stations:203411282",
+        "station_permalink": "artist-stations:203411282"
+      }
+    },
+    {
+      "artwork_url": "https://i1.sndcdn.com/artworks-lfMpJowa8loH-0-large.jpg",
+      "caption": null,
+      "commentable": true,
+      "comment_count": 1,
+      "created_at": "2016-03-23T16:04:02Z",
+      "description": null,
+      "downloadable": false,
+      "download_count": 0,
+      "duration": 249566,
+      "full_duration": 249548,
+      "embeddable_by": "all",
+      "genre": "Hip-Hop/Rap",
+      "has_downloads_left": false,
+      "id": 254617627,
+      "kind": "track",
+      "label_name": "Rhymesayers",
+      "last_modified": "2025-11-13T22:33:37Z",
+      "license": "all-rights-reserved",
+      "likes_count": 103,
+      "permalink": "strangers",
+      "permalink_url": "https://soundcloud.com/evidence-official/strangers",
+      "playback_count": 3296,
+      "public": true,
+      "publisher_metadata": {
+        "id": 254617627,
+        "urn": "soundcloud:tracks:254617627",
+        "artist": "Evidence",
+        "album_title": "Cats & Dogs",
+        "contains_music": true,
+        "upc_or_ean": "826257014467",
+        "isrc": "USBWK1100094",
+        "explicit": true,
+        "p_line": "2011 Rhymesayers Entertainment LLC",
+        "p_line_for_display": "\u2117 2011 Rhymesayers Entertainment LLC",
+        "c_line": "2011 Rhymesayers Entertainment LLC",
+        "c_line_for_display": "\u00a9 2011 Rhymesayers Entertainment LLC",
+        "writer_composer": "Evidence",
+        "release_title": "Strangers"
+      },
+      "purchase_title": null,
+      "purchase_url": null,
+      "release_date": "2011-09-27T00:00:00Z",
+      "reposts_count": 0,
+      "secret_token": null,
+      "sharing": "public",
+      "state": "finished",
+      "streamable": true,
+      "tag_list": "",
+      "title": "Strangers",
+      "uri": "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A254617627",
+      "urn": "soundcloud:tracks:254617627",
+      "user_id": 203411282,
+      "visuals": null,
+      "waveform_url": "https://wave.sndcdn.com/ia8NMknbfZe0_m.json",
+      "display_date": "2011-09-27T00:00:00Z",
+      "media": {
+        "transcodings": [
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/0b113f87-2975-432f-b23a-ef496fcab573/stream/cbc-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 249566,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/0b113f87-2975-432f-b23a-ef496fcab573/stream/ctr-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 249566,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/088db7a4-0c5e-48f1-9850-4f6cf6d6121d/stream/cbc-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 249566,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/088db7a4-0c5e-48f1-9850-4f6cf6d6121d/stream/ctr-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 249566,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/26d4d54e-fbf9-451e-a8ba-59523a181b14/stream/hls",
+            "preset": "opus_0_0",
+            "duration": 249527,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/ogg; codecs=\"opus\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/17e29474-477c-4fc1-ba10-1a5624f2105c/stream/hls",
+            "preset": "mp3_1_0",
+            "duration": 249548,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617627/17e29474-477c-4fc1-ba10-1a5624f2105c/stream/progressive",
+            "preset": "mp3_1_0",
+            "duration": 249548,
+            "snipped": false,
+            "format": {
+              "protocol": "progressive",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          }
+        ]
+      },
+      "station_urn": "soundcloud:system-playlists:track-stations:254617627",
+      "station_permalink": "track-stations:254617627",
+      "track_authorization": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW8iOiJERSIsInN1YiI6IiIsInJpZCI6IjY1Y2UwODJhLTI5OGItNDc2YS1iZTE2LTk1YmNiMjQyNTJkYyIsImlhdCI6MTc3NTA3NTU3Mn0.GYHb2-iQZke-agoVPDbUmNsy7KZ4WSddCUVg9J2WJAE",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE",
+      "user": {
+        "avatar_url": "https://i1.sndcdn.com/avatars-a37QlQDGBa9Mf1ht-vtG7Dw-large.jpg",
+        "first_name": "",
+        "followers_count": 7359,
+        "full_name": "",
+        "id": 203411282,
+        "kind": "user",
+        "last_modified": "2024-04-09T15:38:43Z",
+        "last_name": "",
+        "permalink": "evidence-official",
+        "permalink_url": "https://soundcloud.com/evidence-official",
+        "uri": "https://api.soundcloud.com/users/soundcloud%3Ausers%3A203411282",
+        "urn": "soundcloud:users:203411282",
+        "username": "Evidence",
+        "verified": true,
+        "city": null,
+        "country_code": null,
+        "badges": {
+          "pro": false,
+          "creator_mid_tier": false,
+          "pro_unlimited": true,
+          "verified": true
+        },
+        "station_urn": "soundcloud:system-playlists:artist-stations:203411282",
+        "station_permalink": "artist-stations:203411282"
+      }
+    },
+    {
+      "artwork_url": "https://i1.sndcdn.com/artworks-YR1BVMEXBE1J-0-large.jpg",
+      "caption": null,
+      "commentable": true,
+      "comment_count": 10,
+      "created_at": "2016-03-23T16:04:04Z",
+      "description": null,
+      "downloadable": false,
+      "download_count": 0,
+      "duration": 285873,
+      "full_duration": 285858,
+      "embeddable_by": "all",
+      "genre": "Hip-Hop/Rap",
+      "has_downloads_left": false,
+      "id": 254617711,
+      "kind": "track",
+      "label_name": "Rhymesayers",
+      "last_modified": "2025-11-13T23:15:03Z",
+      "license": "all-rights-reserved",
+      "likes_count": 992,
+      "permalink": "the-red-carpet-feat-raekwon",
+      "permalink_url": "https://soundcloud.com/evidence-official/the-red-carpet-feat-raekwon",
+      "playback_count": 36560,
+      "public": true,
+      "publisher_metadata": {
+        "id": 254617711,
+        "urn": "soundcloud:tracks:254617711",
+        "artist": "Evidence",
+        "album_title": "Cats & Dogs",
+        "contains_music": true,
+        "upc_or_ean": "826257014467",
+        "isrc": "USBWK1100095",
+        "explicit": true,
+        "p_line": "2011 Rhymesayers Entertainment LLC",
+        "p_line_for_display": "\u2117 2011 Rhymesayers Entertainment LLC",
+        "c_line": "2011 Rhymesayers Entertainment LLC",
+        "c_line_for_display": "\u00a9 2011 Rhymesayers Entertainment LLC",
+        "writer_composer": "Evidence",
+        "release_title": "The Red Carpet (feat. Raekwon & Ras Kass)"
+      },
+      "purchase_title": null,
+      "purchase_url": null,
+      "release_date": "2011-09-27T00:00:00Z",
+      "reposts_count": 26,
+      "secret_token": null,
+      "sharing": "public",
+      "state": "finished",
+      "streamable": true,
+      "tag_list": "",
+      "title": "The Red Carpet (feat. Raekwon & Ras Kass)",
+      "uri": "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A254617711",
+      "urn": "soundcloud:tracks:254617711",
+      "user_id": 203411282,
+      "visuals": null,
+      "waveform_url": "https://wave.sndcdn.com/1Gfo7iRZpEBp_m.json",
+      "display_date": "2011-09-27T00:00:00Z",
+      "media": {
+        "transcodings": [
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/7cf41ba6-79cd-4f1c-9bd1-be5cbd74e70e/stream/cbc-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 285873,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/7cf41ba6-79cd-4f1c-9bd1-be5cbd74e70e/stream/ctr-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 285873,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/0dfc0c46-aff1-4f3a-903a-12a47fc4e161/stream/cbc-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 285873,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/0dfc0c46-aff1-4f3a-903a-12a47fc4e161/stream/ctr-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 285873,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/b5dd54d2-eb67-4ead-96fc-a7a063dab310/stream/hls",
+            "preset": "opus_0_0",
+            "duration": 285833,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/ogg; codecs=\"opus\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/82f2f844-31df-44a6-88ea-9d70c98b50ba/stream/hls",
+            "preset": "mp3_1_0",
+            "duration": 285858,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617711/82f2f844-31df-44a6-88ea-9d70c98b50ba/stream/progressive",
+            "preset": "mp3_1_0",
+            "duration": 285858,
+            "snipped": false,
+            "format": {
+              "protocol": "progressive",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          }
+        ]
+      },
+      "station_urn": "soundcloud:system-playlists:track-stations:254617711",
+      "station_permalink": "track-stations:254617711",
+      "track_authorization": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW8iOiJERSIsInN1YiI6IiIsInJpZCI6ImUzZjczODVlLTc5ZDAtNDUzMi1hZWU5LTgxNTc1ZTEzMGUwNyIsImlhdCI6MTc3NTA3NTU3Mn0.Z0G7Z3i69FlX8-wV1YbAG6T6Y0a7_wQurSsKkgQ5Ly8",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE",
+      "user": {
+        "avatar_url": "https://i1.sndcdn.com/avatars-a37QlQDGBa9Mf1ht-vtG7Dw-large.jpg",
+        "first_name": "",
+        "followers_count": 7359,
+        "full_name": "",
+        "id": 203411282,
+        "kind": "user",
+        "last_modified": "2024-04-09T15:38:43Z",
+        "last_name": "",
+        "permalink": "evidence-official",
+        "permalink_url": "https://soundcloud.com/evidence-official",
+        "uri": "https://api.soundcloud.com/users/soundcloud%3Ausers%3A203411282",
+        "urn": "soundcloud:users:203411282",
+        "username": "Evidence",
+        "verified": true,
+        "city": null,
+        "country_code": null,
+        "badges": {
+          "pro": false,
+          "creator_mid_tier": false,
+          "pro_unlimited": true,
+          "verified": true
+        },
+        "station_urn": "soundcloud:system-playlists:artist-stations:203411282",
+        "station_permalink": "artist-stations:203411282"
+      }
+    },
+    {
+      "artwork_url": "https://i1.sndcdn.com/artworks-yClY8YRtvvdn-0-large.jpg",
+      "caption": null,
+      "commentable": true,
+      "comment_count": 0,
+      "created_at": "2016-03-23T16:04:03Z",
+      "description": null,
+      "downloadable": false,
+      "download_count": 0,
+      "duration": 206686,
+      "full_duration": 206681,
+      "embeddable_by": "all",
+      "genre": "Hip-Hop/Rap",
+      "has_downloads_left": false,
+      "id": 254617708,
+      "kind": "track",
+      "label_name": "Rhymesayers",
+      "last_modified": "2025-11-13T21:44:38Z",
+      "license": "all-rights-reserved",
+      "likes_count": 128,
+      "permalink": "it-wasnt-me-1",
+      "permalink_url": "https://soundcloud.com/evidence-official/it-wasnt-me-1",
+      "playback_count": 5413,
+      "public": true,
+      "publisher_metadata": {
+        "id": 254617708,
+        "urn": "soundcloud:tracks:254617708",
+        "artist": "Evidence",
+        "album_title": "Cats & Dogs",
+        "contains_music": true,
+        "upc_or_ean": "826257014467",
+        "isrc": "USBWK1100096",
+        "explicit": true,
+        "p_line": "2011 Rhymesayers Entertainment LLC",
+        "p_line_for_display": "\u2117 2011 Rhymesayers Entertainment LLC",
+        "c_line": "2011 Rhymesayers Entertainment LLC",
+        "c_line_for_display": "\u00a9 2011 Rhymesayers Entertainment LLC",
+        "writer_composer": "Evidence",
+        "release_title": "It Wasn't Me"
+      },
+      "purchase_title": null,
+      "purchase_url": null,
+      "release_date": "2011-09-27T00:00:00Z",
+      "reposts_count": 4,
+      "secret_token": null,
+      "sharing": "public",
+      "state": "finished",
+      "streamable": true,
+      "tag_list": "",
+      "title": "It Wasn't Me",
+      "uri": "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A254617708",
+      "urn": "soundcloud:tracks:254617708",
+      "user_id": 203411282,
+      "visuals": null,
+      "waveform_url": "https://wave.sndcdn.com/42xJhHk3qVtc_m.json",
+      "display_date": "2011-09-27T00:00:00Z",
+      "media": {
+        "transcodings": [
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/2e26bb9a-de4a-487c-84a7-7fe2313c3bad/stream/cbc-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 206686,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/2e26bb9a-de4a-487c-84a7-7fe2313c3bad/stream/ctr-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 206686,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/27885f6f-d82a-43d1-ac62-24f04f5470dd/stream/cbc-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 206686,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/27885f6f-d82a-43d1-ac62-24f04f5470dd/stream/ctr-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 206686,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/2f960c1e-0994-4d9b-83ee-1b4ba7b1292a/stream/hls",
+            "preset": "opus_0_0",
+            "duration": 206647,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/ogg; codecs=\"opus\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/e316593f-5c34-4449-b242-492abd603cfb/stream/hls",
+            "preset": "mp3_1_0",
+            "duration": 206681,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617708/e316593f-5c34-4449-b242-492abd603cfb/stream/progressive",
+            "preset": "mp3_1_0",
+            "duration": 206681,
+            "snipped": false,
+            "format": {
+              "protocol": "progressive",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          }
+        ]
+      },
+      "station_urn": "soundcloud:system-playlists:track-stations:254617708",
+      "station_permalink": "track-stations:254617708",
+      "track_authorization": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW8iOiJERSIsInN1YiI6IiIsInJpZCI6IjA0NWY4YmI3LTJkNDYtNGE5ZC04YmFlLTQ4MGY3ZDBiOTk2OCIsImlhdCI6MTc3NTA3NTU3Mn0.oM_ceS4-6OYJbk6SnyXeqdiCPLrCA5_Csbx0gHKZw3Y",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE",
+      "user": {
+        "avatar_url": "https://i1.sndcdn.com/avatars-a37QlQDGBa9Mf1ht-vtG7Dw-large.jpg",
+        "first_name": "",
+        "followers_count": 7359,
+        "full_name": "",
+        "id": 203411282,
+        "kind": "user",
+        "last_modified": "2024-04-09T15:38:43Z",
+        "last_name": "",
+        "permalink": "evidence-official",
+        "permalink_url": "https://soundcloud.com/evidence-official",
+        "uri": "https://api.soundcloud.com/users/soundcloud%3Ausers%3A203411282",
+        "urn": "soundcloud:users:203411282",
+        "username": "Evidence",
+        "verified": true,
+        "city": null,
+        "country_code": null,
+        "badges": {
+          "pro": false,
+          "creator_mid_tier": false,
+          "pro_unlimited": true,
+          "verified": true
+        },
+        "station_urn": "soundcloud:system-playlists:artist-stations:203411282",
+        "station_permalink": "artist-stations:203411282"
+      }
+    },
+    {
+      "artwork_url": "https://i1.sndcdn.com/artworks-7XAoKJTeSIwc-0-large.jpg",
+      "caption": null,
+      "commentable": true,
+      "comment_count": 0,
+      "created_at": "2016-03-23T16:04:01Z",
+      "description": null,
+      "downloadable": false,
+      "download_count": 0,
+      "duration": 180273,
+      "full_duration": 180271,
+      "embeddable_by": "all",
+      "genre": "Hip-Hop/Rap",
+      "has_downloads_left": false,
+      "id": 254617583,
+      "kind": "track",
+      "label_name": "Rhymesayers",
+      "last_modified": "2025-11-14T06:45:33Z",
+      "license": "all-rights-reserved",
+      "likes_count": 109,
+      "permalink": "i-dont-need-love",
+      "permalink_url": "https://soundcloud.com/evidence-official/i-dont-need-love",
+      "playback_count": 4577,
+      "public": true,
+      "publisher_metadata": {
+        "id": 254617583,
+        "urn": "soundcloud:tracks:254617583",
+        "artist": "Evidence",
+        "album_title": "Cats & Dogs",
+        "contains_music": true,
+        "upc_or_ean": "826257014467",
+        "isrc": "USBWK1100097",
+        "explicit": true,
+        "p_line": "2011 Rhymesayers Entertainment LLC",
+        "p_line_for_display": "\u2117 2011 Rhymesayers Entertainment LLC",
+        "c_line": "2011 Rhymesayers Entertainment LLC",
+        "c_line_for_display": "\u00a9 2011 Rhymesayers Entertainment LLC",
+        "writer_composer": "Evidence",
+        "release_title": "I Don't Need Love"
+      },
+      "purchase_title": null,
+      "purchase_url": null,
+      "release_date": "2011-09-27T00:00:00Z",
+      "reposts_count": 2,
+      "secret_token": null,
+      "sharing": "public",
+      "state": "finished",
+      "streamable": true,
+      "tag_list": "",
+      "title": "I Don't Need Love",
+      "uri": "https://api.soundcloud.com/tracks/soundcloud%3Atracks%3A254617583",
+      "urn": "soundcloud:tracks:254617583",
+      "user_id": 203411282,
+      "visuals": null,
+      "waveform_url": "https://wave.sndcdn.com/U8v0PhpIyMLC_m.json",
+      "display_date": "2011-09-27T00:00:00Z",
+      "media": {
+        "transcodings": [
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/1504fe3a-f311-411c-a73b-42224a0214a0/stream/cbc-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 180273,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/1504fe3a-f311-411c-a73b-42224a0214a0/stream/ctr-encrypted-hls",
+            "preset": "aac_160k",
+            "duration": 180273,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mp4; codecs=\"mp4a.40.2\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/9e582cef-741a-42cb-a62a-0b07788984b8/stream/cbc-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 180273,
+            "snipped": false,
+            "format": {
+              "protocol": "cbc-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/9e582cef-741a-42cb-a62a-0b07788984b8/stream/ctr-encrypted-hls",
+            "preset": "abr_sq",
+            "duration": 180273,
+            "snipped": false,
+            "format": {
+              "protocol": "ctr-encrypted-hls",
+              "mime_type": "audio/mpegurl"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": false
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/df784590-6abe-47d0-a7ff-1b540134849b/stream/hls",
+            "preset": "opus_0_0",
+            "duration": 180233,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/ogg; codecs=\"opus\""
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/11219dc9-8693-485d-a9f1-cc282bd41ea3/stream/hls",
+            "preset": "mp3_1_0",
+            "duration": 180271,
+            "snipped": false,
+            "format": {
+              "protocol": "hls",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          },
+          {
+            "url": "https://api-v2.soundcloud.com/media/soundcloud:tracks:254617583/11219dc9-8693-485d-a9f1-cc282bd41ea3/stream/progressive",
+            "preset": "mp3_1_0",
+            "duration": 180271,
+            "snipped": false,
+            "format": {
+              "protocol": "progressive",
+              "mime_type": "audio/mpeg"
+            },
+            "quality": "sq",
+            "is_legacy_transcoding": true
+          }
+        ]
+      },
+      "station_urn": "soundcloud:system-playlists:track-stations:254617583",
+      "station_permalink": "track-stations:254617583",
+      "track_authorization": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJnZW8iOiJERSIsInN1YiI6IiIsInJpZCI6IjNhNzQ5MDhhLTM4MWEtNGM2ZS04NmY5LTc4M2EwYWE2OWZjYSIsImlhdCI6MTc3NTA3NTU3Mn0.WEA37XW8OKnLL1iQn2BgudbFe0I8EnH9Oix0PTxzOiQ",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE",
+      "user": {
+        "avatar_url": "https://i1.sndcdn.com/avatars-a37QlQDGBa9Mf1ht-vtG7Dw-large.jpg",
+        "first_name": "",
+        "followers_count": 7359,
+        "full_name": "",
+        "id": 203411282,
+        "kind": "user",
+        "last_modified": "2024-04-09T15:38:43Z",
+        "last_name": "",
+        "permalink": "evidence-official",
+        "permalink_url": "https://soundcloud.com/evidence-official",
+        "uri": "https://api.soundcloud.com/users/soundcloud%3Ausers%3A203411282",
+        "urn": "soundcloud:users:203411282",
+        "username": "Evidence",
+        "verified": true,
+        "city": null,
+        "country_code": null,
+        "badges": {
+          "pro": false,
+          "creator_mid_tier": false,
+          "pro_unlimited": true,
+          "verified": true
+        },
+        "station_urn": "soundcloud:system-playlists:artist-stations:203411282",
+        "station_permalink": "artist-stations:203411282"
+      }
+    },
+    {
+      "id": 254618001,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617701,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617842,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617631,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617749,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617763,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254663465,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617587,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617857,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617876,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617985,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    },
+    {
+      "id": 254617564,
+      "kind": "track",
+      "monetization_model": "AD_SUPPORTED",
+      "policy": "MONETIZE"
+    }
+  ],
+  "track_count": 17,
+  "url": "/evidence-official/sets/cats-dogs-6"
+}

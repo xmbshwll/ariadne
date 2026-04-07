@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -63,14 +66,11 @@ type Resolver struct {
 
 // New creates a resolver from registered source and target adapters.
 func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) *Resolver {
-	resolver := &Resolver{
-		sources: make([]SourceAdapter, 0, len(sources)),
-		targets: make([]TargetAdapter, 0, len(targets)),
+	return &Resolver{
+		sources: append([]SourceAdapter(nil), sources...),
+		targets: append([]TargetAdapter(nil), targets...),
 		weights: weights,
 	}
-	resolver.sources = append(resolver.sources, sources...)
-	resolver.targets = append(resolver.targets, targets...)
-	return resolver
 }
 
 // ResolveAlbum parses an input album URL, fetches the canonical source album,
@@ -90,27 +90,47 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		return nil, fmt.Errorf("fetch source album with %s: %w", sourceAdapter.Service(), err)
 	}
 
+	targets := r.targetSearchesFor(sourceAlbum.Service)
 	resolution := &Resolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
 		Source:   *sourceAlbum,
-		Matches:  make(map[model.ServiceName]MatchResult, len(r.targets)),
+		Matches:  make(map[model.ServiceName]MatchResult, len(targets)),
 	}
 
+	group, groupCtx := errgroup.WithContext(ctx)
+	var matchesMu sync.Mutex
+
+	for _, target := range targets {
+		group.Go(func() error {
+			candidates, err := r.collectCandidates(groupCtx, target, *sourceAlbum)
+			if err != nil {
+				return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
+			}
+			ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
+
+			matchesMu.Lock()
+			resolution.Matches[target.Service()] = matchResultFromRanking(target.Service(), ranking)
+			matchesMu.Unlock()
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, fmt.Errorf("resolve target searches: %w", err)
+	}
+	return resolution, nil
+}
+
+func (r *Resolver) targetSearchesFor(sourceService model.ServiceName) []TargetAdapter {
+	targets := make([]TargetAdapter, 0, len(r.targets))
 	for _, target := range r.targets {
-		if target.Service() == sourceAlbum.Service {
+		if target.Service() == sourceService {
 			continue
 		}
-
-		candidates, err := r.collectCandidates(ctx, target, *sourceAlbum)
-		if err != nil {
-			return nil, fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
-		}
-		ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
-		resolution.Matches[target.Service()] = matchResultFromRanking(target.Service(), ranking)
+		targets = append(targets, target)
 	}
-
-	return resolution, nil
+	return targets
 }
 
 func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlbumURL, error) {

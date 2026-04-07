@@ -11,7 +11,7 @@ This repository contains a public Go library and a CLI built on top of it. The b
 - `cmd/ariadne` — executable package
 - `internal/` — library implementation details
 - `docs/` — user and maintainer documentation
-- `service-samples/` — recorded validation artifacts and connector fixtures
+- `internal/**/testdata/` — committed CI fixtures for adapter tests
 
 ## What you need
 
@@ -65,6 +65,11 @@ Most connector changes should come with at least one of the following:
 - updated fixture-backed tests
 - refreshed validation artifacts when runtime behavior intentionally changed
 
+Keep the distinction clear:
+
+- committed CI test fixtures belong under package-local `testdata/`
+- validation commands should write to an explicit `--out-dir` or their default temp directory
+
 Useful references:
 
 - [`docs/configuration.md`](./docs/configuration.md)
@@ -73,7 +78,8 @@ Useful references:
 
 ### Credential-gated validation tools
 
-These maintainer commands generate recorded artifacts for official integrations:
+These maintainer commands generate recorded artifacts for official integrations.
+By default they write to a temporary directory and print the path; pass `--out-dir` if you want to keep the artifacts somewhere specific:
 
 ```bash
 make validate-spotify-auth

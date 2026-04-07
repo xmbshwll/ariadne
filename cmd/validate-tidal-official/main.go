@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
@@ -21,8 +22,6 @@ import (
 const (
 	defaultTIDALAPIBaseURL  = "https://openapi.tidal.com/v2"
 	defaultTIDALAuthBaseURL = "https://auth.tidal.com/v1"
-	defaultSampleURLPath    = "service-samples/tidal/sample-url.txt"
-	defaultOutputDir        = "service-samples/tidal"
 	defaultCountryCode      = "US"
 	defaultSearchLimit      = 5
 )
@@ -31,8 +30,9 @@ var (
 	errTIDALCredentialsRequired = errors.New("TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET must be set")
 	errTIDALAlbumPayloadMissing = errors.New("tidal album payload did not include a data resource")
 
-	errTIDALValidateUsage  = errors.New("usage: go run ./cmd/validate-tidal-official [-url <tidal-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-country-code <cc>]")
-	errTIDALSampleURLEmpty = errors.New("tidal sample url file is empty")
+	errTIDALValidateUsage     = errors.New("usage: go run ./cmd/validate-tidal-official [-url <tidal-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-country-code <cc>]")
+	errTIDALSampleURLEmpty    = errors.New("tidal sample url file is empty")
+	errTIDALSampleURLRequired = errors.New("provide either -url or -sample-url-file")
 
 	errTIDALTokenStatus  = errors.New("unexpected tidal token status")
 	errTIDALTokenMissing = errors.New("tidal token response did not include access_token")
@@ -66,9 +66,13 @@ func run(args []string) error {
 		return errTIDALCredentialsRequired
 	}
 
-	rawURL, err := loadSampleURL(opts.sampleURL, opts.sampleURLPath)
+	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "tidal", errTIDALSampleURLRequired, errTIDALSampleURLEmpty)
 	if err != nil {
-		return err
+		return fmt.Errorf("load tidal sample url: %w", err)
+	}
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-tidal-validation-")
+	if err != nil {
+		return fmt.Errorf("resolve tidal output dir: %w", err)
 	}
 	parsed, err := parse.TIDALAlbumURL(rawURL)
 	if err != nil {
@@ -157,37 +161,32 @@ func run(args []string) error {
 		"generated_at":        time.Now().UTC().Format(time.RFC3339),
 		"token_acquired":      true,
 		"artifacts": map[string]string{
-			"source_payload_official": filepath.ToSlash(filepath.Join(opts.outputDir, "source-payload-official.json")),
-			"search_albums_official":  filepath.ToSlash(filepath.Join(opts.outputDir, "search-albums-official.json")),
-			"search_upc_official":     filepath.ToSlash(filepath.Join(opts.outputDir, "search-upc-official.json")),
-			"search_isrc_official":    filepath.ToSlash(filepath.Join(opts.outputDir, "search-isrc-official.json")),
-			"official_summary":        filepath.ToSlash(filepath.Join(opts.outputDir, "official-summary.json")),
+			"source_payload_official": filepath.ToSlash(filepath.Join(outputDir, "source-payload-official.json")),
+			"search_albums_official":  filepath.ToSlash(filepath.Join(outputDir, "search-albums-official.json")),
+			"search_upc_official":     filepath.ToSlash(filepath.Join(outputDir, "search-upc-official.json")),
+			"search_isrc_official":    filepath.ToSlash(filepath.Join(outputDir, "search-isrc-official.json")),
+			"official_summary":        filepath.ToSlash(filepath.Join(outputDir, "official-summary.json")),
 		},
 	}
 
-	if err := os.MkdirAll(opts.outputDir, 0o755); err != nil {
-		return fmt.Errorf("create output dir: %w", err)
-	}
 	for name, raw := range targets {
-		if err := writePrettyJSON(filepath.Join(opts.outputDir, name), raw); err != nil {
+		if err := writePrettyJSON(filepath.Join(outputDir, name), raw); err != nil {
 			return err
 		}
 	}
-	if err := writeJSON(filepath.Join(opts.outputDir, "official-summary.json"), summary); err != nil {
+	if err := writeJSON(filepath.Join(outputDir, "official-summary.json"), summary); err != nil {
 		return err
 	}
 
-	fmt.Printf("wrote TIDAL official artifacts to %s\n", opts.outputDir)
+	fmt.Printf("wrote TIDAL official artifacts to %s\n", outputDir)
 	return nil
 }
 
 func parseFlags(args []string) (options, error) {
 	opts := options{
-		sampleURLPath: defaultSampleURLPath,
-		outputDir:     defaultOutputDir,
-		apiBaseURL:    defaultTIDALAPIBaseURL,
-		authBaseURL:   defaultTIDALAuthBaseURL,
-		countryCode:   defaultCountryCode,
+		apiBaseURL:  defaultTIDALAPIBaseURL,
+		authBaseURL: defaultTIDALAuthBaseURL,
+		countryCode: defaultCountryCode,
 	}
 
 	fs := flag.NewFlagSet("validate-tidal-official", flag.ContinueOnError)
@@ -205,21 +204,6 @@ func parseFlags(args []string) (options, error) {
 		return options{}, errTIDALValidateUsage
 	}
 	return opts, nil
-}
-
-func loadSampleURL(rawURL string, path string) (string, error) {
-	if strings.TrimSpace(rawURL) != "" {
-		return strings.TrimSpace(rawURL), nil
-	}
-	content, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("read tidal sample url file: %w", err)
-	}
-	value := strings.TrimSpace(string(content))
-	if value == "" {
-		return "", fmt.Errorf("%w: %s", errTIDALSampleURLEmpty, path)
-	}
-	return value, nil
 }
 
 func fetchAccessToken(ctx context.Context, authBaseURL string, clientID string, clientSecret string) (string, error) {

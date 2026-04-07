@@ -13,8 +13,8 @@ import (
 )
 
 func TestAdapter(t *testing.T) {
-	sourcePayload := mustReadSoundCloudFixture(t, filepath.Join("..", "..", "..", "service-samples", "soundcloud", "source-payload.json"))
-	searchPayload := mustReadSoundCloudFixture(t, filepath.Join("..", "..", "..", "service-samples", "soundcloud", "search-results.json"))
+	sourcePayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "source-payload.json"))
+	searchPayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "search-results.json"))
 	clientID := "qNxp6KCjufkNWMIclTv0O4ycYGY0eFFX"
 
 	var server *httptest.Server

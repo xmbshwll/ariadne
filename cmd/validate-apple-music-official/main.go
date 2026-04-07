@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	"github.com/xmbshwll/ariadne/internal/applemusicauth"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/parse"
@@ -22,8 +23,6 @@ import (
 
 const (
 	defaultAPIBaseURL  = "https://api.music.apple.com/v1"
-	defaultSampleURL   = "service-samples/apple-music/sample-url.txt"
-	defaultOutputDir   = "service-samples/apple-music"
 	defaultSearchLimit = 5
 )
 
@@ -32,9 +31,10 @@ var (
 	errAppleMusicAlbumPayloadMissing = errors.New("official apple music album payload did not include a data resource")
 	errAppleMusicMetadataMissing     = errors.New("official apple music album payload did not provide enough metadata for search validation")
 
-	errAppleMusicValidateUsage  = errors.New("usage: go run ./cmd/validate-apple-music-official [-url <apple-music-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-storefront <code>]")
-	errAppleMusicSampleURLEmpty = errors.New("apple music sample url file is empty")
-	errAppleMusicAPIStatus      = errors.New("unexpected apple music api status")
+	errAppleMusicValidateUsage     = errors.New("usage: go run ./cmd/validate-apple-music-official [-url <apple-music-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-storefront <code>]")
+	errAppleMusicSampleURLEmpty    = errors.New("apple music sample url file is empty")
+	errAppleMusicSampleURLRequired = errors.New("provide either -url or -sample-url-file")
+	errAppleMusicAPIStatus         = errors.New("unexpected apple music api status")
 )
 
 func main() {
@@ -71,9 +71,13 @@ func run(args []string) error {
 		return fmt.Errorf("generate apple music developer token: %w", err)
 	}
 
-	rawURL, err := loadSampleURL(opts.sampleURL, opts.sampleURLPath)
+	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "apple music", errAppleMusicSampleURLRequired, errAppleMusicSampleURLEmpty)
 	if err != nil {
-		return err
+		return fmt.Errorf("load apple music sample url: %w", err)
+	}
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-apple-music-validation-")
+	if err != nil {
+		return fmt.Errorf("resolve apple music output dir: %w", err)
 	}
 	parsed, err := parse.AppleMusicAlbumURL(rawURL)
 	if err != nil {
@@ -142,10 +146,6 @@ func run(args []string) error {
 		}
 	}
 
-	if err := os.MkdirAll(opts.outputDir, 0o755); err != nil {
-		return fmt.Errorf("create output dir: %w", err)
-	}
-
 	summary := map[string]any{
 		"sample_url":         rawURL,
 		"album_id":           parsed.ID,
@@ -160,43 +160,41 @@ func run(args []string) error {
 		"track_isrc_samples": isrcs,
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
 		"artifacts": map[string]string{
-			"source_payload_official":  filepath.ToSlash(filepath.Join(opts.outputDir, "source-payload-official.json")),
-			"search_metadata_official": filepath.ToSlash(filepath.Join(opts.outputDir, "search-metadata-official.json")),
-			"search_upc_official":      filepath.ToSlash(filepath.Join(opts.outputDir, "search-upc-official.json")),
-			"search_isrc_official":     filepath.ToSlash(filepath.Join(opts.outputDir, "search-isrc-official.json")),
-			"official_summary":         filepath.ToSlash(filepath.Join(opts.outputDir, "official-summary.json")),
+			"source_payload_official":  filepath.ToSlash(filepath.Join(outputDir, "source-payload-official.json")),
+			"search_metadata_official": filepath.ToSlash(filepath.Join(outputDir, "search-metadata-official.json")),
+			"search_upc_official":      filepath.ToSlash(filepath.Join(outputDir, "search-upc-official.json")),
+			"search_isrc_official":     filepath.ToSlash(filepath.Join(outputDir, "search-isrc-official.json")),
+			"official_summary":         filepath.ToSlash(filepath.Join(outputDir, "official-summary.json")),
 		},
 	}
 
-	if err := writePrettyJSON(filepath.Join(opts.outputDir, "source-payload-official.json"), albumBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "source-payload-official.json"), albumBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(opts.outputDir, "search-metadata-official.json"), metadataBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-metadata-official.json"), metadataBody); err != nil {
 		return err
 	}
 	if len(upcBody) > 0 {
-		if err := writePrettyJSON(filepath.Join(opts.outputDir, "search-upc-official.json"), upcBody); err != nil {
+		if err := writePrettyJSON(filepath.Join(outputDir, "search-upc-official.json"), upcBody); err != nil {
 			return err
 		}
 	}
 	if len(isrcBody) > 0 {
-		if err := writePrettyJSON(filepath.Join(opts.outputDir, "search-isrc-official.json"), isrcBody); err != nil {
+		if err := writePrettyJSON(filepath.Join(outputDir, "search-isrc-official.json"), isrcBody); err != nil {
 			return err
 		}
 	}
-	if err := writeJSON(filepath.Join(opts.outputDir, "official-summary.json"), summary); err != nil {
+	if err := writeJSON(filepath.Join(outputDir, "official-summary.json"), summary); err != nil {
 		return err
 	}
 
-	fmt.Printf("wrote Apple Music official artifacts to %s\n", opts.outputDir)
+	fmt.Printf("wrote Apple Music official artifacts to %s\n", outputDir)
 	return nil
 }
 
 func parseFlags(args []string) (options, error) {
 	opts := options{
-		sampleURLPath: defaultSampleURL,
-		outputDir:     defaultOutputDir,
-		apiBaseURL:    defaultAPIBaseURL,
+		apiBaseURL: defaultAPIBaseURL,
 	}
 
 	fs := flag.NewFlagSet("validate-apple-music-official", flag.ContinueOnError)
@@ -213,21 +211,6 @@ func parseFlags(args []string) (options, error) {
 		return options{}, errAppleMusicValidateUsage
 	}
 	return opts, nil
-}
-
-func loadSampleURL(rawURL string, path string) (string, error) {
-	if strings.TrimSpace(rawURL) != "" {
-		return strings.TrimSpace(rawURL), nil
-	}
-	content, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("read apple music sample url file: %w", err)
-	}
-	value := strings.TrimSpace(string(content))
-	if value == "" {
-		return "", fmt.Errorf("%w: %s", errAppleMusicSampleURLEmpty, path)
-	}
-	return value, nil
 }
 
 func getAPI(ctx context.Context, endpoint string, developerToken string) ([]byte, error) {

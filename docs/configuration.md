@@ -134,13 +134,15 @@ The validation commands live in the `cmd` module. From the repository root, use 
 make validate-spotify-auth
 ```
 
-This writes:
+By default this writes to a temporary directory and prints the path. Use `--out-dir <dir>` to keep the artifacts in a specific location.
 
-- `service-samples/spotify/source-payload-api.json`
-- `service-samples/spotify/search-upc-results.json`
-- `service-samples/spotify/search-isrc-results.json`
-- `service-samples/spotify/search-metadata-results.json`
-- `service-samples/spotify/authenticated-summary.json`
+Artifacts written:
+
+- `source-payload-api.json`
+- `search-upc-results.json`
+- `search-isrc-results.json`
+- `search-metadata-results.json`
+- `authenticated-summary.json`
 
 ### Apple Music
 
@@ -148,13 +150,15 @@ This writes:
 make validate-apple-music-official
 ```
 
-This writes:
+By default this writes to a temporary directory and prints the path. Use `--out-dir <dir>` to keep the artifacts in a specific location.
 
-- `service-samples/apple-music/source-payload-official.json`
-- `service-samples/apple-music/search-metadata-official.json`
-- `service-samples/apple-music/search-upc-official.json` when UPC is present
-- `service-samples/apple-music/search-isrc-official.json` when track ISRCs are present
-- `service-samples/apple-music/official-summary.json`
+Artifacts written:
+
+- `source-payload-official.json`
+- `search-metadata-official.json`
+- `search-upc-official.json` when UPC is present
+- `search-isrc-official.json` when track ISRCs are present
+- `official-summary.json`
 
 ### TIDAL
 
@@ -162,10 +166,12 @@ This writes:
 make validate-tidal-official
 ```
 
-This first exchanges `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` for a bearer token, then writes:
+This first exchanges `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` for a bearer token, then writes to a temporary directory by default. Use `--out-dir <dir>` to keep the artifacts in a specific location.
 
-- `service-samples/tidal/source-payload-official.json`
-- `service-samples/tidal/search-albums-official.json`
-- `service-samples/tidal/search-upc-official.json`
-- `service-samples/tidal/search-isrc-official.json`
-- `service-samples/tidal/official-summary.json`
+Artifacts written:
+
+- `source-payload-official.json`
+- `search-albums-official.json`
+- `search-upc-official.json`
+- `search-isrc-official.json`
+- `official-summary.json`
