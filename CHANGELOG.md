@@ -4,6 +4,23 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.3.0 - 2026-04-07
+
+### Added
+
+- configurable per-request HTTP timeout through library config, environment, and CLI flags
+- committed package-local `testdata` fixtures for SoundCloud and YouTube Music adapter tests
+- cmd-local validation helpers for sample URL loading and output directory handling
+- parallel target-service resolution to reduce end-to-end resolve latency
+
+### Changed
+
+- improved cross-service matching for compound artist credits such as `A + B` and `A feat. B`
+- cleaned up CLI error output so the root underlying error is shown instead of repeated wrapper prefixes
+- moved CI-critical test fixtures out of ignored `service-samples` paths and into committed package `testdata`
+- changed validation commands to require explicit sample input and write to temporary directories by default unless `--out-dir` is provided
+- clarified contributor and configuration docs around test fixtures, validation artifacts, and timeout configuration
+
 ## v0.2.0 - 2026-04-07
 
 ### Added
