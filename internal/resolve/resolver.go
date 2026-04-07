@@ -162,7 +162,8 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 	if source.UPC != "" {
 		candidates, err := target.SearchByUPC(ctx, source.UPC)
 		if err != nil {
-			return nil, fmt.Errorf("search by upc: %w", err)
+			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+			return nil, err
 		}
 		appendUnique(candidates)
 	}
@@ -171,14 +172,16 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 	if len(isrcs) > 0 {
 		candidates, err := target.SearchByISRC(ctx, isrcs)
 		if err != nil {
-			return nil, fmt.Errorf("search by isrc: %w", err)
+			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+			return nil, err
 		}
 		appendUnique(candidates)
 	}
 
 	metadataCandidates, err := target.SearchByMetadata(ctx, source)
 	if err != nil {
-		return nil, fmt.Errorf("search by metadata: %w", err)
+		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+		return nil, err
 	}
 	appendUnique(metadataCandidates)
 

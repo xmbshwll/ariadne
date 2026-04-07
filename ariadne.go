@@ -3,7 +3,6 @@ package ariadne
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -199,14 +198,8 @@ var (
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
 
-	errResolveAlbum                   = errors.New("resolve album")
-	errSourceAdapterParseAlbumURL     = errors.New("source adapter parse album url")
 	errSourceAdapterReturnedNilParsed = errors.New("source adapter returned nil parsed album url")
-	errSourceAdapterFetchAlbum        = errors.New("source adapter fetch album")
 	errSourceAdapterReturnedNilAlbum  = errors.New("source adapter returned nil album")
-	errTargetAdapterSearchByUPC       = errors.New("target adapter search by upc")
-	errTargetAdapterSearchByISRC      = errors.New("target adapter search by isrc")
-	errTargetAdapterSearchByMetadata  = errors.New("target adapter search by metadata")
 )
 
 // ScoreWeights configures how ranking signals contribute to match scores.
@@ -384,7 +377,8 @@ func NewWithAdaptersAndWeights(sources []SourceAdapter, targets []TargetAdapter,
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
 	resolution, err := r.inner.ResolveAlbum(ctx, inputURL)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errResolveAlbum, err)
+		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
+		return nil, err
 	}
 	public := fromInternalResolution(*resolution)
 	return &public, nil
@@ -548,7 +542,8 @@ func (b sourceAdapterBridge) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, e
 	parsed, err := b.source.ParseAlbumURL(raw)
 	if err != nil || parsed == nil {
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", errSourceAdapterParseAlbumURL, err)
+			//nolint:wrapcheck // Preserve adapter parse errors without adding another wrapper layer.
+			return nil, err
 		}
 		return nil, errSourceAdapterReturnedNilParsed
 	}
@@ -560,7 +555,8 @@ func (b sourceAdapterBridge) FetchAlbum(ctx context.Context, parsed model.Parsed
 	album, err := b.source.FetchAlbum(ctx, fromInternalParsedAlbumURL(parsed))
 	if err != nil || album == nil {
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", errSourceAdapterFetchAlbum, err)
+			//nolint:wrapcheck // Preserve adapter fetch errors without adding another wrapper layer.
+			return nil, err
 		}
 		return nil, errSourceAdapterReturnedNilAlbum
 	}
@@ -579,7 +575,8 @@ func (b targetAdapterBridge) Service() model.ServiceName {
 func (b targetAdapterBridge) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	albums, err := b.target.SearchByUPC(ctx, upc)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errTargetAdapterSearchByUPC, err)
+		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+		return nil, err
 	}
 	return toInternalCandidateAlbums(albums), nil
 }
@@ -587,7 +584,8 @@ func (b targetAdapterBridge) SearchByUPC(ctx context.Context, upc string) ([]mod
 func (b targetAdapterBridge) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 	albums, err := b.target.SearchByISRC(ctx, append([]string(nil), isrcs...))
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errTargetAdapterSearchByISRC, err)
+		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+		return nil, err
 	}
 	return toInternalCandidateAlbums(albums), nil
 }
@@ -595,7 +593,8 @@ func (b targetAdapterBridge) SearchByISRC(ctx context.Context, isrcs []string) (
 func (b targetAdapterBridge) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	albums, err := b.target.SearchByMetadata(ctx, fromInternalCanonicalAlbum(album))
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errTargetAdapterSearchByMetadata, err)
+		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+		return nil, err
 	}
 	return toInternalCandidateAlbums(albums), nil
 }

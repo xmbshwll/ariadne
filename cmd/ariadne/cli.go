@@ -100,7 +100,6 @@ var (
 )
 
 var (
-	errExecuteCLI               = errors.New("execute cli")
 	errRenderResolveHelp        = errors.New("render resolve help")
 	errMissingCommand           = errors.New("missing command")
 	errUnknownCommand           = errors.New("unknown command")
@@ -170,7 +169,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 			}
 			return fmt.Errorf("%w: %s", errUnknownCommand, args[0])
 		}
-		return fmt.Errorf("%w: %w", errExecuteCLI, err)
+		//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
+		return err
 	}
 	return nil
 }
@@ -389,7 +389,8 @@ func executeResolve(config resolveConfig, stdout io.Writer) error {
 
 	resolution, err := resolver.ResolveAlbum(ctx, config.inputURL)
 	if err != nil {
-		return fmt.Errorf("resolve album: %w", err)
+		//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
+		return err
 	}
 
 	if err := writeCLIOutput(stdout, *resolution, config); err != nil {

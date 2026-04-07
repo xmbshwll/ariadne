@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,15 @@ var (
 	errUnsupportedCLIFixture = errors.New("unsupported")
 	errCLIFixtureNotFound    = errors.New("not found")
 )
+
+var errRootBoom = errors.New("boom")
+
+func TestRootError(t *testing.T) {
+	err := fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", errRootBoom))
+	if got := rootError(err); !errors.Is(got, errRootBoom) {
+		t.Fatalf("rootError() = %v, want %v", got, errRootBoom)
+	}
+}
 
 func TestRun(t *testing.T) {
 	tests := []struct {
@@ -650,7 +660,7 @@ func TestRunResolvePropagatesResolverErrors(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error")
 	}
-	if !strings.Contains(err.Error(), "resolve album") || !strings.Contains(err.Error(), "boom") {
+	if !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("error = %q", err.Error())
 	}
 }
