@@ -3,14 +3,18 @@ package config
 import (
 	"os"
 	"strings"
+	"time"
+
+	"github.com/xmbshwll/ariadne/internal/httpx"
 )
 
 const defaultAppleMusicStorefront = "us"
 
 type Config struct {
-	Spotify    Spotify
-	AppleMusic AppleMusic
-	TIDAL      TIDAL
+	Spotify     Spotify
+	AppleMusic  AppleMusic
+	TIDAL       TIDAL
+	HTTPTimeout time.Duration
 }
 
 type Spotify struct {
@@ -66,6 +70,7 @@ func LoadFromEnv(getenv func(string) string) Config {
 			ClientID:     strings.TrimSpace(getenv("TIDAL_CLIENT_ID")),
 			ClientSecret: strings.TrimSpace(getenv("TIDAL_CLIENT_SECRET")),
 		},
+		HTTPTimeout: normalizedHTTPTimeout(getenv("ARIADNE_HTTP_TIMEOUT")),
 	}
 }
 
@@ -75,4 +80,16 @@ func normalizedStorefront(value string) string {
 		return defaultAppleMusicStorefront
 	}
 	return storefront
+}
+
+func normalizedHTTPTimeout(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return httpx.DefaultTimeout()
+	}
+	timeout, err := time.ParseDuration(value)
+	if err != nil || timeout <= 0 {
+		return httpx.DefaultTimeout()
+	}
+	return timeout
 }

@@ -45,6 +45,7 @@ For the service-by-service runtime behavior, see [`service-resolution.md`](./ser
 | `APPLE_MUSIC_PRIVATE_KEY_PATH` | no | empty | Path to the Apple `.p8` private key used to sign the MusicKit token. |
 | `TIDAL_CLIENT_ID` | no | empty | TIDAL client ID used for runtime API access and validation. |
 | `TIDAL_CLIENT_SECRET` | no | empty | TIDAL client secret used in the token exchange. |
+| `ARIADNE_HTTP_TIMEOUT` | no | `15s` | Per-request timeout for Ariadne's default HTTP client. Uses Go duration syntax such as `5s`, `15s`, `30s`, or `1m`. |
 
 ## What changes when credentials are present
 
@@ -78,6 +79,8 @@ For the service-by-service runtime behavior, see [`service-resolution.md`](./ser
 
 The library reads environment variables through `ariadne.LoadConfig()`.
 
+You can also set `cfg.HTTPTimeout` directly in code to control the default client's per-request timeout.
+
 ### CLI
 
 The CLI loads configuration with this precedence:
@@ -86,6 +89,8 @@ The CLI loads configuration with this precedence:
 2. environment variables
 3. config file values from `--config` (defaults to `.env`)
 4. built-in defaults
+
+Use `--http-timeout=30s` to override the per-request timeout from the command line.
 
 That means the CLI can work with plain environment variables, a `.env` file, or another config file supported by Viper.
 
@@ -108,6 +113,7 @@ export APPLE_MUSIC_TEAM_ID=your-apple-developer-team-id
 export APPLE_MUSIC_PRIVATE_KEY_PATH=$HOME/keys/AuthKey_XXXXXXXXXX.p8
 export TIDAL_CLIENT_ID=your-tidal-client-id
 export TIDAL_CLIENT_SECRET=your-tidal-client-secret
+export ARIADNE_HTTP_TIMEOUT=30s
 ```
 
 Or let the CLI load `.env` directly, which is the default behavior:

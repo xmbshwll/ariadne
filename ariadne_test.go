@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 var errUnsupportedLibrarySource = errors.New("unsupported")
@@ -27,6 +28,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 			return " tidal-client "
 		case "TIDAL_CLIENT_SECRET":
 			return " tidal-secret "
+		case "ARIADNE_HTTP_TIMEOUT":
+			return " 45s "
 		default:
 			return ""
 		}
@@ -44,6 +47,9 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	if config.TIDAL.ClientID != "tidal-client" || config.TIDAL.ClientSecret != "tidal-secret" {
 		t.Fatalf("unexpected tidal config: %#v", config.TIDAL)
 	}
+	if config.HTTPTimeout != 45*time.Second {
+		t.Fatalf("http timeout = %s, want 45s", config.HTTPTimeout)
+	}
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -53,6 +59,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if config.ScoreWeights == (ScoreWeights{}) {
 		t.Fatalf("expected default score weights")
+	}
+	if config.HTTPTimeout != 15*time.Second {
+		t.Fatalf("http timeout = %s, want 15s", config.HTTPTimeout)
 	}
 }
 

@@ -159,6 +159,7 @@ Supported environment variables:
 - `APPLE_MUSIC_PRIVATE_KEY_PATH`
 - `TIDAL_CLIENT_ID`
 - `TIDAL_CLIENT_SECRET`
+- `ARIADNE_HTTP_TIMEOUT` — per-request HTTP timeout as a Go duration such as `15s`, `30s`, or `1m`
 
 Ranking weights are configured in code through `ariadne.Config.ScoreWeights`.
 
@@ -171,7 +172,7 @@ The CLI loads configuration with this precedence:
 3. a config file passed with `--config` (defaults to `.env`)
 4. built-in defaults
 
-CLI output filtering is controlled with flags such as `--services` and `--min-strength`.
+CLI output filtering is controlled with flags such as `--services` and `--min-strength`. The CLI also accepts `--http-timeout` to override the default per-request timeout.
 
 For more detail, see [`docs/configuration.md`](./docs/configuration.md).
 

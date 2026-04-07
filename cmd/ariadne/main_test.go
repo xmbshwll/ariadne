@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xmbshwll/ariadne"
 )
@@ -43,6 +44,7 @@ func TestRun(t *testing.T) {
 				"--services",
 				"--min-strength",
 				"--apple-music-storefront",
+				"--http-timeout",
 				"Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set",
 				"TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET",
 				"Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.",
@@ -665,6 +667,7 @@ func TestLoadCLIConfigFromDotEnv(t *testing.T) {
 		"APPLE_MUSIC_PRIVATE_KEY_PATH=/tmp/AuthKey_TEST.p8",
 		"TIDAL_CLIENT_ID=tidal-client",
 		"TIDAL_CLIENT_SECRET=tidal-secret",
+		"ARIADNE_HTTP_TIMEOUT=45s",
 	}, "\n")
 	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -686,6 +689,9 @@ func TestLoadCLIConfigFromDotEnv(t *testing.T) {
 	if cfg.TIDAL.ClientID != "tidal-client" || cfg.TIDAL.ClientSecret != "tidal-secret" {
 		t.Fatalf("unexpected tidal config: %#v", cfg.TIDAL)
 	}
+	if cfg.HTTPTimeout != 45*time.Second {
+		t.Fatalf("http timeout = %s, want 45s", cfg.HTTPTimeout)
+	}
 }
 
 func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
@@ -696,6 +702,7 @@ func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
 	}
 	t.Setenv("APPLE_MUSIC_STOREFRONT", "de")
 	t.Setenv("SPOTIFY_CLIENT_ID", "env-client")
+	t.Setenv("ARIADNE_HTTP_TIMEOUT", "30s")
 
 	cfg, err := loadCLIConfig(configPath)
 	if err != nil {
@@ -706,6 +713,9 @@ func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
 	}
 	if cfg.Spotify.ClientID != "env-client" {
 		t.Fatalf("spotify client id = %q, want env-client", cfg.Spotify.ClientID)
+	}
+	if cfg.HTTPTimeout != 30*time.Second {
+		t.Fatalf("http timeout = %s, want 30s", cfg.HTTPTimeout)
 	}
 }
 
@@ -720,6 +730,7 @@ func TestParseResolveArgs(t *testing.T) {
 		wantFormat      string
 		wantMinStrength ariadne.MatchStrength
 		wantServices    []ariadne.ServiceName
+		wantHTTPTimeout time.Duration
 		wantErrContains string
 	}{
 		{
@@ -782,6 +793,15 @@ func TestParseResolveArgs(t *testing.T) {
 			wantMinStrength: ariadne.MatchStrengthProbable,
 		},
 		{
+			name:            "http timeout flag",
+			args:            []string{"--http-timeout=45s", "https://www.deezer.com/album/12047952"},
+			wantURL:         "https://www.deezer.com/album/12047952",
+			wantStorefront:  "de",
+			wantFormat:      "json",
+			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+			wantHTTPTimeout: 45 * time.Second,
+		},
+		{
 			name:            "invalid format",
 			args:            []string{"--format=xml", "https://www.deezer.com/album/12047952"},
 			wantErrContains: "unsupported format \"xml\"",
@@ -822,6 +842,13 @@ func TestParseResolveArgs(t *testing.T) {
 			}
 			if tt.wantMinStrength == "" && resolveConfig.minStrength != ariadne.MatchStrengthVeryWeak {
 				t.Fatalf("minStrength = %q, want default very_weak", resolveConfig.minStrength)
+			}
+			wantHTTPTimeout := tt.wantHTTPTimeout
+			if wantHTTPTimeout == 0 {
+				wantHTTPTimeout = 15 * time.Second
+			}
+			if resolveConfig.resolverConfig.HTTPTimeout != wantHTTPTimeout {
+				t.Fatalf("httpTimeout = %s, want %s", resolveConfig.resolverConfig.HTTPTimeout, wantHTTPTimeout)
 			}
 			if len(resolveConfig.resolverConfig.TargetServices) != len(tt.wantServices) {
 				t.Fatalf("services len = %d, want %d", len(resolveConfig.resolverConfig.TargetServices), len(tt.wantServices))

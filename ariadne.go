@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	amazonmusicadapter "github.com/xmbshwll/ariadne/internal/adapters/amazonmusic"
 	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
@@ -260,6 +261,9 @@ type Config struct {
 	TIDAL TIDALConfig
 	// AppleMusicStorefront is the default storefront used for Apple Music operations.
 	AppleMusicStorefront string
+	// HTTPTimeout is the per-request timeout used by the default HTTP client.
+	// When zero or negative, Ariadne uses its built-in default.
+	HTTPTimeout time.Duration
 	// TargetServices limits the default resolver to the listed target services.
 	// When empty, Ariadne uses all available default targets.
 	TargetServices []ServiceName
@@ -329,7 +333,7 @@ func MatchStrengthForScore(score int) MatchStrength {
 
 // DefaultConfig returns the library defaults without reading the environment.
 func DefaultConfig() Config {
-	return Config{AppleMusicStorefront: "us", ScoreWeights: DefaultScoreWeights()}
+	return Config{AppleMusicStorefront: "us", HTTPTimeout: httpx.DefaultTimeout(), ScoreWeights: DefaultScoreWeights()}
 }
 
 // LoadConfig loads library configuration from the current environment.
@@ -344,7 +348,8 @@ func LoadConfigFromEnv(getenv func(string) string) Config {
 
 // New builds a Resolver with the default adapter set and a default HTTP client.
 func New(config Config) *Resolver {
-	return NewWithClient(httpx.NewClient(), config)
+	config = normalizedConfig(config)
+	return NewWithClient(httpx.NewClient(config.HTTPTimeout), config)
 }
 
 // NewWithClient builds a Resolver with the default adapter set and a caller-provided HTTP client.
@@ -401,6 +406,7 @@ func configFromInternal(cfg internalconfig.Config) Config {
 			ClientSecret: cfg.TIDAL.ClientSecret,
 		},
 		AppleMusicStorefront: cfg.AppleMusic.Storefront,
+		HTTPTimeout:          cfg.HTTPTimeout,
 	})
 }
 
@@ -416,11 +422,19 @@ func normalizedConfig(config Config) Config {
 	config.AppleMusic.PrivateKeyPath = strings.TrimSpace(config.AppleMusic.PrivateKeyPath)
 	config.TIDAL.ClientID = strings.TrimSpace(config.TIDAL.ClientID)
 	config.TIDAL.ClientSecret = strings.TrimSpace(config.TIDAL.ClientSecret)
+	config.HTTPTimeout = normalizeHTTPTimeout(config.HTTPTimeout)
 	config.TargetServices = normalizedTargetServices(config.TargetServices)
 	if config.ScoreWeights == (ScoreWeights{}) {
 		config.ScoreWeights = DefaultScoreWeights()
 	}
 	return config
+}
+
+func normalizeHTTPTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return httpx.DefaultTimeout()
+	}
+	return timeout
 }
 
 func normalizedTargetServices(services []ServiceName) []ServiceName {

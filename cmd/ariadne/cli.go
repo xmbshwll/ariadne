@@ -84,6 +84,11 @@ Flags:
     Default: %s.
     Used for Apple Music lookups and searches when the source URL does not already imply a storefront.
 
+  --http-timeout
+    Values: a Go duration such as 5s, 15s, 30s, or 1m.
+    Default: %s.
+    Sets the per-request timeout on Ariadne's default HTTP client for service API and page requests.
+
 Notes:
   - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
   - Apple Music UPC and ISRC target search are enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
@@ -248,7 +253,7 @@ func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 		storefrontDefault = baseConfig.AppleMusicStorefront
 	}
 
-	return fmt.Sprintf(resolveHelpText, configPath, storefrontDefault)
+	return fmt.Sprintf(resolveHelpText, configPath, storefrontDefault, baseConfig.HTTPTimeout)
 }
 
 func configPathFromArgs(args []string) string {
@@ -297,6 +302,15 @@ func loadCLIConfig(configPath string) (ariadne.Config, error) {
 	cfg.TIDAL.ClientID = trimmedValue("TIDAL_CLIENT_ID")
 	cfg.TIDAL.ClientSecret = trimmedValue("TIDAL_CLIENT_SECRET")
 
+	httpTimeout := trimmedValue("ARIADNE_HTTP_TIMEOUT")
+	if httpTimeout != "" {
+		parsedTimeout, err := time.ParseDuration(httpTimeout)
+		if err != nil {
+			return ariadne.Config{}, fmt.Errorf("parse ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, err)
+		}
+		cfg.HTTPTimeout = parsedTimeout
+	}
+
 	storefront := strings.ToLower(trimmedValue("APPLE_MUSIC_STOREFRONT"))
 	if storefront != "" {
 		cfg.AppleMusicStorefront = storefront
@@ -316,6 +330,7 @@ func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
 	fs.StringVar(&config.format, "format", config.format, "output format (values: json for structured output, yaml for YAML, csv for spreadsheet-friendly export)")
 	fs.StringVar(&config.requestedServices, "services", "", "comma-separated target services (values: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal, youtubeMusic, ytmusic; ytmusic aliases youtubeMusic)")
 	fs.StringVar(&config.minStrengthName, "min-strength", config.minStrengthName, "minimum match strength (values: very_weak, weak, probable, strong; filters weaker results out of the final output)")
+	fs.DurationVar(&config.resolverConfig.HTTPTimeout, "http-timeout", config.resolverConfig.HTTPTimeout, "per-request HTTP timeout (values: Go durations such as 5s, 15s, 30s, 1m; applies to Ariadne's default client)")
 }
 
 func parseResolveArgs(args []string, baseConfig ariadne.Config) (resolveConfig, error) {
