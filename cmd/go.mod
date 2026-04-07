@@ -3,7 +3,7 @@ module github.com/xmbshwll/ariadne/cmd
 go 1.26.0
 
 require (
-	github.com/xmbshwll/ariadne v0.0.0
+	github.com/xmbshwll/ariadne v0.2.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -25,4 +25,3 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 )
 
-replace github.com/xmbshwll/ariadne => ..

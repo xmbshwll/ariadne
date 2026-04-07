@@ -4,6 +4,8 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.2.0 - 2026-04-07
+
 ### Added
 
 - more public example coverage for `go doc` and pkg.go.dev readers

@@ -87,22 +87,13 @@ Optionally confirm the version is visible through the module proxy:
 go list -m github.com/xmbshwll/ariadne@vX.Y.Z
 ```
 
-#### Step 2: switch the CLI module from local development mode to the released library version
+#### Step 2: update the CLI module to the released library version
 
-During development, `cmd/go.mod` uses a local `replace`:
-
-```go
-require github.com/xmbshwll/ariadne v0.0.0
-replace github.com/xmbshwll/ariadne => ..
-```
-
-For the CLI release, temporarily change that to:
+Set `cmd/go.mod` to the new root library version:
 
 ```go
 require github.com/xmbshwll/ariadne vX.Y.Z
 ```
-
-and remove the `replace` line.
 
 Then tidy and verify from the CLI module without the workspace:
 
@@ -122,17 +113,6 @@ That is the state the published CLI module should be released from.
 git tag cmd/vX.Y.Z
 git push origin cmd/vX.Y.Z
 ```
-
-#### Step 4: restore local development mode if needed
-
-If you want to keep developing in the split-module workspace layout after the release, restore `cmd/go.mod` to:
-
-```go
-require github.com/xmbshwll/ariadne v0.0.0
-replace github.com/xmbshwll/ariadne => ..
-```
-
-Then commit that change separately on the branch you continue working from.
 
 ## Recommended checks after publishing
 
