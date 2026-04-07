@@ -195,6 +195,10 @@ var (
 	ErrNoSourceAdapters = resolve.ErrNoSourceAdapters
 	// ErrAmazonMusicDeferred indicates that Amazon Music URLs are recognized, but runtime resolution remains intentionally deferred.
 	ErrAmazonMusicDeferred = amazonmusicadapter.ErrDeferredRuntimeAdapter
+	// ErrAppleMusicCredentialsNotConfigured indicates that an Apple Music official API operation requires developer token credentials.
+	ErrAppleMusicCredentialsNotConfigured = applemusicadapter.ErrCredentialsNotConfigured
+	// ErrSpotifyCredentialsNotConfigured indicates that a Spotify Web API operation requires app credentials.
+	ErrSpotifyCredentialsNotConfigured = spotifyadapter.ErrCredentialsNotConfigured
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
 
@@ -372,6 +376,10 @@ func NewWithAdaptersAndWeights(sources []SourceAdapter, targets []TargetAdapter,
 //   - ErrNoSourceAdapters when the resolver was built without any source adapters
 //   - ErrAmazonMusicDeferred when an Amazon Music URL is recognized but runtime
 //     resolution is intentionally deferred
+//   - ErrAppleMusicCredentialsNotConfigured when an Apple Music official API
+//     operation requires developer token credentials
+//   - ErrSpotifyCredentialsNotConfigured when a Spotify Web API operation
+//     requires app credentials
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {

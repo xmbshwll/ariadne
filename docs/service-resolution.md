@@ -234,6 +234,8 @@ If you are using the Go library, branch on exported errors with `errors.Is(...)`
 | `ariadne.ErrUnsupportedURL` | No registered source adapter recognized the input URL. |
 | `ariadne.ErrNoSourceAdapters` | The resolver was built without any source adapters. |
 | `ariadne.ErrAmazonMusicDeferred` | The input URL was recognized as Amazon Music, but runtime resolution is intentionally deferred. |
+| `ariadne.ErrAppleMusicCredentialsNotConfigured` | An Apple Music official API operation required developer token credentials that were not configured. |
+| `ariadne.ErrSpotifyCredentialsNotConfigured` | A Spotify Web API operation required app credentials that were not configured. |
 | `ariadne.ErrTIDALCredentialsNotConfigured` | A TIDAL source or target operation required credentials that were not configured. |
 
 ## What the status labels mean

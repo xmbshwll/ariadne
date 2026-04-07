@@ -30,9 +30,11 @@ var (
 	errAppleMusicAlbumNotFound     = errors.New("apple music album not found")
 	errUnexpectedAppleMusicStatus  = errors.New("unexpected apple music status")
 
-	errUnexpectedAppleMusicOfficialStatus  = errors.New("unexpected apple music official status")
-	errAppleMusicOfficialAuthNotConfigured = errors.New("apple music official auth not configured")
-	errAppleMusicOfficialAlbumNotFound     = errors.New("apple music official album not found")
+	errUnexpectedAppleMusicOfficialStatus = errors.New("unexpected apple music official status")
+	errAppleMusicOfficialAlbumNotFound    = errors.New("apple music official album not found")
+
+	// ErrCredentialsNotConfigured indicates that an Apple Music official API operation requires developer token credentials.
+	ErrCredentialsNotConfigured = errors.New("apple music official auth not configured")
 )
 
 // Option configures the Apple Music adapter.
@@ -413,7 +415,7 @@ func (a *Adapter) authEnabled() bool {
 
 func (a *Adapter) developerToken() (string, error) {
 	if !a.authEnabled() {
-		return "", errAppleMusicOfficialAuthNotConfigured
+		return "", ErrCredentialsNotConfigured
 	}
 
 	a.tokenMu.Lock()

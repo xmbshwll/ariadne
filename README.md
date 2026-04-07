@@ -72,12 +72,13 @@ Useful flags:
 - `--format=json|yaml|csv` to change output format
 - `--services=spotify,deezer` to limit which target services are searched
 - `--min-strength=probable` to hide weaker matches
+- `--http-timeout=30s` to raise or lower the per-request HTTP timeout
 - `--config=.env` or `--config=path/to/config.yaml` to load config from a file
 
 Full command shape:
 
 ```bash
-ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>
+ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <album-url>
 ```
 
 ### Library
@@ -183,9 +184,17 @@ If you are using the Go library, branch on resolver failures with `errors.Is`, n
 Public sentinel errors:
 
 - `ariadne.ErrUnsupportedURL`
+  - no registered source adapter recognized the input URL
 - `ariadne.ErrNoSourceAdapters`
+  - the resolver was built without any source adapters
 - `ariadne.ErrAmazonMusicDeferred`
+  - an Amazon Music URL was recognized, but runtime resolution is intentionally deferred
+- `ariadne.ErrAppleMusicCredentialsNotConfigured`
+  - an Apple Music official API operation needs developer token credentials
+- `ariadne.ErrSpotifyCredentialsNotConfigured`
+  - a Spotify Web API operation needs app credentials
 - `ariadne.ErrTIDALCredentialsNotConfigured`
+  - a TIDAL source or target operation needs app credentials
 
 Example:
 
@@ -193,6 +202,12 @@ Example:
 resolution, err := resolver.ResolveAlbum(ctx, inputURL)
 if err != nil {
 	if errors.Is(err, ariadne.ErrUnsupportedURL) {
+		return err
+	}
+	if errors.Is(err, ariadne.ErrAppleMusicCredentialsNotConfigured) {
+		return err
+	}
+	if errors.Is(err, ariadne.ErrSpotifyCredentialsNotConfigured) {
 		return err
 	}
 	if errors.Is(err, ariadne.ErrTIDALCredentialsNotConfigured) {
@@ -233,7 +248,7 @@ make verify-release
 
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) explains local development and contribution flow.
 - [`docs/releasing.md`](./docs/releasing.md) documents the release process.
-- `cmd/validate-spotify-auth`, `cmd/validate-apple-music-official`, and `cmd/validate-tidal-official` are maintainer utilities for checking service integrations.
+- `cmd/validate-spotify-auth`, `cmd/validate-apple-music-official`, and `cmd/validate-tidal-official` are maintainer utilities for checking service integrations. They write to a temporary directory by default unless `--out-dir` is provided.
 
 ## Documentation
 
