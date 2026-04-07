@@ -32,6 +32,9 @@ const (
 
 const resolveHelpText = `Resolve album URLs across music services.
 
+Usage:
+  ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>
+
 Positional parameter:
   <album-url>
     Required.
@@ -43,7 +46,7 @@ Flags:
   --config
     Values: empty string to disable file loading, or a path to a config file.
     Supported file styles: .env-style key=value files, plus Viper-supported structured files such as yaml, yml, json, or toml.
-    Default: .env
+    Default: %s
     Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.
 
   --verbose, -v
@@ -78,14 +81,13 @@ Flags:
 
   --apple-music-storefront
     Values: an Apple Music storefront country code in ISO 3166-1 alpha-2 form, for example us, gb, de, fr, jp, ca, or au.
-    Default: APPLE_MUSIC_STOREFRONT or us.
+    Default: %s.
     Used for Apple Music lookups and searches when the source URL does not already imply a storefront.
 
 Notes:
   - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
   - Apple Music UPC and ISRC target search are enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
-  - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
-  - The CLI now loads configuration through Viper, so .env files, environment variables, and compatible config files share one precedence model.`
+  - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.`
 
 var (
 	resolverFactory = ariadne.New
@@ -186,17 +188,16 @@ func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, c
 	cmd.SetOut(stdout)
 	cmd.SetErr(stderr)
 	cmd.PersistentFlags().String("config", configPath, "configuration source (values: empty string to disable file loading, or a path to an .env, yaml, yml, json, or toml file)")
-	cmd.AddCommand(newResolveCmd(baseConfig))
+	cmd.AddCommand(newResolveCmd(baseConfig, configPath))
 	return cmd
 }
 
-func newResolveCmd(baseConfig ariadne.Config) *cobra.Command {
+func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command {
 	config := defaultResolveConfig(baseConfig)
 
 	cmd := &cobra.Command{
 		Use:   "resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>",
 		Short: "Resolve one album URL into likely equivalents on other services.",
-		Long:  resolveHelpText,
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return errResolveUsage
@@ -213,14 +214,16 @@ func newResolveCmd(baseConfig ariadne.Config) *cobra.Command {
 		},
 	}
 
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		_, _ = io.WriteString(cmd.OutOrStdout(), resolveHelpTextFor(baseConfig, configPath))
+	})
+
 	bindResolveFlags(cmd.Flags(), &config)
 	return cmd
 }
 
 func renderResolveHelp(w io.Writer, baseConfig ariadne.Config, configPath string) error {
-	root := newRootCmd(w, w, baseConfig, configPath)
-	root.SetArgs([]string{"resolve", "--help"})
-	if err := root.Execute(); err != nil {
+	if _, err := io.WriteString(w, resolveHelpTextFor(baseConfig, configPath)); err != nil {
 		return fmt.Errorf("%w: %w", errRenderResolveHelp, err)
 	}
 	return nil
@@ -233,6 +236,19 @@ func defaultResolveConfig(baseConfig ariadne.Config) resolveConfig {
 		minStrength:     ariadne.MatchStrengthVeryWeak,
 		resolverConfig:  baseConfig,
 	}
+}
+
+func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
+	if configPath == "" {
+		configPath = `"" (disable file loading)`
+	}
+
+	storefrontDefault := "APPLE_MUSIC_STOREFRONT or us"
+	if baseConfig.AppleMusicStorefront != "" {
+		storefrontDefault = baseConfig.AppleMusicStorefront
+	}
+
+	return fmt.Sprintf(resolveHelpText, configPath, storefrontDefault)
 }
 
 func configPathFromArgs(args []string) string {

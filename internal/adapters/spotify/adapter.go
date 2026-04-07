@@ -195,17 +195,34 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	query := metadataQuery(album)
-	if query == "" {
+	queries := metadataQueries(album)
+	if len(queries) == 0 {
 		return nil, nil
 	}
 
-	endpoint := fmt.Sprintf("%s/search?q=%s&type=album&limit=%d", a.apiBaseURL, url.QueryEscape(query), searchLimit)
-	var response apiAlbumSearchResponse
-	if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
-		return nil, fmt.Errorf("spotify search by metadata: %w", err)
+	items := make([]apiAlbumSummary, 0, searchLimit)
+	seen := make(map[string]struct{}, searchLimit)
+	for _, query := range queries {
+		endpoint := fmt.Sprintf("%s/search?q=%s&type=album&limit=%d", a.apiBaseURL, url.QueryEscape(query), searchLimit)
+		var response apiAlbumSearchResponse
+		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
+			return nil, fmt.Errorf("spotify search by metadata %q: %w", query, err)
+		}
+		for _, item := range response.Albums.Items {
+			if item.ID == "" {
+				continue
+			}
+			if _, ok := seen[item.ID]; ok {
+				continue
+			}
+			seen[item.ID] = struct{}{}
+			items = append(items, item)
+			if len(items) >= searchLimit {
+				return a.hydrateAlbumCandidates(ctx, items)
+			}
+		}
 	}
-	return a.hydrateAlbumCandidates(ctx, response.Albums.Items)
+	return a.hydrateAlbumCandidates(ctx, items)
 }
 
 func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*apiAlbumResponse, error) {
@@ -615,15 +632,34 @@ func spotifyArtworkURLAPI(images []apiImage) string {
 	return sorted[0].URL
 }
 
-func metadataQuery(album model.CanonicalAlbum) string {
-	parts := make([]string, 0, 2)
-	if album.Title != "" {
-		parts = append(parts, "album:"+album.Title)
+func metadataQueries(album model.CanonicalAlbum) []string {
+	if strings.TrimSpace(album.Title) == "" {
+		return nil
 	}
-	if len(album.Artists) > 0 {
-		parts = append(parts, "artist:"+album.Artists[0])
+
+	queries := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	appendUnique := func(query string) {
+		query = strings.TrimSpace(query)
+		if query == "" {
+			return
+		}
+		key := normalize.Text(query)
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		queries = append(queries, query)
 	}
-	return strings.Join(parts, " ")
+
+	for _, artist := range normalize.SearchArtistVariants(album.Artists) {
+		appendUnique(strings.Join([]string{"album:" + album.Title, "artist:" + artist}, " "))
+	}
+	appendUnique("album:" + album.Title)
+	return queries
 }
 
 func albumIDsToSummaries(ids []string) []apiAlbumSummary {

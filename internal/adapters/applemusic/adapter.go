@@ -173,36 +173,42 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
 
-// SearchByMetadata searches Apple Music albums by title and primary artist via the public search API.
+// SearchByMetadata searches Apple Music albums by title and artist metadata via the public search API.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := metadataQuery(album)
-	if query == "" {
+	queries := metadataQueries(album)
+	if len(queries) == 0 {
 		return nil, nil
 	}
 
 	storefront := a.storefrontFor(album.RegionHint)
-	searchURL := fmt.Sprintf("%s/search?term=%s&entity=album&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
-	var payload lookupResponse
-	if err := a.getJSON(ctx, searchURL, &payload); err != nil {
-		return nil, fmt.Errorf("search apple music metadata: %w", err)
-	}
+	results := make([]model.CandidateAlbum, 0, searchLimit)
+	seen := make(map[int64]struct{}, searchLimit)
 
-	results := make([]model.CandidateAlbum, 0, len(payload.Results))
-	seen := make(map[int64]struct{}, len(payload.Results))
-	for _, item := range payload.Results {
-		if item.WrapperType != "collection" || item.CollectionType != "Album" {
-			continue
+	for _, query := range queries {
+		searchURL := fmt.Sprintf("%s/search?term=%s&entity=album&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
+		var payload lookupResponse
+		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
+			return nil, fmt.Errorf("search apple music metadata %q: %w", query, err)
 		}
-		if _, ok := seen[item.CollectionID]; ok {
-			continue
-		}
-		seen[item.CollectionID] = struct{}{}
 
-		canonical, err := a.fetchAlbumByID(ctx, strconv.FormatInt(item.CollectionID, 10), canonicalCollectionURL(item.CollectionViewURL, ""), storefront)
-		if err != nil {
-			return nil, fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
+		for _, item := range payload.Results {
+			if item.WrapperType != "collection" || item.CollectionType != "Album" {
+				continue
+			}
+			if _, ok := seen[item.CollectionID]; ok {
+				continue
+			}
+			seen[item.CollectionID] = struct{}{}
+
+			canonical, err := a.fetchAlbumByID(ctx, strconv.FormatInt(item.CollectionID, 10), canonicalCollectionURL(item.CollectionViewURL, ""), storefront)
+			if err != nil {
+				return nil, fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
+			}
+			results = append(results, toCandidateAlbum(*canonical))
+			if len(results) >= searchLimit {
+				return results, nil
+			}
 		}
-		results = append(results, toCandidateAlbum(*canonical))
 	}
 	return results, nil
 }
@@ -371,15 +377,34 @@ func (a *Adapter) storefrontFor(regionHint string) string {
 	return strings.ToLower(regionHint)
 }
 
-func metadataQuery(album model.CanonicalAlbum) string {
-	parts := make([]string, 0, 2)
-	if album.Title != "" {
-		parts = append(parts, album.Title)
+func metadataQueries(album model.CanonicalAlbum) []string {
+	if strings.TrimSpace(album.Title) == "" {
+		return nil
 	}
-	if len(album.Artists) > 0 {
-		parts = append(parts, album.Artists[0])
+
+	queries := make([]string, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	appendUnique := func(query string) {
+		query = strings.TrimSpace(query)
+		if query == "" {
+			return
+		}
+		key := normalize.Text(query)
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		queries = append(queries, query)
 	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+
+	for _, artist := range normalize.SearchArtistVariants(album.Artists) {
+		appendUnique(strings.TrimSpace(strings.Join([]string{album.Title, artist}, " ")))
+	}
+	appendUnique(album.Title)
+	return queries
 }
 
 func (a *Adapter) authEnabled() bool {
