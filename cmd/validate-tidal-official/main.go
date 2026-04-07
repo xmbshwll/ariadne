@@ -27,6 +27,18 @@ const (
 	defaultSearchLimit      = 5
 )
 
+var (
+	errTIDALCredentialsRequired = errors.New("TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET must be set")
+	errTIDALAlbumPayloadMissing = errors.New("tidal album payload did not include a data resource")
+
+	errTIDALValidateUsage  = errors.New("usage: go run ./cmd/validate-tidal-official [-url <tidal-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-country-code <cc>]")
+	errTIDALSampleURLEmpty = errors.New("tidal sample url file is empty")
+
+	errTIDALTokenStatus  = errors.New("unexpected tidal token status")
+	errTIDALTokenMissing = errors.New("tidal token response did not include access_token")
+	errTIDALAPIStatus    = errors.New("unexpected tidal api status")
+)
+
 type options struct {
 	sampleURL     string
 	sampleURLPath string
@@ -51,7 +63,7 @@ func run(args []string) error {
 
 	appConfig := config.Load()
 	if !appConfig.TIDAL.Enabled() {
-		return errors.New("TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET must be set")
+		return errTIDALCredentialsRequired
 	}
 
 	rawURL, err := loadSampleURL(opts.sampleURL, opts.sampleURLPath)
@@ -84,7 +96,7 @@ func run(args []string) error {
 
 	data := firstObjectFromDocument(albumPayload)
 	if data == nil {
-		return errors.New("tidal album payload did not include a data resource")
+		return errTIDALAlbumPayloadMissing
 	}
 	attributes := nestedMap(data, "attributes")
 	title := firstNonEmpty(
@@ -187,10 +199,10 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&opts.authBaseURL, "auth-base-url", opts.authBaseURL, "tidal auth base url")
 	fs.StringVar(&opts.countryCode, "country-code", opts.countryCode, "tidal country code")
 	if err := fs.Parse(args); err != nil {
-		return options{}, errors.New("usage: go run ./cmd/validate-tidal-official [-url <tidal-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-country-code <cc>]")
+		return options{}, errTIDALValidateUsage
 	}
 	if len(fs.Args()) != 0 {
-		return options{}, errors.New("usage: go run ./cmd/validate-tidal-official [-url <tidal-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-country-code <cc>]")
+		return options{}, errTIDALValidateUsage
 	}
 	return opts, nil
 }
@@ -205,7 +217,7 @@ func loadSampleURL(rawURL string, path string) (string, error) {
 	}
 	value := strings.TrimSpace(string(content))
 	if value == "" {
-		return "", fmt.Errorf("tidal sample url file %s is empty", path)
+		return "", fmt.Errorf("%w: %s", errTIDALSampleURLEmpty, path)
 	}
 	return value, nil
 }
@@ -235,7 +247,7 @@ func fetchAccessToken(ctx context.Context, authBaseURL string, clientID string, 
 		return "", fmt.Errorf("read tidal token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected tidal token status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("%w %d: %s", errTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var payload struct {
@@ -247,7 +259,7 @@ func fetchAccessToken(ctx context.Context, authBaseURL string, clientID string, 
 		return "", fmt.Errorf("decode tidal token response: %w", err)
 	}
 	if strings.TrimSpace(payload.AccessToken) == "" {
-		return "", errors.New("tidal token response did not include access_token")
+		return "", errTIDALTokenMissing
 	}
 	return payload.AccessToken, nil
 }
@@ -272,7 +284,7 @@ func getAPI(ctx context.Context, endpoint string, accessToken string) ([]byte, e
 		return nil, fmt.Errorf("read tidal api response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected tidal api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("%w %d: %s", errTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return body, nil
 }

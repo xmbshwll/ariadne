@@ -10,7 +10,10 @@ import (
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
-var ErrDeferredRuntimeAdapter = errors.New("amazon music runtime adapter is deferred: no viable public metadata fetch or search path exists")
+var (
+	ErrDeferredRuntimeAdapter  = errors.New("amazon music runtime adapter is deferred: no viable public metadata fetch or search path exists")
+	errUnexpectedAmazonService = errors.New("unexpected amazon music service")
+)
 
 type Adapter struct{}
 
@@ -23,12 +26,16 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.AmazonMusicAlbumURL(raw)
+	parsed, err := parse.AmazonMusicAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse amazon music album url: %w", err)
+	}
+	return parsed, nil
 }
 
 func (a *Adapter) FetchAlbum(_ context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceAmazonMusic {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedAmazonService, parsed.Service)
 	}
 	return nil, ErrDeferredRuntimeAdapter
 }

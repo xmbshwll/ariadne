@@ -58,13 +58,15 @@ type Resolution struct {
 type Resolver struct {
 	sources []SourceAdapter
 	targets []TargetAdapter
+	weights score.Weights
 }
 
 // New creates a resolver from registered source and target adapters.
-func New(sources []SourceAdapter, targets []TargetAdapter) *Resolver {
+func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) *Resolver {
 	resolver := &Resolver{
 		sources: make([]SourceAdapter, 0, len(sources)),
 		targets: make([]TargetAdapter, 0, len(targets)),
+		weights: weights,
 	}
 	resolver.sources = append(resolver.sources, sources...)
 	resolver.targets = append(resolver.targets, targets...)
@@ -104,7 +106,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		if err != nil {
 			return nil, fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
 		}
-		ranking := score.RankAlbums(*sourceAlbum, candidates)
+		ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
 		resolution.Matches[target.Service()] = matchResultFromRanking(target.Service(), ranking)
 	}
 

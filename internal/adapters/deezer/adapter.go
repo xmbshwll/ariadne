@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -19,6 +20,11 @@ const (
 	defaultBaseURL        = "https://api.deezer.com"
 	metadataSearchLimit   = 5
 	identifierSearchLimit = 5
+)
+
+var (
+	errUnexpectedDeezerService = errors.New("unexpected deezer service")
+	errUnexpectedDeezerStatus  = errors.New("unexpected deezer status")
 )
 
 // Adapter implements Deezer source operations.
@@ -45,13 +51,17 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Deezer album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.DeezerAlbumURL(raw)
+	parsed, err := parse.DeezerAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse deezer album url: %w", err)
+	}
+	return parsed, nil
 }
 
 // FetchAlbum loads a Deezer album and its tracks, then converts them into the canonical model.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceDeezer {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedDeezerService, parsed.Service)
 	}
 
 	return a.fetchAlbumByID(ctx, parsed.ID)
@@ -96,7 +106,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		}
 		seenAlbumIDs[track.Album.ID] = struct{}{}
 
-		canonical, err := a.fetchAlbumByID(ctx, fmt.Sprintf("%d", track.Album.ID))
+		canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(track.Album.ID))
 		if err != nil {
 			return nil, fmt.Errorf("hydrate deezer album %d from isrc %s: %w", track.Album.ID, isrc, err)
 		}
@@ -124,7 +134,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 
 	results := make([]model.CandidateAlbum, 0, min(len(searchResults.Data), metadataSearchLimit))
 	for _, candidate := range searchResults.Data {
-		canonical, err := a.fetchAlbumByID(ctx, fmt.Sprintf("%d", candidate.ID))
+		canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(candidate.ID))
 		if err != nil {
 			return nil, fmt.Errorf("hydrate deezer candidate %d: %w", candidate.ID, err)
 		}
@@ -162,7 +172,7 @@ func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parse
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
 		EntityType:   "album",
-		ID:           fmt.Sprintf("%d", album.ID),
+		ID:           strconv.Itoa(album.ID),
 		CanonicalURL: canonicalAlbumURL(album.ID),
 		RawURL:       canonicalAlbumURL(album.ID),
 	}
@@ -189,7 +199,7 @@ func (a *Adapter) getJSON(ctx context.Context, endpoint string, target any) erro
 		if closeErr != nil {
 			return fmt.Errorf("unexpected status %d and close body: %w", resp.StatusCode, closeErr)
 		}
-		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return fmt.Errorf("%w: %d", errUnexpectedDeezerStatus, resp.StatusCode)
 	}
 
 	decodeErr := json.NewDecoder(resp.Body).Decode(target)
@@ -241,7 +251,7 @@ func (a *Adapter) toCanonicalAlbum(parsed model.ParsedAlbumURL, album albumRespo
 
 	return &model.CanonicalAlbum{
 		Service:           model.ServiceDeezer,
-		SourceID:          fmt.Sprintf("%d", album.ID),
+		SourceID:          strconv.Itoa(album.ID),
 		SourceURL:         parsed.CanonicalURL,
 		RegionHint:        parsed.RegionHint,
 		Title:             album.Title,

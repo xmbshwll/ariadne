@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -104,5 +105,8 @@ func decodeJSONPart(t *testing.T, encoded string, target any) {
 }
 
 func osWriteFile(path string, data []byte) error {
-	return os.WriteFile(path, data, 0o600)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write file %s: %w", path, err)
+	}
+	return nil
 }

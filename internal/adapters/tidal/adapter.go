@@ -25,7 +25,15 @@ const (
 	searchLimit        = 5
 )
 
-var ErrCredentialsNotConfigured = errors.New("tidal credentials not configured")
+var (
+	ErrCredentialsNotConfigured = errors.New("tidal credentials not configured")
+
+	errUnexpectedTIDALService     = errors.New("unexpected tidal service")
+	errTIDALAlbumNotFound         = errors.New("tidal album not found")
+	errUnexpectedTIDALAPIStatus   = errors.New("unexpected api status")
+	errUnexpectedTIDALTokenStatus = errors.New("unexpected token status")
+	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
+)
 
 type Option func(*Adapter)
 
@@ -92,12 +100,16 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.TIDALAlbumURL(raw)
+	parsed, err := parse.TIDALAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse tidal album url: %w", err)
+	}
+	return parsed, nil
 }
 
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceTIDAL {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedTIDALService, parsed.Service)
 	}
 	return a.fetchAlbumByID(ctx, parsed.ID, parsed.CanonicalURL, parsed.RegionHint)
 }
@@ -205,7 +217,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 	}
 	resource := firstDataResource(document)
 	if resource == nil {
-		return nil, fmt.Errorf("tidal album %s not found", albumID)
+		return nil, fmt.Errorf("%w: %s", errTIDALAlbumNotFound, albumID)
 	}
 	return toCanonicalAlbum(*resource, document.Included, canonicalURL, regionHint), nil
 }
@@ -231,7 +243,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("unexpected api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%w %d: %s", errUnexpectedTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode api response: %w", err)
@@ -271,14 +283,14 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("read token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected token status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("%w %d: %s", errUnexpectedTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	var token tokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
 		return "", fmt.Errorf("decode token response: %w", err)
 	}
 	if strings.TrimSpace(token.AccessToken) == "" {
-		return "", fmt.Errorf("empty tidal access token")
+		return "", errEmptyTIDALAccessToken
 	}
 	a.token = cachedToken{
 		accessToken: token.AccessToken,

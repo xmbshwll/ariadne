@@ -28,6 +28,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            cmd/go.sum
+            go.work
+            go.work.sum
 
       - name: Verify formatting
         run: |
@@ -38,14 +42,24 @@ jobs:
             exit 1
           fi
 
-      - name: Run golangci-lint
+      - name: Run golangci-lint (root module)
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.11.4
           args: --config .golangci.yml ./...
 
+      - name: Run golangci-lint (cmd module)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
+          working-directory: cmd
+          args: --config ../.golangci.yml ./...
+
       - name: Run race tests
         run: make test-race
+
+      - name: Verify split-module release flow
+        run: make verify-release
 
       - name: Build
         run: make build

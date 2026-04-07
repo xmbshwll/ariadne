@@ -3,6 +3,7 @@ package soundcloud
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,13 @@ var (
 	hydrationPattern = regexp.MustCompile(`(?s)__sc_hydration\s*=\s*(\[.*?\]);`)
 	scriptSrcPattern = regexp.MustCompile(`(?i)<script[^>]+src="([^"]+)"`)
 	clientIDPattern  = regexp.MustCompile(`client_id[:=]\s*"([a-zA-Z0-9]{32})"`)
+
+	errUnexpectedSoundCloudService   = errors.New("unexpected soundcloud service")
+	errUnexpectedSoundCloudStatus    = errors.New("unexpected soundcloud status")
+	errUnexpectedSoundCloudAPIStatus = errors.New("unexpected soundcloud api status")
+	errSoundCloudClientIDNotFound    = errors.New("soundcloud client id not found")
+	errSoundCloudHydrationNotFound   = errors.New("soundcloud hydration payload not found")
+	errSoundCloudPlaylistNotFound    = errors.New("soundcloud playlist hydration not found")
 )
 
 type Option func(*Adapter)
@@ -71,20 +79,24 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.SoundCloudAlbumURL(raw)
+	parsed, err := parse.SoundCloudAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse soundcloud album url: %w", err)
+	}
+	return parsed, nil
 }
 
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceSoundCloud {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedSoundCloudService, parsed.Service)
 	}
 	body, err := a.fetchPage(ctx, parsed.CanonicalURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch soundcloud page: %w", err)
 	}
 	playlist, err := extractPlaylistHydration(body, parsed.CanonicalURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("extract soundcloud playlist hydration: %w", err)
 	}
 	a.maybeCacheClientIDFromPage(body)
 	return toCanonicalAlbum(*playlist), nil
@@ -140,7 +152,7 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("unexpected soundcloud status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("%w %d: %s", errUnexpectedSoundCloudStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -162,7 +174,7 @@ func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) er
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("unexpected soundcloud api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%w %d: %s", errUnexpectedSoundCloudAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode soundcloud api response: %w", err)
@@ -228,13 +240,13 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 			return clientID, nil
 		}
 	}
-	return "", fmt.Errorf("soundcloud client id not found")
+	return "", errSoundCloudClientIDNotFound
 }
 
 func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {
 	matches := hydrationPattern.FindSubmatch(body)
 	if len(matches) != 2 {
-		return nil, fmt.Errorf("soundcloud hydration payload not found")
+		return nil, errSoundCloudHydrationNotFound
 	}
 	var entries []hydrationEnvelope
 	if err := json.Unmarshal(matches[1], &entries); err != nil {
@@ -256,7 +268,7 @@ func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist,
 	if fallback != nil {
 		return fallback, nil
 	}
-	return nil, fmt.Errorf("soundcloud playlist hydration not found")
+	return nil, errSoundCloudPlaylistNotFound
 }
 
 func toCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {

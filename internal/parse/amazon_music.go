@@ -17,17 +17,17 @@ func AmazonMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host != "music.amazon.com" {
-		return nil, fmt.Errorf("unsupported amazon music host: %s", parsed.Host)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedAmazonMusicHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
 	if len(segments) != 2 || segments[0] != "albums" {
-		return nil, fmt.Errorf("amazon music url is not an album url: %s", raw)
+		return nil, fmt.Errorf("%w: %s", errAmazonMusicNotAlbumURL, raw)
 	}
 
 	asin := strings.TrimSpace(segments[1])
 	if asin == "" {
-		return nil, fmt.Errorf("missing amazon music album id")
+		return nil, errMissingAmazonMusicAlbumID
 	}
 
 	return &model.ParsedAlbumURL{

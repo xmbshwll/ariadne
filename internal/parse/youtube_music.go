@@ -17,7 +17,7 @@ func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host != "music.youtube.com" {
-		return nil, fmt.Errorf("unsupported youtube music host: %s", parsed.Host)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedYouTubeMusicHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
@@ -25,7 +25,7 @@ func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	case len(segments) == 2 && segments[0] == "browse":
 		browseID := strings.TrimSpace(segments[1])
 		if browseID == "" {
-			return nil, fmt.Errorf("missing youtube music browse id")
+			return nil, errMissingYouTubeMusicBrowseID
 		}
 		return &model.ParsedAlbumURL{
 			Service:      model.ServiceYouTubeMusic,
@@ -37,7 +37,7 @@ func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	case len(segments) == 1 && segments[0] == "playlist":
 		playlistID := strings.TrimSpace(parsed.Query().Get("list"))
 		if playlistID == "" {
-			return nil, fmt.Errorf("missing youtube music playlist id")
+			return nil, errMissingYouTubeMusicPlaylistID
 		}
 		return &model.ParsedAlbumURL{
 			Service:      model.ServiceYouTubeMusic,
@@ -47,6 +47,6 @@ func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 			RawURL:       raw,
 		}, nil
 	default:
-		return nil, fmt.Errorf("youtube music url is not an album url: %s", raw)
+		return nil, fmt.Errorf("%w: %s", errYouTubeMusicNotAlbumURL, raw)
 	}
 }

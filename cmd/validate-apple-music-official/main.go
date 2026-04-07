@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,16 @@ const (
 	defaultSampleURL   = "service-samples/apple-music/sample-url.txt"
 	defaultOutputDir   = "service-samples/apple-music"
 	defaultSearchLimit = 5
+)
+
+var (
+	errAppleMusicCredentialsRequired = errors.New("APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH must be set")
+	errAppleMusicAlbumPayloadMissing = errors.New("official apple music album payload did not include a data resource")
+	errAppleMusicMetadataMissing     = errors.New("official apple music album payload did not provide enough metadata for search validation")
+
+	errAppleMusicValidateUsage  = errors.New("usage: go run ./cmd/validate-apple-music-official [-url <apple-music-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-storefront <code>]")
+	errAppleMusicSampleURLEmpty = errors.New("apple music sample url file is empty")
+	errAppleMusicAPIStatus      = errors.New("unexpected apple music api status")
 )
 
 func main() {
@@ -49,7 +60,7 @@ func run(args []string) error {
 
 	appConfig := config.Load()
 	if !appConfig.AppleMusic.AuthEnabled() {
-		return errors.New("APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH must be set")
+		return errAppleMusicCredentialsRequired
 	}
 	developerToken, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
 		KeyID:          appConfig.AppleMusic.KeyID,
@@ -95,7 +106,7 @@ func run(args []string) error {
 
 	albumData := firstResource(albumPayload)
 	if albumData == nil {
-		return errors.New("official apple music album payload did not include a data resource")
+		return errAppleMusicAlbumPayloadMissing
 	}
 
 	attributes := nestedMap(albumData, "attributes")
@@ -107,10 +118,10 @@ func run(args []string) error {
 	isrcs := albumISRCs(albumData)
 	metadataQuery := strings.TrimSpace(strings.Join([]string{title, artist}, " "))
 	if metadataQuery == "" {
-		return errors.New("official apple music album payload did not provide enough metadata for search validation")
+		return errAppleMusicMetadataMissing
 	}
 
-	metadataBody, err := getAPI(ctx, opts.apiBaseURL+"/catalog/"+storefront+"/search?types=albums&limit="+fmt.Sprint(defaultSearchLimit)+"&term="+url.QueryEscape(metadataQuery), developerToken)
+	metadataBody, err := getAPI(ctx, opts.apiBaseURL+"/catalog/"+storefront+"/search?types=albums&limit="+strconv.Itoa(defaultSearchLimit)+"&term="+url.QueryEscape(metadataQuery), developerToken)
 	if err != nil {
 		return fmt.Errorf("search official apple music metadata: %w", err)
 	}
@@ -196,10 +207,10 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&opts.apiBaseURL, "api-base-url", opts.apiBaseURL, "apple music api base url")
 	fs.StringVar(&opts.storefront, "storefront", "", "apple music storefront override")
 	if err := fs.Parse(args); err != nil {
-		return options{}, errors.New("usage: go run ./cmd/validate-apple-music-official [-url <apple-music-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-storefront <code>]")
+		return options{}, errAppleMusicValidateUsage
 	}
 	if len(fs.Args()) != 0 {
-		return options{}, errors.New("usage: go run ./cmd/validate-apple-music-official [-url <apple-music-album-url>] [-sample-url-file <path>] [-out-dir <dir>] [-storefront <code>]")
+		return options{}, errAppleMusicValidateUsage
 	}
 	return opts, nil
 }
@@ -214,7 +225,7 @@ func loadSampleURL(rawURL string, path string) (string, error) {
 	}
 	value := strings.TrimSpace(string(content))
 	if value == "" {
-		return "", fmt.Errorf("apple music sample url file %s is empty", path)
+		return "", fmt.Errorf("%w: %s", errAppleMusicSampleURLEmpty, path)
 	}
 	return value, nil
 }
@@ -238,7 +249,7 @@ func getAPI(ctx context.Context, endpoint string, developerToken string) ([]byte
 		return nil, fmt.Errorf("read apple music api response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected apple music api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("%w %d: %s", errAppleMusicAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return body, nil
 }

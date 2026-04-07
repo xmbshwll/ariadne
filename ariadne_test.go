@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+var errUnsupportedLibrarySource = errors.New("unsupported")
+
 func TestLoadConfigFromEnv(t *testing.T) {
 	config := LoadConfigFromEnv(func(key string) string {
 		switch key {
@@ -49,6 +51,27 @@ func TestDefaultConfig(t *testing.T) {
 	if config.AppleMusicStorefront != "us" {
 		t.Fatalf("apple music storefront = %q, want us", config.AppleMusicStorefront)
 	}
+	if config.ScoreWeights == (ScoreWeights{}) {
+		t.Fatalf("expected default score weights")
+	}
+}
+
+func TestMatchStrengthForScore(t *testing.T) {
+	tests := []struct {
+		score int
+		want  MatchStrength
+	}{
+		{score: 120, want: MatchStrengthStrong},
+		{score: 80, want: MatchStrengthProbable},
+		{score: 50, want: MatchStrengthWeak},
+		{score: 49, want: MatchStrengthVeryWeak},
+	}
+
+	for _, tt := range tests {
+		if got := MatchStrengthForScore(tt.score); got != tt.want {
+			t.Fatalf("MatchStrengthForScore(%d) = %q, want %q", tt.score, got, tt.want)
+		}
+	}
 }
 
 func TestNewWithAdaptersResolveAlbum(t *testing.T) {
@@ -81,7 +104,7 @@ func (librarySourceAdapter) Service() ServiceName {
 
 func (librarySourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
 	if raw != "https://fixture.test/source" {
-		return nil, errors.New("unsupported")
+		return nil, errUnsupportedLibrarySource
 	}
 	return &ParsedAlbumURL{
 		Service:      ServiceDeezer,

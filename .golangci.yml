@@ -9,16 +9,32 @@ linters:
   enable:
     - bodyclose
     - copyloopvar
+    - dupword
     - errcheck
     - errorlint
+    - exptostd
+    - goconst
     - gocritic
+    - godot
+    - intrange
+    - err113
     - misspell
+    - modernize
+    - perfsprint
     - nilerr
     - nilnesserr
+    - nilnil
+    - noctx
     - nolintlint
     - predeclared
+    - revive
+    - testableexamples
+    - thelper
     - unconvert
     - unparam
+    - wrapcheck
+    - usestdlibvars
+    - usetesting
     - whitespace
   settings:
     errcheck:

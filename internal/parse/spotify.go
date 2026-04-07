@@ -17,24 +17,24 @@ func SpotifyAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host != "open.spotify.com" && host != "spotify.com" && host != "www.spotify.com" {
-		return nil, fmt.Errorf("unsupported spotify host: %s", parsed.Host)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedSpotifyHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 || segments[0] != "album" {
-		return nil, fmt.Errorf("spotify url is not an album url: %s", raw)
+	if len(segments) < 2 || segments[0] != albumPathSegment {
+		return nil, fmt.Errorf("%w: %s", errSpotifyNotAlbumURL, raw)
 	}
 
 	id := segments[1]
 	if id == "" {
-		return nil, fmt.Errorf("missing spotify album id")
+		return nil, errMissingSpotifyAlbumID
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceSpotify,
 		EntityType:   "album",
 		ID:           id,
-		CanonicalURL: "https://open.spotify.com/album/" + id,
+		CanonicalURL: "https://open.spotify.com/" + albumPathSegment + "/" + id,
 		RawURL:       raw,
 	}, nil
 }

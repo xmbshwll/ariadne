@@ -17,12 +17,12 @@ func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host != "www.deezer.com" && host != "deezer.com" {
-		return nil, fmt.Errorf("unsupported deezer host: %s", parsed.Host)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedDeezerHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
 	if len(segments) < 2 {
-		return nil, fmt.Errorf("invalid deezer album path: %s", parsed.Path)
+		return nil, fmt.Errorf("%w: %s", errInvalidDeezerAlbumPath, parsed.Path)
 	}
 
 	regionHint := ""
@@ -32,20 +32,20 @@ func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		index++
 	}
 
-	if len(segments[index:]) < 2 || segments[index] != "album" {
-		return nil, fmt.Errorf("deezer url is not an album url: %s", raw)
+	if len(segments[index:]) < 2 || segments[index] != albumPathSegment {
+		return nil, fmt.Errorf("%w: %s", errDeezerNotAlbumURL, raw)
 	}
 
 	id := segments[index+1]
 	if id == "" {
-		return nil, fmt.Errorf("missing deezer album id")
+		return nil, errMissingDeezerAlbumID
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
 		EntityType:   "album",
 		ID:           id,
-		CanonicalURL: "https://www.deezer.com/album/" + id,
+		CanonicalURL: "https://www.deezer.com/" + albumPathSegment + "/" + id,
 		RegionHint:   regionHint,
 		RawURL:       raw,
 	}, nil

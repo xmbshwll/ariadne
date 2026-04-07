@@ -3,6 +3,7 @@ package bandcamp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,12 @@ const (
 	searchHydrationLimit = 8
 )
 
-var jsonLDPattern = regexp.MustCompile(`(?s)<script type="application/ld\+json">\s*(\{.*?\})\s*</script>`)
+var (
+	jsonLDPattern                = regexp.MustCompile(`(?s)<script type="application/ld\+json">\s*(\{.*?\})\s*</script>`)
+	errUnexpectedBandcampService = errors.New("unexpected bandcamp service")
+	errUnexpectedBandcampStatus  = errors.New("unexpected bandcamp status")
+	errBandcampJSONLDNotFound    = errors.New("bandcamp json-ld not found")
+)
 
 // Option configures the Bandcamp adapter.
 type Option func(*Adapter)
@@ -62,13 +68,17 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Bandcamp album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.BandcampAlbumURL(raw)
+	parsed, err := parse.BandcampAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse bandcamp album url: %w", err)
+	}
+	return parsed, nil
 }
 
 // FetchAlbum loads a Bandcamp album page and extracts canonical metadata from schema.org JSON-LD.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceBandcamp {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedBandcampService, parsed.Service)
 	}
 	return a.fetchAlbumPage(ctx, parsed.CanonicalURL)
 }
@@ -116,7 +126,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, nil
 	}
 
-	ranking := score.RankAlbums(album, results)
+	ranking := score.RankAlbums(album, results, score.DefaultWeights())
 	ordered := make([]model.CandidateAlbum, 0, minInt(len(ranking.Ranked), searchLimit))
 	for i, ranked := range ranking.Ranked {
 		if i >= searchLimit {
@@ -130,17 +140,17 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
 	body, err := a.fetchPage(ctx, rawURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch bandcamp album page: %w", err)
 	}
 
 	parsed, err := parse.BandcampAlbumURL(rawURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse bandcamp album url: %w", err)
 	}
 
 	schema, err := extractSchemaAlbum(body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("extract bandcamp schema album: %w", err)
 	}
 	return toCanonicalAlbum(*parsed, schema), nil
 }
@@ -160,7 +170,7 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("unexpected bandcamp status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("%w %d: %s", errUnexpectedBandcampStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -173,7 +183,7 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 func extractSchemaAlbum(body []byte) (*schemaAlbum, error) {
 	matches := jsonLDPattern.FindSubmatch(body)
 	if len(matches) != 2 {
-		return nil, fmt.Errorf("bandcamp json-ld not found")
+		return nil, errBandcampJSONLDNotFound
 	}
 
 	var album schemaAlbum

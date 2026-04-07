@@ -18,6 +18,15 @@ import (
 
 const defaultTokenTTL = time.Hour
 
+var (
+	errAppleMusicKeyIDRequired      = errors.New("apple music key id is required")
+	errAppleMusicTeamIDRequired     = errors.New("apple music team id is required")
+	errAppleMusicPrivateKeyRequired = errors.New("apple music private key path is required")
+	errAppleMusicNoPEMBlock         = errors.New("decode apple music private key pem: no pem block found")
+	errAppleMusicNotECDSAKey        = errors.New("apple music private key is not an ecdsa key")
+	errAppleMusicSignatureTooLarge  = errors.New("apple music signature component too large")
+)
+
 type Config struct {
 	KeyID          string
 	TeamID         string
@@ -73,13 +82,13 @@ func GenerateDeveloperToken(cfg Config, now time.Time) (string, error) {
 
 func (c Config) validate() error {
 	if strings.TrimSpace(c.KeyID) == "" {
-		return errors.New("apple music key id is required")
+		return errAppleMusicKeyIDRequired
 	}
 	if strings.TrimSpace(c.TeamID) == "" {
-		return errors.New("apple music team id is required")
+		return errAppleMusicTeamIDRequired
 	}
 	if strings.TrimSpace(c.PrivateKeyPath) == "" {
-		return errors.New("apple music private key path is required")
+		return errAppleMusicPrivateKeyRequired
 	}
 	return nil
 }
@@ -91,13 +100,13 @@ func loadPrivateKey(path string) (*ecdsa.PrivateKey, error) {
 	}
 	block, _ := pem.Decode(content)
 	if block == nil {
-		return nil, errors.New("decode apple music private key pem: no pem block found")
+		return nil, errAppleMusicNoPEMBlock
 	}
 
 	if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
 		ecdsaKey, ok := key.(*ecdsa.PrivateKey)
 		if !ok {
-			return nil, errors.New("apple music private key is not an ecdsa key")
+			return nil, errAppleMusicNotECDSAKey
 		}
 		return ecdsaKey, nil
 	}
@@ -113,7 +122,7 @@ func joseSignature(r *big.Int, s *big.Int, size int) ([]byte, error) {
 	rb := r.Bytes()
 	sb := s.Bytes()
 	if len(rb) > size || len(sb) > size {
-		return nil, errors.New("apple music signature component too large")
+		return nil, errAppleMusicSignatureTooLarge
 	}
 	signature := make([]byte, size*2)
 	copy(signature[size-len(rb):size], rb)

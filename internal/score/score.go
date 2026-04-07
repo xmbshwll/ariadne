@@ -9,26 +9,53 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-const (
-	upcExactScore             = 100
-	isrcStrongOverlapScore    = 80
-	trackTitleStrongScore     = 30
-	trackTitlePartialScale    = 20
-	titleExactScore           = 25
-	coreTitleExactScore       = 15
-	primaryArtistExactScore   = 20
-	artistOverlapScore        = 10
-	trackCountExactScore      = 15
-	trackCountNearScore       = 5
-	trackCountMismatchPenalty = -15
-	releaseDateExactScore     = 10
-	releaseYearExactScore     = 5
-	durationNearScore         = 10
-	labelExactScore           = 5
-	explicitMismatchPenalty   = -10
-	editionMismatchPenalty    = -20
-	editionMarkerPenalty      = -10
-)
+// Weights configures how ranking signals contribute to the final score.
+type Weights struct {
+	UPCExact             int
+	ISRCStrongOverlap    int
+	ISRCPartialScale     int
+	TrackTitleStrong     int
+	TrackTitlePartial    int
+	TitleExact           int
+	CoreTitleExact       int
+	PrimaryArtistExact   int
+	ArtistOverlap        int
+	TrackCountExact      int
+	TrackCountNear       int
+	TrackCountMismatch   int
+	ReleaseDateExact     int
+	ReleaseYearExact     int
+	DurationNear         int
+	LabelExact           int
+	ExplicitMismatch     int
+	EditionMismatch      int
+	EditionMarkerPenalty int
+}
+
+// DefaultWeights returns the built-in scoring weights.
+func DefaultWeights() Weights {
+	return Weights{
+		UPCExact:             100,
+		ISRCStrongOverlap:    80,
+		ISRCPartialScale:     60,
+		TrackTitleStrong:     30,
+		TrackTitlePartial:    20,
+		TitleExact:           25,
+		CoreTitleExact:       15,
+		PrimaryArtistExact:   20,
+		ArtistOverlap:        10,
+		TrackCountExact:      15,
+		TrackCountNear:       5,
+		TrackCountMismatch:   -15,
+		ReleaseDateExact:     10,
+		ReleaseYearExact:     5,
+		DurationNear:         10,
+		LabelExact:           5,
+		ExplicitMismatch:     -10,
+		EditionMismatch:      -20,
+		EditionMarkerPenalty: -10,
+	}
+}
 
 // RankedCandidate is one candidate plus its computed score and explanation.
 type RankedCandidate struct {
@@ -44,10 +71,10 @@ type Ranking struct {
 }
 
 // RankAlbums scores and sorts target candidates for a single source album.
-func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum) Ranking {
+func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, weights Weights) Ranking {
 	ranked := make([]RankedCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
-		ranked = append(ranked, scoreCandidate(source, candidate))
+		ranked = append(ranked, scoreCandidate(source, candidate, weights))
 	}
 
 	sort.SliceStable(ranked, func(i, j int) bool {
@@ -65,7 +92,7 @@ func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum) 
 	return ranking
 }
 
-func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum) RankedCandidate {
+func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) RankedCandidate {
 	score := 0
 	reasons := make([]string, 0, 8)
 
@@ -74,10 +101,10 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum)
 	sourceCoreTitle := coreTitle(source.Title, source.NormalizedTitle)
 	candidateCoreTitle := coreTitle(candidate.Title, candidate.NormalizedTitle)
 	if sourceTitle != "" && sourceTitle == candidateTitle {
-		score += titleExactScore
+		score += weights.TitleExact
 		reasons = append(reasons, "title exact match")
 	} else if sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle {
-		score += coreTitleExactScore
+		score += weights.CoreTitleExact
 		reasons = append(reasons, "core title match")
 	}
 
@@ -85,16 +112,16 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum)
 	candidateArtists := normalizedArtists(candidate.CanonicalAlbum)
 	if len(sourceArtists) > 0 && len(candidateArtists) > 0 {
 		if sourceArtists[0] == candidateArtists[0] {
-			score += primaryArtistExactScore
+			score += weights.PrimaryArtistExact
 			reasons = append(reasons, "primary artist exact match")
 		} else if artistOverlap(sourceArtists, candidateArtists) {
-			score += artistOverlapScore
+			score += weights.ArtistOverlap
 			reasons = append(reasons, "artist overlap")
 		}
 	}
 
 	if source.UPC != "" && candidate.UPC != "" && source.UPC == candidate.UPC {
-		score += upcExactScore
+		score += weights.UPCExact
 		reasons = append(reasons, "upc exact match")
 	}
 
@@ -102,10 +129,10 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum)
 	if sourceISRCCount > 0 && overlap > 0 {
 		ratio := float64(overlap) / float64(sourceISRCCount)
 		if ratio >= 0.70 {
-			score += isrcStrongOverlapScore
+			score += weights.ISRCStrongOverlap
 			reasons = append(reasons, fmt.Sprintf("strong isrc overlap (%d/%d)", overlap, sourceISRCCount))
 		} else {
-			partialScore := int(ratio * 60)
+			partialScore := int(ratio * float64(weights.ISRCPartialScale))
 			score += partialScore
 			reasons = append(reasons, fmt.Sprintf("partial isrc overlap (%d/%d)", overlap, sourceISRCCount))
 		}
@@ -116,11 +143,11 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum)
 		ratio := float64(trackTitleOverlapCount) / float64(sourceTrackTitleCount)
 		switch {
 		case ratio >= 0.70:
-			score += trackTitleStrongScore
+			score += weights.TrackTitleStrong
 			reasons = append(reasons, fmt.Sprintf("strong track title overlap (%d/%d)", trackTitleOverlapCount, sourceTrackTitleCount))
 		case ratio >= 0.40:
-			partialScore := int(ratio * trackTitlePartialScale)
-			if partialScore > 0 {
+			partialScore := int(ratio * float64(weights.TrackTitlePartial))
+			if partialScore != 0 {
 				score += partialScore
 				reasons = append(reasons, fmt.Sprintf("partial track title overlap (%d/%d)", trackTitleOverlapCount, sourceTrackTitleCount))
 			}
@@ -134,13 +161,13 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum)
 		}
 		switch {
 		case diff == 0:
-			score += trackCountExactScore
+			score += weights.TrackCountExact
 			reasons = append(reasons, "track count exact match")
 		case diff == 1:
-			score += trackCountNearScore
+			score += weights.TrackCountNear
 			reasons = append(reasons, "track count near match")
 		case diff >= 3:
-			score += trackCountMismatchPenalty
+			score += weights.TrackCountMismatch
 			reasons = append(reasons, "track count mismatch")
 		}
 	}
@@ -148,35 +175,35 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum)
 	if source.ReleaseDate != "" && candidate.ReleaseDate != "" {
 		switch {
 		case source.ReleaseDate == candidate.ReleaseDate:
-			score += releaseDateExactScore
+			score += weights.ReleaseDateExact
 			reasons = append(reasons, "release date exact match")
 		case sameReleaseYear(source.ReleaseDate, candidate.ReleaseDate):
-			score += releaseYearExactScore
+			score += weights.ReleaseYearExact
 			reasons = append(reasons, "release year match")
 		}
 	}
 
 	if source.TotalDurationMS > 0 && candidate.TotalDurationMS > 0 && durationNear(source.TotalDurationMS, candidate.TotalDurationMS) {
-		score += durationNearScore
+		score += weights.DurationNear
 		reasons = append(reasons, "duration near match")
 	}
 
 	if source.Label != "" && candidate.Label != "" && normalizedOrDerived(source.Label, "") == normalizedOrDerived(candidate.Label, "") {
-		score += labelExactScore
+		score += weights.LabelExact
 		reasons = append(reasons, "label exact match")
 	}
 
 	if source.Explicit != candidate.Explicit {
-		score += explicitMismatchPenalty
+		score += weights.ExplicitMismatch
 		reasons = append(reasons, "explicit mismatch")
 	}
 
 	if editionMismatch(source.EditionHints, candidate.EditionHints) {
-		score += editionMismatchPenalty
+		score += weights.EditionMismatch
 		reasons = append(reasons, "edition mismatch")
 	}
 
-	if penalty, markers := editionMarkerMismatchPenalty(source, candidate.CanonicalAlbum); penalty != 0 {
+	if penalty, markers := editionMarkerMismatchPenalty(source, candidate.CanonicalAlbum, weights); penalty != 0 {
 		score += penalty
 		reasons = append(reasons, "edition marker mismatch: "+strings.Join(markers, ", "))
 	}
@@ -300,10 +327,7 @@ func durationNear(leftMS int, rightMS int) bool {
 	if delta < 0 {
 		delta = -delta
 	}
-	threshold := leftMS / 50
-	if threshold < 1000 {
-		threshold = 1000
-	}
+	threshold := max(leftMS/50, 1000)
 	return delta <= threshold
 }
 
@@ -323,7 +347,7 @@ func editionMismatch(left []string, right []string) bool {
 	return true
 }
 
-func editionMarkerMismatchPenalty(source model.CanonicalAlbum, candidate model.CanonicalAlbum) (int, []string) {
+func editionMarkerMismatchPenalty(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) (int, []string) {
 	sourceMarkers := editionMarkers(source.Title)
 	candidateMarkers := editionMarkers(candidate.Title)
 	if len(sourceMarkers) == 0 && len(candidateMarkers) == 0 {
@@ -334,9 +358,12 @@ func editionMarkerMismatchPenalty(source model.CanonicalAlbum, candidate model.C
 	if len(differences) == 0 {
 		return 0, nil
 	}
-	penalty := len(differences) * editionMarkerPenalty
-	if penalty < editionMismatchPenalty {
-		penalty = editionMismatchPenalty
+	penalty := len(differences) * weights.EditionMarkerPenalty
+	if weights.EditionMarkerPenalty < 0 && penalty < weights.EditionMismatch {
+		penalty = weights.EditionMismatch
+	}
+	if weights.EditionMarkerPenalty > 0 && penalty > weights.EditionMismatch {
+		penalty = weights.EditionMismatch
 	}
 	return penalty, differences
 }

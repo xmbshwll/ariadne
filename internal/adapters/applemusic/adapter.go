@@ -3,6 +3,7 @@ package applemusic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,16 @@ const (
 	defaultLookupBaseURL = "https://itunes.apple.com"
 	defaultAPIBaseURL    = "https://api.music.apple.com/v1"
 	searchLimit          = 5
+)
+
+var (
+	errUnexpectedAppleMusicService = errors.New("unexpected apple music service")
+	errAppleMusicAlbumNotFound     = errors.New("apple music album not found")
+	errUnexpectedAppleMusicStatus  = errors.New("unexpected apple music status")
+
+	errUnexpectedAppleMusicOfficialStatus  = errors.New("unexpected apple music official status")
+	errAppleMusicOfficialAuthNotConfigured = errors.New("apple music official auth not configured")
+	errAppleMusicOfficialAlbumNotFound     = errors.New("apple music official album not found")
 )
 
 // Option configures the Apple Music adapter.
@@ -97,13 +108,17 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses an Apple Music album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.AppleMusicAlbumURL(raw)
+	parsed, err := parse.AppleMusicAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse apple music album url: %w", err)
+	}
+	return parsed, nil
 }
 
 // FetchAlbum loads Apple Music album metadata from the lookup API and maps it into the canonical model.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceAppleMusic {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedAppleMusicService, parsed.Service)
 	}
 	return a.fetchAlbumByID(ctx, parsed.ID, parsed.CanonicalURL, a.storefrontFor(parsed.RegionHint))
 }
@@ -199,7 +214,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 		return nil, err
 	}
 	if len(payload.Results) == 0 {
-		return nil, fmt.Errorf("apple music album %s not found", albumID)
+		return nil, fmt.Errorf("%w: %s", errAppleMusicAlbumNotFound, albumID)
 	}
 
 	parsed := model.ParsedAlbumURL{
@@ -232,7 +247,7 @@ func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) er
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("unexpected apple music status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%w %d: %s", errUnexpectedAppleMusicStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode apple music response: %w", err)
@@ -263,7 +278,7 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("unexpected apple music official status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%w %d: %s", errUnexpectedAppleMusicOfficialStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode apple music official response: %w", err)
@@ -272,6 +287,8 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 }
 
 func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
+	const explicitTrack = "explicit"
+
 	collection := items[0]
 	tracks := make([]model.CanonicalTrack, 0, len(items)-1)
 	totalDurationMS := 0
@@ -284,7 +301,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 		}
 		trackCount++
 		totalDurationMS += item.TrackTimeMillis
-		if item.TrackExplicitness == "explicit" {
+		if item.TrackExplicitness == explicitTrack {
 			explicit = true
 		}
 		tracks = append(tracks, model.CanonicalTrack{
@@ -371,7 +388,7 @@ func (a *Adapter) authEnabled() bool {
 
 func (a *Adapter) developerToken() (string, error) {
 	if !a.authEnabled() {
-		return "", fmt.Errorf("apple music official auth not configured")
+		return "", errAppleMusicOfficialAuthNotConfigured
 	}
 
 	a.tokenMu.Lock()
@@ -427,7 +444,7 @@ func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, st
 	}
 	resource := firstOfficialResource(payload)
 	if resource == nil {
-		return nil, fmt.Errorf("apple music official album %s not found", albumID)
+		return nil, fmt.Errorf("%w: %s", errAppleMusicOfficialAlbumNotFound, albumID)
 	}
 	return officialResourceToCanonicalAlbum(resource, storefront), nil
 }

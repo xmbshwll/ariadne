@@ -17,18 +17,18 @@ func SoundCloudAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host != "soundcloud.com" && host != "www.soundcloud.com" {
-		return nil, fmt.Errorf("unsupported soundcloud host: %s", parsed.Host)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedSoundCloudHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
 	if len(segments) < 3 || segments[1] != "sets" {
-		return nil, fmt.Errorf("soundcloud url is not an album-like set url: %s", raw)
+		return nil, fmt.Errorf("%w: %s", errSoundCloudNotAlbumURL, raw)
 	}
 
 	userSlug := segments[0]
 	setSlug := segments[2]
 	if userSlug == "" || setSlug == "" {
-		return nil, fmt.Errorf("missing soundcloud user or set slug")
+		return nil, errMissingSoundCloudUserOrSetSlug
 	}
 
 	canonicalURL := fmt.Sprintf("https://soundcloud.com/%s/sets/%s", userSlug, setSlug)

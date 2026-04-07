@@ -1,55 +1,103 @@
 # Configuration
 
-Ariadne reads runtime configuration from environment variables through `internal/config`.
+This document explains how to configure Ariadne for normal use and for service validation work.
 
-For the service-by-service runtime resolution path, see `docs/service-resolution.md`.
+## Quick start
 
-Current variables:
+If you are using the Go library:
 
-| Variable | Required | Default | Purpose |
+```go
+cfg := ariadne.LoadConfig()
+resolver := ariadne.New(cfg)
+```
+
+If you want to limit which services are searched:
+
+```go
+cfg := ariadne.LoadConfig()
+cfg.TargetServices = []ariadne.ServiceName{
+	ariadne.ServiceSpotify,
+	ariadne.ServiceAppleMusic,
+}
+resolver := ariadne.New(cfg)
+```
+
+If you want to tune match scoring:
+
+```go
+cfg := ariadne.LoadConfig()
+cfg.ScoreWeights.TrackTitleStrong = 40
+cfg.ScoreWeights.UPCExact = 120
+resolver := ariadne.New(cfg)
+```
+
+For the service-by-service runtime behavior, see [`service-resolution.md`](./service-resolution.md).
+
+## Environment variables
+
+| Variable | Required | Default | What it does |
 |---|---:|---|---|
-| `SPOTIFY_CLIENT_ID` | no | empty | Enables Spotify Web API source/target operations that require app credentials. |
-| `SPOTIFY_CLIENT_SECRET` | no | empty | Paired with `SPOTIFY_CLIENT_ID` for Spotify Client Credentials auth. |
-| `APPLE_MUSIC_STOREFRONT` | no | `us` | Default storefront used for Apple Music lookup/search when a URL does not already imply one. |
-| `APPLE_MUSIC_KEY_ID` | no | empty | Apple Music private key identifier used in the generated MusicKit developer token header. |
-| `APPLE_MUSIC_TEAM_ID` | no | empty | Apple Developer team identifier used as the `iss` claim in the generated MusicKit developer token. |
-| `APPLE_MUSIC_PRIVATE_KEY_PATH` | no | empty | Path to the downloaded Apple Music `.p8` private key used to sign the generated developer token. |
-| `TIDAL_CLIENT_ID` | no | empty | TIDAL client ID used to obtain an OAuth access token for both validation and runtime source/target operations. |
-| `TIDAL_CLIENT_SECRET` | no | empty | TIDAL client secret used in the client-credentials token exchange. |
+| `SPOTIFY_CLIENT_ID` | no | empty | Enables Spotify Web API operations that need app credentials. |
+| `SPOTIFY_CLIENT_SECRET` | no | empty | Used with `SPOTIFY_CLIENT_ID` for Spotify client-credentials auth. |
+| `APPLE_MUSIC_STOREFRONT` | no | `us` | Default storefront for Apple Music lookup and metadata search. |
+| `APPLE_MUSIC_KEY_ID` | no | empty | Apple Music key ID used to generate a MusicKit developer token. |
+| `APPLE_MUSIC_TEAM_ID` | no | empty | Apple Developer team ID used in the MusicKit token. |
+| `APPLE_MUSIC_PRIVATE_KEY_PATH` | no | empty | Path to the Apple `.p8` private key used to sign the MusicKit token. |
+| `TIDAL_CLIENT_ID` | no | empty | TIDAL client ID used for runtime API access and validation. |
+| `TIDAL_CLIENT_SECRET` | no | empty | TIDAL client secret used in the token exchange. |
 
-## Credential-gated behavior
-
-This file focuses on credentials and runtime switches. For the full source-fetch and target-search behavior of each connector, see `docs/service-resolution.md`.
+## What changes when credentials are present
 
 ### Spotify
-- When both `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set, Spotify target search is enabled and source fetch prefers the official Web API.
-- When either value is missing, Spotify source fetch falls back to the public page bootstrap and Spotify target search is disabled.
+
+- If both `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set, Spotify target search is enabled and Spotify source fetch prefers the official Web API.
+- If either is missing, Spotify can still be used as an input service through public page bootstrap, but Spotify target search is disabled.
 
 ### Apple Music
-- `APPLE_MUSIC_STOREFRONT` controls the default storefront for Apple Music lookups and metadata search.
-- Precedence is:
-  1. `--apple-music-storefront=<storefront>`
+
+- `APPLE_MUSIC_STOREFRONT` controls the default storefront for Apple Music lookup and search.
+- Storefront precedence is:
+  1. CLI flag `--apple-music-storefront=<storefront>`
   2. `APPLE_MUSIC_STOREFRONT`
   3. built-in default: `us`
-- Apple Music official validation and identifier search use generated MusicKit tokens from:
+- If these values are set:
   - `APPLE_MUSIC_KEY_ID`
   - `APPLE_MUSIC_TEAM_ID`
   - `APPLE_MUSIC_PRIVATE_KEY_PATH`
-- Runtime source fetch and metadata search still use public lookup/search APIs.
+  Ariadne also enables official MusicKit identifier search by UPC and ISRC.
+- Source fetch and metadata search still use the public lookup/search APIs.
 
 ### TIDAL
-- `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` enable both TIDAL validation and the runtime adapter.
-- There is no public TIDAL runtime fallback, so both TIDAL source fetch and TIDAL target search require these variables.
 
-## Setup
+- `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` are required for the TIDAL runtime adapter.
+- There is no public runtime fallback, so both TIDAL source fetch and TIDAL target search require credentials.
 
-Copy the example file and fill in the values you need:
+## Library vs CLI configuration
+
+### Library
+
+The library reads environment variables through `ariadne.LoadConfig()`.
+
+### CLI
+
+The CLI loads configuration with this precedence:
+
+1. explicit CLI flags
+2. environment variables
+3. config file values from `--config` (defaults to `.env`)
+4. built-in defaults
+
+That means the CLI can work with plain environment variables, a `.env` file, or another config file supported by Viper.
+
+## Local setup
+
+Copy the example file if you want a starting point:
 
 ```bash
 cp .env.example .env
 ```
 
-Then export the variables into your shell before running commands, for example:
+You can then either export variables in your shell:
 
 ```bash
 export SPOTIFY_CLIENT_ID=your-client-id
@@ -62,54 +110,56 @@ export TIDAL_CLIENT_ID=your-tidal-client-id
 export TIDAL_CLIENT_SECRET=your-tidal-client-secret
 ```
 
-Or source your `.env` file if your shell workflow allows it.
+Or let the CLI load `.env` directly, which is the default behavior:
 
-## Validation workflow
+```bash
+ariadne resolve https://www.deezer.com/album/12047952
+ariadne resolve --config=.env https://www.deezer.com/album/12047952
+ariadne resolve --config=./config/ariadne.yaml https://www.deezer.com/album/12047952
+```
 
-To generate authenticated Spotify validation artifacts:
+## Validation tools
+
+The validation commands live in the `cmd` module. From the repository root, use the `make` targets below.
+
+### Spotify
 
 ```bash
 make validate-spotify-auth
 ```
 
 This writes:
+
 - `service-samples/spotify/source-payload-api.json`
 - `service-samples/spotify/search-upc-results.json`
 - `service-samples/spotify/search-isrc-results.json`
 - `service-samples/spotify/search-metadata-results.json`
 - `service-samples/spotify/authenticated-summary.json`
 
-To generate official Apple Music validation artifacts:
+### Apple Music
 
 ```bash
 make validate-apple-music-official
 ```
 
 This writes:
+
 - `service-samples/apple-music/source-payload-official.json`
 - `service-samples/apple-music/search-metadata-official.json`
 - `service-samples/apple-music/search-upc-official.json` when UPC is present
 - `service-samples/apple-music/search-isrc-official.json` when track ISRCs are present
 - `service-samples/apple-music/official-summary.json`
 
-To generate official TIDAL validation artifacts:
+### TIDAL
 
 ```bash
 make validate-tidal-official
 ```
 
-This command first exchanges `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` for a bearer token, then writes:
+This first exchanges `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` for a bearer token, then writes:
+
 - `service-samples/tidal/source-payload-official.json`
 - `service-samples/tidal/search-albums-official.json`
 - `service-samples/tidal/search-upc-official.json`
 - `service-samples/tidal/search-isrc-official.json`
 - `service-samples/tidal/official-summary.json`
-
-## Adding new configuration
-
-Add new service credentials in `internal/config/config.go` instead of reading environment variables directly in adapters or commands.
-
-That keeps:
-- runtime configuration centralized
-- tests simpler
-- future service integrations consistent

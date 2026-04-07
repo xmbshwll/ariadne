@@ -17,18 +17,18 @@ func BandcampAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host == "" {
-		return nil, fmt.Errorf("missing bandcamp host")
+		return nil, errMissingBandcampHost
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 || segments[0] != "album" {
-		return nil, fmt.Errorf("bandcamp url is not an album url: %s", raw)
+	if len(segments) < 2 || segments[0] != albumPathSegment {
+		return nil, fmt.Errorf("%w: %s", errBandcampNotAlbumURL, raw)
 	}
 
 	slug := segments[1]
-	canonicalURL := fmt.Sprintf("%s://%s/album/%s", parsed.Scheme, parsed.Host, slug)
+	canonicalURL := fmt.Sprintf("%s://%s/%s/%s", parsed.Scheme, parsed.Host, albumPathSegment, slug)
 	if parsed.Scheme == "" {
-		canonicalURL = fmt.Sprintf("https://%s/album/%s", parsed.Host, slug)
+		canonicalURL = fmt.Sprintf("https://%s/%s/%s", parsed.Host, albumPathSegment, slug)
 	}
 
 	return &model.ParsedAlbumURL{

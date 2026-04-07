@@ -2,6 +2,7 @@ package youtubemusic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -21,12 +22,15 @@ const (
 )
 
 var (
-	canonicalURLPattern   = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
-	ogTitlePattern        = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
-	ogImagePattern        = regexp.MustCompile(`(?i)<meta property="og:image" content="([^"]+)"`)
-	subtitleArtistPattern = regexp.MustCompile(`subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	trackTitlePattern     = regexp.MustCompile(`musicResponsiveListItemFlexColumnRenderer\\x22:\\x7b\\x22text\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	albumResultPattern    = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	canonicalURLPattern               = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
+	ogTitlePattern                    = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
+	ogImagePattern                    = regexp.MustCompile(`(?i)<meta property="og:image" content="([^"]+)"`)
+	subtitleArtistPattern             = regexp.MustCompile(`subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	trackTitlePattern                 = regexp.MustCompile(`musicResponsiveListItemFlexColumnRenderer\\x22:\\x7b\\x22text\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	albumResultPattern                = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	errUnexpectedYouTubeMusicService  = errors.New("unexpected youtube music service")
+	errUnexpectedYouTubeMusicStatus   = errors.New("unexpected youtube music status")
+	errYouTubeMusicAlbumTitleNotFound = errors.New("youtube music album title not found")
 )
 
 type Option func(*Adapter)
@@ -58,16 +62,20 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.YouTubeMusicAlbumURL(raw)
+	parsed, err := parse.YouTubeMusicAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse youtube music album url: %w", err)
+	}
+	return parsed, nil
 }
 
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceYouTubeMusic {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedYouTubeMusicService, parsed.Service)
 	}
 	body, err := a.fetchPage(ctx, parsed.CanonicalURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch youtube music page: %w", err)
 	}
 	return extractAlbum(body, parsed.CanonicalURL)
 }
@@ -127,7 +135,7 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("unexpected youtube music status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("%w %d: %s", errUnexpectedYouTubeMusicStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -149,7 +157,7 @@ func extractAlbum(body []byte, fallbackURL string) (*model.CanonicalAlbum, error
 	}
 	title := cleanAlbumTitle(extractFirstGroup(ogTitlePattern, body))
 	if title == "" {
-		return nil, fmt.Errorf("youtube music album title not found")
+		return nil, errYouTubeMusicAlbumTitleNotFound
 	}
 	artist := html.UnescapeString(extractFirstGroup(subtitleArtistPattern, body))
 	trackTitles := extractTrackTitles(body)

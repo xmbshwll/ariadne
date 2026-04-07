@@ -30,6 +30,15 @@ const (
 
 var (
 	initialStatePattern = regexp.MustCompile(`<script id="initialState" type="text/plain">([^<]+)</script>`)
+
+	errUnexpectedSpotifyService     = errors.New("unexpected spotify service")
+	errUnexpectedSpotifyStatus      = errors.New("unexpected spotify status")
+	errSpotifyAlbumEntityNotFound   = errors.New("spotify album entity not found in bootstrap payload")
+	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected api status")
+	errUnexpectedSpotifyTokenStatus = errors.New("unexpected token status")
+	errEmptySpotifyAccessToken      = errors.New("empty spotify access token")
+	errInitialStateScriptNotFound   = errors.New("initial state script not found")
+
 	// ErrCredentialsNotConfigured indicates that a Web API operation requires Spotify credentials.
 	ErrCredentialsNotConfigured = errors.New("spotify credentials not configured")
 )
@@ -103,14 +112,18 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Spotify album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parse.SpotifyAlbumURL(raw)
+	parsed, err := parse.SpotifyAlbumURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse spotify album url: %w", err)
+	}
+	return parsed, nil
 }
 
 // FetchAlbum loads a Spotify album via the Web API when credentials are configured,
 // otherwise falls back to the public album page bootstrap.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceSpotify {
-		return nil, fmt.Errorf("unexpected service: %s", parsed.Service)
+		return nil, fmt.Errorf("%w: %s", errUnexpectedSpotifyService, parsed.Service)
 	}
 
 	if a.hasCredentials() {
@@ -294,7 +307,7 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 		return nil, fmt.Errorf("close spotify response body: %w", closeErr)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected spotify status %d", resp.StatusCode)
+		return nil, fmt.Errorf("%w: %d", errUnexpectedSpotifyStatus, resp.StatusCode)
 	}
 
 	payload, err := parseInitialState(body)
@@ -305,7 +318,7 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 	entityKey := "spotify:album:" + parsed.ID
 	album, ok := payload.Entities.Items[entityKey]
 	if !ok {
-		return nil, fmt.Errorf("spotify album entity %s not found in bootstrap payload", entityKey)
+		return nil, fmt.Errorf("%w: %s", errSpotifyAlbumEntityNotFound, entityKey)
 	}
 
 	return toCanonicalAlbumBootstrap(parsed, album), nil
@@ -360,7 +373,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("unexpected api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("%w %d: %s", errUnexpectedSpotifyAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode api response: %w", err)
@@ -401,7 +414,7 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return "", fmt.Errorf("unexpected token status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("%w %d: %s", errUnexpectedSpotifyTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var token tokenResponse
@@ -409,7 +422,7 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("decode token response: %w", err)
 	}
 	if token.AccessToken == "" {
-		return "", fmt.Errorf("empty spotify access token")
+		return "", errEmptySpotifyAccessToken
 	}
 
 	a.token = cachedToken{
@@ -426,7 +439,7 @@ func (a *Adapter) hasCredentials() bool {
 func parseInitialState(body []byte) (*initialState, error) {
 	matches := initialStatePattern.FindSubmatch(body)
 	if len(matches) != 2 {
-		return nil, fmt.Errorf("initial state script not found")
+		return nil, errInitialStateScriptNotFound
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(string(matches[1]))

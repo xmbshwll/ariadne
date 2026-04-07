@@ -72,7 +72,7 @@ func TestRankAlbums(t *testing.T) {
 		},
 	}
 
-	ranking := RankAlbums(source, candidates)
+	ranking := RankAlbums(source, candidates, DefaultWeights())
 	if ranking.Best == nil {
 		t.Fatalf("expected best candidate")
 	}
@@ -148,7 +148,7 @@ func TestRankAlbumsAppleMusicAlternates(t *testing.T) {
 		},
 	}
 
-	ranking := RankAlbums(source, candidates)
+	ranking := RankAlbums(source, candidates, DefaultWeights())
 	if ranking.Best == nil {
 		t.Fatalf("expected best candidate")
 	}
@@ -222,7 +222,7 @@ func TestRankAlbumsPrefersTrackTitleOverlapWithoutIdentifiers(t *testing.T) {
 		},
 	}
 
-	ranking := RankAlbums(source, candidates)
+	ranking := RankAlbums(source, candidates, DefaultWeights())
 	if ranking.Best == nil {
 		t.Fatalf("expected best candidate")
 	}
@@ -272,7 +272,7 @@ func TestRankAlbumsPrefersExplicitVersionOverClean(t *testing.T) {
 		},
 	}
 
-	ranking := RankAlbums(source, candidates)
+	ranking := RankAlbums(source, candidates, DefaultWeights())
 	if ranking.Best == nil {
 		t.Fatalf("expected best candidate")
 	}
@@ -282,7 +282,7 @@ func TestRankAlbumsPrefersExplicitVersionOverClean(t *testing.T) {
 }
 
 func TestRankAlbumsEmpty(t *testing.T) {
-	ranking := RankAlbums(model.CanonicalAlbum{}, nil)
+	ranking := RankAlbums(model.CanonicalAlbum{}, nil, DefaultWeights())
 	if ranking.Best != nil {
 		t.Fatalf("expected nil best candidate")
 	}

@@ -7,6 +7,12 @@ import (
 	"testing"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/score"
+)
+
+var (
+	errUnsupportedTestSource = errors.New("unsupported")
+	errTestSourceNotFound    = errors.New("not found")
 )
 
 func TestResolverResolveAlbum(t *testing.T) {
@@ -23,7 +29,7 @@ func TestResolverResolveAlbum(t *testing.T) {
 	}{
 		{
 			name:     "no source adapters",
-			resolver: New(nil, nil),
+			resolver: New(nil, nil, score.DefaultWeights()),
 			inputURL: "https://www.deezer.com/album/12047952",
 			wantErr:  ErrNoSourceAdapters,
 		},
@@ -32,6 +38,7 @@ func TestResolverResolveAlbum(t *testing.T) {
 			resolver: New(
 				[]SourceAdapter{stubSourceAdapter{}},
 				nil,
+				score.DefaultWeights(),
 			),
 			inputURL: "https://example.com/album/123",
 			wantErr:  ErrUnsupportedURL,
@@ -41,6 +48,7 @@ func TestResolverResolveAlbum(t *testing.T) {
 			resolver: New(
 				[]SourceAdapter{stubSourceAdapter{}},
 				[]TargetAdapter{stubTargetAdapter{}},
+				score.DefaultWeights(),
 			),
 			inputURL:          "https://www.deezer.com/album/12047952",
 			wantSourceService: model.ServiceDeezer,
@@ -111,7 +119,7 @@ func (stubSourceAdapter) Service() model.ServiceName {
 
 func (stubSourceAdapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	if raw != "https://www.deezer.com/album/12047952" {
-		return nil, errors.New("unsupported")
+		return nil, errUnsupportedTestSource
 	}
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
@@ -424,7 +432,7 @@ func TestResolverCrossServiceFixtures(t *testing.T) {
 		targets = append(targets, fixtureTargetAdapter{service: service, candidatesBySourceID: candidatesBySourceID})
 	}
 
-	resolver := New([]SourceAdapter{sourceAdapter}, targets)
+	resolver := New([]SourceAdapter{sourceAdapter}, targets, score.DefaultWeights())
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			resolution, err := resolver.ResolveAlbum(context.Background(), fixture.inputURL)
@@ -508,7 +516,7 @@ func (a fixtureSourceAdapter) Service() model.ServiceName {
 func (a fixtureSourceAdapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	album, ok := a.albumsByURL[raw]
 	if !ok {
-		return nil, errors.New("unsupported")
+		return nil, errUnsupportedTestSource
 	}
 	return &model.ParsedAlbumURL{Service: album.Service, EntityType: "album", ID: album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
 }
@@ -520,7 +528,7 @@ func (a fixtureSourceAdapter) FetchAlbum(_ context.Context, parsed model.ParsedA
 			return &albumCopy, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil, errTestSourceNotFound
 }
 
 type fixtureTargetAdapter struct {

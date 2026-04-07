@@ -17,32 +17,32 @@ func TIDALAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	host := strings.ToLower(parsed.Host)
 	if host != "tidal.com" && host != "www.tidal.com" && host != "listen.tidal.com" {
-		return nil, fmt.Errorf("unsupported tidal host: %s", parsed.Host)
+		return nil, fmt.Errorf("%w: %s", errUnsupportedTIDALHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
 	if len(segments) < 2 {
-		return nil, fmt.Errorf("invalid tidal album path: %s", parsed.Path)
+		return nil, fmt.Errorf("%w: %s", errInvalidTIDALAlbumPath, parsed.Path)
 	}
 
 	index := 0
 	if segments[0] == "browse" {
 		index++
 	}
-	if len(segments[index:]) < 2 || segments[index] != "album" {
-		return nil, fmt.Errorf("tidal url is not an album url: %s", raw)
+	if len(segments[index:]) < 2 || segments[index] != albumPathSegment {
+		return nil, fmt.Errorf("%w: %s", errTIDALNotAlbumURL, raw)
 	}
 
 	id := segments[index+1]
 	if id == "" {
-		return nil, fmt.Errorf("missing tidal album id")
+		return nil, errMissingTIDALAlbumID
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceTIDAL,
 		EntityType:   "album",
 		ID:           id,
-		CanonicalURL: "https://tidal.com/album/" + id,
+		CanonicalURL: "https://tidal.com/" + albumPathSegment + "/" + id,
 		RawURL:       raw,
 	}, nil
 }

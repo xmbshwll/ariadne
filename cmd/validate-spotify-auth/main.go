@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,20 @@ const (
 	defaultSampleURLPath      = "service-samples/spotify/sample-url.txt"
 	defaultOutputDir          = "service-samples/spotify"
 	searchLimit               = 5
+)
+
+var (
+	errSpotifyCredentialsRequired = errors.New("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+	errSpotifyUPCMissing          = errors.New("album payload did not include external_ids.upc")
+	errSpotifyISRCMissing         = errors.New("spotify track detail payloads did not include any external_ids.isrc values")
+	errSpotifyMetadataMissing     = errors.New("album payload did not provide enough metadata for search validation")
+
+	errSpotifyValidateUsage  = errors.New("usage: go run ./cmd/validate-spotify-auth [-url <spotify-album-url>] [-sample-url-file <path>] [-out-dir <dir>]")
+	errSpotifySampleURLEmpty = errors.New("spotify sample url file is empty")
+
+	errSpotifyTokenStatus  = errors.New("unexpected spotify token status")
+	errSpotifyTokenMissing = errors.New("spotify token response did not include access_token")
+	errSpotifyAPIStatus    = errors.New("unexpected spotify api status")
 )
 
 func main() {
@@ -43,7 +58,7 @@ func run(args []string) error {
 
 	appConfig := config.Load()
 	if !appConfig.Spotify.Enabled() {
-		return errors.New("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+		return errSpotifyCredentialsRequired
 	}
 
 	rawURL, err := loadSampleURL(opts.sampleURL, opts.sampleURLPath)
@@ -76,30 +91,30 @@ func run(args []string) error {
 
 	upc := nestedString(album, "external_ids", "upc")
 	if upc == "" {
-		return errors.New("album payload did not include external_ids.upc")
+		return errSpotifyUPCMissing
 	}
 	isrcs, err := collectTrackISRCs(ctx, opts.apiBaseURL, token, album)
 	if err != nil {
 		return fmt.Errorf("collect spotify track isrcs: %w", err)
 	}
 	if len(isrcs) == 0 {
-		return errors.New("spotify track detail payloads did not include any external_ids.isrc values")
+		return errSpotifyISRCMissing
 	}
 
 	metadataQuery := metadataQuery(album)
 	if metadataQuery == "" {
-		return errors.New("album payload did not provide enough metadata for search validation")
+		return errSpotifyMetadataMissing
 	}
 
-	upcBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+fmt.Sprint(searchLimit), token)
+	upcBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
 	if err != nil {
 		return fmt.Errorf("search spotify by upc: %w", err)
 	}
-	isrcBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+fmt.Sprint(searchLimit), token)
+	isrcBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+strconv.Itoa(searchLimit), token)
 	if err != nil {
 		return fmt.Errorf("search spotify by isrc: %w", err)
 	}
-	metadataBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape(metadataQuery)+"&type=album&limit="+fmt.Sprint(searchLimit), token)
+	metadataBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape(metadataQuery)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
 	if err != nil {
 		return fmt.Errorf("search spotify by metadata: %w", err)
 	}
@@ -172,10 +187,10 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&opts.apiBaseURL, "api-base-url", opts.apiBaseURL, "spotify api base url")
 	fs.StringVar(&opts.authBaseURL, "auth-base-url", opts.authBaseURL, "spotify auth base url")
 	if err := fs.Parse(args); err != nil {
-		return options{}, errors.New("usage: go run ./cmd/validate-spotify-auth [-url <spotify-album-url>] [-sample-url-file <path>] [-out-dir <dir>]")
+		return options{}, errSpotifyValidateUsage
 	}
 	if len(fs.Args()) != 0 {
-		return options{}, errors.New("usage: go run ./cmd/validate-spotify-auth [-url <spotify-album-url>] [-sample-url-file <path>] [-out-dir <dir>]")
+		return options{}, errSpotifyValidateUsage
 	}
 	return opts, nil
 }
@@ -190,7 +205,7 @@ func loadSampleURL(rawURL string, path string) (string, error) {
 	}
 	value := strings.TrimSpace(string(content))
 	if value == "" {
-		return "", fmt.Errorf("spotify sample url file %s is empty", path)
+		return "", fmt.Errorf("%w: %s", errSpotifySampleURLEmpty, path)
 	}
 	return value, nil
 }
@@ -218,7 +233,7 @@ func fetchToken(ctx context.Context, authBaseURL, clientID, clientSecret string)
 		return "", fmt.Errorf("read spotify token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected spotify token status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("%w %d: %s", errSpotifyTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var token struct {
@@ -228,7 +243,7 @@ func fetchToken(ctx context.Context, authBaseURL, clientID, clientSecret string)
 		return "", fmt.Errorf("decode spotify token response: %w", err)
 	}
 	if token.AccessToken == "" {
-		return "", errors.New("spotify token response did not include access_token")
+		return "", errSpotifyTokenMissing
 	}
 	return token.AccessToken, nil
 }
@@ -252,7 +267,7 @@ func getAPI(ctx context.Context, endpoint string, token string) ([]byte, error) 
 		return nil, fmt.Errorf("read spotify api response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected spotify api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("%w %d: %s", errSpotifyAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return body, nil
 }
