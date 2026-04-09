@@ -59,10 +59,16 @@ ariadne resolve https://www.deezer.com/album/12047952
 Resolve a song URL explicitly:
 
 ```bash
-ariadne resolve-song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
+ariadne resolve --song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
 ```
 
-The `resolve` command also auto-detects song URLs, so this works too:
+Force album resolution explicitly when needed:
+
+```bash
+ariadne resolve --album https://www.deezer.com/album/12047952
+```
+
+If neither `--song` nor `--album` is set, `resolve` auto-detects the resource type:
 
 ```bash
 ariadne resolve https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
@@ -89,11 +95,10 @@ Useful flags:
 - `--http-timeout=30s` to raise or lower the per-request HTTP timeout
 - `--config=.env` or `--config=path/to/config.yaml` to load config from a file
 
-Full command shapes:
+Full command shape:
 
 ```bash
-ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <url>
-ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <song-url>
+ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <url>
 ```
 
 ### Library

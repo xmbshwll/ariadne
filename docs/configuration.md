@@ -122,7 +122,7 @@ Or let the CLI load `.env` directly, which is the default behavior:
 
 ```bash
 ariadne resolve https://www.deezer.com/album/12047952
-ariadne resolve-song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
+ariadne resolve --song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
 ariadne resolve --config=.env https://www.deezer.com/album/12047952
 ariadne resolve --config=./config/ariadne.yaml https://www.deezer.com/album/12047952
 ```

@@ -27,14 +27,13 @@ const (
 	outputFormatJSON  = "json"
 	outputFormatYAML  = "yaml"
 	outputFormatCSV   = "csv"
-	resolveUsage      = "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>"
-	resolveSongUsage  = "usage: ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>"
+	resolveUsage      = "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>"
 )
 
 const resolveHelpText = `Resolve a supported music URL across music services.
 
 Usage:
-  ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>
+  ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>
 
 Positional parameter:
   <url>
@@ -42,7 +41,8 @@ Positional parameter:
     Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL,
     SoundCloud, YouTube Music, Bandcamp, or Amazon Music, or a supported song
     URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.
-    Behavior: auto-detect song URLs first, then fall back to album resolution.
+    Behavior: when neither --song nor --album is set, Ariadne asks the library
+    to auto-detect the resource type from the URL.
     Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.
 
 Flags:
@@ -51,6 +51,14 @@ Flags:
     Supported file styles: .env-style key=value files, plus Viper-supported structured files such as yaml, yml, json, or toml.
     Default: %s
     Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.
+
+  --song
+    Forces song resolution for the provided URL.
+    Mutually exclusive with --album.
+
+  --album
+    Forces album resolution for the provided URL.
+    Mutually exclusive with --song.
 
   --verbose, -v
     Values: true, false.
@@ -98,84 +106,24 @@ Notes:
   - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
   - Song resolution currently supports Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, and TIDAL.`
 
-const resolveSongHelpText = `Resolve song URLs across music services.
-
-Usage:
-  ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>
-
-Positional parameter:
-  <song-url>
-    Required.
-    Values: a supported song URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.
-
-Flags:
-  --config
-    Values: empty string to disable file loading, or a path to a config file.
-    Supported file styles: .env-style key=value files, plus Viper-supported structured files such as yaml, yml, json, or toml.
-    Default: %s
-    Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.
-
-  --verbose, -v
-    Values: true, false.
-    Default: false.
-    false prints compact service-link output only.
-    true includes source metadata, per-service summaries, scores, reasons, and alternates.
-
-  --format
-    Values:
-      json  - indented JSON; best default for scripts and APIs.
-      yaml  - YAML rendering of the same payload.
-      csv   - compact or verbose CSV depending on --verbose.
-    Default: json.
-
-  --services
-    Values: comma-separated list drawn from appleMusic, bandcamp, deezer, soundcloud, spotify, tidal.
-    Use this to limit which target services are searched.
-    Caveats:
-      spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.
-      tidal requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
-
-  --min-strength
-    Values:
-      very_weak - include every retained match.
-      weak      - exclude very weak matches.
-      probable  - show only stronger likely matches.
-      strong    - show only highest-confidence matches.
-    Default: very_weak.
-
-  --apple-music-storefront
-    Values: an Apple Music storefront country code in ISO 3166-1 alpha-2 form, for example us, gb, de, fr, jp, ca, or au.
-    Default: %s.
-    Used for Apple Music lookups and searches when the source URL does not already imply a storefront.
-
-  --http-timeout
-    Values: a Go duration such as 5s, 15s, 30s, or 1m.
-    Default: %s.
-    Sets the per-request timeout on Ariadne's default HTTP client for service API and page requests.
-
-Notes:
-  - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
-  - Apple Music ISRC target search is enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
-  - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.`
-
 var (
 	resolverFactory = ariadne.New
 	valueNormalizer = strings.NewReplacer("-", "", "_", "")
 )
 
 var (
-	errRenderResolveHelp        = errors.New("render resolve help")
-	errMissingCommand           = errors.New("missing command")
-	errUnknownCommand           = errors.New("unknown command")
-	errResolveUsage             = errors.New(resolveUsage)
-	errResolveSongUsage         = errors.New(resolveSongUsage)
-	errUnsupportedFormat        = errors.New("unsupported format")
-	errNoTargetServicesSelected = errors.New("no target services selected")
-	errAmazonMusicTargetService = errors.New("amazonMusic is not available as a target service")
-	errUnsupportedTargetService = errors.New("unsupported target service")
-	errSpotifyTargetCredentials = errors.New("spotify target search requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET")
-	errTIDALTargetCredentials   = errors.New("tidal target search requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET")
-	errUnsupportedMinStrength   = errors.New("unsupported min-strength")
+	errRenderResolveHelp         = errors.New("render resolve help")
+	errMissingCommand            = errors.New("missing command")
+	errUnknownCommand            = errors.New("unknown command")
+	errResolveUsage              = errors.New(resolveUsage)
+	errConflictingEntityModeFlag = errors.New("--song and --album are mutually exclusive")
+	errUnsupportedFormat         = errors.New("unsupported format")
+	errNoTargetServicesSelected  = errors.New("no target services selected")
+	errAmazonMusicTargetService  = errors.New("amazonMusic is not available as a target service")
+	errUnsupportedTargetService  = errors.New("unsupported target service")
+	errSpotifyTargetCredentials  = errors.New("spotify target search requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET")
+	errTIDALTargetCredentials    = errors.New("tidal target search requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET")
+	errUnsupportedMinStrength    = errors.New("unsupported min-strength")
 )
 
 var (
@@ -201,12 +149,15 @@ var (
 type resolveMode string
 
 const (
-	resolveModeAuto resolveMode = "auto"
-	resolveModeSong resolveMode = "song"
+	resolveModeAuto  resolveMode = "auto"
+	resolveModeSong  resolveMode = "song"
+	resolveModeAlbum resolveMode = "album"
 )
 
 type resolveConfig struct {
 	inputURL          string
+	forceSong         bool
+	forceAlbum        bool
 	verbose           bool
 	format            string
 	requestedServices string
@@ -265,7 +216,7 @@ func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, c
 	cmd.SetOut(stdout)
 	cmd.SetErr(stderr)
 	cmd.PersistentFlags().String("config", configPath, "configuration source (values: empty string to disable file loading, or a path to an .env, yaml, yml, json, or toml file)")
-	cmd.AddCommand(newResolveCmd(baseConfig, configPath), newResolveSongCmd(baseConfig, configPath))
+	cmd.AddCommand(newResolveCmd(baseConfig, configPath))
 	return cmd
 }
 
@@ -273,7 +224,7 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 	config := defaultResolveConfig(baseConfig)
 
 	cmd := &cobra.Command{
-		Use:   "resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+		Use:   "resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
 		Short: "Resolve one music URL into likely equivalents on other services.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -287,42 +238,12 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeAuto)
+			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeFromConfig(normalized))
 		},
 	}
 
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		_, _ = io.WriteString(cmd.OutOrStdout(), resolveHelpTextFor(baseConfig, configPath))
-	})
-
-	bindResolveFlags(cmd.Flags(), &config)
-	return cmd
-}
-
-func newResolveSongCmd(baseConfig ariadne.Config, configPath string) *cobra.Command {
-	config := defaultResolveConfig(baseConfig)
-
-	cmd := &cobra.Command{
-		Use:   "resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
-		Short: "Resolve one song URL into likely equivalents on other services.",
-		Args: func(_ *cobra.Command, args []string) error {
-			if len(args) != 1 {
-				return errResolveSongUsage
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config.inputURL = args[0]
-			normalized, err := normalizeResolveConfig(config)
-			if err != nil {
-				return err
-			}
-			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeSong)
-		},
-	}
-
-	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		_, _ = io.WriteString(cmd.OutOrStdout(), resolveSongHelpTextFor(baseConfig, configPath))
 	})
 
 	bindResolveFlags(cmd.Flags(), &config)
@@ -358,31 +279,15 @@ func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 	return fmt.Sprintf(resolveHelpText, configPath, storefrontDefault, baseConfig.HTTPTimeout)
 }
 
-func resolveSongHelpTextFor(baseConfig ariadne.Config, configPath string) string {
-	if configPath == "" {
-		configPath = `"" (disable file loading)`
-	}
-
-	storefrontDefault := "APPLE_MUSIC_STOREFRONT or us"
-	if baseConfig.AppleMusicStorefront != "" {
-		storefrontDefault = baseConfig.AppleMusicStorefront
-	}
-
-	return fmt.Sprintf(resolveSongHelpText, configPath, storefrontDefault, baseConfig.HTTPTimeout)
-}
-
 func rootHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 	return strings.Join([]string{
 		"Usage:",
 		"  ariadne <command> [flags]",
 		"",
 		"Commands:",
-		"  resolve       Auto-detect a supported album or song URL and resolve it across services.",
-		"  resolve-song  Resolve a supported song URL across services.",
+		"  resolve  Resolve a supported album or song URL across services.",
 		"",
 		resolveHelpTextFor(baseConfig, configPath),
-		"",
-		resolveSongHelpTextFor(baseConfig, configPath),
 	}, "\n")
 }
 
@@ -456,6 +361,8 @@ func looksLikeEnvFile(path string) bool {
 
 func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
 	fs.StringVar(&config.resolverConfig.AppleMusicStorefront, "apple-music-storefront", config.resolverConfig.AppleMusicStorefront, "preferred Apple Music storefront (values: ISO 3166-1 alpha-2 code such as us, gb, de, fr, jp, ca, au; used when the source URL has no storefront)")
+	fs.BoolVar(&config.forceSong, "song", false, "force song resolution for the input URL")
+	fs.BoolVar(&config.forceAlbum, "album", false, "force album resolution for the input URL")
 	fs.BoolVarP(&config.verbose, "verbose", "v", false, "print full resolution details (values: true or false; false emits compact links, true emits metadata, scores, reasons, and alternates)")
 	fs.StringVar(&config.format, "format", config.format, "output format (values: json for structured output, yaml for YAML, csv for spreadsheet-friendly export)")
 	fs.StringVar(&config.requestedServices, "services", "", "comma-separated target services (values: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal, youtubeMusic, ytmusic; ytmusic aliases youtubeMusic)")
@@ -464,30 +371,26 @@ func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
 }
 
 func parseResolveArgs(args []string, baseConfig ariadne.Config) (resolveConfig, error) {
-	return parseResolveArgsForMode(args, baseConfig, resolveModeAuto)
-}
-
-func parseResolveSongArgs(args []string, baseConfig ariadne.Config) (resolveConfig, error) {
-	return parseResolveArgsForMode(args, baseConfig, resolveModeSong)
-}
-
-func parseResolveArgsForMode(args []string, baseConfig ariadne.Config, mode resolveMode) (resolveConfig, error) {
 	config := defaultResolveConfig(baseConfig)
-	fs := pflag.NewFlagSet(string(mode), pflag.ContinueOnError)
+	fs := pflag.NewFlagSet("resolve", pflag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	bindResolveFlags(fs, &config)
 	if err := fs.Parse(args); err != nil {
-		return resolveConfig{}, usageErrorForMode(mode)
+		return resolveConfig{}, errResolveUsage
 	}
 	remaining := fs.Args()
 	if len(remaining) != 1 {
-		return resolveConfig{}, usageErrorForMode(mode)
+		return resolveConfig{}, errResolveUsage
 	}
 	config.inputURL = remaining[0]
 	return normalizeResolveConfig(config)
 }
 
 func normalizeResolveConfig(config resolveConfig) (resolveConfig, error) {
+	if config.forceSong && config.forceAlbum {
+		return resolveConfig{}, errConflictingEntityModeFlag
+	}
+
 	format, err := normalizeOutputFormat(config.format)
 	if err != nil {
 		return resolveConfig{}, err
@@ -517,19 +420,7 @@ func runResolve(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return executeResolve(config, stdout, resolveModeAuto)
-}
-
-func runResolveSong(args []string, stdout io.Writer) error {
-	baseConfig, err := loadCLIConfig(configPathFromArgs(args))
-	if err != nil {
-		return err
-	}
-	config, err := parseResolveSongArgs(args, baseConfig)
-	if err != nil {
-		return err
-	}
-	return executeResolve(config, stdout, resolveModeSong)
+	return executeResolve(config, stdout, resolveModeFromConfig(config))
 }
 
 func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) error {
@@ -545,6 +436,13 @@ func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) er
 			return err
 		}
 		return writeCLISongOutput(stdout, *resolution, config)
+	case resolveModeAlbum:
+		resolution, err := resolver.ResolveAlbum(ctx, config.inputURL)
+		if err != nil {
+			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
+			return err
+		}
+		return writeCLIOutput(stdout, *resolution, config)
 	case resolveModeAuto:
 		resolution, err := resolver.Resolve(ctx, config.inputURL)
 		if err != nil {
@@ -563,11 +461,14 @@ func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) er
 	}
 }
 
-func usageErrorForMode(mode resolveMode) error {
-	if mode == resolveModeSong {
-		return errResolveSongUsage
+func resolveModeFromConfig(config resolveConfig) resolveMode {
+	if config.forceSong {
+		return resolveModeSong
 	}
-	return errResolveUsage
+	if config.forceAlbum {
+		return resolveModeAlbum
+	}
+	return resolveModeAuto
 }
 
 type cliResolution struct {

@@ -45,14 +45,15 @@ func TestRun(t *testing.T) {
 			args: []string{"help"},
 			wantStdout: []string{
 				"Usage:",
-				"ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
-				"ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
+				"ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
 				"<url>",
 				"Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL",
 				"URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.",
-				"Behavior: auto-detect song URLs first, then fall back to album resolution.",
+				"Behavior: when neither --song nor --album is set, Ariadne asks the library",
+				"--song",
+				"--album",
 				"Commands:",
-				"resolve-song  Resolve a supported song URL across services.",
+				"resolve  Resolve a supported album or song URL across services.",
 				"--config",
 				"Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.",
 				"--verbose, -v",
@@ -82,13 +83,7 @@ func TestRun(t *testing.T) {
 		{
 			name:        "resolve usage",
 			args:        []string{"resolve"},
-			wantErr:     "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
-			avoidStdout: []string{"{"},
-		},
-		{
-			name:        "resolve-song usage",
-			args:        []string{"resolve-song"},
-			wantErr:     "usage: ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
+			wantErr:     "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
 			avoidStdout: []string{"{"},
 		},
 	}
@@ -564,7 +559,7 @@ func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
 	}
 }
 
-func TestRunResolveSongFixtureOutput(t *testing.T) {
+func TestRunResolveForcedSongFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithEntityAdapters(
@@ -605,7 +600,7 @@ func TestRunResolveSongFixtureOutput(t *testing.T) {
 	defer func() { resolverFactory = originalFactory }()
 
 	var stdout bytes.Buffer
-	err := run([]string{"resolve-song", "--verbose", "https://fixture.test/songs/1"}, &stdout, io.Discard)
+	err := run([]string{"resolve", "--song", "--verbose", "https://fixture.test/songs/1"}, &stdout, io.Discard)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	}
@@ -994,7 +989,28 @@ func TestParseResolveArgs(t *testing.T) {
 		{
 			name:            "missing url",
 			args:            []string{"--apple-music-storefront=gb"},
-			wantErrContains: "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+			wantErrContains: "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+		},
+		{
+			name:            "force song",
+			args:            []string{"--song", "https://open.spotify.com/track/123"},
+			wantURL:         "https://open.spotify.com/track/123",
+			wantStorefront:  "de",
+			wantFormat:      "json",
+			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+		},
+		{
+			name:            "force album",
+			args:            []string{"--album", "https://www.deezer.com/album/12047952"},
+			wantURL:         "https://www.deezer.com/album/12047952",
+			wantStorefront:  "de",
+			wantFormat:      "json",
+			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+		},
+		{
+			name:            "conflicting entity flags",
+			args:            []string{"--song", "--album", "https://open.spotify.com/track/123"},
+			wantErrContains: "--song and --album are mutually exclusive",
 		},
 		{
 			name:            "unsupported service",
@@ -1078,28 +1094,13 @@ func TestParseResolveArgs(t *testing.T) {
 			if tt.name == "verbose flag" && !resolveConfig.verbose {
 				t.Fatalf("expected verbose flag to be set")
 			}
+			if tt.name == "force song" && !resolveConfig.forceSong {
+				t.Fatalf("expected forceSong to be set")
+			}
+			if tt.name == "force album" && !resolveConfig.forceAlbum {
+				t.Fatalf("expected forceAlbum to be set")
+			}
 		})
-	}
-}
-
-func TestParseResolveSongArgs(t *testing.T) {
-	config, err := parseResolveSongArgs([]string{"--format=yaml", "https://open.spotify.com/track/123"}, ariadne.LoadConfig())
-	if err != nil {
-		t.Fatalf("parseResolveSongArgs error: %v", err)
-	}
-	if config.inputURL != "https://open.spotify.com/track/123" {
-		t.Fatalf("inputURL = %q", config.inputURL)
-	}
-	if config.format != outputFormatYAML {
-		t.Fatalf("format = %q, want yaml", config.format)
-	}
-
-	_, err = parseResolveSongArgs([]string{"--verbose"}, ariadne.LoadConfig())
-	if err == nil {
-		t.Fatalf("expected usage error")
-	}
-	if !strings.Contains(err.Error(), resolveSongUsage) {
-		t.Fatalf("error = %q, want substring %q", err.Error(), resolveSongUsage)
 	}
 }
 
