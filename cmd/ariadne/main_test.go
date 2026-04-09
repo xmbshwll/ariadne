@@ -806,15 +806,16 @@ func TestParseResolveArgs(t *testing.T) {
 	t.Setenv("APPLE_MUSIC_STOREFRONT", "de")
 
 	tests := []struct {
-		name            string
-		args            []string
-		wantURL         string
-		wantStorefront  string
-		wantFormat      string
-		wantMinStrength ariadne.MatchStrength
-		wantServices    []ariadne.ServiceName
-		wantHTTPTimeout time.Duration
-		wantErrContains string
+		name                  string
+		args                  []string
+		wantURL               string
+		wantStorefront        string
+		wantFormat            string
+		wantMinStrength       ariadne.MatchStrength
+		wantServices          []ariadne.ServiceName
+		wantHTTPTimeout       time.Duration
+		wantResolutionTimeout time.Duration
+		wantErrContains       string
 	}{
 		{
 			name:            "uses env default storefront",
@@ -916,12 +917,13 @@ func TestParseResolveArgs(t *testing.T) {
 			wantHTTPTimeout: 45 * time.Second,
 		},
 		{
-			name:            "resolution timeout flag",
-			args:            []string{"--resolution-timeout=45s", "https://www.deezer.com/album/12047952"},
-			wantURL:         "https://www.deezer.com/album/12047952",
-			wantStorefront:  "de",
-			wantFormat:      "json",
-			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+			name:                  "resolution timeout flag",
+			args:                  []string{"--resolution-timeout=45s", "https://www.deezer.com/album/12047952"},
+			wantURL:               "https://www.deezer.com/album/12047952",
+			wantStorefront:        "de",
+			wantFormat:            "json",
+			wantMinStrength:       ariadne.MatchStrengthVeryWeak,
+			wantResolutionTimeout: 45 * time.Second,
 		},
 		{
 			name:            "invalid format",
@@ -956,9 +958,9 @@ func TestParseResolveArgs(t *testing.T) {
 				wantHTTPTimeout = 15 * time.Second
 			}
 			assert.Equal(t, wantHTTPTimeout, resolveConfig.resolverConfig.HTTPTimeout)
-			wantResolutionTimeout := 20 * time.Second
-			if tt.name == "resolution timeout flag" {
-				wantResolutionTimeout = 45 * time.Second
+			wantResolutionTimeout := tt.wantResolutionTimeout
+			if wantResolutionTimeout == 0 {
+				wantResolutionTimeout = defaultResolveTimeout
 			}
 			assert.Equal(t, wantResolutionTimeout, resolveConfig.resolutionTimeout)
 			assert.Len(t, resolveConfig.resolverConfig.TargetServices, len(tt.wantServices))

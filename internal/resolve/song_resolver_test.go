@@ -16,6 +16,7 @@ func TestSongResolverResolveSong(t *testing.T) {
 		resolver           *SongResolver
 		inputURL           string
 		wantErr            error
+		wantErrMessage     string
 		wantSourceService  model.ServiceName
 		wantSourceTitle    string
 		wantBestCandidates map[model.ServiceName]string
@@ -57,7 +58,8 @@ func TestSongResolverResolveSong(t *testing.T) {
 				nil,
 				score.DefaultSongWeights(),
 			),
-			inputURL: "https://open.spotify.com/track/track-1",
+			inputURL:       "https://open.spotify.com/track/track-1",
+			wantErrMessage: "fetch source song returned nil from spotify",
 		},
 	}
 
@@ -68,10 +70,10 @@ func TestSongResolverResolveSong(t *testing.T) {
 				assert.ErrorIs(t, err, tt.wantErr)
 				return
 			}
-			if tt.name == "nil source song" {
+			if tt.wantErrMessage != "" {
 				require.Error(t, err)
 				assert.Nil(t, resolution)
-				assert.EqualError(t, err, "fetch source song returned nil from spotify")
+				assert.EqualError(t, err, tt.wantErrMessage)
 				assert.ErrorIs(t, err, errNilSourceSong)
 				return
 			}
