@@ -15,18 +15,16 @@ type Resolver struct {
 	songInner *resolve.SongResolver
 }
 
-var errResolverNotInitialized = errors.New("nil Resolver or missing inner handler")
-
 func (r *Resolver) albumResolver() (*resolve.Resolver, error) {
 	if r == nil || r.inner == nil {
-		return nil, errResolverNotInitialized
+		return nil, ErrResolverNotInitialized
 	}
 	return r.inner, nil
 }
 
 func (r *Resolver) songResolver() (*resolve.SongResolver, error) {
 	if r == nil || r.songInner == nil {
-		return nil, errResolverNotInitialized
+		return nil, ErrResolverNotInitialized
 	}
 	return r.songInner, nil
 }

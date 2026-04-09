@@ -298,6 +298,8 @@ var (
 	ErrUnsupportedURL = resolve.ErrUnsupportedURL
 	// ErrNoSourceAdapters indicates that a resolver was created without source adapters.
 	ErrNoSourceAdapters = resolve.ErrNoSourceAdapters
+	// ErrResolverNotInitialized indicates that a public Resolver receiver or inner resolver was nil.
+	ErrResolverNotInitialized = errors.New("resolver not initialized")
 	// ErrAmazonMusicDeferred indicates that Amazon Music URLs are recognized, but runtime resolution remains intentionally deferred.
 	ErrAmazonMusicDeferred = amazonmusicadapter.ErrDeferredRuntimeAdapter
 	// ErrAppleMusicCredentialsNotConfigured indicates that an Apple Music official API operation requires developer token credentials.

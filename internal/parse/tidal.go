@@ -31,7 +31,7 @@ func tidalEntityURL(raw string, pathSegment string, entityType string, notEntity
 
 	segments := pathSegments(parsed.Path)
 	if len(segments) < 2 {
-		return nil, fmt.Errorf("%w: %s", errInvalidTIDALAlbumPath, parsed.Path)
+		return nil, fmt.Errorf("%w: %s", errInvalidTIDALPath, parsed.Path)
 	}
 
 	index := 0

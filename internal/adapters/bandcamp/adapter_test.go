@@ -155,6 +155,7 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 
 func TestSongAdapter(t *testing.T) {
 	trackPage := mustBandcampTrackPage(t, "Come Together", "COMRADIATION", lonAbatyAbbeyRoad, "2021-12-02", 251000)
+	liveTrackPage := mustBandcampTrackPage(t, "Come Together (Live)", "Tribute Band", "Abbey Road Live", "2020-01-01", 300000)
 
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -180,7 +181,7 @@ func TestSongAdapter(t *testing.T) {
 			`, server.URL, server.URL)
 			_, _ = w.Write([]byte(searchHTML))
 		case "/track/come-together-live":
-			_, _ = w.Write(mustBandcampTrackPage(t, "Come Together (Live)", "Tribute Band", "Abbey Road Live", "2020-01-01", 300000))
+			_, _ = w.Write(liveTrackPage)
 		default:
 			http.NotFound(w, r)
 		}

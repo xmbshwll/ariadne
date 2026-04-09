@@ -115,6 +115,33 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunHelpIgnoresMalformedConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), ".env")
+	require.NoError(t, os.WriteFile(configPath, []byte("ARIADNE_HTTP_TIMEOUT=not-a-duration\n"), 0o600))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"--config", configPath, "help"}, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "Usage:")
+	assert.Empty(t, stderr.String())
+}
+
+func TestRunMissingCommandIgnoresMalformedConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), ".env")
+	require.NoError(t, os.WriteFile(configPath, []byte("ARIADNE_HTTP_TIMEOUT=not-a-duration\n"), 0o600))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"--config", configPath}, &stdout, &stderr)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errMissingCommand)
+	assert.Contains(t, stderr.String(), "Usage:")
+	assert.Empty(t, stdout.String())
+}
+
 func TestNewCLIResolution(t *testing.T) {
 	resolution := ariadne.Resolution{
 		InputURL: "https://open.spotify.com/album/abc",

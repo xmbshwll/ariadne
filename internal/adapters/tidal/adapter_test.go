@@ -1,6 +1,7 @@
 package tidal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -222,8 +223,12 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	assert.Contains(t, candidates[0].MatchURL, wantID)
 }
 
-func writeJSON(t *testing.T, w http.ResponseWriter, payload any) {
-	t.Helper()
+func writeJSON(_ *testing.T, w http.ResponseWriter, payload any) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	require.NoError(t, json.NewEncoder(w).Encode(payload))
+	_, _ = w.Write(buf.Bytes())
 }

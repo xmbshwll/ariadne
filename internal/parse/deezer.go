@@ -31,7 +31,7 @@ func deezerEntityURL(raw string, pathSegment string, entityType string, notEntit
 
 	segments := pathSegments(parsed.Path)
 	if len(segments) < 2 {
-		return nil, fmt.Errorf("%w: %s", errInvalidDeezerAlbumPath, parsed.Path)
+		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
 	}
 
 	regionHint := ""

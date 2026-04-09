@@ -127,6 +127,10 @@ func TestAdapter(t *testing.T) {
 		parsed := model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "album", ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"}
 		album, err := adapter.FetchAlbum(context.Background(), parsed)
 		require.NoError(t, err)
+		require.NotNil(t, album)
+		require.NotEmpty(t, album.UPC)
+		require.NotEmpty(t, album.Tracks)
+		require.NotNil(t, &album.Tracks[0])
 		assert.Equal(t, "602547670342", album.UPC)
 		assert.Equal(t, "GBAYE0601690", album.Tracks[0].ISRC)
 
@@ -145,6 +149,9 @@ func TestAdapter(t *testing.T) {
 
 		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: "https://open.spotify.com/track/track-1"})
 		require.NoError(t, err)
+		require.NotNil(t, song)
+		require.NotEmpty(t, song.ISRC)
+		require.NotEmpty(t, song.AlbumTitle)
 		assert.Equal(t, "GBAYE0601690", song.ISRC)
 		assert.Equal(t, "Abbey Road (Remastered)", song.AlbumTitle)
 

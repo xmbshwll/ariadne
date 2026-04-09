@@ -14,7 +14,13 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-const deezerComeTogetherISRC = "GBAYE0601690"
+const (
+	deezerComeTogetherISRC         = "GBAYE0601690"
+	deezerTrackSearchPayload       = `{"data":[{"id":116348128,"title":"Come Together (Remastered 2009)"},{"id":999999,"title":"Come Together"}]}`
+	deezerComeTogetherTrackPayload = `{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`
+	deezerLiveTrackPayload         = `{"id":999999,"title":"Come Together","link":"https://www.deezer.com/track/999999","isrc":"OTHER0001","album":{"id":555,"title":"Abbey Road Live","link":"https://www.deezer.com/album/555","release_date":"2020-01-01"},"artist":{"id":2,"name":"Tribute Band"},"duration":200,"track_position":8,"disk_number":1,"explicit_lyrics":false}`
+	deezerSomethingTrackPayload    = `{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`
+)
 
 func TestAdapter(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
@@ -111,15 +117,15 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 		case "/search/album":
 			_, _ = w.Write(searchBytes)
 		case "/search/track":
-			_, _ = w.Write([]byte(`{"data":[{"id":116348128,"title":"Come Together (Remastered 2009)"},{"id":999999,"title":"Come Together"}]}`))
+			_, _ = w.Write([]byte(deezerTrackSearchPayload))
 		case "/track/116348128":
-			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`))
+			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
 		case "/track/999999":
-			_, _ = w.Write([]byte(`{"id":999999,"title":"Come Together","link":"https://www.deezer.com/track/999999","isrc":"OTHER0001","album":{"id":555,"title":"Abbey Road Live","link":"https://www.deezer.com/album/555","release_date":"2020-01-01"},"artist":{"id":2,"name":"Tribute Band"},"duration":200,"track_position":8,"disk_number":1,"explicit_lyrics":false}`))
+			_, _ = w.Write([]byte(deezerLiveTrackPayload))
 		case "/track/isrc:" + deezerComeTogetherISRC:
-			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`))
+			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
 		case "/track/isrc:GBAYE0601691":
-			_, _ = w.Write([]byte(`{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`))
+			_, _ = w.Write([]byte(deezerSomethingTrackPayload))
 		default:
 			http.NotFound(w, r)
 		}

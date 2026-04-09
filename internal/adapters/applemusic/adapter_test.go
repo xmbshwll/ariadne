@@ -21,7 +21,6 @@ import (
 
 func TestAdapter(t *testing.T) {
 	const (
-		entitySong          = "song"
 		abbeyRoadRemastered = "Abbey Road (Remastered)"
 		comeTogetherTitle   = "Come Together"
 		comeTogetherISRC    = "GBAYE0601690"
@@ -354,7 +353,7 @@ func TestAdapter(t *testing.T) {
 	t.Run("fetch song", func(t *testing.T) {
 		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
 			Service:      model.ServiceAppleMusic,
-			EntityType:   "song",
+			EntityType:   entitySong,
 			ID:           "1441164430",
 			CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=1441164430",
 			RegionHint:   "us",

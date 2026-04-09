@@ -66,6 +66,13 @@ func TestAppleMusicSongURL(t *testing.T) {
 			wantRegion: "us",
 		},
 		{
+			name:       "canonical url escapes track id query value",
+			raw:        "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=track%2Bid",
+			wantID:     "track+id",
+			wantURL:    "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=track%2Bid",
+			wantRegion: "us",
+		},
+		{
 			name:    "missing track id",
 			raw:     "https://music.apple.com/us/album/abbey-road-remastered/1441164426",
 			wantErr: true,

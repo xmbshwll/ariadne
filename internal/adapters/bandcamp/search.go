@@ -32,39 +32,34 @@ type rankedSearchCandidate struct {
 
 func extractSearchCandidates(body []byte) []searchCandidate {
 	matches := albumSearchResultPattern.FindAllSubmatch(body, -1)
-	results := make([]searchCandidate, 0, len(matches))
-	seen := make(map[string]struct{}, len(matches))
-	for _, match := range matches {
-		candidate := searchCandidate{
+	return collectSearchCandidates(matches, func(match [][]byte) searchCandidate {
+		return searchCandidate{
 			URL:         canonicalizeAlbumSearchURL(string(match[1])),
 			Title:       cleanSearchText(string(match[2])),
 			Artist:      cleanSearchText(string(match[3])),
 			TrackCount:  parseTrackCount(string(match[4])),
 			ReleaseDate: parseReleasedText(string(match[5])),
 		}
-		if candidate.URL == "" {
-			continue
-		}
-		if _, ok := seen[candidate.URL]; ok {
-			continue
-		}
-		seen[candidate.URL] = struct{}{}
-		results = append(results, candidate)
-	}
-	return results
+	})
 }
 
 func extractSongSearchCandidates(body []byte) []searchCandidate {
 	matches := songSearchResultPattern.FindAllSubmatch(body, -1)
-	results := make([]searchCandidate, 0, len(matches))
-	seen := make(map[string]struct{}, len(matches))
-	for _, match := range matches {
-		candidate := searchCandidate{
+	return collectSearchCandidates(matches, func(match [][]byte) searchCandidate {
+		return searchCandidate{
 			URL:         canonicalizeSongSearchURL(string(match[1])),
 			Title:       cleanSearchText(string(match[2])),
 			Artist:      cleanSearchText(string(match[3])),
 			ReleaseDate: parseReleasedText(string(match[4])),
 		}
+	})
+}
+
+func collectSearchCandidates(matches [][][]byte, build func(match [][]byte) searchCandidate) []searchCandidate {
+	results := make([]searchCandidate, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		candidate := build(match)
 		if candidate.URL == "" {
 			continue
 		}

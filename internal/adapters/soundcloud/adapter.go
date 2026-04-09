@@ -558,7 +558,7 @@ func toCanonicalSong(track soundTrack) *model.CanonicalSong {
 		AlbumArtists:           artists,
 		AlbumNormalizedArtists: normalize.Artists(artists),
 		ReleaseDate:            firstNonEmpty(dateOnly(track.ReleaseDate), dateOnly(track.DisplayDate)),
-		ArtworkURL:             "",
+		ArtworkURL:             strings.TrimSpace(track.ArtworkURL),
 		EditionHints:           normalize.EditionHints(track.Title),
 	}
 }

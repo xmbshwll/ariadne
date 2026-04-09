@@ -22,9 +22,9 @@ func TestAdapter(t *testing.T) {
 
 	sourcePayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "source-payload.json"))
 	searchPayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "search-results.json"))
+	trackPayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "track-payload.json"))
+	trackSearchPayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "track-search-results.json"))
 	clientID := "qNxp6KCjufkNWMIclTv0O4ycYGY0eFFX"
-	trackPayload := `{"id":254617771,"title":"The Liner Notes (feat. Aloe Blacc)","permalink_url":"https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1","duration":268706,"full_duration":268706,"release_date":"2011-09-27T00:00:00Z","display_date":"2011-09-27T00:00:00Z","label_name":"Rhymesayers","user":{"id":1,"username":"Evidence","permalink":"evidence-official","permalink_url":"https://soundcloud.com/evidence-official"},"publisher_metadata":{"artist":"Evidence","album_title":"Cats & Dogs","isrc":"USBWK1100093","explicit":false}}`
-	trackSearchPayload := `{"collection":[{"id":254617771,"title":"The Liner Notes (feat. Aloe Blacc)","permalink_url":"https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1","duration":268706,"full_duration":268706,"release_date":"2011-09-27T00:00:00Z","display_date":"2011-09-27T00:00:00Z","user":{"id":1,"username":"Evidence","permalink":"evidence-official","permalink_url":"https://soundcloud.com/evidence-official"},"publisher_metadata":{"artist":"Evidence","album_title":"Cats & Dogs","isrc":"USBWK1100093","explicit":false}},{"id":99,"title":"The Liner Notes (Live)","permalink_url":"https://soundcloud.com/tribute/live-liner-notes","duration":300000,"full_duration":300000,"release_date":"2020-01-01T00:00:00Z","display_date":"2020-01-01T00:00:00Z","user":{"id":2,"username":"Tribute Band","permalink":"tribute","permalink_url":"https://soundcloud.com/tribute"},"publisher_metadata":{"artist":"Tribute Band","album_title":"Live Notes","isrc":"","explicit":false}}]}`
 
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func TestAdapter(t *testing.T) {
 				http.Error(w, "missing client id", http.StatusUnauthorized)
 				return
 			}
-			_, _ = w.Write([]byte(trackSearchPayload))
+			_, _ = w.Write(trackSearchPayload)
 		default:
 			http.NotFound(w, r)
 		}
@@ -100,6 +100,7 @@ func TestAdapter(t *testing.T) {
 		assert.Equal(t, "The Liner Notes (feat. Aloe Blacc)", song.Title)
 		assert.Equal(t, soundCloudCatsAndDogs, song.AlbumTitle)
 		assert.Equal(t, soundCloudTrackISRC, song.ISRC)
+		assert.Equal(t, "https://i1.sndcdn.com/artworks-track-large.jpg", song.ArtworkURL)
 	})
 
 	t.Run("search song by metadata via api v2", func(t *testing.T) {

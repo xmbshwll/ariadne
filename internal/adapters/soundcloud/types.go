@@ -44,6 +44,7 @@ type soundTrack struct {
 	ID                int64             `json:"id"`
 	Title             string            `json:"title"`
 	PermalinkURL      string            `json:"permalink_url"`
+	ArtworkURL        string            `json:"artwork_url"`
 	Duration          int               `json:"duration"`
 	FullDuration      int               `json:"full_duration"`
 	ReleaseDate       string            `json:"release_date"`

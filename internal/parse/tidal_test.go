@@ -85,6 +85,12 @@ func TestTIDALSongURL(t *testing.T) {
 			wantURL: "https://tidal.com/track/156205494",
 		},
 		{
+			name:    "www host with query string",
+			raw:     "https://www.tidal.com/track/156205494?foo=bar",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
 			name:    "wrong resource type",
 			raw:     "https://tidal.com/album/156205493",
 			wantErr: true,

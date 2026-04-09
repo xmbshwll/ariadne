@@ -125,19 +125,22 @@ var (
 
 func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	configPath := configPathFromArgs(args)
-	baseConfig, err := loadCLIConfig(configPath)
-	if err != nil {
-		return err
-	}
+	helpConfig := ariadne.DefaultConfig()
+	commandArgs := argsWithoutConfigFlag(args)
 
-	if len(args) == 0 {
-		if err := renderRootHelp(stderr, baseConfig, configPath); err != nil {
+	if len(commandArgs) == 0 {
+		if err := renderRootHelp(stderr, helpConfig, configPath); err != nil {
 			return fmt.Errorf("print usage: %w", err)
 		}
 		return errMissingCommand
 	}
-	if isHelpArg(args[0]) {
-		return renderRootHelp(stdout, baseConfig, configPath)
+	if isHelpArg(commandArgs[0]) {
+		return renderRootHelp(stdout, helpConfig, configPath)
+	}
+
+	baseConfig, err := loadCLIConfig(configPath)
+	if err != nil {
+		return err
 	}
 
 	root := newRootCmd(stdout, stderr, baseConfig, configPath)
@@ -153,6 +156,25 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+func argsWithoutConfigFlag(args []string) []string {
+	filtered := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--config":
+			if i+1 < len(args) {
+				i++
+			}
+			continue
+		case strings.HasPrefix(arg, "--config="):
+			continue
+		default:
+			filtered = append(filtered, arg)
+		}
+	}
+	return filtered
 }
 
 func isHelpArg(arg string) bool {

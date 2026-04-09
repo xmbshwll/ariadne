@@ -31,7 +31,7 @@ func AppleMusicSongURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 	parsed.EntityType = "song"
 	parsed.ID = trackID
-	parsed.CanonicalURL = parsed.CanonicalURL + "?i=" + trackID
+	parsed.CanonicalURL = parsed.CanonicalURL + "?i=" + url.QueryEscape(trackID)
 	return parsed, nil
 }
 

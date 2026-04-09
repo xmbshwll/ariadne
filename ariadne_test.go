@@ -93,12 +93,7 @@ func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 }
 
 func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
-	resolver := NewWithEntityAdapters(
-		[]SourceAdapter{librarySourceAdapter{}},
-		[]TargetAdapter{libraryTargetAdapter{}},
-		[]SongSourceAdapter{librarySongSourceAdapter{}},
-		[]SongTargetAdapter{librarySongTargetAdapter{}},
-	)
+	resolver := newTestEntityResolver()
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 	require.NoError(t, err)
@@ -109,12 +104,7 @@ func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
 }
 
 func TestResolverResolveDispatchesByEntityType(t *testing.T) {
-	resolver := NewWithEntityAdapters(
-		[]SourceAdapter{librarySourceAdapter{}},
-		[]TargetAdapter{libraryTargetAdapter{}},
-		[]SongSourceAdapter{librarySongSourceAdapter{}},
-		[]SongTargetAdapter{librarySongTargetAdapter{}},
-	)
+	resolver := newTestEntityResolver()
 
 	albumEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/source")
 	require.NoError(t, err)
@@ -135,7 +125,7 @@ func TestResolveAlbumReturnsErrorForNilResolver(t *testing.T) {
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
 	require.Error(t, err)
 	assert.Nil(t, resolution)
-	assert.EqualError(t, err, errResolverNotInitialized.Error())
+	assert.ErrorIs(t, err, ErrResolverNotInitialized)
 }
 
 func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
@@ -144,7 +134,16 @@ func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
 	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 	require.Error(t, err)
 	assert.Nil(t, resolution)
-	assert.EqualError(t, err, errResolverNotInitialized.Error())
+	assert.ErrorIs(t, err, ErrResolverNotInitialized)
+}
+
+func newTestEntityResolver() *Resolver {
+	return NewWithEntityAdapters(
+		[]SourceAdapter{librarySourceAdapter{}},
+		[]TargetAdapter{libraryTargetAdapter{}},
+		[]SongSourceAdapter{librarySongSourceAdapter{}},
+		[]SongTargetAdapter{librarySongTargetAdapter{}},
+	)
 }
 
 type librarySourceAdapter struct{}

@@ -18,6 +18,7 @@ var (
 	errBandcampNotSongURL  = errors.New("bandcamp url is not a song url")
 
 	errUnsupportedDeezerHost  = errors.New("unsupported deezer host")
+	errInvalidDeezerPath      = errors.New("invalid deezer path")
 	errInvalidDeezerAlbumPath = errors.New("invalid deezer album path")
 	errDeezerNotAlbumURL      = errors.New("deezer url is not an album url")
 	errDeezerNotSongURL       = errors.New("deezer url is not a song url")
@@ -37,6 +38,7 @@ var (
 	errMissingSpotifyTrackID  = errors.New("missing spotify track id")
 
 	errUnsupportedTIDALHost  = errors.New("unsupported tidal host")
+	errInvalidTIDALPath      = errors.New("invalid tidal path")
 	errInvalidTIDALAlbumPath = errors.New("invalid tidal album path")
 	errTIDALNotAlbumURL      = errors.New("tidal url is not an album url")
 	errTIDALNotSongURL       = errors.New("tidal url is not a song url")
