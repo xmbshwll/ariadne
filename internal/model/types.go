@@ -14,8 +14,8 @@ const (
 	ServiceAmazonMusic  ServiceName = "amazonMusic"
 )
 
-// ParsedAlbumURL is the normalized output of a service-specific album URL parser.
-type ParsedAlbumURL struct {
+// ParsedURL is the normalized output of a service-specific entity URL parser.
+type ParsedURL struct {
 	Service      ServiceName
 	EntityType   string
 	ID           string
@@ -23,6 +23,10 @@ type ParsedAlbumURL struct {
 	RegionHint   string
 	RawURL       string
 }
+
+// ParsedAlbumURL is kept as an alias while the public and internal APIs expand
+// beyond album-only resolution.
+type ParsedAlbumURL = ParsedURL
 
 // CanonicalTrack is the normalized track representation shared across services.
 type CanonicalTrack struct {
@@ -56,9 +60,41 @@ type CanonicalAlbum struct {
 	Tracks            []CanonicalTrack
 }
 
+// CanonicalSong is the normalized song representation shared across services.
+type CanonicalSong struct {
+	Service                ServiceName
+	SourceID               string
+	SourceURL              string
+	RegionHint             string
+	Title                  string
+	NormalizedTitle        string
+	Artists                []string
+	NormalizedArtists      []string
+	DurationMS             int
+	ISRC                   string
+	Explicit               bool
+	DiscNumber             int
+	TrackNumber            int
+	AlbumID                string
+	AlbumTitle             string
+	AlbumNormalizedTitle   string
+	AlbumArtists           []string
+	AlbumNormalizedArtists []string
+	ReleaseDate            string
+	ArtworkURL             string
+	EditionHints           []string
+}
+
 // CandidateAlbum is a service-specific search result converted into canonical form.
 type CandidateAlbum struct {
 	CanonicalAlbum
+	CandidateID string
+	MatchURL    string
+}
+
+// CandidateSong is a service-specific song search result converted into canonical form.
+type CandidateSong struct {
+	CanonicalSong
 	CandidateID string
 	MatchURL    string
 }
