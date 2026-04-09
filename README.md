@@ -88,12 +88,16 @@ Example:
 
 Useful flags:
 
+- `--song` to force song resolution for the input URL
+- `--album` to force album resolution for the input URL
 - `--verbose` to include source metadata, scores, reasoning, and alternates
 - `--format=json|yaml|csv` to change output format
 - `--services=spotify,deezer` to limit which target services are searched
 - `--min-strength=probable` to hide weaker matches
 - `--http-timeout=30s` to raise or lower the per-request HTTP timeout
 - `--config=.env` or `--config=path/to/config.yaml` to load config from a file
+
+`--song` and `--album` are mutually exclusive.
 
 Full command shape:
 

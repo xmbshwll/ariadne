@@ -93,6 +93,7 @@ The CLI loads configuration with this precedence:
 4. built-in defaults
 
 Use `--http-timeout=30s` to override the per-request timeout from the command line.
+Use `--song` or `--album` on `ariadne resolve <url>` when you want to force the entity type instead of relying on library auto-detection. Those two flags are mutually exclusive.
 
 That means the CLI can work with plain environment variables, a `.env` file, or another config file supported by Viper.
 
