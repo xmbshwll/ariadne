@@ -130,7 +130,6 @@ func TestAdapter(t *testing.T) {
 		require.NotNil(t, album)
 		require.NotEmpty(t, album.UPC)
 		require.NotEmpty(t, album.Tracks)
-		require.NotNil(t, &album.Tracks[0])
 		assert.Equal(t, "602547670342", album.UPC)
 		assert.Equal(t, "GBAYE0601690", album.Tracks[0].ISRC)
 

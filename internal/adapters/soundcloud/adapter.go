@@ -329,7 +329,6 @@ func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error
 	if err != nil {
 		return nil, err
 	}
-	var fallback *soundTrack
 	for _, entry := range entries {
 		if entry.Hydratable != "sound" {
 			continue
@@ -338,15 +337,9 @@ func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error
 		if err := json.Unmarshal(entry.Data, &track); err != nil || track.PermalinkURL == "" {
 			continue
 		}
-		if fallback == nil {
-			fallback = &track
-		}
 		if canonicalizeSoundCloudURL(track.PermalinkURL) == canonicalURL {
 			return &track, nil
 		}
-	}
-	if fallback != nil {
-		return fallback, nil
 	}
 	return nil, errSoundCloudTrackNotFound
 }

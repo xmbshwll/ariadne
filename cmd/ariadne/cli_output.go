@@ -535,6 +535,9 @@ func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne
 		return pruned, true
 	}
 
+	// Songs intentionally keep the service when strong alternates remain, even if
+	// the original Best candidate falls below the threshold. Album output is
+	// stricter and drops the whole service when Best is pruned.
 	pruned.Best = nil
 	if len(pruned.Alternates) == 0 {
 		return ariadne.SongMatchResult{}, false

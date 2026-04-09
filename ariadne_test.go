@@ -57,6 +57,71 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 15*time.Second, config.HTTPTimeout)
 }
 
+func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name string
+		ok   bool
+		fn   func() bool
+	}{
+		{
+			name: "spotify client id whitespace",
+			fn: func() bool {
+				return Config{
+					Spotify: SpotifyConfig{ClientID: " ", ClientSecret: "secret"},
+				}.SpotifyEnabled()
+			},
+		},
+		{
+			name: "spotify client secret whitespace",
+			fn: func() bool {
+				return Config{
+					Spotify: SpotifyConfig{ClientID: "id", ClientSecret: " "},
+				}.SpotifyEnabled()
+			},
+		},
+		{
+			name: "tidal client id whitespace",
+			fn: func() bool {
+				return Config{
+					TIDAL: TIDALConfig{ClientID: " ", ClientSecret: "secret"},
+				}.TIDALEnabled()
+			},
+		},
+		{
+			name: "tidal client secret whitespace",
+			fn: func() bool {
+				return Config{
+					TIDAL: TIDALConfig{ClientID: "id", ClientSecret: " "},
+				}.TIDALEnabled()
+			},
+		},
+		{
+			name: "spotify trims valid credentials",
+			ok:   true,
+			fn: func() bool {
+				return Config{
+					Spotify: SpotifyConfig{ClientID: " id ", ClientSecret: " secret "},
+				}.SpotifyEnabled()
+			},
+		},
+		{
+			name: "tidal trims valid credentials",
+			ok:   true,
+			fn: func() bool {
+				return Config{
+					TIDAL: TIDALConfig{ClientID: " id ", ClientSecret: " secret "},
+				}.TIDALEnabled()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.ok, tt.fn())
+		})
+	}
+}
+
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
 	config := normalizedConfig(Config{})
 	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)

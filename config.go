@@ -101,12 +101,16 @@ type TIDALConfig struct {
 
 // SpotifyEnabled reports whether Spotify credential-gated features are available.
 func (c Config) SpotifyEnabled() bool {
-	return c.Spotify.ClientID != "" && c.Spotify.ClientSecret != ""
+	clientID := strings.TrimSpace(c.Spotify.ClientID)
+	clientSecret := strings.TrimSpace(c.Spotify.ClientSecret)
+	return clientID != "" && clientSecret != ""
 }
 
 // TIDALEnabled reports whether TIDAL credential-gated features are available.
 func (c Config) TIDALEnabled() bool {
-	return c.TIDAL.ClientID != "" && c.TIDAL.ClientSecret != ""
+	clientID := strings.TrimSpace(c.TIDAL.ClientID)
+	clientSecret := strings.TrimSpace(c.TIDAL.ClientSecret)
+	return clientID != "" && clientSecret != ""
 }
 
 // DefaultScoreWeights returns the built-in album ranking weights.

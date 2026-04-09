@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,6 +55,11 @@ func TestAdapter(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	trackPayload = []byte(strings.ReplaceAll(
+		string(trackPayload),
+		"https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1",
+		server.URL+"/track",
+	))
 
 	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
 	parsed := model.ParsedAlbumURL{
@@ -101,6 +107,18 @@ func TestAdapter(t *testing.T) {
 		assert.Equal(t, soundCloudCatsAndDogs, song.AlbumTitle)
 		assert.Equal(t, soundCloudTrackISRC, song.ISRC)
 		assert.Equal(t, "https://i1.sndcdn.com/artworks-track-large.jpg", song.ArtworkURL)
+	})
+
+	t.Run("extract track hydration requires exact url match", func(t *testing.T) {
+		body := fmt.Appendf(
+			nil,
+			`<html><body><script>window.__sc_hydration = [{"hydratable":"sound","data":%s}];</script></body></html>`,
+			trackPayload,
+		)
+		track, err := extractTrackHydration(body, server.URL+"/missing-track")
+		require.Error(t, err)
+		assert.Nil(t, track)
+		assert.ErrorIs(t, err, errSoundCloudTrackNotFound)
 	})
 
 	t.Run("search song by metadata via api v2", func(t *testing.T) {

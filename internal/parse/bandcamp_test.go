@@ -36,7 +36,7 @@ func TestBandcampAlbumURL(t *testing.T) {
 				requireParseError(t, err)
 				return
 			}
-			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
 		})
 	}
 }
@@ -75,7 +75,7 @@ func TestBandcampSongURL(t *testing.T) {
 				requireParseError(t, err)
 				return
 			}
-			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, "")
 		})
 	}
 }

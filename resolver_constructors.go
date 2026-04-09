@@ -123,6 +123,19 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 }
 
 // ResolveSong resolves one input song URL into a canonical source song plus per-service matches.
+//
+// Callers should use errors.Is on the returned error when branching on
+// ResolveSong failure modes. The stable exported sentinels are:
+//   - ErrUnsupportedURL when no registered source adapter recognizes inputURL
+//   - ErrNoSourceAdapters when the resolver was built without any source adapters
+//   - ErrAmazonMusicDeferred when an Amazon Music URL is recognized but runtime
+//     resolution is intentionally deferred
+//   - ErrAppleMusicCredentialsNotConfigured when an Apple Music official API
+//     operation requires developer token credentials
+//   - ErrSpotifyCredentialsNotConfigured when a Spotify Web API operation
+//     requires app credentials
+//   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
+//     requires credentials that are not configured
 func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
 	resolver, err := r.songResolver()
 	if err != nil {

@@ -44,7 +44,7 @@ func TestAppleMusicAlbumURL(t *testing.T) {
 				requireParseError(t, err)
 				return
 			}
-			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, tt.wantRegion)
+			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, tt.wantRegion)
 		})
 	}
 }
@@ -91,7 +91,7 @@ func TestAppleMusicSongURL(t *testing.T) {
 				requireParseError(t, err)
 				return
 			}
-			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, tt.wantRegion)
+			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, tt.wantRegion)
 		})
 	}
 }
