@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -48,6 +49,8 @@ type SongResolution struct {
 	Matches  map[model.ServiceName]SongMatchResult
 }
 
+var errNilSourceSong = errors.New("fetch source song returned nil")
+
 // SongResolver coordinates source parsing, source fetching, and layered target search for songs.
 type SongResolver struct {
 	sources []SongSourceAdapter
@@ -76,16 +79,17 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 		return nil, err
 	}
 
-	sourceSong, err := sourceAdapter.FetchSong(ctx, *parsed)
+	sourceSong, err := r.fetchSourceSong(ctx, sourceAdapter, *parsed)
 	if err != nil {
-		return nil, fmt.Errorf("fetch source song with %s: %w", sourceAdapter.Service(), err)
+		return nil, err
 	}
+	source := *sourceSong
 
-	targets := excludeTargetService(r.targets, sourceSong.Service)
+	targets := excludeTargetService(r.targets, source.Service)
 	resolution := &SongResolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
-		Source:   *sourceSong,
+		Source:   source,
 		Matches:  make(map[model.ServiceName]SongMatchResult, len(targets)),
 	}
 
@@ -94,11 +98,11 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 
 	for _, target := range targets {
 		group.Go(func() error {
-			candidates, err := r.collectCandidates(groupCtx, target, *sourceSong)
+			candidates, err := r.collectCandidates(groupCtx, target, source)
 			if err != nil {
 				return fmt.Errorf("collect song candidates from %s: %w", target.Service(), err)
 			}
-			ranking := score.RankSongs(*sourceSong, candidates, r.weights)
+			ranking := score.RankSongs(source, candidates, r.weights)
 
 			matchesMu.Lock()
 			resolution.Matches[target.Service()] = songMatchResultFromRanking(target.Service(), ranking)
@@ -111,6 +115,17 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 		return nil, fmt.Errorf("resolve song target searches: %w", err)
 	}
 	return resolution, nil
+}
+
+func (r *SongResolver) fetchSourceSong(ctx context.Context, sourceAdapter SongSourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	sourceSong, err := sourceAdapter.FetchSong(ctx, parsed)
+	if err != nil {
+		return nil, fmt.Errorf("fetch source song with %s: %w", sourceAdapter.Service(), err)
+	}
+	if sourceSong == nil {
+		return nil, fmt.Errorf("%w from %s", errNilSourceSong, sourceAdapter.Service())
+	}
+	return sourceSong, nil
 }
 
 func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.ParsedAlbumURL, error) {

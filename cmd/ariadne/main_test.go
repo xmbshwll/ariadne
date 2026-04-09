@@ -45,7 +45,7 @@ func TestRun(t *testing.T) {
 			args: []string{"help"},
 			wantStdout: []string{
 				"Usage:",
-				"ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+				"ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 				"<url>",
 				"Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL",
 				"URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.",
@@ -62,6 +62,7 @@ func TestRun(t *testing.T) {
 				"--min-strength",
 				"--apple-music-storefront",
 				"--http-timeout",
+				"--resolution-timeout",
 				"Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set",
 				"TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET",
 				"Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.",
@@ -83,7 +84,7 @@ func TestRun(t *testing.T) {
 		{
 			name:        "resolve usage",
 			args:        []string{"resolve"},
-			wantErr:     "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+			wantErr:     "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 			avoidStdout: []string{"{"},
 		},
 	}
@@ -326,17 +327,26 @@ func TestFilterResolutionByStrength(t *testing.T) {
 	resolution := ariadne.Resolution{
 		Source: ariadne.CanonicalAlbum{Service: ariadne.ServiceDeezer, SourceURL: "https://www.deezer.com/album/source"},
 		Matches: map[ariadne.ServiceName]ariadne.MatchResult{
-			ariadne.ServiceSpotify:    {Best: &ariadne.ScoredMatch{URL: "https://open.spotify.com/album/strong", Score: 120}},
+			ariadne.ServiceSpotify: {
+				Best: &ariadne.ScoredMatch{URL: "https://open.spotify.com/album/strong", Score: 120},
+				Alternates: []ariadne.ScoredMatch{
+					{URL: "https://open.spotify.com/album/weak", Score: 45},
+					{URL: "https://open.spotify.com/album/probable", Score: 80},
+				},
+			},
 			ariadne.ServiceAppleMusic: {Best: &ariadne.ScoredMatch{URL: "https://music.apple.com/us/album/weak", Score: 55}},
 		},
 	}
 
 	filtered := filterResolutionByStrength(resolution, ariadne.MatchStrengthProbable)
 	assert.Len(t, filtered.Matches, 1)
-	_, ok := filtered.Matches[ariadne.ServiceSpotify]
+	spotify, ok := filtered.Matches[ariadne.ServiceSpotify]
 	assert.True(t, ok)
+	assert.Len(t, spotify.Alternates, 1)
+	assert.Equal(t, "https://open.spotify.com/album/probable", spotify.Alternates[0].URL)
 	_, ok = filtered.Matches[ariadne.ServiceAppleMusic]
 	assert.False(t, ok)
+	assert.Len(t, resolution.Matches[ariadne.ServiceSpotify].Alternates, 2)
 }
 
 func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
@@ -850,7 +860,7 @@ func TestParseResolveArgs(t *testing.T) {
 		{
 			name:            "missing url",
 			args:            []string{"--apple-music-storefront=gb"},
-			wantErrContains: "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+			wantErrContains: "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 		},
 		{
 			name:            "force song",
@@ -906,6 +916,14 @@ func TestParseResolveArgs(t *testing.T) {
 			wantHTTPTimeout: 45 * time.Second,
 		},
 		{
+			name:            "resolution timeout flag",
+			args:            []string{"--resolution-timeout=45s", "https://www.deezer.com/album/12047952"},
+			wantURL:         "https://www.deezer.com/album/12047952",
+			wantStorefront:  "de",
+			wantFormat:      "json",
+			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+		},
+		{
 			name:            "invalid format",
 			args:            []string{"--format=xml", "https://www.deezer.com/album/12047952"},
 			wantErrContains: "unsupported format \"xml\"",
@@ -938,6 +956,11 @@ func TestParseResolveArgs(t *testing.T) {
 				wantHTTPTimeout = 15 * time.Second
 			}
 			assert.Equal(t, wantHTTPTimeout, resolveConfig.resolverConfig.HTTPTimeout)
+			wantResolutionTimeout := 20 * time.Second
+			if tt.name == "resolution timeout flag" {
+				wantResolutionTimeout = 45 * time.Second
+			}
+			assert.Equal(t, wantResolutionTimeout, resolveConfig.resolutionTimeout)
 			assert.Len(t, resolveConfig.resolverConfig.TargetServices, len(tt.wantServices))
 			for i, service := range tt.wantServices {
 				assert.Equal(t, service, resolveConfig.resolverConfig.TargetServices[i])

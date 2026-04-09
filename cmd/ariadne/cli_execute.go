@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 )
 
 func runResolve(args []string, stdout io.Writer) error {
@@ -21,7 +20,7 @@ func runResolve(args []string, stdout io.Writer) error {
 
 func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) error {
 	resolver := resolverFactory(config.resolverConfig)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), config.resolutionTimeout)
 	defer cancel()
 
 	switch mode {

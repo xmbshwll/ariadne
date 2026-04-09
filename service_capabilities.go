@@ -10,6 +10,8 @@ import (
 
 type songURLParser func(string) (*model.ParsedAlbumURL, error)
 
+var serviceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
+
 type serviceCapability struct {
 	name                 ServiceName
 	aliases              []string
@@ -98,17 +100,21 @@ func serviceCapabilityByName(service ServiceName) (serviceCapability, bool) {
 
 // LookupServiceName normalizes a service name or alias into the canonical public service name.
 func LookupServiceName(raw string) (ServiceName, bool) {
-	normalized := strings.NewReplacer("-", "", "_", "").Replace(strings.ToLower(strings.TrimSpace(raw)))
+	normalized := normalizeServiceLookupKey(raw)
 	if normalized == "" {
 		return "", false
 	}
 
 	for _, capability := range serviceCapabilities {
-		if slices.Contains(capability.aliases, normalized) {
+		if normalized == normalizeServiceLookupKey(string(capability.name)) || slices.Contains(capability.aliases, normalized) {
 			return capability.name, true
 		}
 	}
 	return "", false
+}
+
+func normalizeServiceLookupKey(raw string) string {
+	return serviceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(raw)))
 }
 
 // SupportsSongTarget reports whether the service currently participates in runtime song target search.

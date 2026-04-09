@@ -478,13 +478,32 @@ func filterResolutionByStrength(resolution ariadne.Resolution, minStrength ariad
 	filtered := resolution
 	filtered.Matches = make(map[ariadne.ServiceName]ariadne.MatchResult, len(resolution.Matches))
 	for service, match := range resolution.Matches {
-		if match.Best == nil {
+		pruned, ok := pruneAlbumMatchByStrength(match, minStrength)
+		if !ok {
 			continue
 		}
-		if !meetsMinimumStrength(match.Best.Score, minStrength) {
+		filtered.Matches[service] = pruned
+	}
+	return filtered
+}
+
+func pruneAlbumMatchByStrength(match ariadne.MatchResult, minStrength ariadne.MatchStrength) (ariadne.MatchResult, bool) {
+	pruned := match
+	pruned.Alternates = filterAlternatesByStrength(match.Alternates, minStrength)
+
+	if match.Best == nil || !meetsMinimumStrength(match.Best.Score, minStrength) {
+		return ariadne.MatchResult{}, false
+	}
+	return pruned, true
+}
+
+func filterAlternatesByStrength(alternates []ariadne.ScoredMatch, minStrength ariadne.MatchStrength) []ariadne.ScoredMatch {
+	filtered := make([]ariadne.ScoredMatch, 0, len(alternates))
+	for _, alternate := range alternates {
+		if !meetsMinimumStrength(alternate.Score, minStrength) {
 			continue
 		}
-		filtered.Matches[service] = match
+		filtered = append(filtered, alternate)
 	}
 	return filtered
 }

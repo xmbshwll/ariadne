@@ -15,18 +15,33 @@ type Resolver struct {
 	songInner *resolve.SongResolver
 }
 
+var errResolverNotInitialized = errors.New("nil Resolver or missing inner handler")
+
+func (r *Resolver) albumResolver() (*resolve.Resolver, error) {
+	if r == nil || r.inner == nil {
+		return nil, errResolverNotInitialized
+	}
+	return r.inner, nil
+}
+
+func (r *Resolver) songResolver() (*resolve.SongResolver, error) {
+	if r == nil || r.songInner == nil {
+		return nil, errResolverNotInitialized
+	}
+	return r.songInner, nil
+}
+
 // New builds a Resolver with the default adapter set and a default HTTP client.
 func New(config Config) *Resolver {
-	config = normalizedConfig(config)
-	return NewWithClient(httpx.NewClient(config.HTTPTimeout), config)
+	return NewWithClient(nil, config)
 }
 
 // NewWithClient builds a Resolver with the default adapter set and a caller-provided HTTP client.
 func NewWithClient(client *http.Client, config Config) *Resolver {
-	if client == nil {
-		client = http.DefaultClient
-	}
 	config = normalizedConfig(config)
+	if client == nil {
+		client = httpx.NewClient(config.HTTPTimeout)
+	}
 	adapters := newDefaultAdapters(client, config)
 	return &Resolver{
 		inner: resolve.New(
@@ -95,7 +110,12 @@ func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets 
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
-	resolution, err := r.inner.ResolveAlbum(ctx, inputURL)
+	resolver, err := r.albumResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	resolution, err := resolver.ResolveAlbum(ctx, inputURL)
 	if err != nil {
 		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
 		return nil, err
@@ -106,7 +126,12 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 
 // ResolveSong resolves one input song URL into a canonical source song plus per-service matches.
 func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
-	resolution, err := r.songInner.ResolveSong(ctx, inputURL)
+	resolver, err := r.songResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	resolution, err := resolver.ResolveSong(ctx, inputURL)
 	if err != nil {
 		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
 		return nil, err

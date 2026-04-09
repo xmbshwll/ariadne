@@ -50,6 +50,15 @@ func TestSongResolverResolveSong(t *testing.T) {
 				model.ServiceAppleMusic: "song-1",
 			},
 		},
+		{
+			name: "nil source song",
+			resolver: NewSongs(
+				[]SongSourceAdapter{nilSongSourceAdapter{}},
+				nil,
+				score.DefaultSongWeights(),
+			),
+			inputURL: "https://open.spotify.com/track/track-1",
+		},
 	}
 
 	for _, tt := range tests {
@@ -57,6 +66,13 @@ func TestSongResolverResolveSong(t *testing.T) {
 			resolution, err := tt.resolver.ResolveSong(context.Background(), tt.inputURL)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			if tt.name == "nil source song" {
+				require.Error(t, err)
+				assert.Nil(t, resolution)
+				assert.EqualError(t, err, "fetch source song returned nil from spotify")
+				assert.ErrorIs(t, err, errNilSourceSong)
 				return
 			}
 			require.NoError(t, err)
@@ -103,6 +119,24 @@ func (stubSongSourceAdapter) FetchSong(_ context.Context, parsed model.ParsedAlb
 		ReleaseDate:          "1969-09-26",
 		EditionHints:         []string{"remastered"},
 	}, nil
+}
+
+type nilSongSourceAdapter struct{}
+
+func (nilSongSourceAdapter) Service() model.ServiceName {
+	return model.ServiceSpotify
+}
+
+func (nilSongSourceAdapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	if raw != "https://open.spotify.com/track/track-1" {
+		return nil, errUnsupportedTestSource
+	}
+	return &model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: raw, RawURL: raw}, nil
+}
+
+func (nilSongSourceAdapter) FetchSong(_ context.Context, _ model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	//nolint:nilnil // Exercise resolver guard for adapters that incorrectly return (nil, nil).
+	return nil, nil
 }
 
 type stubSongTargetAdapter struct{}

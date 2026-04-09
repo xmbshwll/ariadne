@@ -16,13 +16,13 @@ const (
 	outputFormatJSON  = "json"
 	outputFormatYAML  = "yaml"
 	outputFormatCSV   = "csv"
-	resolveUsage      = "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>"
+	resolveUsage      = "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>"
 )
 
 const resolveHelpText = `Resolve a supported music URL across music services.
 
 Usage:
-  ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>
+  ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>
 
 Positional parameter:
   <url>
@@ -88,6 +88,11 @@ Flags:
     Values: a Go duration such as 5s, 15s, 30s, or 1m.
     Default: %s.
     Sets the per-request timeout on Ariadne's default HTTP client for service API and page requests.
+
+  --resolution-timeout
+    Values: a Go duration such as 20s, 30s, 1m, or 2m.
+    Default: 20s.
+    Sets the overall timeout for one resolve command across parsing, source fetch, and target searches.
 
 Notes:
   - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
@@ -176,7 +181,7 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 	config := defaultResolveConfig(baseConfig)
 
 	cmd := &cobra.Command{
-		Use:   "resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+		Use:   "resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 		Short: "Resolve one music URL into likely equivalents on other services.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) != 1 {

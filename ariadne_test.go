@@ -129,6 +129,24 @@ func TestResolverResolveDispatchesByEntityType(t *testing.T) {
 	assert.Equal(t, "song", songEntity.Parsed.EntityType)
 }
 
+func TestResolveAlbumReturnsErrorForNilResolver(t *testing.T) {
+	var resolver *Resolver
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.EqualError(t, err, errResolverNotInitialized.Error())
+}
+
+func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
+	resolver := &Resolver{}
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.EqualError(t, err, errResolverNotInitialized.Error())
+}
+
 type librarySourceAdapter struct{}
 
 func (librarySourceAdapter) Service() ServiceName {

@@ -28,9 +28,10 @@ var (
 type resolveMode string
 
 const (
-	resolveModeAuto  resolveMode = "auto"
-	resolveModeSong  resolveMode = "song"
-	resolveModeAlbum resolveMode = "album"
+	resolveModeAuto       resolveMode = "auto"
+	resolveModeSong       resolveMode = "song"
+	resolveModeAlbum      resolveMode = "album"
+	defaultResolveTimeout             = 20 * time.Second
 )
 
 type resolveConfig struct {
@@ -42,15 +43,17 @@ type resolveConfig struct {
 	requestedServices string
 	minStrengthName   string
 	minStrength       ariadne.MatchStrength
+	resolutionTimeout time.Duration
 	resolverConfig    ariadne.Config
 }
 
 func defaultResolveConfig(baseConfig ariadne.Config) resolveConfig {
 	return resolveConfig{
-		format:          outputFormatJSON,
-		minStrengthName: string(ariadne.MatchStrengthVeryWeak),
-		minStrength:     ariadne.MatchStrengthVeryWeak,
-		resolverConfig:  baseConfig,
+		format:            outputFormatJSON,
+		minStrengthName:   string(ariadne.MatchStrengthVeryWeak),
+		minStrength:       ariadne.MatchStrengthVeryWeak,
+		resolutionTimeout: defaultResolveTimeout,
+		resolverConfig:    baseConfig,
 	}
 }
 
@@ -131,6 +134,7 @@ func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
 	fs.StringVar(&config.requestedServices, "services", "", "comma-separated target services (values: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal, youtubeMusic, ytmusic; ytmusic aliases youtubeMusic)")
 	fs.StringVar(&config.minStrengthName, "min-strength", config.minStrengthName, "minimum match strength (values: very_weak, weak, probable, strong; filters weaker results out of the final output)")
 	fs.DurationVar(&config.resolverConfig.HTTPTimeout, "http-timeout", config.resolverConfig.HTTPTimeout, "per-request HTTP timeout (values: Go durations such as 5s, 15s, 30s, 1m; applies to Ariadne's default client)")
+	fs.DurationVar(&config.resolutionTimeout, "resolution-timeout", config.resolutionTimeout, "overall resolution timeout (values: Go durations such as 20s, 30s, 1m, 2m; bounds the full resolve operation across all services)")
 }
 
 func parseResolveArgs(args []string, baseConfig ariadne.Config) (resolveConfig, error) {
@@ -183,6 +187,9 @@ func normalizeResolveConfig(config resolveConfig) (resolveConfig, error) {
 		return resolveConfig{}, err
 	}
 	config.minStrength = strength
+	if config.resolutionTimeout <= 0 {
+		config.resolutionTimeout = defaultResolveTimeout
+	}
 	return config, nil
 }
 
