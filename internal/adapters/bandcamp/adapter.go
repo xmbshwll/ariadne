@@ -75,6 +75,15 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parsed, nil
 }
 
+// ParseSongURL parses a Bandcamp track URL.
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parse.BandcampSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse bandcamp song url: %w", err)
+	}
+	return parsed, nil
+}
+
 // FetchAlbum loads a Bandcamp album page and extracts canonical metadata from schema.org JSON-LD.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceBandcamp {
@@ -137,6 +146,63 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	return ordered, nil
 }
 
+// FetchSong loads a Bandcamp track page and extracts canonical metadata from schema.org JSON-LD.
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceBandcamp {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedBandcampService, parsed.Service)
+	}
+	return a.fetchSongPage(ctx, parsed.CanonicalURL)
+}
+
+// SearchSongByISRC is not supported for Bandcamp.
+func (a *Adapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
+	return nil, nil
+}
+
+// SearchSongByMetadata searches Bandcamp HTML results and hydrates matching track pages.
+func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	query := songMetadataQuery(song)
+	if query == "" {
+		return nil, nil
+	}
+
+	searchURL := fmt.Sprintf("%s/search?q=%s", a.searchBaseURL, url.QueryEscape(query))
+	body, err := a.fetchPage(ctx, searchURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch bandcamp search page: %w", err)
+	}
+
+	searchCandidates := extractSongSearchCandidates(body)
+	results := make([]model.CandidateSong, 0, minInt(len(searchCandidates), searchHydrationLimit))
+	for i, candidate := range searchCandidates {
+		if i >= searchHydrationLimit {
+			break
+		}
+		canonical, err := a.fetchSongPage(ctx, candidate.URL)
+		if err != nil {
+			continue
+		}
+		results = append(results, model.CandidateSong{
+			CanonicalSong: *canonical,
+			CandidateID:   canonical.SourceID,
+			MatchURL:      canonical.SourceURL,
+		})
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+
+	ranking := score.RankSongs(song, results, score.DefaultSongWeights())
+	ordered := make([]model.CandidateSong, 0, minInt(len(ranking.Ranked), searchLimit))
+	for i, ranked := range ranking.Ranked {
+		if i >= searchLimit {
+			break
+		}
+		ordered = append(ordered, ranked.Candidate)
+	}
+	return ordered, nil
+}
+
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
 	body, err := a.fetchPage(ctx, rawURL)
 	if err != nil {
@@ -153,6 +219,24 @@ func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.Can
 		return nil, fmt.Errorf("extract bandcamp schema album: %w", err)
 	}
 	return toCanonicalAlbum(*parsed, schema), nil
+}
+
+func (a *Adapter) fetchSongPage(ctx context.Context, rawURL string) (*model.CanonicalSong, error) {
+	body, err := a.fetchPage(ctx, rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch bandcamp song page: %w", err)
+	}
+
+	parsed, err := parse.BandcampSongURL(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse bandcamp song url: %w", err)
+	}
+
+	schema, err := extractSchemaTrack(body)
+	if err != nil {
+		return nil, fmt.Errorf("extract bandcamp schema track: %w", err)
+	}
+	return toCanonicalSong(*parsed, schema), nil
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
@@ -181,16 +265,32 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 }
 
 func extractSchemaAlbum(body []byte) (*schemaAlbum, error) {
+	schema, err := extractSchema(body)
+	if err != nil {
+		return nil, err
+	}
+	return schema, nil
+}
+
+func extractSchemaTrack(body []byte) (*schemaAlbum, error) {
+	schema, err := extractSchema(body)
+	if err != nil {
+		return nil, err
+	}
+	return schema, nil
+}
+
+func extractSchema(body []byte) (*schemaAlbum, error) {
 	matches := jsonLDPattern.FindSubmatch(body)
 	if len(matches) != 2 {
 		return nil, errBandcampJSONLDNotFound
 	}
 
-	var album schemaAlbum
-	if err := json.Unmarshal(matches[1], &album); err != nil {
+	var schema schemaAlbum
+	if err := json.Unmarshal(matches[1], &schema); err != nil {
 		return nil, fmt.Errorf("unmarshal bandcamp json-ld: %w", err)
 	}
-	return &album, nil
+	return &schema, nil
 }
 
 func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.CanonicalAlbum {
@@ -225,6 +325,43 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 		EditionHints:      normalize.EditionHints(album.Name),
 		Tracks:            tracks,
 	}
+}
+
+func toCanonicalSong(parsed model.ParsedAlbumURL, track *schemaAlbum) *model.CanonicalSong {
+	artists := nonEmptyArtistList(track.ByArtist.Name)
+	albumID := ""
+	if parsedAlbum, err := parse.BandcampAlbumURL(track.InAlbum.ID); err == nil {
+		albumID = parsedAlbum.ID
+	}
+	return &model.CanonicalSong{
+		Service:                model.ServiceBandcamp,
+		SourceID:               parsed.ID,
+		SourceURL:              parsed.CanonicalURL,
+		Title:                  track.Name,
+		NormalizedTitle:        normalize.Text(track.Name),
+		Artists:                artists,
+		NormalizedArtists:      normalize.Artists(artists),
+		DurationMS:             parseISODurationMilliseconds(track.Duration),
+		AlbumID:                albumID,
+		AlbumTitle:             track.InAlbum.Name,
+		AlbumNormalizedTitle:   normalize.Text(track.InAlbum.Name),
+		AlbumArtists:           artists,
+		AlbumNormalizedArtists: normalize.Artists(artists),
+		ReleaseDate:            dateOnly(track.DatePublished),
+		ArtworkURL:             schemaImageURL(track.Image),
+		EditionHints:           normalize.EditionHints(track.Name),
+	}
+}
+
+func songMetadataQuery(song model.CanonicalSong) string {
+	parts := make([]string, 0, 2)
+	if song.Title != "" {
+		parts = append(parts, song.Title)
+	}
+	if len(song.Artists) > 0 {
+		parts = append(parts, song.Artists[0])
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
 func schemaImageURL(value any) string {
@@ -298,6 +435,14 @@ func metadataQuery(album model.CanonicalAlbum) string {
 		parts = append(parts, album.Artists[0])
 	}
 	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
+func nonEmptyArtistList(artist string) []string {
+	artist = strings.TrimSpace(artist)
+	if artist == "" {
+		return nil
+	}
+	return []string{artist}
 }
 
 func minInt(left int, right int) int {

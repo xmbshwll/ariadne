@@ -10,6 +10,15 @@ import (
 
 // BandcampAlbumURL parses a Bandcamp album URL into the shared parsed representation.
 func BandcampAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	return bandcampEntityURL(raw, albumPathSegment, "album", errBandcampNotAlbumURL)
+}
+
+// BandcampSongURL parses a Bandcamp track URL into the shared parsed representation.
+func BandcampSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	return bandcampEntityURL(raw, "track", "song", errBandcampNotSongURL)
+}
+
+func bandcampEntityURL(raw string, pathSegment string, entityType string, notEntityErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse bandcamp url: %w", err)
@@ -21,19 +30,19 @@ func BandcampAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 || segments[0] != albumPathSegment {
-		return nil, fmt.Errorf("%w: %s", errBandcampNotAlbumURL, raw)
+	if len(segments) < 2 || segments[0] != pathSegment {
+		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}
 
 	slug := segments[1]
-	canonicalURL := fmt.Sprintf("%s://%s/%s/%s", parsed.Scheme, parsed.Host, albumPathSegment, slug)
+	canonicalURL := fmt.Sprintf("%s://%s/%s/%s", parsed.Scheme, parsed.Host, pathSegment, slug)
 	if parsed.Scheme == "" {
-		canonicalURL = fmt.Sprintf("https://%s/%s/%s", parsed.Host, albumPathSegment, slug)
+		canonicalURL = fmt.Sprintf("https://%s/%s/%s", parsed.Host, pathSegment, slug)
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceBandcamp,
-		EntityType:   "album",
+		EntityType:   entityType,
 		ID:           slug,
 		CanonicalURL: canonicalURL,
 		RawURL:       raw,

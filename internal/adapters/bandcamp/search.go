@@ -12,7 +12,10 @@ import (
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
-var searchResultPattern = regexp.MustCompile(`(?s)<li class="searchresult data-search".*?<div class="itemtype">\s*ALBUM\s*</div>.*?<div class="heading">\s*<a href="([^"]+)">\s*(.*?)\s*</a>.*?(?:<div class="subhead">\s*by\s*(.*?)\s*</div>)?.*?(?:<div class="length">\s*(\d+)\s*tracks,.*?</div>)?.*?(?:<div class="released">\s*released\s*(.*?)\s*</div>)?.*?</li>`)
+var (
+	albumSearchResultPattern = regexp.MustCompile(`(?s)<li class="searchresult data-search".*?<div class="itemtype">\s*ALBUM\s*</div>.*?<div class="heading">\s*<a href="([^"]+)">\s*(.*?)\s*</a>.*?(?:<div class="subhead">\s*by\s*(.*?)\s*</div>)?.*?(?:<div class="length">\s*(\d+)\s*tracks,.*?</div>)?.*?(?:<div class="released">\s*released\s*(.*?)\s*</div>)?.*?</li>`)
+	songSearchResultPattern  = regexp.MustCompile(`(?s)<li class="searchresult data-search".*?<div class="itemtype">\s*TRACK\s*</div>.*?<div class="heading">\s*<a href="([^"]+)">\s*(.*?)\s*</a>.*?(?:<div class="subhead">\s*by\s*(.*?)\s*</div>)?.*?(?:<div class="released">\s*released\s*(.*?)\s*</div>)?.*?</li>`)
+)
 
 type searchCandidate struct {
 	URL         string
@@ -28,16 +31,39 @@ type rankedSearchCandidate struct {
 }
 
 func extractSearchCandidates(body []byte) []searchCandidate {
-	matches := searchResultPattern.FindAllSubmatch(body, -1)
+	matches := albumSearchResultPattern.FindAllSubmatch(body, -1)
 	results := make([]searchCandidate, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
 		candidate := searchCandidate{
-			URL:         canonicalizeSearchURL(string(match[1])),
+			URL:         canonicalizeAlbumSearchURL(string(match[1])),
 			Title:       cleanSearchText(string(match[2])),
 			Artist:      cleanSearchText(string(match[3])),
 			TrackCount:  parseTrackCount(string(match[4])),
 			ReleaseDate: parseReleasedText(string(match[5])),
+		}
+		if candidate.URL == "" {
+			continue
+		}
+		if _, ok := seen[candidate.URL]; ok {
+			continue
+		}
+		seen[candidate.URL] = struct{}{}
+		results = append(results, candidate)
+	}
+	return results
+}
+
+func extractSongSearchCandidates(body []byte) []searchCandidate {
+	matches := songSearchResultPattern.FindAllSubmatch(body, -1)
+	results := make([]searchCandidate, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		candidate := searchCandidate{
+			URL:         canonicalizeSongSearchURL(string(match[1])),
+			Title:       cleanSearchText(string(match[2])),
+			Artist:      cleanSearchText(string(match[3])),
+			ReleaseDate: parseReleasedText(string(match[4])),
 		}
 		if candidate.URL == "" {
 			continue
@@ -130,9 +156,18 @@ func cleanSearchText(value string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
 }
 
-func canonicalizeSearchURL(value string) string {
+func canonicalizeAlbumSearchURL(value string) string {
 	value = html.UnescapeString(value)
 	parsed, err := parse.BandcampAlbumURL(value)
+	if err != nil {
+		return ""
+	}
+	return parsed.CanonicalURL
+}
+
+func canonicalizeSongSearchURL(value string) string {
+	value = html.UnescapeString(value)
+	parsed, err := parse.BandcampSongURL(value)
 	if err != nil {
 		return ""
 	}

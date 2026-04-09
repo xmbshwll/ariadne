@@ -49,7 +49,7 @@ func TestRun(t *testing.T) {
 				"ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
 				"<url>",
 				"Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL",
-				"URL from Apple Music, Deezer, Spotify, or TIDAL.",
+				"URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.",
 				"Behavior: auto-detect song URLs first, then fall back to album resolution.",
 				"Commands:",
 				"resolve-song  Resolve a supported song URL across services.",

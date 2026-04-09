@@ -41,7 +41,7 @@ Positional parameter:
     Required.
     Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL,
     SoundCloud, YouTube Music, Bandcamp, or Amazon Music, or a supported song
-    URL from Apple Music, Deezer, Spotify, or TIDAL.
+    URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.
     Behavior: auto-detect song URLs first, then fall back to album resolution.
     Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.
 
@@ -96,7 +96,7 @@ Notes:
   - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
   - Apple Music UPC and ISRC target search are enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
   - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
-  - Song resolution currently supports Apple Music, Deezer, Spotify, and TIDAL.`
+  - Song resolution currently supports Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, and TIDAL.`
 
 const resolveSongHelpText = `Resolve song URLs across music services.
 
@@ -106,7 +106,7 @@ Usage:
 Positional parameter:
   <song-url>
     Required.
-    Values: a supported song URL from Apple Music, Deezer, Spotify, or TIDAL.
+    Values: a supported song URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.
 
 Flags:
   --config
@@ -129,7 +129,7 @@ Flags:
     Default: json.
 
   --services
-    Values: comma-separated list drawn from appleMusic, deezer, spotify, tidal.
+    Values: comma-separated list drawn from appleMusic, bandcamp, deezer, soundcloud, spotify, tidal.
     Use this to limit which target services are searched.
     Caveats:
       spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.

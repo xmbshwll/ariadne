@@ -16,6 +16,7 @@ var (
 
 	errMissingBandcampHost = errors.New("missing bandcamp host")
 	errBandcampNotAlbumURL = errors.New("bandcamp url is not an album url")
+	errBandcampNotSongURL  = errors.New("bandcamp url is not a song url")
 
 	errUnsupportedDeezerHost  = errors.New("unsupported deezer host")
 	errInvalidDeezerAlbumPath = errors.New("invalid deezer album path")
@@ -24,9 +25,11 @@ var (
 	errMissingDeezerAlbumID   = errors.New("missing deezer album id")
 	errMissingDeezerTrackID   = errors.New("missing deezer track id")
 
-	errUnsupportedSoundCloudHost      = errors.New("unsupported soundcloud host")
-	errSoundCloudNotAlbumURL          = errors.New("soundcloud url is not an album-like set url")
-	errMissingSoundCloudUserOrSetSlug = errors.New("missing soundcloud user or set slug")
+	errUnsupportedSoundCloudHost        = errors.New("unsupported soundcloud host")
+	errSoundCloudNotAlbumURL            = errors.New("soundcloud url is not an album-like set url")
+	errSoundCloudNotSongURL             = errors.New("soundcloud url is not a song url")
+	errMissingSoundCloudUserOrSetSlug   = errors.New("missing soundcloud user or set slug")
+	errMissingSoundCloudUserOrTrackSlug = errors.New("missing soundcloud user or track slug")
 
 	errUnsupportedSpotifyHost = errors.New("unsupported spotify host")
 	errSpotifyNotAlbumURL     = errors.New("spotify url is not an album url")
@@ -44,5 +47,7 @@ var (
 	errUnsupportedYouTubeMusicHost   = errors.New("unsupported youtube music host")
 	errMissingYouTubeMusicBrowseID   = errors.New("missing youtube music browse id")
 	errMissingYouTubeMusicPlaylistID = errors.New("missing youtube music playlist id")
+	errMissingYouTubeMusicVideoID    = errors.New("missing youtube music video id")
 	errYouTubeMusicNotAlbumURL       = errors.New("youtube music url is not an album url")
+	errYouTubeMusicNotSongURL        = errors.New("youtube music url is not a song url")
 )

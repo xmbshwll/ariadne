@@ -25,9 +25,9 @@ Not every service supports every search step. The sections below describe the cu
 | Spotify | Web API when credentials exist, otherwise public page bootstrap | Web API with app credentials | Web API when credentials exist, otherwise public page bootstrap | Web API with app credentials | album: UPC + ISRC + metadata; song: ISRC + metadata | supported |
 | Apple Music | Public iTunes Lookup API | Public iTunes Search for metadata, official MusicKit for UPC/ISRC when `.p8` credentials exist | Public iTunes Lookup API | Public iTunes Search for metadata, official MusicKit for song ISRC when `.p8` credentials exist | album: UPC + ISRC + metadata; song: ISRC + metadata | supported |
 | Deezer | Public Deezer album API | Public Deezer UPC lookup, track ISRC lookup, and metadata search | Public Deezer track API | Public Deezer track ISRC lookup and metadata search | album: UPC + ISRC + metadata; song: ISRC + metadata | supported |
-| Bandcamp | Album page HTML + schema.org JSON-LD | Bandcamp search HTML + candidate hydration | not supported | not supported | metadata only | experimental |
-| SoundCloud | Public set page hydration from `__sc_hydration` | Public-facing `api-v2` playlist search | not supported | not supported | metadata only in resolver | experimental |
-| YouTube Music | Public album page HTML extraction | Public search HTML + candidate hydration | not supported | not supported | metadata only in resolver | experimental |
+| Bandcamp | Album page HTML + schema.org JSON-LD | Bandcamp search HTML + candidate hydration | Track page HTML + schema.org JSON-LD | Bandcamp search HTML + candidate hydration | metadata only | experimental |
+| SoundCloud | Public set page hydration from `__sc_hydration` | Public-facing `api-v2` playlist search | Public track page hydration from `__sc_hydration` | Public-facing `api-v2` track search | metadata only in resolver | experimental |
+| YouTube Music | Public album page HTML extraction | Public search HTML + candidate hydration | parse-only investigation so far; no runtime song adapter | no runtime song adapter | metadata only in resolver | experimental |
 | TIDAL | Official catalog API with client credentials | Official metadata, UPC, and ISRC search with client credentials | Official catalog API with client credentials | Official song ISRC and metadata search with client credentials | album: UPC + ISRC + metadata; song: ISRC + metadata | experimental |
 | Amazon Music | no runtime adapter | no runtime adapter | no runtime adapter | no runtime adapter | none | deferred |
 
@@ -167,14 +167,24 @@ Bandcamp has no reliable identifier search. Ariadne instead:
 3. hydrates those candidate album pages
 4. reranks the hydrated results with the shared scorer
 
-### Song support
+### As a song source
 
-Bandcamp song resolution is not implemented yet.
+- Supported input URLs are Bandcamp track pages such as `https://artist.bandcamp.com/track/{slug}`.
+- Source fetch loads the track page and extracts schema.org JSON-LD from the HTML.
+
+### As a song target
+
+Bandcamp song matching is metadata-first. Ariadne:
+
+1. searches `bandcamp.com/search?q=...`
+2. extracts track-result links from the HTML
+3. hydrates those track pages
+4. reranks the hydrated results with the shared song scorer
 
 ### Notes
 
 - Bandcamp is useful for fuzzy matching, but it is still a scraping-based adapter.
-- Canonical output URLs are the cleaned album page URLs.
+- Canonical output URLs are the cleaned album or track page URLs.
 
 ## SoundCloud
 
@@ -194,14 +204,23 @@ SoundCloud does not use release-level identifier search in Ariadne. Instead it u
 
 Some tracks expose UPC-like or ISRC-like publisher metadata, but Ariadne does not treat SoundCloud as a reliable identifier-first target.
 
-### Song support
+### As a song source
 
-SoundCloud song resolution is not implemented yet.
+- Supported input URLs are track pages such as `https://soundcloud.com/{user}/{slug}`.
+- Source fetch loads the track page and extracts track data from `__sc_hydration`.
+
+### As a song target
+
+SoundCloud song resolution is also metadata-first. Ariadne uses:
+
+1. metadata search against the public-facing `api-v2` track search
+2. the discovered public `client_id` from the web app
+3. shared song scoring against returned track candidates
 
 ### Notes
 
 - SoundCloud is experimental because album semantics are weaker and the search path is unofficial.
-- Canonical output URLs use the playlist or set `permalink_url`.
+- Canonical output URLs use the set or track `permalink_url`.
 
 ## YouTube Music
 
@@ -225,7 +244,7 @@ YouTube Music does not use identifier search in Ariadne. Instead it:
 
 ### Song support
 
-YouTube Music song resolution is not implemented yet.
+YouTube Music song resolution is still not implemented. Ariadne now parses common `music.youtube.com/watch?v=...` song URLs during evaluation work, but there is no stable runtime source or target adapter yet.
 
 ### Notes
 

@@ -86,6 +86,14 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parsed, nil
 }
 
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parse.SoundCloudSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse soundcloud song url: %w", err)
+	}
+	return parsed, nil
+}
+
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceSoundCloud {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedSoundCloudService, parsed.Service)
@@ -131,6 +139,51 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		}
 		canonical := toCanonicalAlbum(playlist)
 		results = append(results, toCandidateAlbum(*canonical))
+		if len(results) >= searchLimit {
+			break
+		}
+	}
+	return results, nil
+}
+
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceSoundCloud {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedSoundCloudService, parsed.Service)
+	}
+	body, err := a.fetchPage(ctx, parsed.CanonicalURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch soundcloud page: %w", err)
+	}
+	track, err := extractTrackHydration(body, parsed.CanonicalURL)
+	if err != nil {
+		return nil, fmt.Errorf("extract soundcloud track hydration: %w", err)
+	}
+	a.maybeCacheClientIDFromPage(body)
+	return toCanonicalSong(*track), nil
+}
+
+func (a *Adapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
+	return nil, nil
+}
+
+func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	query := songMetadataQuery(song)
+	if query == "" {
+		return nil, nil
+	}
+	clientID, err := a.clientIdentifier(ctx)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := fmt.Sprintf("%s/search/tracks?q=%s&client_id=%s&limit=%d", a.apiBaseURL, url.QueryEscape(query), url.QueryEscape(clientID), searchLimit)
+	var payload trackSearchResponse
+	if err := a.getJSON(ctx, endpoint, &payload); err != nil {
+		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
+	}
+	results := make([]model.CandidateSong, 0, min(len(payload.Collection), searchLimit))
+	for _, track := range payload.Collection {
+		canonical := toCanonicalSong(track)
+		results = append(results, toCandidateSong(*canonical))
 		if len(results) >= searchLimit {
 			break
 		}
@@ -244,20 +297,19 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 }
 
 func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {
-	matches := hydrationPattern.FindSubmatch(body)
-	if len(matches) != 2 {
-		return nil, errSoundCloudHydrationNotFound
-	}
-	var entries []hydrationEnvelope
-	if err := json.Unmarshal(matches[1], &entries); err != nil {
-		return nil, fmt.Errorf("decode soundcloud hydration payload: %w", err)
+	entries, err := extractHydrationEntries(body)
+	if err != nil {
+		return nil, err
 	}
 	var fallback *soundPlaylist
 	for _, entry := range entries {
-		if entry.Hydratable != "playlist" || entry.Data.PermalinkURL == "" {
+		if entry.Hydratable != "playlist" {
 			continue
 		}
-		playlist := entry.Data
+		var playlist soundPlaylist
+		if err := json.Unmarshal(entry.Data, &playlist); err != nil || playlist.PermalinkURL == "" {
+			continue
+		}
 		if fallback == nil {
 			fallback = &playlist
 		}
@@ -269,6 +321,45 @@ func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist,
 		return fallback, nil
 	}
 	return nil, errSoundCloudPlaylistNotFound
+}
+
+func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error) {
+	entries, err := extractHydrationEntries(body)
+	if err != nil {
+		return nil, err
+	}
+	var fallback *soundTrack
+	for _, entry := range entries {
+		if entry.Hydratable != "sound" {
+			continue
+		}
+		var track soundTrack
+		if err := json.Unmarshal(entry.Data, &track); err != nil || track.PermalinkURL == "" {
+			continue
+		}
+		if fallback == nil {
+			fallback = &track
+		}
+		if canonicalizeSoundCloudURL(track.PermalinkURL) == canonicalURL {
+			return &track, nil
+		}
+	}
+	if fallback != nil {
+		return fallback, nil
+	}
+	return nil, errSoundCloudPlaylistNotFound
+}
+
+func extractHydrationEntries(body []byte) ([]hydrationEnvelope, error) {
+	matches := hydrationPattern.FindSubmatch(body)
+	if len(matches) != 2 {
+		return nil, errSoundCloudHydrationNotFound
+	}
+	var entries []hydrationEnvelope
+	if err := json.Unmarshal(matches[1], &entries); err != nil {
+		return nil, fmt.Errorf("decode soundcloud hydration payload: %w", err)
+	}
+	return entries, nil
 }
 
 func toCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
@@ -338,12 +429,25 @@ func metadataQuery(album model.CanonicalAlbum) string {
 	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
-func canonicalizeSoundCloudURL(raw string) string {
-	parsed, err := parse.SoundCloudAlbumURL(raw)
-	if err != nil {
-		return strings.TrimSpace(raw)
+func songMetadataQuery(song model.CanonicalSong) string {
+	parts := make([]string, 0, 2)
+	if song.Title != "" {
+		parts = append(parts, song.Title)
 	}
-	return parsed.CanonicalURL
+	if len(song.Artists) > 0 {
+		parts = append(parts, song.Artists[0])
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
+func canonicalizeSoundCloudURL(raw string) string {
+	if parsed, err := parse.SoundCloudSongURL(raw); err == nil {
+		return parsed.CanonicalURL
+	}
+	if parsed, err := parse.SoundCloudAlbumURL(raw); err == nil {
+		return parsed.CanonicalURL
+	}
+	return strings.TrimSpace(raw)
 }
 
 func consistentUPC(tracks []soundTrack) string {
@@ -421,12 +525,51 @@ func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
 	}
 }
 
-func soundCloudSourceID(canonicalURL string) string {
-	parsed, err := parse.SoundCloudAlbumURL(canonicalURL)
-	if err != nil {
-		return canonicalURL
+func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
+	return model.CandidateSong{
+		CanonicalSong: song,
+		CandidateID:   song.SourceID,
+		MatchURL:      song.SourceURL,
 	}
-	return parsed.ID
+}
+
+func toCanonicalSong(track soundTrack) *model.CanonicalSong {
+	artists := nonEmptyArtistList(firstNonEmpty(track.PublisherMetadata.Artist, track.User.Username))
+	durationMS := track.FullDuration
+	if durationMS == 0 {
+		durationMS = track.Duration
+	}
+	albumTitle := firstNonEmpty(track.PublisherMetadata.AlbumTitle)
+	canonicalURL := canonicalizeSoundCloudURL(track.PermalinkURL)
+	return &model.CanonicalSong{
+		Service:                model.ServiceSoundCloud,
+		SourceID:               soundCloudSourceID(canonicalURL),
+		SourceURL:              canonicalURL,
+		Title:                  track.Title,
+		NormalizedTitle:        normalize.Text(track.Title),
+		Artists:                artists,
+		NormalizedArtists:      normalize.Artists(artists),
+		DurationMS:             durationMS,
+		ISRC:                   strings.TrimSpace(track.PublisherMetadata.ISRC),
+		Explicit:               track.PublisherMetadata.Explicit,
+		AlbumTitle:             albumTitle,
+		AlbumNormalizedTitle:   normalize.Text(albumTitle),
+		AlbumArtists:           artists,
+		AlbumNormalizedArtists: normalize.Artists(artists),
+		ReleaseDate:            firstNonEmpty(dateOnly(track.ReleaseDate), dateOnly(track.DisplayDate)),
+		ArtworkURL:             "",
+		EditionHints:           normalize.EditionHints(track.Title),
+	}
+}
+
+func soundCloudSourceID(canonicalURL string) string {
+	if parsed, err := parse.SoundCloudSongURL(canonicalURL); err == nil {
+		return parsed.ID
+	}
+	if parsed, err := parse.SoundCloudAlbumURL(canonicalURL); err == nil {
+		return parsed.ID
+	}
+	return canonicalURL
 }
 
 func firstNonEmpty(values ...string) string {

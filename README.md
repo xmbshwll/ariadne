@@ -10,6 +10,8 @@ Ariadne is a Go library and CLI for finding matching album and song URLs across 
 
 Give it one supported album or song URL and Ariadne will fetch canonical metadata, search other services for likely matches, and rank the results.
 
+Song resolution is currently strongest on Spotify, Apple Music, Deezer, TIDAL, Bandcamp, and SoundCloud. YouTube Music song resolution is still not implemented.
+
 ## What it is useful for
 
 Ariadne is a good fit when you need to:
@@ -272,8 +274,8 @@ Sources such as Bandcamp often rely much more heavily on metadata search, so tit
 | Spotify | Yes | Yes | Yes | Yes | Album/song target search requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` | supported |
 | Apple Music | Yes | Yes | Yes | Yes | Album UPC/song ISRC search requires `APPLE_MUSIC_KEY_ID`, `APPLE_MUSIC_TEAM_ID`, and `APPLE_MUSIC_PRIVATE_KEY_PATH` | supported |
 | Deezer | Yes | Yes | Yes | Yes | None | supported |
-| Bandcamp | Yes | Yes | No | No | None; scraping-based | experimental |
-| SoundCloud | Yes | Yes | No | No | None; public page/API extraction | experimental |
+| Bandcamp | Yes | Yes | Yes | Yes | None; scraping-based metadata-first song matching | experimental |
+| SoundCloud | Yes | Yes | Yes | Yes | None; public page/API extraction and metadata-first song matching | experimental |
 | YouTube Music | Yes | Yes | No | No | None; public HTML extraction | experimental |
 | TIDAL | Yes | Yes | Yes | Yes | `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` | experimental |
 | Amazon Music | Parse only | No | No | No | Runtime resolution intentionally deferred | deferred |

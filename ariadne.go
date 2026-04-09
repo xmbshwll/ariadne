@@ -709,11 +709,13 @@ func filterTargetAdapters(targets []resolve.TargetAdapter, services []ServiceNam
 
 func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.SongSourceAdapter {
 	appleMusic := newAppleMusicAdapter(client, config)
+	bandcamp := bandcampadapter.New(client)
 	deezer := deezeradapter.New(client)
+	soundCloud := soundcloudadapter.New(client)
 	spotify := spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret))
 	tidal := tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret))
 
-	candidates := []any{appleMusic, deezer, spotify, tidal}
+	candidates := []any{appleMusic, bandcamp, deezer, soundCloud, spotify, tidal}
 	sources := make([]resolve.SongSourceAdapter, 0, len(candidates))
 	for _, candidate := range candidates {
 		adapter, ok := candidate.(resolve.SongSourceAdapter)
@@ -727,8 +729,10 @@ func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.Son
 
 func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.SongTargetAdapter {
 	appleMusic := newAppleMusicAdapter(client, config)
+	bandcamp := bandcampadapter.New(client)
 	deezer := deezeradapter.New(client)
-	candidates := []any{appleMusic, deezer}
+	soundCloud := soundcloudadapter.New(client)
+	candidates := []any{appleMusic, bandcamp, deezer, soundCloud}
 	if config.SpotifyEnabled() {
 		candidates = append(candidates, spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret)))
 	}

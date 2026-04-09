@@ -16,6 +16,8 @@ func TestAdapter(t *testing.T) {
 	sourcePayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "source-payload.json"))
 	searchPayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "search-results.json"))
 	clientID := "qNxp6KCjufkNWMIclTv0O4ycYGY0eFFX"
+	trackPayload := `{"id":254617771,"title":"The Liner Notes (feat. Aloe Blacc)","permalink_url":"https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1","duration":268706,"full_duration":268706,"release_date":"2011-09-27T00:00:00Z","display_date":"2011-09-27T00:00:00Z","label_name":"Rhymesayers","user":{"id":1,"username":"Evidence","permalink":"evidence-official","permalink_url":"https://soundcloud.com/evidence-official"},"publisher_metadata":{"artist":"Evidence","album_title":"Cats & Dogs","isrc":"USBWK1100093","explicit":false}}`
+	trackSearchPayload := `{"collection":[{"id":254617771,"title":"The Liner Notes (feat. Aloe Blacc)","permalink_url":"https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1","duration":268706,"full_duration":268706,"release_date":"2011-09-27T00:00:00Z","display_date":"2011-09-27T00:00:00Z","user":{"id":1,"username":"Evidence","permalink":"evidence-official","permalink_url":"https://soundcloud.com/evidence-official"},"publisher_metadata":{"artist":"Evidence","album_title":"Cats & Dogs","isrc":"USBWK1100093","explicit":false}},{"id":99,"title":"The Liner Notes (Live)","permalink_url":"https://soundcloud.com/tribute/live-liner-notes","duration":300000,"full_duration":300000,"release_date":"2020-01-01T00:00:00Z","display_date":"2020-01-01T00:00:00Z","user":{"id":2,"username":"Tribute Band","permalink":"tribute","permalink_url":"https://soundcloud.com/tribute"},"publisher_metadata":{"artist":"Tribute Band","album_title":"Live Notes","isrc":"","explicit":false}}]}`
 
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,12 +28,20 @@ func TestAdapter(t *testing.T) {
 			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
 		case "/album":
 			_, _ = fmt.Fprintf(w, `<html><body><script>window.__sc_hydration = [{"hydratable":"playlist","data":%s}];</script></body></html>`, sourcePayload)
+		case "/track":
+			_, _ = fmt.Fprintf(w, `<html><body><script>window.__sc_hydration = [{"hydratable":"sound","data":%s}];</script></body></html>`, trackPayload)
 		case "/search/playlists":
 			if r.URL.Query().Get("client_id") != clientID {
 				http.Error(w, "missing client id", http.StatusUnauthorized)
 				return
 			}
 			_, _ = w.Write(searchPayload)
+		case "/search/tracks":
+			if r.URL.Query().Get("client_id") != clientID {
+				http.Error(w, "missing client id", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(trackSearchPayload))
 		default:
 			http.NotFound(w, r)
 		}
@@ -97,6 +107,49 @@ func TestAdapter(t *testing.T) {
 		}
 	})
 
+	t.Run("fetch song from hydration", func(t *testing.T) {
+		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+			Service:      model.ServiceSoundCloud,
+			EntityType:   "song",
+			ID:           "evidence-official/the-liner-notes-feat-aloe-1",
+			CanonicalURL: server.URL + "/track",
+			RawURL:       server.URL + "/track",
+		})
+		if err != nil {
+			t.Fatalf("FetchSong error: %v", err)
+		}
+		if song.Title != "The Liner Notes (feat. Aloe Blacc)" {
+			t.Fatalf("title = %q", song.Title)
+		}
+		if song.AlbumTitle != "Cats & Dogs" {
+			t.Fatalf("album title = %q", song.AlbumTitle)
+		}
+		if song.ISRC != "USBWK1100093" {
+			t.Fatalf("isrc = %q", song.ISRC)
+		}
+	})
+
+	t.Run("search song by metadata via api v2", func(t *testing.T) {
+		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
+			Title:      "The Liner Notes",
+			Artists:    []string{"Evidence"},
+			AlbumTitle: "Cats & Dogs",
+			DurationMS: 268706,
+		})
+		if err != nil {
+			t.Fatalf("SearchSongByMetadata error: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("result count = %d, want 2", len(results))
+		}
+		if results[0].CandidateID != "evidence-official/the-liner-notes-feat-aloe-1" {
+			t.Fatalf("first candidate id = %q", results[0].CandidateID)
+		}
+		if results[0].AlbumTitle != "Cats & Dogs" {
+			t.Fatalf("album title = %q", results[0].AlbumTitle)
+		}
+	})
+
 	t.Run("identifier search unsupported", func(t *testing.T) {
 		upcResults, err := adapter.SearchByUPC(context.Background(), "826257014467")
 		if err != nil {
@@ -111,6 +164,13 @@ func TestAdapter(t *testing.T) {
 		}
 		if len(isrcResults) != 0 {
 			t.Fatalf("isrc results = %d, want 0", len(isrcResults))
+		}
+		songISRCResults, err := adapter.SearchSongByISRC(context.Background(), "USBWK1100093")
+		if err != nil {
+			t.Fatalf("SearchSongByISRC error: %v", err)
+		}
+		if len(songISRCResults) != 0 {
+			t.Fatalf("song isrc results = %d, want 0", len(songISRCResults))
 		}
 	})
 }

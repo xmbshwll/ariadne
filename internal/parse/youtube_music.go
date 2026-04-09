@@ -10,14 +10,9 @@ import (
 
 // YouTubeMusicAlbumURL parses YouTube Music album-like URLs into the shared parsed representation.
 func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := url.Parse(raw)
+	parsed, err := parseYouTubeMusicURL(raw)
 	if err != nil {
-		return nil, fmt.Errorf("parse youtube music url: %w", err)
-	}
-
-	host := strings.ToLower(parsed.Host)
-	if host != "music.youtube.com" {
-		return nil, fmt.Errorf("%w: %s", errUnsupportedYouTubeMusicHost, parsed.Host)
+		return nil, err
 	}
 
 	segments := pathSegments(parsed.Path)
@@ -49,4 +44,41 @@ func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	default:
 		return nil, fmt.Errorf("%w: %s", errYouTubeMusicNotAlbumURL, raw)
 	}
+}
+
+// YouTubeMusicSongURL parses YouTube Music song URLs into the shared parsed representation.
+func YouTubeMusicSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parseYouTubeMusicURL(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	segments := pathSegments(parsed.Path)
+	if len(segments) != 1 || segments[0] != "watch" {
+		return nil, fmt.Errorf("%w: %s", errYouTubeMusicNotSongURL, raw)
+	}
+	videoID := strings.TrimSpace(parsed.Query().Get("v"))
+	if videoID == "" {
+		return nil, errMissingYouTubeMusicVideoID
+	}
+	return &model.ParsedAlbumURL{
+		Service:      model.ServiceYouTubeMusic,
+		EntityType:   "song",
+		ID:           videoID,
+		CanonicalURL: "https://music.youtube.com/watch?v=" + videoID,
+		RawURL:       raw,
+	}, nil
+}
+
+func parseYouTubeMusicURL(raw string) (*url.URL, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse youtube music url: %w", err)
+	}
+
+	host := strings.ToLower(parsed.Host)
+	if host != "music.youtube.com" {
+		return nil, fmt.Errorf("%w: %s", errUnsupportedYouTubeMusicHost, parsed.Host)
+	}
+	return parsed, nil
 }

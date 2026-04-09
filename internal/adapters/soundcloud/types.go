@@ -1,12 +1,18 @@
 package soundcloud
 
+import "encoding/json"
+
 type hydrationEnvelope struct {
-	Hydratable string        `json:"hydratable"`
-	Data       soundPlaylist `json:"data"`
+	Hydratable string          `json:"hydratable"`
+	Data       json.RawMessage `json:"data"`
 }
 
 type searchResponse struct {
 	Collection []soundPlaylist `json:"collection"`
+}
+
+type trackSearchResponse struct {
+	Collection []soundTrack `json:"collection"`
 }
 
 type soundPlaylist struct {

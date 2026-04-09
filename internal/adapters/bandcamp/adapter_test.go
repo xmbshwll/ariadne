@@ -186,6 +186,90 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 	}
 }
 
+func TestSongAdapter(t *testing.T) {
+	trackPage := mustBandcampTrackPage(t, "Come Together", "COMRADIATION", "Lôn Abaty / Abbey Road", "2021-12-02", 251000)
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/track/come-together":
+			_, _ = w.Write(trackPage)
+		case "/search":
+			searchHTML := fmt.Sprintf(`
+				<html><body>
+					<li class="searchresult data-search">
+					  <div class="itemtype">TRACK</div>
+					  <div class="heading"><a href="%s/track/come-together?from=search">Come Together</a></div>
+					  <div class="subhead">by COMRADIATION</div>
+					  <div class="released">released December 2, 2021</div>
+					</li>
+					<li class="searchresult data-search">
+					  <div class="itemtype">TRACK</div>
+					  <div class="heading"><a href="%s/track/come-together-live">Come Together (Live)</a></div>
+					  <div class="subhead">by Tribute Band</div>
+					  <div class="released">released January 1, 2020</div>
+					</li>
+				</body></html>
+			`, server.URL, server.URL)
+			_, _ = w.Write([]byte(searchHTML))
+		case "/track/come-together-live":
+			_, _ = w.Write(mustBandcampTrackPage(t, "Come Together (Live)", "Tribute Band", "Abbey Road Live", "2020-01-01", 300000))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
+	parsed := model.ParsedAlbumURL{
+		Service:      model.ServiceBandcamp,
+		EntityType:   "song",
+		ID:           "come-together",
+		CanonicalURL: server.URL + "/track/come-together",
+		RawURL:       server.URL + "/track/come-together",
+	}
+
+	t.Run("fetch song", func(t *testing.T) {
+		song, err := adapter.FetchSong(context.Background(), parsed)
+		if err != nil {
+			t.Fatalf("FetchSong error: %v", err)
+		}
+		if song.Title != "Come Together" {
+			t.Fatalf("title = %q", song.Title)
+		}
+		if song.AlbumTitle != "Lôn Abaty / Abbey Road" {
+			t.Fatalf("album title = %q", song.AlbumTitle)
+		}
+		if song.DurationMS != 251000 {
+			t.Fatalf("duration = %d", song.DurationMS)
+		}
+	})
+
+	t.Run("search song by metadata", func(t *testing.T) {
+		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
+			Title:      "Come Together",
+			Artists:    []string{"COMRADIATION"},
+			DurationMS: 251000,
+			AlbumTitle: "Lôn Abaty / Abbey Road",
+		})
+		if err != nil {
+			t.Fatalf("SearchSongByMetadata error: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("result count = %d, want 2", len(results))
+		}
+		if results[0].CandidateID != "come-together" {
+			t.Fatalf("candidate id = %q", results[0].CandidateID)
+		}
+		if results[0].AlbumTitle != "Lôn Abaty / Abbey Road" {
+			t.Fatalf("album title = %q", results[0].AlbumTitle)
+		}
+		if results[1].CandidateID != "come-together-live" {
+			t.Fatalf("second candidate id = %q", results[1].CandidateID)
+		}
+	})
+}
+
 func TestRealSavedPages(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -311,6 +395,38 @@ func mustBandcampAlbumPage(t *testing.T, title string, artist string, releaseDat
 	content, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal bandcamp album payload: %v", err)
+	}
+	page := fmt.Sprintf("<html><body><script type=\"application/ld+json\">%s</script></body></html>", content)
+	return []byte(page)
+}
+
+func mustBandcampTrackPage(t *testing.T, title string, artist string, albumTitle string, releaseDate string, durationMS int) []byte {
+	t.Helper()
+	payload := map[string]any{
+		"@context":      "https://schema.org",
+		"@type":         "MusicRecording",
+		"@id":           "https://example.bandcamp.com/track/test",
+		"name":          title,
+		"datePublished": releaseDate + " 00:00:00 GMT",
+		"duration":      fmt.Sprintf("PT%dM%dS", durationMS/60000, (durationMS/1000)%60),
+		"image":         "https://f4.bcbits.com/img/example-track.jpg",
+		"byArtist": map[string]any{
+			"@type": "MusicGroup",
+			"name":  artist,
+		},
+		"publisher": map[string]any{
+			"@type": "MusicGroup",
+			"name":  artist,
+		},
+		"inAlbum": map[string]any{
+			"@type": "MusicAlbum",
+			"@id":   "https://example.bandcamp.com/album/example-album",
+			"name":  albumTitle,
+		},
+	}
+	content, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal bandcamp track payload: %v", err)
 	}
 	page := fmt.Sprintf("<html><body><script type=\"application/ld+json\">%s</script></body></html>", content)
 	return []byte(page)
