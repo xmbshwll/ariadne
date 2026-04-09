@@ -637,8 +637,8 @@ func metadataQueries(album model.CanonicalAlbum) []string {
 		return nil
 	}
 
-	queries := make([]string, 0, 4)
-	seen := make(map[string]struct{}, 4)
+	queries := make([]string, 0, 8)
+	seen := make(map[string]struct{}, 8)
 	appendUnique := func(query string) {
 		query = strings.TrimSpace(query)
 		if query == "" {
@@ -655,10 +655,12 @@ func metadataQueries(album model.CanonicalAlbum) []string {
 		queries = append(queries, query)
 	}
 
-	for _, artist := range normalize.SearchArtistVariants(album.Artists) {
-		appendUnique(strings.Join([]string{"album:" + album.Title, "artist:" + artist}, " "))
+	for _, title := range normalize.SearchTitleVariants(album.Title) {
+		for _, artist := range normalize.SearchArtistVariants(album.Artists) {
+			appendUnique(strings.Join([]string{"album:" + title, "artist:" + artist}, " "))
+		}
+		appendUnique("album:" + title)
 	}
-	appendUnique("album:" + album.Title)
 	return queries
 }
 

@@ -120,14 +120,83 @@ resolver := ariadne.NewWithAdapters(sourceAdapters, targetAdapters)
 
 ## How matching works
 
-For each input album URL, Ariadne:
+Ariadne uses the same matching pipeline for every supported service.
 
-1. parses the source URL
-2. fetches canonical source metadata
-3. searches target services by UPC, ISRC, and album metadata where supported
-4. deduplicates candidates
-5. ranks them with shared scoring logic
-6. returns the best match plus alternates for each service
+### 1. Parse and canonicalize the source album
+
+The input URL is first parsed by the registered source adapters until one recognizes it.
+That adapter then fetches the source album and converts it into a shared canonical shape with fields such as:
+
+- album title
+- credited artists
+- release date
+- label
+- UPC
+- track list
+- track ISRCs
+- total duration
+- explicit flag
+- edition hints such as remaster or deluxe
+
+This gives the resolver one normalized source record regardless of which service the input came from.
+
+### 2. Search each target service in layers
+
+Each target service is searched independently, and the source service is skipped.
+For each target, Ariadne collects candidates in this order:
+
+1. **UPC search** when the source album has a UPC
+2. **ISRC search** when the source tracks expose ISRCs
+3. **Metadata search** using album title and artist queries
+
+Metadata search is the fallback that keeps the resolver useful for services that expose weak identifiers or none at all. It uses search-oriented variants of the source metadata, including split artist credits and alternate title forms when available.
+
+### 3. Deduplicate candidates
+
+Results collected from UPC, ISRC, and metadata search are merged and deduplicated per service. If the same album is found through multiple paths, it is scored only once.
+
+### 4. Score every candidate with shared signals
+
+Ariadne then ranks all candidates for a target service with a shared scoring model. The score combines positive and negative signals, including:
+
+- exact UPC match
+- strong or partial ISRC overlap
+- exact title match
+- core title match after removing edition markers
+- exact primary artist match or broader artist overlap
+- strong or partial track-title overlap
+- exact or near track-count match
+- exact release-date match or same-year match
+- near total duration
+- exact label match
+- penalties for explicit mismatches
+- penalties for edition mismatches such as remaster vs non-remaster
+
+This matters because no single signal is reliable across every service. A candidate can still rank well even when, for example, UPC is missing, as long as the artist, track list, date, and title line up.
+
+### 5. Sort and return best match plus alternates
+
+Candidates are sorted by descending score. For each target service, Ariadne returns:
+
+- the best candidate
+- lower-ranked alternates
+- the score and human-readable reasons when `--verbose` is enabled
+
+### Confidence bands
+
+Raw scores are also mapped into user-facing confidence bands:
+
+- `strong`: `>= 100`
+- `probable`: `>= 70`
+- `weak`: `>= 50`
+- `very_weak`: `< 50`
+
+The CLI uses these bands for `--min-strength` filtering.
+
+### Practical consequence
+
+Identifier-rich sources such as Spotify, Apple Music, or Deezer usually match more easily because UPC and ISRC search can fire early.
+Sources such as Bandcamp often rely much more heavily on metadata search, so title normalization, alternate titles, and track-level overlap matter more there.
 
 ## Service support
 

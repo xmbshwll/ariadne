@@ -119,7 +119,7 @@ func TestAdapter(t *testing.T) {
 				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-1", Album: apiTrackAlbum{ID: "album-good"}}}}})
 			case strings.Contains(query, "isrc:GBAYE0601691"):
 				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-2", Album: apiTrackAlbum{ID: "album-good"}}}}})
-			case strings.Contains(query, "album:Abbey Road (Remastered)"):
+			case strings.Contains(query, "album:Abbey Road (Remastered)"), strings.Contains(query, "album:Abbey Road artist:The Beatles"), strings.Contains(query, "album:Abbey Road"):
 				writeJSON(t, w, apiAlbumSearchResponse{Albums: apiAlbumSearchPage{Items: []apiAlbumSummary{{ID: "album-good"}, {ID: "album-weak"}}}})
 			default:
 				http.NotFound(w, r)
