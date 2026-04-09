@@ -30,6 +30,7 @@ var (
 
 	errUnexpectedTIDALService     = errors.New("unexpected tidal service")
 	errTIDALAlbumNotFound         = errors.New("tidal album not found")
+	errTIDALTrackNotFound         = errors.New("tidal track not found")
 	errUnexpectedTIDALAPIStatus   = errors.New("unexpected api status")
 	errUnexpectedTIDALTokenStatus = errors.New("unexpected token status")
 	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
@@ -304,7 +305,7 @@ func (a *Adapter) fetchSongByID(ctx context.Context, trackID string, canonicalUR
 	}
 	resource := firstDataResource(document)
 	if resource == nil {
-		return nil, fmt.Errorf("%w: %s", errTIDALAlbumNotFound, trackID)
+		return nil, fmt.Errorf("%w: %s", errTIDALTrackNotFound, trackID)
 	}
 	return toCanonicalSong(*resource, document.Included, canonicalURL, regionHint), nil
 }

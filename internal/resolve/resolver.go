@@ -90,7 +90,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		return nil, fmt.Errorf("fetch source album with %s: %w", sourceAdapter.Service(), err)
 	}
 
-	targets := r.targetSearchesFor(sourceAlbum.Service)
+	targets := excludeTargetService(r.targets, sourceAlbum.Service)
 	resolution := &Resolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
@@ -122,15 +122,15 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 	return resolution, nil
 }
 
-func (r *Resolver) targetSearchesFor(sourceService model.ServiceName) []TargetAdapter {
-	targets := make([]TargetAdapter, 0, len(r.targets))
-	for _, target := range r.targets {
+func excludeTargetService[T interface{ Service() model.ServiceName }](targets []T, sourceService model.ServiceName) []T {
+	filtered := make([]T, 0, len(targets))
+	for _, target := range targets {
 		if target.Service() == sourceService {
 			continue
 		}
-		targets = append(targets, target)
+		filtered = append(filtered, target)
 	}
-	return targets
+	return filtered
 }
 
 func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlbumURL, error) {
@@ -154,7 +154,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 			return nil, err
 		}
-		combined = appendUniqueAlbumCandidates(combined, seen, candidates)
+		combined = appendUniqueByKey(combined, seen, candidates, candidateKey)
 	}
 
 	isrcs := collectISRCs(source)
@@ -164,7 +164,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 			return nil, err
 		}
-		combined = appendUniqueAlbumCandidates(combined, seen, candidates)
+		combined = appendUniqueByKey(combined, seen, candidates, candidateKey)
 	}
 
 	metadataCandidates, err := target.SearchByMetadata(ctx, source)
@@ -172,19 +172,19 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 		return nil, err
 	}
-	combined = appendUniqueAlbumCandidates(combined, seen, metadataCandidates)
+	combined = appendUniqueByKey(combined, seen, metadataCandidates, candidateKey)
 
 	return combined, nil
 }
 
-func appendUniqueAlbumCandidates(dst []model.CandidateAlbum, seen map[string]struct{}, candidates []model.CandidateAlbum) []model.CandidateAlbum {
-	for _, candidate := range candidates {
-		key := candidateKey(candidate)
+func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {
+	for _, item := range items {
+		key := keyFunc(item)
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
-		dst = append(dst, candidate)
+		dst = append(dst, item)
 	}
 	return dst
 }

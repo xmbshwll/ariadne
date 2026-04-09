@@ -3,6 +3,7 @@ package tidal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -96,6 +97,9 @@ func TestAdapter(t *testing.T) {
 				{ID: "9999", Type: "albums", Attributes: resourceAttributes{Title: "Shadows among trees Live", ReleaseDate: "2021-01-01"}},
 			},
 		})
+	})
+	mux.HandleFunc("/tracks/missing", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, apiDocument{})
 	})
 	mux.HandleFunc("/albums", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("filter[barcodeId]") != "053000502692" {
@@ -200,6 +204,14 @@ func TestAdapter(t *testing.T) {
 	}
 	if songMetadataResults[0].CandidateID != "156205494" {
 		t.Fatalf("first song candidate id = %q", songMetadataResults[0].CandidateID)
+	}
+
+	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "missing", CanonicalURL: "https://tidal.com/track/missing"})
+	if err == nil {
+		t.Fatalf("expected missing song error")
+	}
+	if !errors.Is(err, errTIDALTrackNotFound) {
+		t.Fatalf("error = %v, want tidal track not found", err)
 	}
 }
 

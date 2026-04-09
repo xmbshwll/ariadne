@@ -81,7 +81,7 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 		return nil, fmt.Errorf("fetch source song with %s: %w", sourceAdapter.Service(), err)
 	}
 
-	targets := r.targetSearchesFor(sourceSong.Service)
+	targets := excludeTargetService(r.targets, sourceSong.Service)
 	resolution := &SongResolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
@@ -113,17 +113,6 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 	return resolution, nil
 }
 
-func (r *SongResolver) targetSearchesFor(sourceService model.ServiceName) []SongTargetAdapter {
-	targets := make([]SongTargetAdapter, 0, len(r.targets))
-	for _, target := range r.targets {
-		if target.Service() == sourceService {
-			continue
-		}
-		targets = append(targets, target)
-	}
-	return targets
-}
-
 func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.ParsedAlbumURL, error) {
 	for _, source := range r.sources {
 		parsed, err := source.ParseSongURL(inputURL)
@@ -144,28 +133,16 @@ func (r *SongResolver) collectCandidates(ctx context.Context, target SongTargetA
 		if err != nil {
 			return nil, fmt.Errorf("search song by isrc on %s: %w", target.Service(), err)
 		}
-		combined = appendUniqueSongCandidates(combined, seen, candidates)
+		combined = appendUniqueByKey(combined, seen, candidates, songCandidateKey)
 	}
 
 	metadataCandidates, err := target.SearchSongByMetadata(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("search song by metadata on %s: %w", target.Service(), err)
 	}
-	combined = appendUniqueSongCandidates(combined, seen, metadataCandidates)
+	combined = appendUniqueByKey(combined, seen, metadataCandidates, songCandidateKey)
 
 	return combined, nil
-}
-
-func appendUniqueSongCandidates(dst []model.CandidateSong, seen map[string]struct{}, candidates []model.CandidateSong) []model.CandidateSong {
-	for _, candidate := range candidates {
-		key := songCandidateKey(candidate)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		dst = append(dst, candidate)
-	}
-	return dst
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {

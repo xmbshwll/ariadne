@@ -20,6 +20,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/xmbshwll/ariadne"
+	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
@@ -109,6 +111,14 @@ Notes:
 var (
 	resolverFactory = ariadne.New
 	valueNormalizer = strings.NewReplacer("-", "", "_", "")
+	songURLParsers  = []func(string) (*model.ParsedAlbumURL, error){
+		parse.AppleMusicSongURL,
+		parse.BandcampSongURL,
+		parse.DeezerSongURL,
+		parse.SoundCloudSongURL,
+		parse.SpotifySongURL,
+		parse.TIDALSongURL,
+	}
 )
 
 var (
@@ -427,7 +437,7 @@ func normalizeResolveConfig(config resolveConfig) (resolveConfig, error) {
 }
 
 func validateResolveConfig(config resolveConfig) error {
-	if resolveModeFromConfig(config) != resolveModeSong {
+	if !requiresSongTargetValidation(config) {
 		return nil
 	}
 
@@ -438,6 +448,27 @@ func validateResolveConfig(config resolveConfig) error {
 		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, supportedSongTargetServicesUsage)
 	}
 	return nil
+}
+
+func requiresSongTargetValidation(config resolveConfig) bool {
+	switch resolveModeFromConfig(config) {
+	case resolveModeSong:
+		return true
+	case resolveModeAuto:
+		return isAutoSongInput(config.inputURL)
+	default:
+		return false
+	}
+}
+
+func isAutoSongInput(inputURL string) bool {
+	for _, parseSongURL := range songURLParsers {
+		parsed, err := parseSongURL(inputURL)
+		if err == nil && parsed != nil {
+			return true
+		}
+	}
+	return false
 }
 
 const supportedSongTargetServicesUsage = "supported for songs: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal"

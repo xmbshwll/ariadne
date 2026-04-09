@@ -60,8 +60,18 @@ func TestDefaultConfig(t *testing.T) {
 	if config.ScoreWeights == (ScoreWeights{}) {
 		t.Fatalf("expected default score weights")
 	}
+	if config.SongScoreWeights == (SongScoreWeights{}) {
+		t.Fatalf("expected default song score weights")
+	}
 	if config.HTTPTimeout != 15*time.Second {
 		t.Fatalf("http timeout = %s, want 15s", config.HTTPTimeout)
+	}
+}
+
+func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
+	config := normalizedConfig(Config{})
+	if config.SongScoreWeights == (SongScoreWeights{}) {
+		t.Fatalf("expected normalized config to include default song score weights")
 	}
 }
 

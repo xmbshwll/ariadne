@@ -381,8 +381,10 @@ type Config struct {
 	// TargetServices limits the default resolver to the listed target services.
 	// When empty, Ariadne uses all available default targets.
 	TargetServices []ServiceName
-	// ScoreWeights controls how the ranking algorithm weights matching signals.
+	// ScoreWeights controls how the album ranking algorithm weights matching signals.
 	ScoreWeights ScoreWeights
+	// SongScoreWeights controls how the song ranking algorithm weights matching signals.
+	SongScoreWeights SongScoreWeights
 }
 
 // SpotifyConfig holds Spotify app credentials used for target search and preferred source fetches.
@@ -470,7 +472,12 @@ func MatchStrengthForScore(score int) MatchStrength {
 
 // DefaultConfig returns the library defaults without reading the environment.
 func DefaultConfig() Config {
-	return Config{AppleMusicStorefront: "us", HTTPTimeout: httpx.DefaultTimeout(), ScoreWeights: DefaultScoreWeights()}
+	return Config{
+		AppleMusicStorefront: "us",
+		HTTPTimeout:          httpx.DefaultTimeout(),
+		ScoreWeights:         DefaultScoreWeights(),
+		SongScoreWeights:     DefaultSongScoreWeights(),
+	}
 }
 
 // LoadConfig loads library configuration from the current environment.
@@ -497,7 +504,7 @@ func NewWithClient(client *http.Client, config Config) *Resolver {
 	config = normalizedConfig(config)
 	return &Resolver{
 		inner:     resolve.New(defaultSourceAdapters(client, config), defaultTargetAdapters(client, config), toInternalScoreWeights(config.ScoreWeights)),
-		songInner: resolve.NewSongs(defaultSongSourceAdapters(client, config), defaultSongTargetAdapters(client, config), toInternalSongScoreWeights(DefaultSongScoreWeights())),
+		songInner: resolve.NewSongs(defaultSongSourceAdapters(client, config), defaultSongTargetAdapters(client, config), toInternalSongScoreWeights(config.SongScoreWeights)),
 	}
 }
 
@@ -613,6 +620,9 @@ func normalizedConfig(config Config) Config {
 	if config.ScoreWeights == (ScoreWeights{}) {
 		config.ScoreWeights = DefaultScoreWeights()
 	}
+	if config.SongScoreWeights == (SongScoreWeights{}) {
+		config.SongScoreWeights = DefaultSongScoreWeights()
+	}
 	return config
 }
 
@@ -684,23 +694,7 @@ func defaultTargetAdapters(client *http.Client, config Config) []resolve.TargetA
 	if config.TIDALEnabled() {
 		targets = append(targets, tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret)))
 	}
-	return filterTargetAdapters(targets, config.TargetServices)
-}
-
-func filterTargetAdapters(targets []resolve.TargetAdapter, services []ServiceName) []resolve.TargetAdapter {
-	allowed := allowedTargetServices(services)
-	if len(allowed) == 0 {
-		return targets
-	}
-
-	filtered := make([]resolve.TargetAdapter, 0, len(targets))
-	for _, target := range targets {
-		if _, ok := allowed[fromInternalServiceName(target.Service())]; !ok {
-			continue
-		}
-		filtered = append(filtered, target)
-	}
-	return filtered
+	return filterAdaptersByServiceName(targets, config.TargetServices)
 }
 
 func allowedTargetServices(services []ServiceName) map[ServiceName]struct{} {
@@ -738,21 +732,21 @@ func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.Son
 	if config.TIDALEnabled() {
 		targets = append(targets, tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret)))
 	}
-	return filterSongTargetAdapters(targets, config.TargetServices)
+	return filterAdaptersByServiceName(targets, config.TargetServices)
 }
 
-func filterSongTargetAdapters(targets []resolve.SongTargetAdapter, services []ServiceName) []resolve.SongTargetAdapter {
+func filterAdaptersByServiceName[T interface{ Service() model.ServiceName }](adapters []T, services []ServiceName) []T {
 	allowed := allowedTargetServices(services)
 	if len(allowed) == 0 {
-		return targets
+		return adapters
 	}
 
-	filtered := make([]resolve.SongTargetAdapter, 0, len(targets))
-	for _, target := range targets {
-		if _, ok := allowed[fromInternalServiceName(target.Service())]; !ok {
+	filtered := make([]T, 0, len(adapters))
+	for _, adapter := range adapters {
+		if _, ok := allowed[fromInternalServiceName(adapter.Service())]; !ok {
 			continue
 		}
-		filtered = append(filtered, target)
+		filtered = append(filtered, adapter)
 	}
 	return filtered
 }

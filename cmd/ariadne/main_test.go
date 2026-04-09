@@ -1081,6 +1081,11 @@ func TestParseResolveArgs(t *testing.T) {
 			wantErrContains: "target service is not available for song resolution \"youtubeMusic\"",
 		},
 		{
+			name:            "unsupported auto song target service",
+			args:            []string{"--services=youtubeMusic", "https://open.spotify.com/track/123"},
+			wantErrContains: "target service is not available for song resolution \"youtubeMusic\"",
+		},
+		{
 			name:            "min strength",
 			args:            []string{"--min-strength=probable", "https://www.deezer.com/album/12047952"},
 			wantURL:         "https://www.deezer.com/album/12047952",
