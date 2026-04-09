@@ -124,6 +124,8 @@ var (
 	errSpotifyTargetCredentials  = errors.New("spotify target search requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET")
 	errTIDALTargetCredentials    = errors.New("tidal target search requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET")
 	errUnsupportedMinStrength    = errors.New("unsupported min-strength")
+	errEmptyResolution           = errors.New("empty resolution")
+	errUnsupportedResolveMode    = errors.New("unsupported resolve mode")
 )
 
 var (
@@ -455,9 +457,9 @@ func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) er
 		if resolution.Album != nil {
 			return writeCLIOutput(stdout, *resolution.Album, config)
 		}
-		return fmt.Errorf("resolve %q: empty resolution", config.inputURL)
+		return fmt.Errorf("resolve %q: %w", config.inputURL, errEmptyResolution)
 	default:
-		return fmt.Errorf("unsupported resolve mode %q", mode)
+		return fmt.Errorf("%w %q", errUnsupportedResolveMode, mode)
 	}
 }
 

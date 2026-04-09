@@ -10,7 +10,6 @@ var (
 	errUnsupportedAppleMusicHost            = errors.New("unsupported apple music host")
 	errInvalidAppleMusicAlbumPath           = errors.New("invalid apple music album path")
 	errAppleMusicNotAlbumURL                = errors.New("apple music url is not an album url")
-	errAppleMusicNotSongURL                 = errors.New("apple music url is not a song url")
 	errMissingAppleMusicStorefrontOrAlbumID = errors.New("missing storefront or album id")
 	errMissingAppleMusicTrackID             = errors.New("missing apple music track id")
 

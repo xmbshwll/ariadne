@@ -25,6 +25,7 @@ const (
 var (
 	errUnexpectedDeezerService = errors.New("unexpected deezer service")
 	errUnexpectedDeezerStatus  = errors.New("unexpected deezer status")
+	errDeezerTrackNotFound     = errors.New("deezer track not found")
 )
 
 // Adapter implements Deezer source operations.
@@ -173,10 +174,10 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 
 	track, err := a.fetchTrackLookup(ctx, a.baseURL+"/track/isrc:"+url.PathEscape(isrc))
 	if err != nil {
+		if errors.Is(err, errDeezerTrackNotFound) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("search deezer song by isrc %s: %w", isrc, err)
-	}
-	if track == nil {
-		return nil, nil
 	}
 	return []model.CandidateSong{toCandidateSong(*a.toCanonicalSong(*track))}, nil
 }
@@ -225,9 +226,6 @@ func (a *Adapter) fetchSongByID(ctx context.Context, trackID string) (*model.Can
 	if err != nil {
 		return nil, fmt.Errorf("fetch deezer song %s: %w", trackID, err)
 	}
-	if track == nil {
-		return nil, nil
-	}
 	canonical := a.toCanonicalSong(*track)
 	return canonical, nil
 }
@@ -238,7 +236,7 @@ func (a *Adapter) fetchTrackLookup(ctx context.Context, endpoint string) (*track
 		return nil, err
 	}
 	if track.ID == 0 {
-		return nil, nil
+		return nil, errDeezerTrackNotFound
 	}
 	return &track, nil
 }

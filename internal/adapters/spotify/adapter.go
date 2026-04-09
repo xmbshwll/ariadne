@@ -34,6 +34,7 @@ var (
 	errUnexpectedSpotifyService     = errors.New("unexpected spotify service")
 	errUnexpectedSpotifyStatus      = errors.New("unexpected spotify status")
 	errSpotifyAlbumEntityNotFound   = errors.New("spotify album entity not found in bootstrap payload")
+	errSpotifyTrackNotFound         = errors.New("spotify track not found")
 	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected api status")
 	errUnexpectedSpotifyTokenStatus = errors.New("unexpected token status")
 	errEmptySpotifyAccessToken      = errors.New("empty spotify access token")
@@ -362,7 +363,7 @@ func (a *Adapter) fetchTrackAPI(ctx context.Context, trackID string) (*apiTrack,
 		return nil, err
 	}
 	if len(tracks) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
 	}
 	return &tracks[0], nil
 }
@@ -470,10 +471,10 @@ func (a *Adapter) hydrateSongCandidates(ctx context.Context, items []apiTrackSea
 
 		track, err := a.fetchTrackAPI(ctx, item.ID)
 		if err != nil {
+			if errors.Is(err, errSpotifyTrackNotFound) {
+				continue
+			}
 			return nil, fmt.Errorf("hydrate spotify track %s: %w", item.ID, err)
-		}
-		if track == nil {
-			continue
 		}
 		canonical := toCanonicalSongAPI(canonicalTrackURL(item.ID), track)
 		results = append(results, model.CandidateSong{
@@ -683,9 +684,6 @@ func toCanonicalSongAPI(sourceURL string, track *apiTrack) *model.CanonicalSong 
 	artists := spotifyArtistNamesAPI(track.Artists)
 	albumArtists := spotifyArtistNamesAPI(track.Album.Artists)
 	albumTitle := track.Album.Name
-	if albumTitle == "" {
-		albumTitle = track.Name
-	}
 	return &model.CanonicalSong{
 		Service:                model.ServiceSpotify,
 		SourceID:               track.ID,
@@ -700,8 +698,8 @@ func toCanonicalSongAPI(sourceURL string, track *apiTrack) *model.CanonicalSong 
 		DiscNumber:             track.DiscNumber,
 		TrackNumber:            track.TrackNumber,
 		AlbumID:                track.Album.ID,
-		AlbumTitle:             track.Album.Name,
-		AlbumNormalizedTitle:   normalize.Text(track.Album.Name),
+		AlbumTitle:             albumTitle,
+		AlbumNormalizedTitle:   normalize.Text(albumTitle),
 		AlbumArtists:           albumArtists,
 		AlbumNormalizedArtists: normalize.Artists(albumArtists),
 		ReleaseDate:            track.Album.ReleaseDate,

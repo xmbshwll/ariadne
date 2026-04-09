@@ -23,6 +23,7 @@ const (
 	defaultLookupBaseURL = "https://itunes.apple.com"
 	defaultAPIBaseURL    = "https://api.music.apple.com/v1"
 	searchLimit          = 5
+	entitySong           = "song"
 )
 
 var (
@@ -260,15 +261,17 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	results := make([]model.CandidateSong, 0, searchLimit)
 	seen := make(map[int64]struct{}, searchLimit)
 
+	const wrapperTypeTrack = "track"
+
 	for _, query := range queries {
-		searchURL := fmt.Sprintf("%s/search?term=%s&entity=song&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
+		searchURL := fmt.Sprintf("%s/search?term=%s&entity=%s&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), entitySong, searchLimit, url.QueryEscape(storefront))
 		var payload lookupResponse
 		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
 			return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
 		}
 
 		for _, item := range payload.Results {
-			if item.WrapperType != "track" || item.Kind != "song" || item.TrackID == 0 {
+			if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong || item.TrackID == 0 {
 				continue
 			}
 			if _, ok := seen[item.TrackID]; ok {
@@ -324,7 +327,7 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   "song",
+		EntityType:   entitySong,
 		ID:           songID,
 		CanonicalURL: canonicalURL,
 		RegionHint:   a.storefrontFor(storefront),
@@ -401,7 +404,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	explicit := false
 
 	for _, item := range items[1:] {
-		if item.WrapperType != "track" || item.Kind != "song" {
+		if item.WrapperType != "track" || item.Kind != entitySong {
 			continue
 		}
 		trackCount++
@@ -448,7 +451,7 @@ func toCanonicalSong(parsed model.ParsedAlbumURL, items []lookupItem) *model.Can
 
 	var track lookupItem
 	for _, item := range items {
-		if item.WrapperType == "track" && item.Kind == "song" {
+		if item.WrapperType == "track" && item.Kind == entitySong {
 			track = item
 			break
 		}

@@ -12,6 +12,8 @@ import (
 )
 
 func TestAdapter(t *testing.T) {
+	const tidalTrackISRC = "QZMHK2043414"
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -103,7 +105,7 @@ func TestAdapter(t *testing.T) {
 		writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
 	})
 	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("filter[isrc]") != "QZMHK2043414" {
+		if r.URL.Query().Get("filter[isrc]") != tidalTrackISRC {
 			http.NotFound(w, r)
 			return
 		}
@@ -144,7 +146,7 @@ func TestAdapter(t *testing.T) {
 	if len(album.Tracks) != 2 {
 		t.Fatalf("tracks len = %d, want 2", len(album.Tracks))
 	}
-	if album.Tracks[0].ISRC != "QZMHK2043414" {
+	if album.Tracks[0].ISRC != tidalTrackISRC {
 		t.Fatalf("first track isrc = %q", album.Tracks[0].ISRC)
 	}
 	if album.ArtworkURL == "" {
@@ -157,7 +159,7 @@ func TestAdapter(t *testing.T) {
 	}
 	assertSingleAlbum(t, upcResults, "156205493")
 
-	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"QZMHK2043414"})
+	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{tidalTrackISRC})
 	if err != nil {
 		t.Fatalf("SearchByISRC error: %v", err)
 	}
@@ -173,14 +175,14 @@ func TestAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchSong error: %v", err)
 	}
-	if song.ISRC != "QZMHK2043414" {
+	if song.ISRC != tidalTrackISRC {
 		t.Fatalf("song isrc = %q", song.ISRC)
 	}
 	if song.AlbumTitle != "Shadows among trees" {
 		t.Fatalf("song album title = %q", song.AlbumTitle)
 	}
 
-	songISRCResults, err := adapter.SearchSongByISRC(context.Background(), "QZMHK2043414")
+	songISRCResults, err := adapter.SearchSongByISRC(context.Background(), tidalTrackISRC)
 	if err != nil {
 		t.Fatalf("SearchSongByISRC error: %v", err)
 	}

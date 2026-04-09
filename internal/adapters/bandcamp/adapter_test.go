@@ -14,6 +14,11 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+const (
+	bandcampSearchPath = "/search"
+	lonAbatyAbbeyRoad  = "Lôn Abaty / Abbey Road"
+)
+
 func TestAdapter(t *testing.T) {
 	sourcePage := mustReadTestFile(t, "testdata/source-page.html")
 
@@ -22,7 +27,7 @@ func TestAdapter(t *testing.T) {
 		switch r.URL.Path {
 		case "/album/l-n-abaty-abbey-road":
 			_, _ = w.Write(sourcePage)
-		case "/search":
+		case bandcampSearchPath:
 			searchHTML := fmt.Sprintf(`
 				<html><body>
 					<li class="searchresult data-search">
@@ -62,7 +67,7 @@ func TestAdapter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchAlbum error: %v", err)
 		}
-		if album.Title != "Lôn Abaty / Abbey Road" {
+		if album.Title != lonAbatyAbbeyRoad {
 			t.Fatalf("title = %q", album.Title)
 		}
 		if album.SourceID != "l-n-abaty-abbey-road" {
@@ -140,7 +145,7 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case bandcampSearchPath:
 			searchHTML := fmt.Sprintf(`
 				<html><body>
 					<li class="searchresult data-search">
@@ -187,14 +192,14 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 }
 
 func TestSongAdapter(t *testing.T) {
-	trackPage := mustBandcampTrackPage(t, "Come Together", "COMRADIATION", "Lôn Abaty / Abbey Road", "2021-12-02", 251000)
+	trackPage := mustBandcampTrackPage(t, "Come Together", "COMRADIATION", lonAbatyAbbeyRoad, "2021-12-02", 251000)
 
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/track/come-together":
 			_, _ = w.Write(trackPage)
-		case "/search":
+		case bandcampSearchPath:
 			searchHTML := fmt.Sprintf(`
 				<html><body>
 					<li class="searchresult data-search">
@@ -237,7 +242,7 @@ func TestSongAdapter(t *testing.T) {
 		if song.Title != "Come Together" {
 			t.Fatalf("title = %q", song.Title)
 		}
-		if song.AlbumTitle != "Lôn Abaty / Abbey Road" {
+		if song.AlbumTitle != lonAbatyAbbeyRoad {
 			t.Fatalf("album title = %q", song.AlbumTitle)
 		}
 		if song.DurationMS != 251000 {
@@ -250,7 +255,7 @@ func TestSongAdapter(t *testing.T) {
 			Title:      "Come Together",
 			Artists:    []string{"COMRADIATION"},
 			DurationMS: 251000,
-			AlbumTitle: "Lôn Abaty / Abbey Road",
+			AlbumTitle: lonAbatyAbbeyRoad,
 		})
 		if err != nil {
 			t.Fatalf("SearchSongByMetadata error: %v", err)
@@ -261,7 +266,7 @@ func TestSongAdapter(t *testing.T) {
 		if results[0].CandidateID != "come-together" {
 			t.Fatalf("candidate id = %q", results[0].CandidateID)
 		}
-		if results[0].AlbumTitle != "Lôn Abaty / Abbey Road" {
+		if results[0].AlbumTitle != lonAbatyAbbeyRoad {
 			t.Fatalf("album title = %q", results[0].AlbumTitle)
 		}
 		if results[1].CandidateID != "come-together-live" {

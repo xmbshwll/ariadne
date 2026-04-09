@@ -12,6 +12,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+const deezerComeTogetherISRC = "GBAYE0601690"
+
 func TestAdapter(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
@@ -53,7 +55,7 @@ func TestAdapter(t *testing.T) {
 		if len(got.Tracks) == 0 {
 			t.Fatalf("expected tracks")
 		}
-		if got.Tracks[0].ISRC != "GBAYE0601690" {
+		if got.Tracks[0].ISRC != deezerComeTogetherISRC {
 			t.Fatalf("first track isrc = %q", got.Tracks[0].ISRC)
 		}
 		if got.Tracks[0].DurationMS != 258000 {
@@ -81,7 +83,7 @@ func TestAdapter(t *testing.T) {
 		})
 
 		t.Run("search by isrc", func(t *testing.T) {
-			results, err := adapter.SearchByISRC(ctx, []string{"GBAYE0601690", "GBAYE0601691"})
+			results, err := adapter.SearchByISRC(ctx, []string{deezerComeTogetherISRC, "GBAYE0601691"})
 			if err != nil {
 				t.Fatalf("SearchByISRC error: %v", err)
 			}
@@ -104,14 +106,14 @@ func TestAdapter(t *testing.T) {
 			if err != nil {
 				t.Fatalf("FetchSong error: %v", err)
 			}
-			if song.ISRC != "GBAYE0601690" {
+			if song.ISRC != deezerComeTogetherISRC {
 				t.Fatalf("song isrc = %q", song.ISRC)
 			}
 			if song.AlbumTitle != "Abbey Road (Remastered)" {
 				t.Fatalf("song album title = %q", song.AlbumTitle)
 			}
 
-			isrcResults, err := adapter.SearchSongByISRC(ctx, "GBAYE0601690")
+			isrcResults, err := adapter.SearchSongByISRC(ctx, deezerComeTogetherISRC)
 			if err != nil {
 				t.Fatalf("SearchSongByISRC error: %v", err)
 			}
@@ -152,7 +154,7 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`))
 		case "/track/999999":
 			_, _ = w.Write([]byte(`{"id":999999,"title":"Come Together","link":"https://www.deezer.com/track/999999","isrc":"OTHER0001","album":{"id":555,"title":"Abbey Road Live","link":"https://www.deezer.com/album/555","release_date":"2020-01-01"},"artist":{"id":2,"name":"Tribute Band"},"duration":200,"track_position":8,"disk_number":1,"explicit_lyrics":false}`))
-		case "/track/isrc:GBAYE0601690":
+		case "/track/isrc:" + deezerComeTogetherISRC:
 			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`))
 		case "/track/isrc:GBAYE0601691":
 			_, _ = w.Write([]byte(`{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`))
@@ -189,7 +191,7 @@ func assertSingleSongCandidate(t *testing.T, results []model.CandidateSong) {
 	if results[0].MatchURL != "https://www.deezer.com/track/116348128" {
 		t.Fatalf("match url = %q", results[0].MatchURL)
 	}
-	if results[0].ISRC != "GBAYE0601690" {
+	if results[0].ISRC != deezerComeTogetherISRC {
 		t.Fatalf("isrc = %q", results[0].ISRC)
 	}
 }

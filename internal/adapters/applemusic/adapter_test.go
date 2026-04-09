@@ -17,6 +17,12 @@ import (
 )
 
 func TestAdapter(t *testing.T) {
+	const (
+		entitySong          = "song"
+		abbeyRoadRemastered = "Abbey Road (Remastered)"
+		comeTogetherTitle   = "Come Together"
+	)
+
 	lookupPayload := mustReadTestFile(t, "testdata/source-payload.json")
 	searchPayload := `{
 		"resultCount": 2,
@@ -205,7 +211,7 @@ func TestAdapter(t *testing.T) {
 				http.Error(w, "expected gb storefront", http.StatusBadRequest)
 				return
 			}
-			if r.URL.Query().Get("entity") == "song" {
+			if r.URL.Query().Get("entity") == entitySong {
 				_, _ = w.Write([]byte(searchSongPayload))
 				return
 			}
@@ -265,7 +271,7 @@ func TestAdapter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchAlbum error: %v", err)
 		}
-		if album.Title != "Abbey Road (Remastered)" {
+		if album.Title != abbeyRoadRemastered {
 			t.Fatalf("title = %q", album.Title)
 		}
 		if album.SourceID != "1441164426" {
@@ -280,7 +286,7 @@ func TestAdapter(t *testing.T) {
 		if len(album.Tracks) != 17 {
 			t.Fatalf("tracks len = %d", len(album.Tracks))
 		}
-		if album.Tracks[0].Title != "Come Together" {
+		if album.Tracks[0].Title != comeTogetherTitle {
 			t.Fatalf("first track title = %q", album.Tracks[0].Title)
 		}
 		if album.Tracks[0].DurationMS != 258947 {
@@ -296,7 +302,7 @@ func TestAdapter(t *testing.T) {
 
 	t.Run("search by metadata", func(t *testing.T) {
 		results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
-			Title:      "Abbey Road (Remastered)",
+			Title:      abbeyRoadRemastered,
 			Artists:    []string{"The Beatles"},
 			RegionHint: "gb",
 		})
@@ -409,7 +415,7 @@ func TestAdapter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchSong error: %v", err)
 		}
-		if song.Title != "Come Together" {
+		if song.Title != comeTogetherTitle {
 			t.Fatalf("title = %q", song.Title)
 		}
 		if song.AlbumTitle != "Abbey Road (Remastered)" {
@@ -422,7 +428,7 @@ func TestAdapter(t *testing.T) {
 
 	t.Run("search song by metadata", func(t *testing.T) {
 		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
-			Title:      "Come Together",
+			Title:      comeTogetherTitle,
 			Artists:    []string{"The Beatles"},
 			RegionHint: "gb",
 		})
@@ -451,7 +457,7 @@ func TestAdapter(t *testing.T) {
 		if results[0].CandidateID != "1441164430" {
 			t.Fatalf("candidate id = %q, want 1441164430", results[0].CandidateID)
 		}
-		if results[0].Title != "Come Together" {
+		if results[0].Title != comeTogetherTitle {
 			t.Fatalf("title = %q", results[0].Title)
 		}
 	})

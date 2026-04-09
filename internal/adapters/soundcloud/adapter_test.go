@@ -13,6 +13,11 @@ import (
 )
 
 func TestAdapter(t *testing.T) {
+	const (
+		soundCloudCatsAndDogs = "Cats & Dogs"
+		soundCloudTrackISRC   = "USBWK1100093"
+	)
+
 	sourcePayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "source-payload.json"))
 	searchPayload := mustReadSoundCloudFixture(t, filepath.Join("testdata", "search-results.json"))
 	clientID := "qNxp6KCjufkNWMIclTv0O4ycYGY0eFFX"
@@ -62,7 +67,7 @@ func TestAdapter(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchAlbum error: %v", err)
 		}
-		if album.Title != "Cats & Dogs" {
+		if album.Title != soundCloudCatsAndDogs {
 			t.Fatalf("title = %q", album.Title)
 		}
 		if album.SourceURL != "https://soundcloud.com/evidence-official/sets/cats-dogs-6" {
@@ -77,7 +82,7 @@ func TestAdapter(t *testing.T) {
 		if len(album.Tracks) == 0 {
 			t.Fatalf("expected tracks")
 		}
-		if album.Tracks[0].ISRC != "USBWK1100093" {
+		if album.Tracks[0].ISRC != soundCloudTrackISRC {
 			t.Fatalf("first track isrc = %q", album.Tracks[0].ISRC)
 		}
 		if album.Label != "Rhymesayers" {
@@ -121,10 +126,10 @@ func TestAdapter(t *testing.T) {
 		if song.Title != "The Liner Notes (feat. Aloe Blacc)" {
 			t.Fatalf("title = %q", song.Title)
 		}
-		if song.AlbumTitle != "Cats & Dogs" {
+		if song.AlbumTitle != soundCloudCatsAndDogs {
 			t.Fatalf("album title = %q", song.AlbumTitle)
 		}
-		if song.ISRC != "USBWK1100093" {
+		if song.ISRC != soundCloudTrackISRC {
 			t.Fatalf("isrc = %q", song.ISRC)
 		}
 	})
@@ -133,7 +138,7 @@ func TestAdapter(t *testing.T) {
 		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
 			Title:      "The Liner Notes",
 			Artists:    []string{"Evidence"},
-			AlbumTitle: "Cats & Dogs",
+			AlbumTitle: soundCloudCatsAndDogs,
 			DurationMS: 268706,
 		})
 		if err != nil {
@@ -145,7 +150,7 @@ func TestAdapter(t *testing.T) {
 		if results[0].CandidateID != "evidence-official/the-liner-notes-feat-aloe-1" {
 			t.Fatalf("first candidate id = %q", results[0].CandidateID)
 		}
-		if results[0].AlbumTitle != "Cats & Dogs" {
+		if results[0].AlbumTitle != soundCloudCatsAndDogs {
 			t.Fatalf("album title = %q", results[0].AlbumTitle)
 		}
 	})
@@ -158,14 +163,14 @@ func TestAdapter(t *testing.T) {
 		if len(upcResults) != 0 {
 			t.Fatalf("upc results = %d, want 0", len(upcResults))
 		}
-		isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"USBWK1100093"})
+		isrcResults, err := adapter.SearchByISRC(context.Background(), []string{soundCloudTrackISRC})
 		if err != nil {
 			t.Fatalf("SearchByISRC error: %v", err)
 		}
 		if len(isrcResults) != 0 {
 			t.Fatalf("isrc results = %d, want 0", len(isrcResults))
 		}
-		songISRCResults, err := adapter.SearchSongByISRC(context.Background(), "USBWK1100093")
+		songISRCResults, err := adapter.SearchSongByISRC(context.Background(), soundCloudTrackISRC)
 		if err != nil {
 			t.Fatalf("SearchSongByISRC error: %v", err)
 		}

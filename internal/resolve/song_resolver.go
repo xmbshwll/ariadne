@@ -153,14 +153,14 @@ func (r *SongResolver) collectCandidates(ctx context.Context, target SongTargetA
 	if source.ISRC != "" {
 		candidates, err := target.SearchSongByISRC(ctx, source.ISRC)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("search song by isrc on %s: %w", target.Service(), err)
 		}
 		appendUnique(candidates)
 	}
 
 	metadataCandidates, err := target.SearchSongByMetadata(ctx, source)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search song by metadata on %s: %w", target.Service(), err)
 	}
 	appendUnique(metadataCandidates)
 

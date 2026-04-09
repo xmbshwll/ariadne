@@ -571,10 +571,9 @@ func (r *Resolver) Resolve(ctx context.Context, inputURL string) (*EntityResolut
 
 	albumResolution, albumErr := r.ResolveAlbum(ctx, inputURL)
 	if albumErr != nil {
-		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
 		return nil, albumErr
 	}
-	return &EntityResolution{Parsed: ParsedURL(albumResolution.Parsed), Album: albumResolution}, nil
+	return &EntityResolution{Parsed: albumResolution.Parsed, Album: albumResolution}, nil
 }
 
 func configFromInternal(cfg internalconfig.Config) Config {
@@ -847,12 +846,12 @@ func (b songSourceAdapterBridge) ParseSongURL(raw string) (*model.ParsedAlbumURL
 		}
 		return nil, errSourceAdapterReturnedNilParsed
 	}
-	internal := toInternalParsedAlbumURL(ParsedAlbumURL(*parsed))
+	internal := toInternalParsedAlbumURL(*parsed)
 	return &internal, nil
 }
 
 func (b songSourceAdapterBridge) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
-	song, err := b.source.FetchSong(ctx, ParsedURL(fromInternalParsedAlbumURL(parsed)))
+	song, err := b.source.FetchSong(ctx, fromInternalParsedAlbumURL(parsed))
 	if err != nil || song == nil {
 		if err != nil {
 			//nolint:wrapcheck // Preserve adapter fetch errors without adding another wrapper layer.
@@ -1289,7 +1288,7 @@ func fromInternalSongResolution(resolution resolve.SongResolution) SongResolutio
 	}
 	return SongResolution{
 		InputURL: resolution.InputURL,
-		Parsed:   ParsedURL(fromInternalParsedAlbumURL(resolution.Parsed)),
+		Parsed:   fromInternalParsedAlbumURL(resolution.Parsed),
 		Source:   fromInternalCanonicalSong(resolution.Source),
 		Matches:  matches,
 	}
