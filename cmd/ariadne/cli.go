@@ -237,11 +237,8 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.inputURL = args[0]
-			normalized, err := normalizeResolveConfig(config)
+			normalized, err := normalizeAndValidateResolveConfig(config)
 			if err != nil {
-				return err
-			}
-			if err := validateResolveConfig(normalized); err != nil {
 				return err
 			}
 			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeFromConfig(normalized))
@@ -390,6 +387,10 @@ func parseResolveArgs(args []string, baseConfig ariadne.Config) (resolveConfig, 
 	}
 	config.inputURL = remaining[0]
 
+	return normalizeAndValidateResolveConfig(config)
+}
+
+func normalizeAndValidateResolveConfig(config resolveConfig) (resolveConfig, error) {
 	normalized, err := normalizeResolveConfig(config)
 	if err != nil {
 		return resolveConfig{}, err
@@ -434,14 +435,12 @@ func validateResolveConfig(config resolveConfig) error {
 		if isSupportedSongTargetService(service) {
 			continue
 		}
-		return fmt.Errorf(
-			"%w %q (supported for songs: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal)",
-			errUnsupportedSongService,
-			service,
-		)
+		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, supportedSongTargetServicesUsage)
 	}
 	return nil
 }
+
+const supportedSongTargetServicesUsage = "supported for songs: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal"
 
 func isSupportedSongTargetService(service ariadne.ServiceName) bool {
 	switch service {
@@ -1083,27 +1082,39 @@ func filterSongResolutionByStrength(resolution ariadne.SongResolution, minStreng
 	filtered := resolution
 	filtered.Matches = make(map[ariadne.ServiceName]ariadne.SongMatchResult, len(resolution.Matches))
 	for service, match := range resolution.Matches {
-		pruned := match
-		pruned.Alternates = make([]ariadne.SongScoredMatch, 0, len(match.Alternates))
-		for _, alternate := range match.Alternates {
-			if !meetsMinimumStrength(alternate.Score, minStrength) {
-				continue
-			}
-			pruned.Alternates = append(pruned.Alternates, alternate)
-		}
-
-		if match.Best != nil && meetsMinimumStrength(match.Best.Score, minStrength) {
-			best := *match.Best
-			pruned.Best = &best
-			filtered.Matches[service] = pruned
-			continue
-		}
-
-		pruned.Best = nil
-		if len(pruned.Alternates) == 0 {
+		pruned, ok := pruneSongMatchByStrength(match, minStrength)
+		if !ok {
 			continue
 		}
 		filtered.Matches[service] = pruned
+	}
+	return filtered
+}
+
+func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne.MatchStrength) (ariadne.SongMatchResult, bool) {
+	pruned := match
+	pruned.Alternates = filterSongAlternatesByStrength(match.Alternates, minStrength)
+
+	if match.Best != nil && meetsMinimumStrength(match.Best.Score, minStrength) {
+		best := *match.Best
+		pruned.Best = &best
+		return pruned, true
+	}
+
+	pruned.Best = nil
+	if len(pruned.Alternates) == 0 {
+		return ariadne.SongMatchResult{}, false
+	}
+	return pruned, true
+}
+
+func filterSongAlternatesByStrength(alternates []ariadne.SongScoredMatch, minStrength ariadne.MatchStrength) []ariadne.SongScoredMatch {
+	filtered := make([]ariadne.SongScoredMatch, 0, len(alternates))
+	for _, alternate := range alternates {
+		if !meetsMinimumStrength(alternate.Score, minStrength) {
+			continue
+		}
+		filtered = append(filtered, alternate)
 	}
 	return filtered
 }

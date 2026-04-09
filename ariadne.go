@@ -688,22 +688,31 @@ func defaultTargetAdapters(client *http.Client, config Config) []resolve.TargetA
 }
 
 func filterTargetAdapters(targets []resolve.TargetAdapter, services []ServiceName) []resolve.TargetAdapter {
-	if len(services) == 0 {
+	allowed := allowedTargetServices(services)
+	if len(allowed) == 0 {
 		return targets
+	}
+
+	filtered := make([]resolve.TargetAdapter, 0, len(targets))
+	for _, target := range targets {
+		if _, ok := allowed[fromInternalServiceName(target.Service())]; !ok {
+			continue
+		}
+		filtered = append(filtered, target)
+	}
+	return filtered
+}
+
+func allowedTargetServices(services []ServiceName) map[ServiceName]struct{} {
+	if len(services) == 0 {
+		return nil
 	}
 
 	allowed := make(map[ServiceName]struct{}, len(services))
 	for _, service := range services {
 		allowed[service] = struct{}{}
 	}
-
-	filtered := make([]resolve.TargetAdapter, 0, len(targets))
-	for _, target := range targets {
-		if _, ok := allowed[fromInternalServiceName(target.Service())]; ok {
-			filtered = append(filtered, target)
-		}
-	}
-	return filtered
+	return allowed
 }
 
 func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.SongSourceAdapter {
@@ -714,16 +723,7 @@ func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.Son
 	spotify := spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret))
 	tidal := tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret))
 
-	candidates := []any{appleMusic, bandcamp, deezer, soundCloud, spotify, tidal}
-	sources := make([]resolve.SongSourceAdapter, 0, len(candidates))
-	for _, candidate := range candidates {
-		adapter, ok := candidate.(resolve.SongSourceAdapter)
-		if !ok {
-			continue
-		}
-		sources = append(sources, adapter)
-	}
-	return sources
+	return []resolve.SongSourceAdapter{appleMusic, bandcamp, deezer, soundCloud, spotify, tidal}
 }
 
 func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.SongTargetAdapter {
@@ -731,36 +731,30 @@ func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.Son
 	bandcamp := bandcampadapter.New(client)
 	deezer := deezeradapter.New(client)
 	soundCloud := soundcloudadapter.New(client)
-	candidates := []any{appleMusic, bandcamp, deezer, soundCloud}
+	targets := []resolve.SongTargetAdapter{appleMusic, bandcamp, deezer, soundCloud}
 	if config.SpotifyEnabled() {
-		candidates = append(candidates, spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret)))
+		targets = append(targets, spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret)))
 	}
 	if config.TIDALEnabled() {
-		candidates = append(candidates, tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret)))
+		targets = append(targets, tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret)))
+	}
+	return filterSongTargetAdapters(targets, config.TargetServices)
+}
+
+func filterSongTargetAdapters(targets []resolve.SongTargetAdapter, services []ServiceName) []resolve.SongTargetAdapter {
+	allowed := allowedTargetServices(services)
+	if len(allowed) == 0 {
+		return targets
 	}
 
-	allowed := map[ServiceName]struct{}{}
-	if len(config.TargetServices) > 0 {
-		allowed = make(map[ServiceName]struct{}, len(config.TargetServices))
-		for _, service := range config.TargetServices {
-			allowed[service] = struct{}{}
-		}
-	}
-
-	targets := make([]resolve.SongTargetAdapter, 0, len(candidates))
-	for _, candidate := range candidates {
-		adapter, ok := candidate.(resolve.SongTargetAdapter)
-		if !ok {
+	filtered := make([]resolve.SongTargetAdapter, 0, len(targets))
+	for _, target := range targets {
+		if _, ok := allowed[fromInternalServiceName(target.Service())]; !ok {
 			continue
 		}
-		if len(allowed) > 0 {
-			if _, ok := allowed[fromInternalServiceName(adapter.Service())]; !ok {
-				continue
-			}
-		}
-		targets = append(targets, adapter)
+		filtered = append(filtered, target)
 	}
-	return targets
+	return filtered
 }
 
 func wrapSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {

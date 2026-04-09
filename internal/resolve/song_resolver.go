@@ -136,35 +136,36 @@ func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.P
 }
 
 func (r *SongResolver) collectCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
-	combined := make([]model.CandidateSong, 0)
-	seen := make(map[string]struct{})
-
-	appendUnique := func(candidates []model.CandidateSong) {
-		for _, candidate := range candidates {
-			key := songCandidateKey(candidate)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			combined = append(combined, candidate)
-		}
-	}
+	combined := []model.CandidateSong{}
+	seen := map[string]struct{}{}
 
 	if source.ISRC != "" {
 		candidates, err := target.SearchSongByISRC(ctx, source.ISRC)
 		if err != nil {
 			return nil, fmt.Errorf("search song by isrc on %s: %w", target.Service(), err)
 		}
-		appendUnique(candidates)
+		combined = appendUniqueSongCandidates(combined, seen, candidates)
 	}
 
 	metadataCandidates, err := target.SearchSongByMetadata(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("search song by metadata on %s: %w", target.Service(), err)
 	}
-	appendUnique(metadataCandidates)
+	combined = appendUniqueSongCandidates(combined, seen, metadataCandidates)
 
 	return combined, nil
+}
+
+func appendUniqueSongCandidates(dst []model.CandidateSong, seen map[string]struct{}, candidates []model.CandidateSong) []model.CandidateSong {
+	for _, candidate := range candidates {
+		key := songCandidateKey(candidate)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		dst = append(dst, candidate)
+	}
+	return dst
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {

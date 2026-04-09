@@ -145,19 +145,8 @@ func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlb
 }
 
 func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	combined := make([]model.CandidateAlbum, 0)
-	seen := make(map[string]struct{})
-
-	appendUnique := func(candidates []model.CandidateAlbum) {
-		for _, candidate := range candidates {
-			key := candidateKey(candidate)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			combined = append(combined, candidate)
-		}
-	}
+	combined := []model.CandidateAlbum{}
+	seen := map[string]struct{}{}
 
 	if source.UPC != "" {
 		candidates, err := target.SearchByUPC(ctx, source.UPC)
@@ -165,7 +154,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 			return nil, err
 		}
-		appendUnique(candidates)
+		combined = appendUniqueAlbumCandidates(combined, seen, candidates)
 	}
 
 	isrcs := collectISRCs(source)
@@ -175,7 +164,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 			return nil, err
 		}
-		appendUnique(candidates)
+		combined = appendUniqueAlbumCandidates(combined, seen, candidates)
 	}
 
 	metadataCandidates, err := target.SearchByMetadata(ctx, source)
@@ -183,9 +172,21 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 		return nil, err
 	}
-	appendUnique(metadataCandidates)
+	combined = appendUniqueAlbumCandidates(combined, seen, metadataCandidates)
 
 	return combined, nil
+}
+
+func appendUniqueAlbumCandidates(dst []model.CandidateAlbum, seen map[string]struct{}, candidates []model.CandidateAlbum) []model.CandidateAlbum {
+	for _, candidate := range candidates {
+		key := candidateKey(candidate)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		dst = append(dst, candidate)
+	}
+	return dst
 }
 
 func collectISRCs(album model.CanonicalAlbum) []string {
