@@ -209,6 +209,48 @@ func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestAdapterSkipsCredentialChecksForEmptySearches(t *testing.T) {
+	adapter := New(nil)
+
+	tests := []struct {
+		name string
+		fn   func() (any, error)
+	}{
+		{
+			name: "album isrc search",
+			fn: func() (any, error) {
+				return adapter.SearchByISRC(context.Background(), []string{"", " "})
+			},
+		},
+		{
+			name: "album metadata search",
+			fn: func() (any, error) {
+				return adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{})
+			},
+		},
+		{
+			name: "song isrc search",
+			fn: func() (any, error) {
+				return adapter.SearchSongByISRC(context.Background(), " ")
+			},
+		},
+		{
+			name: "song metadata search",
+			fn: func() (any, error) {
+				return adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := tt.fn()
+			require.NoError(t, err)
+			assert.Nil(t, results)
+		})
+	}
+}
+
 func assertSingleAlbum(t *testing.T, candidates []model.CandidateAlbum, wantID string) {
 	t.Helper()
 	require.Len(t, candidates, 1)

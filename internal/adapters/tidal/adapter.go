@@ -144,17 +144,24 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 }
 
 func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
-
-	results := make([]model.CandidateAlbum, 0, len(isrcs))
-	seen := make(map[string]struct{}, len(isrcs))
+	trimmedISRCs := make([]string, 0, len(isrcs))
 	for _, isrc := range isrcs {
 		isrc = strings.TrimSpace(isrc)
 		if isrc == "" {
 			continue
 		}
+		trimmedISRCs = append(trimmedISRCs, isrc)
+	}
+	if len(trimmedISRCs) == 0 {
+		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+
+	results := make([]model.CandidateAlbum, 0, len(trimmedISRCs))
+	seen := make(map[string]struct{}, len(trimmedISRCs))
+	for _, isrc := range trimmedISRCs {
 		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
@@ -176,12 +183,12 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 }
 
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
 	query := metadataQuery(album)
 	if query == "" {
 		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
 	}
 	countryCode := a.countryCodeFor(album.RegionHint)
 	endpoint := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", a.apiBaseURL, url.PathEscape(query), url.QueryEscape(countryCode))
@@ -203,12 +210,12 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*
 }
 
 func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
 	isrc = strings.TrimSpace(isrc)
 	if isrc == "" {
 		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
 	}
 
 	endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("artists,albums,coverArt"))
@@ -223,12 +230,12 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 }
 
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
 	query := songMetadataQuery(song)
 	if query == "" {
 		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
 	}
 	countryCode := a.countryCodeFor(song.RegionHint)
 	endpoint := fmt.Sprintf("%s/searchResults/%s/relationships/tracks?countryCode=%s", a.apiBaseURL, url.PathEscape(query), url.QueryEscape(countryCode))
