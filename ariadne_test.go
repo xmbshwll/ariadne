@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var errUnsupportedLibrarySource = errors.New("unsupported")
@@ -35,44 +38,28 @@ func TestLoadConfigFromEnv(t *testing.T) {
 		}
 	})
 
-	if config.AppleMusicStorefront != "gb" {
-		t.Fatalf("apple music storefront = %q, want gb", config.AppleMusicStorefront)
-	}
-	if config.Spotify.ClientID != "spotify-client" || config.Spotify.ClientSecret != "spotify-secret" {
-		t.Fatalf("unexpected spotify config: %#v", config.Spotify)
-	}
-	if config.AppleMusic.KeyID != "music-key" || config.AppleMusic.TeamID != "team-id" || config.AppleMusic.PrivateKeyPath != "/tmp/AuthKey_TEST.p8" {
-		t.Fatalf("unexpected apple music config: %#v", config.AppleMusic)
-	}
-	if config.TIDAL.ClientID != "tidal-client" || config.TIDAL.ClientSecret != "tidal-secret" {
-		t.Fatalf("unexpected tidal config: %#v", config.TIDAL)
-	}
-	if config.HTTPTimeout != 45*time.Second {
-		t.Fatalf("http timeout = %s, want 45s", config.HTTPTimeout)
-	}
+	assert.Equal(t, "gb", config.AppleMusicStorefront)
+	assert.Equal(t, "spotify-client", config.Spotify.ClientID)
+	assert.Equal(t, "spotify-secret", config.Spotify.ClientSecret)
+	assert.Equal(t, "music-key", config.AppleMusic.KeyID)
+	assert.Equal(t, "team-id", config.AppleMusic.TeamID)
+	assert.Equal(t, "/tmp/AuthKey_TEST.p8", config.AppleMusic.PrivateKeyPath)
+	assert.Equal(t, "tidal-client", config.TIDAL.ClientID)
+	assert.Equal(t, "tidal-secret", config.TIDAL.ClientSecret)
+	assert.Equal(t, 45*time.Second, config.HTTPTimeout)
 }
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	if config.AppleMusicStorefront != "us" {
-		t.Fatalf("apple music storefront = %q, want us", config.AppleMusicStorefront)
-	}
-	if config.ScoreWeights == (ScoreWeights{}) {
-		t.Fatalf("expected default score weights")
-	}
-	if config.SongScoreWeights == (SongScoreWeights{}) {
-		t.Fatalf("expected default song score weights")
-	}
-	if config.HTTPTimeout != 15*time.Second {
-		t.Fatalf("http timeout = %s, want 15s", config.HTTPTimeout)
-	}
+	assert.Equal(t, "us", config.AppleMusicStorefront)
+	assert.NotEqual(t, ScoreWeights{}, config.ScoreWeights)
+	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
+	assert.Equal(t, 15*time.Second, config.HTTPTimeout)
 }
 
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
 	config := normalizedConfig(Config{})
-	if config.SongScoreWeights == (SongScoreWeights{}) {
-		t.Fatalf("expected normalized config to include default song score weights")
-	}
+	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
 }
 
 func TestMatchStrengthForScore(t *testing.T) {
@@ -87,9 +74,7 @@ func TestMatchStrengthForScore(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := MatchStrengthForScore(tt.score); got != tt.want {
-			t.Fatalf("MatchStrengthForScore(%d) = %q, want %q", tt.score, got, tt.want)
-		}
+		assert.Equal(t, tt.want, MatchStrengthForScore(tt.score))
 	}
 }
 
@@ -100,19 +85,11 @@ func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 	)
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
-	if err != nil {
-		t.Fatalf("ResolveAlbum error: %v", err)
-	}
-	if resolution.Source.Service != ServiceDeezer {
-		t.Fatalf("source service = %q, want deezer", resolution.Source.Service)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, ServiceDeezer, resolution.Source.Service)
 	match := resolution.Matches[ServiceSpotify]
-	if match.Best == nil {
-		t.Fatalf("expected spotify best match")
-	}
-	if match.Best.Candidate.CandidateID != "spotify-1" {
-		t.Fatalf("candidate id = %q, want spotify-1", match.Best.Candidate.CandidateID)
-	}
+	require.NotNil(t, match.Best)
+	assert.Equal(t, "spotify-1", match.Best.Candidate.CandidateID)
 }
 
 func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
@@ -124,19 +101,11 @@ func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
 	)
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
-	if err != nil {
-		t.Fatalf("ResolveSong error: %v", err)
-	}
-	if resolution.Source.Service != ServiceSpotify {
-		t.Fatalf("source service = %q, want spotify", resolution.Source.Service)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, ServiceSpotify, resolution.Source.Service)
 	match := resolution.Matches[ServiceAppleMusic]
-	if match.Best == nil {
-		t.Fatalf("expected apple music best match")
-	}
-	if match.Best.Candidate.CandidateID != "apple-song-1" {
-		t.Fatalf("candidate id = %q, want apple-song-1", match.Best.Candidate.CandidateID)
-	}
+	require.NotNil(t, match.Best)
+	assert.Equal(t, "apple-song-1", match.Best.Candidate.CandidateID)
 }
 
 func TestResolverResolveDispatchesByEntityType(t *testing.T) {
@@ -148,26 +117,16 @@ func TestResolverResolveDispatchesByEntityType(t *testing.T) {
 	)
 
 	albumEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/source")
-	if err != nil {
-		t.Fatalf("Resolve album error: %v", err)
-	}
-	if albumEntity.Album == nil || albumEntity.Song != nil {
-		t.Fatalf("expected album resolution only")
-	}
-	if albumEntity.Parsed.EntityType != "album" {
-		t.Fatalf("parsed entity type = %q, want album", albumEntity.Parsed.EntityType)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, albumEntity.Album)
+	assert.Nil(t, albumEntity.Song)
+	assert.Equal(t, "album", albumEntity.Parsed.EntityType)
 
 	songEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/songs/1")
-	if err != nil {
-		t.Fatalf("Resolve song error: %v", err)
-	}
-	if songEntity.Song == nil || songEntity.Album != nil {
-		t.Fatalf("expected song resolution only")
-	}
-	if songEntity.Parsed.EntityType != "song" {
-		t.Fatalf("parsed entity type = %q, want song", songEntity.Parsed.EntityType)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, songEntity.Song)
+	assert.Nil(t, songEntity.Album)
+	assert.Equal(t, "song", songEntity.Parsed.EntityType)
 }
 
 type librarySourceAdapter struct{}

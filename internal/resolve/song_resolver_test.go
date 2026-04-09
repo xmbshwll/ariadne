@@ -2,9 +2,10 @@ package resolve
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -55,30 +56,18 @@ func TestSongResolverResolveSong(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resolution, err := tt.resolver.ResolveSong(context.Background(), tt.inputURL)
 			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("error = %v, want %v", err, tt.wantErr)
-				}
+				assert.ErrorIs(t, err, tt.wantErr)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if resolution.Source.Service != tt.wantSourceService {
-				t.Fatalf("source service = %q, want %q", resolution.Source.Service, tt.wantSourceService)
-			}
-			if resolution.Source.Title != tt.wantSourceTitle {
-				t.Fatalf("source title = %q, want %q", resolution.Source.Title, tt.wantSourceTitle)
-			}
+			assert.Equal(t, tt.wantSourceService, resolution.Source.Service)
+			assert.Equal(t, tt.wantSourceTitle, resolution.Source.Title)
 
 			for service, wantID := range tt.wantBestCandidates {
 				match := resolution.Matches[service]
-				if match.Best == nil {
-					t.Fatalf("expected best candidate for %s", service)
-				}
-				if match.Best.Candidate.CandidateID != wantID {
-					t.Fatalf("best candidate for %s = %q, want %q", service, match.Best.Candidate.CandidateID, wantID)
-				}
+				require.NotNil(t, match.Best)
+				assert.Equal(t, wantID, match.Best.Candidate.CandidateID)
 			}
 		})
 	}

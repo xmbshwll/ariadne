@@ -3,12 +3,12 @@ package tidal
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -138,81 +138,43 @@ func TestAdapter(t *testing.T) {
 
 	parsed := model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "album", ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"}
 	album, err := adapter.FetchAlbum(context.Background(), parsed)
-	if err != nil {
-		t.Fatalf("FetchAlbum error: %v", err)
-	}
-	if album.Title != "Shadows among trees" {
-		t.Fatalf("title = %q", album.Title)
-	}
-	if album.UPC != "053000502692" {
-		t.Fatalf("upc = %q", album.UPC)
-	}
-	if len(album.Tracks) != 2 {
-		t.Fatalf("tracks len = %d, want 2", len(album.Tracks))
-	}
-	if album.Tracks[0].ISRC != tidalTrackISRC {
-		t.Fatalf("first track isrc = %q", album.Tracks[0].ISRC)
-	}
-	if album.ArtworkURL == "" {
-		t.Fatalf("expected artwork url")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Shadows among trees", album.Title)
+	assert.Equal(t, "053000502692", album.UPC)
+	require.Len(t, album.Tracks, 2)
+	assert.Equal(t, tidalTrackISRC, album.Tracks[0].ISRC)
+	assert.NotEmpty(t, album.ArtworkURL)
 
 	upcResults, err := adapter.SearchByUPC(context.Background(), "053000502692")
-	if err != nil {
-		t.Fatalf("SearchByUPC error: %v", err)
-	}
+	require.NoError(t, err)
 	assertSingleAlbum(t, upcResults, "156205493")
 
 	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{tidalTrackISRC})
-	if err != nil {
-		t.Fatalf("SearchByISRC error: %v", err)
-	}
+	require.NoError(t, err)
 	assertSingleAlbum(t, isrcResults, "156205493")
 
 	metadataResults, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Shadows among trees", Artists: []string{"Fetch"}})
-	if err != nil {
-		t.Fatalf("SearchByMetadata error: %v", err)
-	}
+	require.NoError(t, err)
 	assertSingleAlbum(t, metadataResults, "156205493")
 
 	song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
-	if err != nil {
-		t.Fatalf("FetchSong error: %v", err)
-	}
-	if song.ISRC != tidalTrackISRC {
-		t.Fatalf("song isrc = %q", song.ISRC)
-	}
-	if song.AlbumTitle != "Shadows among trees" {
-		t.Fatalf("song album title = %q", song.AlbumTitle)
-	}
-	if song.ReleaseDate != "2020-10-02" {
-		t.Fatalf("song release date = %q, want 2020-10-02", song.ReleaseDate)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, tidalTrackISRC, song.ISRC)
+	assert.Equal(t, "Shadows among trees", song.AlbumTitle)
+	assert.Equal(t, "2020-10-02", song.ReleaseDate)
 
 	songISRCResults, err := adapter.SearchSongByISRC(context.Background(), tidalTrackISRC)
-	if err != nil {
-		t.Fatalf("SearchSongByISRC error: %v", err)
-	}
+	require.NoError(t, err)
 	assertSingleSong(t, songISRCResults, "156205494")
 
 	songMetadataResults, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Kings of mist", Artists: []string{"Fetch"}})
-	if err != nil {
-		t.Fatalf("SearchSongByMetadata error: %v", err)
-	}
-	if len(songMetadataResults) != 2 {
-		t.Fatalf("song metadata result count = %d, want 2", len(songMetadataResults))
-	}
-	if songMetadataResults[0].CandidateID != "156205494" {
-		t.Fatalf("first song candidate id = %q", songMetadataResults[0].CandidateID)
-	}
+	require.NoError(t, err)
+	require.Len(t, songMetadataResults, 2)
+	assert.Equal(t, "156205494", songMetadataResults[0].CandidateID)
 
 	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "missing", CanonicalURL: "https://tidal.com/track/missing"})
-	if err == nil {
-		t.Fatalf("expected missing song error")
-	}
-	if !errors.Is(err, errTIDALTrackNotFound) {
-		t.Fatalf("error = %v, want tidal track not found", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errTIDALTrackNotFound)
 }
 
 func TestIncludedResourceLookupsUseTypeAndID(t *testing.T) {
@@ -223,68 +185,45 @@ func TestIncludedResourceLookupsUseTypeAndID(t *testing.T) {
 	}
 
 	artistNames := includedArtistNames(included, []relationshipData{{ID: "shared", Type: "artists"}})
-	if len(artistNames) != 1 || artistNames[0] != "Artist Resource" {
-		t.Fatalf("artist names = %#v, want artist resource", artistNames)
-	}
+	assert.Equal(t, []string{"Artist Resource"}, artistNames)
 
 	album := firstRelatedResource(included, []relationshipData{{ID: "shared", Type: "albums"}}, "albums")
-	if album == nil || album.Attributes.Title != "Album Resource" {
-		t.Fatalf("album = %#v, want album resource", album)
-	}
+	require.NotNil(t, album)
+	assert.Equal(t, "Album Resource", album.Attributes.Title)
 
 	artworkURL := artworkURLFromIncluded(included, []relationshipData{{ID: "shared", Type: "artworks"}})
-	if artworkURL != "https://resources.tidal.test/shared.jpg" {
-		t.Fatalf("artwork url = %q, want shared artwork", artworkURL)
-	}
+	assert.Equal(t, "https://resources.tidal.test/shared.jpg", artworkURL)
 }
 
 func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 	adapter := New(nil)
 
-	if _, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"}); err == nil {
-		t.Fatalf("expected credentials error for source fetch")
-	}
-	if _, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"}); err == nil {
-		t.Fatalf("expected credentials error for song source fetch")
-	}
-	if _, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"}); err == nil {
-		t.Fatalf("expected credentials error for metadata search")
-	}
-	if _, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Song"}); err == nil {
-		t.Fatalf("expected credentials error for song metadata search")
-	}
+	_, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"})
+	require.Error(t, err)
+	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
+	require.Error(t, err)
+	_, err = adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"})
+	require.Error(t, err)
+	_, err = adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Song"})
+	require.Error(t, err)
 }
 
 func assertSingleAlbum(t *testing.T, candidates []model.CandidateAlbum, wantID string) {
 	t.Helper()
-	if len(candidates) != 1 {
-		t.Fatalf("candidate count = %d, want 1", len(candidates))
-	}
-	if candidates[0].CandidateID != wantID {
-		t.Fatalf("candidate id = %q, want %q", candidates[0].CandidateID, wantID)
-	}
-	if !strings.Contains(candidates[0].MatchURL, wantID) {
-		t.Fatalf("candidate url = %q, want id %q in url", candidates[0].MatchURL, wantID)
-	}
+	require.Len(t, candidates, 1)
+	assert.Equal(t, wantID, candidates[0].CandidateID)
+	assert.Contains(t, candidates[0].MatchURL, wantID)
 }
 
 func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID string) {
 	t.Helper()
-	if len(candidates) != 1 {
-		t.Fatalf("candidate count = %d, want 1", len(candidates))
-	}
-	if candidates[0].CandidateID != wantID {
-		t.Fatalf("candidate id = %q, want %q", candidates[0].CandidateID, wantID)
-	}
-	if !strings.Contains(candidates[0].MatchURL, wantID) {
-		t.Fatalf("candidate url = %q, want id %q in url", candidates[0].MatchURL, wantID)
-	}
+	require.Len(t, candidates, 1)
+	assert.Equal(t, wantID, candidates[0].CandidateID)
+	assert.Contains(t, candidates[0].MatchURL, wantID)
 }
 
 func writeJSON(t *testing.T, w http.ResponseWriter, payload any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		t.Fatalf("encode json response: %v", err)
-	}
+	require.NoError(t, json.NewEncoder(w).Encode(payload))
 }

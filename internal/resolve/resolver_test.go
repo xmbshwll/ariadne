@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -70,21 +72,13 @@ func TestResolverResolveAlbum(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resolution, err := tt.resolver.ResolveAlbum(context.Background(), tt.inputURL)
 			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("error = %v, want %v", err, tt.wantErr)
-				}
+				assert.ErrorIs(t, err, tt.wantErr)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if resolution.Source.Service != tt.wantSourceService {
-				t.Fatalf("source service = %q, want %q", resolution.Source.Service, tt.wantSourceService)
-			}
-			if resolution.Source.Title != tt.wantSourceTitle {
-				t.Fatalf("source title = %q, want %q", resolution.Source.Title, tt.wantSourceTitle)
-			}
+			assert.Equal(t, tt.wantSourceService, resolution.Source.Service)
+			assert.Equal(t, tt.wantSourceTitle, resolution.Source.Title)
 
 			for _, service := range tt.wantTargetServices {
 				match := resolution.Matches[service]
@@ -92,21 +86,11 @@ func TestResolverResolveAlbum(t *testing.T) {
 				if match.Best != nil {
 					candidateCount++
 				}
-				if candidateCount != tt.wantCandidateCounts[service] {
-					t.Fatalf("candidate count for %s = %d, want %d", service, candidateCount, tt.wantCandidateCounts[service])
-				}
-				if match.Best == nil {
-					t.Fatalf("expected best candidate for %s", service)
-				}
-				if match.Best.Candidate.CandidateID != tt.wantBestCandidates[service] {
-					t.Fatalf("best candidate for %s = %q, want %q", service, match.Best.Candidate.CandidateID, tt.wantBestCandidates[service])
-				}
-				if match.Best.URL == "" {
-					t.Fatalf("expected best url for %s", service)
-				}
-				if len(match.Best.Reasons) == 0 {
-					t.Fatalf("expected best match reasons for %s", service)
-				}
+				assert.Equal(t, tt.wantCandidateCounts[service], candidateCount)
+				require.NotNil(t, match.Best)
+				assert.Equal(t, tt.wantBestCandidates[service], match.Best.Candidate.CandidateID)
+				assert.NotEmpty(t, match.Best.URL)
+				assert.NotEmpty(t, match.Best.Reasons)
 			}
 		})
 	}
@@ -137,7 +121,7 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 		select {
 		case <-started:
 		case <-time.After(2 * time.Second):
-			t.Fatalf("timed out waiting for %s target to start", name)
+			require.FailNowf(t, "target did not start", "timed out waiting for %s target to start", name)
 		}
 	}
 
@@ -147,11 +131,9 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 
 	select {
 	case err := <-resultCh:
-		if err != nil {
-			t.Fatalf("ResolveAlbum error: %v", err)
-		}
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for ResolveAlbum to return")
+		require.FailNow(t, "timed out waiting for ResolveAlbum to return")
 	}
 }
 
@@ -507,25 +489,13 @@ func TestResolverCrossServiceFixtures(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			resolution, err := resolver.ResolveAlbum(context.Background(), fixture.inputURL)
-			if err != nil {
-				t.Fatalf("ResolveAlbum error: %v", err)
-			}
+			require.NoError(t, err)
 			match := resolution.Matches[fixture.targetService]
-			if match.Best == nil {
-				t.Fatalf("expected best candidate for %s", fixture.targetService)
-			}
-			if match.Best.Candidate.CandidateID != fixture.wantBestID {
-				t.Fatalf("best candidate = %q, want %q", match.Best.Candidate.CandidateID, fixture.wantBestID)
-			}
-			if len(match.Alternates) == 0 {
-				t.Fatalf("expected alternate candidates for %s", fixture.targetService)
-			}
-			if match.Alternates[0].Candidate.CandidateID != fixture.wantAlternateID {
-				t.Fatalf("first alternate = %q, want %q", match.Alternates[0].Candidate.CandidateID, fixture.wantAlternateID)
-			}
-			if match.Best.Score <= match.Alternates[0].Score {
-				t.Fatalf("best score = %d, alternate score = %d, want best to win", match.Best.Score, match.Alternates[0].Score)
-			}
+			require.NotNil(t, match.Best)
+			assert.Equal(t, fixture.wantBestID, match.Best.Candidate.CandidateID)
+			require.NotEmpty(t, match.Alternates)
+			assert.Equal(t, fixture.wantAlternateID, match.Alternates[0].Candidate.CandidateID)
+			assert.Greater(t, match.Best.Score, match.Alternates[0].Score)
 		})
 	}
 }

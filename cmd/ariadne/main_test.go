@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne"
 )
 
@@ -26,9 +28,7 @@ var errRootBoom = errors.New("boom")
 
 func TestRootError(t *testing.T) {
 	err := fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", errRootBoom))
-	if got := rootError(err); !errors.Is(got, errRootBoom) {
-		t.Fatalf("rootError() = %v, want %v", got, errRootBoom)
-	}
+	assert.ErrorIs(t, rootError(err), errRootBoom)
 }
 
 func TestRun(t *testing.T) {
@@ -94,32 +94,21 @@ func TestRun(t *testing.T) {
 			var stderr bytes.Buffer
 
 			err := run(tt.args, &stdout, &stderr)
-			if tt.wantErr == "" && err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if tt.wantErr != "" {
-				if err == nil {
-					t.Fatalf("expected error %q, got nil", tt.wantErr)
-				}
-				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("error = %q, want substring %q", err.Error(), tt.wantErr)
-				}
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
 			}
 
 			for _, want := range tt.wantStdout {
-				if !strings.Contains(stdout.String(), want) {
-					t.Fatalf("stdout = %q, want substring %q", stdout.String(), want)
-				}
+				assert.Contains(t, stdout.String(), want)
 			}
 			for _, want := range tt.wantStderr {
-				if !strings.Contains(stderr.String(), want) {
-					t.Fatalf("stderr = %q, want substring %q", stderr.String(), want)
-				}
+				assert.Contains(t, stderr.String(), want)
 			}
 			for _, avoid := range tt.avoidStdout {
-				if strings.Contains(stdout.String(), avoid) {
-					t.Fatalf("stdout = %q, should not contain %q", stdout.String(), avoid)
-				}
+				assert.NotContains(t, stdout.String(), avoid)
 			}
 		})
 	}
@@ -208,80 +197,35 @@ func TestNewCLIResolution(t *testing.T) {
 	}
 
 	output := newCLIResolution(resolution)
-	if output.InputURL != resolution.InputURL {
-		t.Fatalf("input url = %q, want %q", output.InputURL, resolution.InputURL)
-	}
-	if output.Source.Service != "spotify" {
-		t.Fatalf("source service = %q, want spotify", output.Source.Service)
-	}
-	if output.Source.ID != "abc" {
-		t.Fatalf("source id = %q, want abc", output.Source.ID)
-	}
-	if output.Source.RegionHint != "us" {
-		t.Fatalf("source region hint = %q, want us", output.Source.RegionHint)
-	}
+	assert.Equal(t, resolution.InputURL, output.InputURL)
+	assert.Equal(t, "spotify", output.Source.Service)
+	assert.Equal(t, "abc", output.Source.ID)
+	assert.Equal(t, "us", output.Source.RegionHint)
+
 	deezer, ok := output.Links["deezer"]
-	if !ok {
-		t.Fatalf("expected deezer link entry")
-	}
-	if !deezer.Found {
-		t.Fatalf("expected deezer match to be found")
-	}
-	if deezer.Summary != "strong" {
-		t.Fatalf("summary = %q, want strong", deezer.Summary)
-	}
-	if deezer.Best == nil {
-		t.Fatalf("expected deezer best match")
-	}
-	if deezer.Best.URL != "https://www.deezer.com/album/1" {
-		t.Fatalf("best url = %q", deezer.Best.URL)
-	}
-	if deezer.Best.AlbumID != "1" {
-		t.Fatalf("best album id = %q", deezer.Best.AlbumID)
-	}
-	if deezer.Best.RegionHint != "" {
-		t.Fatalf("best region hint = %q, want empty", deezer.Best.RegionHint)
-	}
-	if len(deezer.Best.Reasons) != 2 {
-		t.Fatalf("best reasons len = %d, want 2", len(deezer.Best.Reasons))
-	}
+	require.True(t, ok)
+	assert.True(t, deezer.Found)
+	assert.Equal(t, "strong", deezer.Summary)
+	require.NotNil(t, deezer.Best)
+	assert.Equal(t, "https://www.deezer.com/album/1", deezer.Best.URL)
+	assert.Equal(t, "1", deezer.Best.AlbumID)
+	assert.Empty(t, deezer.Best.RegionHint)
+	assert.Len(t, deezer.Best.Reasons, 2)
 
 	appleMusic, ok := output.Links["appleMusic"]
-	if !ok {
-		t.Fatalf("expected appleMusic link entry")
-	}
-	if appleMusic.Best == nil {
-		t.Fatalf("expected appleMusic best match")
-	}
-	if appleMusic.Best.RegionHint != "us" {
-		t.Fatalf("appleMusic region hint = %q, want us", appleMusic.Best.RegionHint)
-	}
+	require.True(t, ok)
+	require.NotNil(t, appleMusic.Best)
+	assert.Equal(t, "us", appleMusic.Best.RegionHint)
 
 	tidal, ok := output.Links["tidal"]
-	if !ok {
-		t.Fatalf("expected tidal link entry")
-	}
-	if !tidal.Found {
-		t.Fatalf("expected tidal match to be found")
-	}
-	if tidal.Summary != "probable" {
-		t.Fatalf("tidal summary = %q, want probable", tidal.Summary)
-	}
-	if tidal.Best == nil {
-		t.Fatalf("expected tidal best match")
-	}
-	if tidal.Best.URL != "https://tidal.com/album/3" {
-		t.Fatalf("tidal best url = %q", tidal.Best.URL)
-	}
-	if tidal.Best.AlbumID != "3" {
-		t.Fatalf("tidal best album id = %q", tidal.Best.AlbumID)
-	}
-	if len(tidal.Alternates) != 1 {
-		t.Fatalf("tidal alternates len = %d, want 1", len(tidal.Alternates))
-	}
-	if tidal.Alternates[0].AlbumID != "4" {
-		t.Fatalf("tidal alternate album id = %q, want 4", tidal.Alternates[0].AlbumID)
-	}
+	require.True(t, ok)
+	assert.True(t, tidal.Found)
+	assert.Equal(t, "probable", tidal.Summary)
+	require.NotNil(t, tidal.Best)
+	assert.Equal(t, "https://tidal.com/album/3", tidal.Best.URL)
+	assert.Equal(t, "3", tidal.Best.AlbumID)
+	require.Len(t, tidal.Alternates, 1)
+	assert.Equal(t, "4", tidal.Alternates[0].AlbumID)
 }
 
 func TestNewCLISongResolution(t *testing.T) {
@@ -325,55 +269,31 @@ func TestNewCLISongResolution(t *testing.T) {
 	}
 
 	output := newCLISongResolution(resolution)
-	if output.InputURL != resolution.InputURL {
-		t.Fatalf("input url = %q, want %q", output.InputURL, resolution.InputURL)
-	}
-	if output.Source.Service != "spotify" {
-		t.Fatalf("source service = %q, want spotify", output.Source.Service)
-	}
-	if output.Source.ISRC != "ISRC001" {
-		t.Fatalf("source isrc = %q, want ISRC001", output.Source.ISRC)
-	}
-	if output.Source.AlbumTitle != "Album" {
-		t.Fatalf("source album title = %q, want Album", output.Source.AlbumTitle)
-	}
+	assert.Equal(t, resolution.InputURL, output.InputURL)
+	assert.Equal(t, "spotify", output.Source.Service)
+	assert.Equal(t, "ISRC001", output.Source.ISRC)
+	assert.Equal(t, "Album", output.Source.AlbumTitle)
 	appleMusic, ok := output.Links["appleMusic"]
-	if !ok {
-		t.Fatalf("expected appleMusic link entry")
-	}
-	if appleMusic.Best == nil {
-		t.Fatalf("expected appleMusic best match")
-	}
-	if appleMusic.Best.SongID != "apple-song-1" {
-		t.Fatalf("song id = %q, want apple-song-1", appleMusic.Best.SongID)
-	}
-	if appleMusic.Best.DurationMS != 180050 {
-		t.Fatalf("duration_ms = %d, want 180050", appleMusic.Best.DurationMS)
-	}
+	require.True(t, ok)
+	require.NotNil(t, appleMusic.Best)
+	assert.Equal(t, "apple-song-1", appleMusic.Best.SongID)
+	assert.Equal(t, 180050, appleMusic.Best.DurationMS)
 }
 
 func TestResolverRequiresCredentialsForTIDALSourceFetch(t *testing.T) {
 	resolver := ariadne.New(ariadne.DefaultConfig())
 
 	_, err := resolver.ResolveAlbum(context.Background(), "https://tidal.com/album/156205493")
-	if err == nil {
-		t.Fatalf("expected TIDAL credential error")
-	}
-	if !errors.Is(err, ariadne.ErrTIDALCredentialsNotConfigured) {
-		t.Fatalf("error = %v, want tidal credential error", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ariadne.ErrTIDALCredentialsNotConfigured)
 }
 
 func TestResolverReportsAmazonMusicAsDeferred(t *testing.T) {
 	resolver := ariadne.New(ariadne.DefaultConfig())
 
 	_, err := resolver.ResolveAlbum(context.Background(), "https://music.amazon.com/albums/B0064UPU4G")
-	if err == nil {
-		t.Fatalf("expected Amazon Music deferred error")
-	}
-	if !errors.Is(err, ariadne.ErrAmazonMusicDeferred) {
-		t.Fatalf("error = %v, want amazon music deferred error", err)
-	}
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ariadne.ErrAmazonMusicDeferred)
 }
 
 func TestNewCLILinks(t *testing.T) {
@@ -394,21 +314,12 @@ func TestNewCLILinks(t *testing.T) {
 	}
 
 	output := newCLILinks(resolution)
-	if len(output) != 3 {
-		t.Fatalf("link count = %d, want 3", len(output))
-	}
-	if output["deezer"] != "https://www.deezer.com/album/source" {
-		t.Fatalf("deezer link = %q", output["deezer"])
-	}
-	if output["spotify"] != "https://open.spotify.com/album/spotify-1" {
-		t.Fatalf("spotify link = %q", output["spotify"])
-	}
-	if output["appleMusic"] != "https://music.apple.com/us/album/album/2" {
-		t.Fatalf("appleMusic link = %q", output["appleMusic"])
-	}
-	if _, ok := output["youtubeMusic"]; ok {
-		t.Fatalf("did not expect youtubeMusic link")
-	}
+	assert.Len(t, output, 3)
+	assert.Equal(t, "https://www.deezer.com/album/source", output["deezer"])
+	assert.Equal(t, "https://open.spotify.com/album/spotify-1", output["spotify"])
+	assert.Equal(t, "https://music.apple.com/us/album/album/2", output["appleMusic"])
+	_, ok := output["youtubeMusic"]
+	assert.False(t, ok)
 }
 
 func TestFilterResolutionByStrength(t *testing.T) {
@@ -421,15 +332,11 @@ func TestFilterResolutionByStrength(t *testing.T) {
 	}
 
 	filtered := filterResolutionByStrength(resolution, ariadne.MatchStrengthProbable)
-	if len(filtered.Matches) != 1 {
-		t.Fatalf("match count = %d, want 1", len(filtered.Matches))
-	}
-	if _, ok := filtered.Matches[ariadne.ServiceSpotify]; !ok {
-		t.Fatalf("expected spotify to remain")
-	}
-	if _, ok := filtered.Matches[ariadne.ServiceAppleMusic]; ok {
-		t.Fatalf("expected appleMusic to be filtered out")
-	}
+	assert.Len(t, filtered.Matches, 1)
+	_, ok := filtered.Matches[ariadne.ServiceSpotify]
+	assert.True(t, ok)
+	_, ok = filtered.Matches[ariadne.ServiceAppleMusic]
+	assert.False(t, ok)
 }
 
 func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
@@ -455,39 +362,19 @@ func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
 	filtered := filterSongResolutionByStrength(resolution, ariadne.MatchStrengthProbable)
 
 	appleMusic, ok := filtered.Matches[ariadne.ServiceAppleMusic]
-	if !ok {
-		t.Fatalf("expected appleMusic to remain")
-	}
-	if appleMusic.Best == nil {
-		t.Fatalf("expected appleMusic best match")
-	}
-	if len(appleMusic.Alternates) != 1 {
-		t.Fatalf("appleMusic alternates len = %d, want 1", len(appleMusic.Alternates))
-	}
-	if appleMusic.Alternates[0].URL != "https://music.apple.com/us/album/strong?i=3" {
-		t.Fatalf("alternate url = %q", appleMusic.Alternates[0].URL)
-	}
+	require.True(t, ok)
+	require.NotNil(t, appleMusic.Best)
+	require.Len(t, appleMusic.Alternates, 1)
+	assert.Equal(t, "https://music.apple.com/us/album/strong?i=3", appleMusic.Alternates[0].URL)
 
 	deezer, ok := filtered.Matches[ariadne.ServiceDeezer]
-	if !ok {
-		t.Fatalf("expected deezer alternate-only match to remain")
-	}
-	if deezer.Best != nil {
-		t.Fatalf("expected deezer best to be pruned")
-	}
-	if len(deezer.Alternates) != 1 {
-		t.Fatalf("deezer alternates len = %d, want 1", len(deezer.Alternates))
-	}
+	require.True(t, ok)
+	assert.Nil(t, deezer.Best)
+	assert.Len(t, deezer.Alternates, 1)
 
-	if resolution.Matches[ariadne.ServiceAppleMusic].Best == nil {
-		t.Fatalf("expected original appleMusic best to remain intact")
-	}
-	if len(resolution.Matches[ariadne.ServiceAppleMusic].Alternates) != 2 {
-		t.Fatalf("original alternates len = %d, want 2", len(resolution.Matches[ariadne.ServiceAppleMusic].Alternates))
-	}
-	if resolution.Matches[ariadne.ServiceDeezer].Best == nil {
-		t.Fatalf("expected original deezer best to remain intact")
-	}
+	require.NotNil(t, resolution.Matches[ariadne.ServiceAppleMusic].Best)
+	assert.Len(t, resolution.Matches[ariadne.ServiceAppleMusic].Alternates, 2)
+	require.NotNil(t, resolution.Matches[ariadne.ServiceDeezer].Best)
 }
 
 func TestRunResolveFixtureOutput(t *testing.T) {
@@ -535,23 +422,14 @@ func TestRunResolveFixtureOutput(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"https://fixture.test/source"}, &stdout)
-	if err != nil {
-		t.Fatalf("runResolve error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var output map[string]string
-	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
-		t.Fatalf("unmarshal cli output: %v", err)
-	}
-	if output["deezer"] != "https://fixture.test/source" {
-		t.Fatalf("source link = %q", output["deezer"])
-	}
-	if output["spotify"] != "https://open.spotify.com/album/spotify-1" {
-		t.Fatalf("spotify link = %q", output["spotify"])
-	}
-	if _, ok := output["youtubeMusic"]; ok {
-		t.Fatalf("expected youtubeMusic to be omitted")
-	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &output))
+	assert.Equal(t, "https://fixture.test/source", output["deezer"])
+	assert.Equal(t, "https://open.spotify.com/album/spotify-1", output["spotify"])
+	_, ok := output["youtubeMusic"]
+	assert.False(t, ok)
 }
 
 func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
@@ -601,20 +479,12 @@ func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"https://fixture.test/songs/1"}, &stdout)
-	if err != nil {
-		t.Fatalf("runResolve error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var output map[string]string
-	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
-		t.Fatalf("unmarshal cli output: %v", err)
-	}
-	if output["spotify"] != "https://fixture.test/songs/1" {
-		t.Fatalf("source link = %q", output["spotify"])
-	}
-	if output["appleMusic"] != "https://music.apple.com/us/album/fixture-album/2?i=3" {
-		t.Fatalf("appleMusic link = %q", output["appleMusic"])
-	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &output))
+	assert.Equal(t, "https://fixture.test/songs/1", output["spotify"])
+	assert.Equal(t, "https://music.apple.com/us/album/fixture-album/2?i=3", output["appleMusic"])
 }
 
 func TestRunResolveForcedSongFixtureOutput(t *testing.T) {
@@ -659,26 +529,14 @@ func TestRunResolveForcedSongFixtureOutput(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := run([]string{"resolve", "--song", "--verbose", "https://fixture.test/songs/1"}, &stdout, io.Discard)
-	if err != nil {
-		t.Fatalf("run error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var output cliSongResolution
-	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
-		t.Fatalf("unmarshal cli output: %v", err)
-	}
-	if output.Source.Title != "Fixture Song" {
-		t.Fatalf("source title = %q", output.Source.Title)
-	}
-	if output.Source.ISRC != "ISRCSONG001" {
-		t.Fatalf("source isrc = %q", output.Source.ISRC)
-	}
-	if output.Links["appleMusic"].Best == nil {
-		t.Fatalf("expected appleMusic best match")
-	}
-	if output.Links["appleMusic"].Best.SongID != "apple-song-1" {
-		t.Fatalf("song id = %q", output.Links["appleMusic"].Best.SongID)
-	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &output))
+	assert.Equal(t, "Fixture Song", output.Source.Title)
+	assert.Equal(t, "ISRCSONG001", output.Source.ISRC)
+	require.NotNil(t, output.Links["appleMusic"].Best)
+	assert.Equal(t, "apple-song-1", output.Links["appleMusic"].Best.SongID)
 }
 
 func TestRunResolveServiceFilter(t *testing.T) {
@@ -726,23 +584,14 @@ func TestRunResolveServiceFilter(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"--services=deezer", "https://fixture.test/source"}, &stdout)
-	if err != nil {
-		t.Fatalf("runResolve error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var output map[string]string
-	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
-		t.Fatalf("unmarshal cli output: %v", err)
-	}
-	if output["appleMusic"] != "https://fixture.test/source" {
-		t.Fatalf("source link = %q", output["appleMusic"])
-	}
-	if output["deezer"] != "https://www.deezer.com/album/deezer-1" {
-		t.Fatalf("deezer link = %q", output["deezer"])
-	}
-	if _, ok := output["spotify"]; ok {
-		t.Fatalf("expected spotify to be filtered out")
-	}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &output))
+	assert.Equal(t, "https://fixture.test/source", output["appleMusic"])
+	assert.Equal(t, "https://www.deezer.com/album/deezer-1", output["deezer"])
+	_, ok := output["spotify"]
+	assert.False(t, ok)
 }
 
 func TestRunResolveYAMLFixtureOutput(t *testing.T) {
@@ -783,15 +632,9 @@ func TestRunResolveYAMLFixtureOutput(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"--format=yaml", "https://fixture.test/source"}, &stdout)
-	if err != nil {
-		t.Fatalf("runResolve error: %v", err)
-	}
-	if !strings.Contains(stdout.String(), "deezer: https://fixture.test/source") {
-		t.Fatalf("yaml output = %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "spotify: https://open.spotify.com/album/spotify-1") {
-		t.Fatalf("yaml output = %q", stdout.String())
-	}
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "deezer: https://fixture.test/source")
+	assert.Contains(t, stdout.String(), "spotify: https://open.spotify.com/album/spotify-1")
 }
 
 func TestRunResolveCSVFixtureOutput(t *testing.T) {
@@ -832,18 +675,10 @@ func TestRunResolveCSVFixtureOutput(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"--format=csv", "https://fixture.test/source"}, &stdout)
-	if err != nil {
-		t.Fatalf("runResolve error: %v", err)
-	}
-	if !strings.Contains(stdout.String(), "service,url") {
-		t.Fatalf("csv output = %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "deezer,https://fixture.test/source") {
-		t.Fatalf("csv output = %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "spotify,https://open.spotify.com/album/spotify-1") {
-		t.Fatalf("csv output = %q", stdout.String())
-	}
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "service,url")
+	assert.Contains(t, stdout.String(), "deezer,https://fixture.test/source")
+	assert.Contains(t, stdout.String(), "spotify,https://open.spotify.com/album/spotify-1")
 }
 
 func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
@@ -884,18 +719,10 @@ func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"--verbose", "--format=csv", "https://fixture.test/source"}, &stdout)
-	if err != nil {
-		t.Fatalf("runResolve error: %v", err)
-	}
-	if !strings.Contains(stdout.String(), "input_url,service,kind,url,found,summary,score,album_id,region_hint,title,artists,release_date,upc,reasons") {
-		t.Fatalf("csv output = %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), ",deezer,source,https://fixture.test/source,true,source,") {
-		t.Fatalf("csv output = %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), ",spotify,best,https://open.spotify.com/album/spotify-1,true,strong,155,spotify-1,") {
-		t.Fatalf("csv output = %q", stdout.String())
-	}
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "input_url,service,kind,url,found,summary,score,album_id,region_hint,title,artists,release_date,upc,reasons")
+	assert.Contains(t, stdout.String(), ",deezer,source,https://fixture.test/source,true,source,")
+	assert.Contains(t, stdout.String(), ",spotify,best,https://open.spotify.com/album/spotify-1,true,strong,155,spotify-1,")
 }
 
 func TestRunResolvePropagatesResolverErrors(t *testing.T) {
@@ -917,12 +744,8 @@ func TestRunResolvePropagatesResolverErrors(t *testing.T) {
 
 	var stdout bytes.Buffer
 	err := runResolve([]string{"https://fixture.test/source"}, &stdout)
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "boom") {
-		t.Fatalf("error = %q", err.Error())
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
 }
 
 func TestLoadCLIConfigFromDotEnv(t *testing.T) {
@@ -939,54 +762,34 @@ func TestLoadCLIConfigFromDotEnv(t *testing.T) {
 		"TIDAL_CLIENT_SECRET=tidal-secret",
 		"ARIADNE_HTTP_TIMEOUT=45s",
 	}, "\n")
-	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	cfg, err := loadCLIConfig(configPath)
-	if err != nil {
-		t.Fatalf("loadCLIConfig error: %v", err)
-	}
-	if cfg.Spotify.ClientID != "spotify-client" || cfg.Spotify.ClientSecret != "spotify-secret" {
-		t.Fatalf("unexpected spotify config: %#v", cfg.Spotify)
-	}
-	if cfg.AppleMusicStorefront != "gb" {
-		t.Fatalf("apple storefront = %q, want gb", cfg.AppleMusicStorefront)
-	}
-	if cfg.AppleMusic.KeyID != "apple-key" || cfg.AppleMusic.TeamID != "apple-team" || cfg.AppleMusic.PrivateKeyPath != "/tmp/AuthKey_TEST.p8" {
-		t.Fatalf("unexpected apple music config: %#v", cfg.AppleMusic)
-	}
-	if cfg.TIDAL.ClientID != "tidal-client" || cfg.TIDAL.ClientSecret != "tidal-secret" {
-		t.Fatalf("unexpected tidal config: %#v", cfg.TIDAL)
-	}
-	if cfg.HTTPTimeout != 45*time.Second {
-		t.Fatalf("http timeout = %s, want 45s", cfg.HTTPTimeout)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "spotify-client", cfg.Spotify.ClientID)
+	assert.Equal(t, "spotify-secret", cfg.Spotify.ClientSecret)
+	assert.Equal(t, "gb", cfg.AppleMusicStorefront)
+	assert.Equal(t, "apple-key", cfg.AppleMusic.KeyID)
+	assert.Equal(t, "apple-team", cfg.AppleMusic.TeamID)
+	assert.Equal(t, "/tmp/AuthKey_TEST.p8", cfg.AppleMusic.PrivateKeyPath)
+	assert.Equal(t, "tidal-client", cfg.TIDAL.ClientID)
+	assert.Equal(t, "tidal-secret", cfg.TIDAL.ClientSecret)
+	assert.Equal(t, 45*time.Second, cfg.HTTPTimeout)
 }
 
 func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".env")
-	if err := os.WriteFile(configPath, []byte("APPLE_MUSIC_STOREFRONT=gb\nSPOTIFY_CLIENT_ID=file-client\n"), 0o644); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
+	require.NoError(t, os.WriteFile(configPath, []byte("APPLE_MUSIC_STOREFRONT=gb\nSPOTIFY_CLIENT_ID=file-client\n"), 0o644))
 	t.Setenv("APPLE_MUSIC_STOREFRONT", "de")
 	t.Setenv("SPOTIFY_CLIENT_ID", "env-client")
 	t.Setenv("ARIADNE_HTTP_TIMEOUT", "30s")
 
 	cfg, err := loadCLIConfig(configPath)
-	if err != nil {
-		t.Fatalf("loadCLIConfig error: %v", err)
-	}
-	if cfg.AppleMusicStorefront != "de" {
-		t.Fatalf("apple storefront = %q, want de", cfg.AppleMusicStorefront)
-	}
-	if cfg.Spotify.ClientID != "env-client" {
-		t.Fatalf("spotify client id = %q, want env-client", cfg.Spotify.ClientID)
-	}
-	if cfg.HTTPTimeout != 30*time.Second {
-		t.Fatalf("http timeout = %s, want 30s", cfg.HTTPTimeout)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "de", cfg.AppleMusicStorefront)
+	assert.Equal(t, "env-client", cfg.Spotify.ClientID)
+	assert.Equal(t, 30*time.Second, cfg.HTTPTimeout)
 }
 
 func TestParseResolveArgs(t *testing.T) {
@@ -1118,55 +921,35 @@ func TestParseResolveArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resolveConfig, err := parseResolveArgs(tt.args, ariadne.LoadConfig())
 			if tt.wantErrContains != "" {
-				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tt.wantErrContains)
-				}
-				if !strings.Contains(err.Error(), tt.wantErrContains) {
-					t.Fatalf("error = %q, want substring %q", err.Error(), tt.wantErrContains)
-				}
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrContains)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if resolveConfig.inputURL != tt.wantURL {
-				t.Fatalf("inputURL = %q, want %q", resolveConfig.inputURL, tt.wantURL)
-			}
-			if resolveConfig.resolverConfig.AppleMusicStorefront != tt.wantStorefront {
-				t.Fatalf("appleMusicStorefront = %q, want %q", resolveConfig.resolverConfig.AppleMusicStorefront, tt.wantStorefront)
-			}
-			if resolveConfig.format != tt.wantFormat {
-				t.Fatalf("format = %q, want %q", resolveConfig.format, tt.wantFormat)
-			}
-			if resolveConfig.minStrength != tt.wantMinStrength {
-				t.Fatalf("minStrength = %q, want %q", resolveConfig.minStrength, tt.wantMinStrength)
-			}
-			if tt.wantMinStrength == "" && resolveConfig.minStrength != ariadne.MatchStrengthVeryWeak {
-				t.Fatalf("minStrength = %q, want default very_weak", resolveConfig.minStrength)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantURL, resolveConfig.inputURL)
+			assert.Equal(t, tt.wantStorefront, resolveConfig.resolverConfig.AppleMusicStorefront)
+			assert.Equal(t, tt.wantFormat, resolveConfig.format)
+			assert.Equal(t, tt.wantMinStrength, resolveConfig.minStrength)
+			if tt.wantMinStrength == "" {
+				assert.Equal(t, ariadne.MatchStrengthVeryWeak, resolveConfig.minStrength)
 			}
 			wantHTTPTimeout := tt.wantHTTPTimeout
 			if wantHTTPTimeout == 0 {
 				wantHTTPTimeout = 15 * time.Second
 			}
-			if resolveConfig.resolverConfig.HTTPTimeout != wantHTTPTimeout {
-				t.Fatalf("httpTimeout = %s, want %s", resolveConfig.resolverConfig.HTTPTimeout, wantHTTPTimeout)
-			}
-			if len(resolveConfig.resolverConfig.TargetServices) != len(tt.wantServices) {
-				t.Fatalf("services len = %d, want %d", len(resolveConfig.resolverConfig.TargetServices), len(tt.wantServices))
-			}
+			assert.Equal(t, wantHTTPTimeout, resolveConfig.resolverConfig.HTTPTimeout)
+			assert.Len(t, resolveConfig.resolverConfig.TargetServices, len(tt.wantServices))
 			for i, service := range tt.wantServices {
-				if resolveConfig.resolverConfig.TargetServices[i] != service {
-					t.Fatalf("service[%d] = %q, want %q", i, resolveConfig.resolverConfig.TargetServices[i], service)
-				}
+				assert.Equal(t, service, resolveConfig.resolverConfig.TargetServices[i])
 			}
-			if tt.name == "verbose flag" && !resolveConfig.verbose {
-				t.Fatalf("expected verbose flag to be set")
+			if tt.name == "verbose flag" {
+				assert.True(t, resolveConfig.verbose)
 			}
-			if tt.name == "force song" && !resolveConfig.forceSong {
-				t.Fatalf("expected forceSong to be set")
+			if tt.name == "force song" {
+				assert.True(t, resolveConfig.forceSong)
 			}
-			if tt.name == "force album" && !resolveConfig.forceAlbum {
-				t.Fatalf("expected forceAlbum to be set")
+			if tt.name == "force album" {
+				assert.True(t, resolveConfig.forceAlbum)
 			}
 		})
 	}
@@ -1186,9 +969,7 @@ func TestScoreSummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := scoreSummary(tt.score); got != tt.want {
-				t.Fatalf("scoreSummary(%d) = %q, want %q", tt.score, got, tt.want)
-			}
+			assert.Equal(t, tt.want, scoreSummary(tt.score))
 		})
 	}
 }

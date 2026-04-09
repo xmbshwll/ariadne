@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -64,30 +66,14 @@ func TestAdapter(t *testing.T) {
 
 	t.Run("fetch album from hydration", func(t *testing.T) {
 		album, err := adapter.FetchAlbum(context.Background(), parsed)
-		if err != nil {
-			t.Fatalf("FetchAlbum error: %v", err)
-		}
-		if album.Title != soundCloudCatsAndDogs {
-			t.Fatalf("title = %q", album.Title)
-		}
-		if album.SourceURL != "https://soundcloud.com/evidence-official/sets/cats-dogs-6" {
-			t.Fatalf("source url = %q", album.SourceURL)
-		}
-		if album.TrackCount != 17 {
-			t.Fatalf("track count = %d, want 17", album.TrackCount)
-		}
-		if album.UPC != "826257014467" {
-			t.Fatalf("upc = %q, want 826257014467", album.UPC)
-		}
-		if len(album.Tracks) == 0 {
-			t.Fatalf("expected tracks")
-		}
-		if album.Tracks[0].ISRC != soundCloudTrackISRC {
-			t.Fatalf("first track isrc = %q", album.Tracks[0].ISRC)
-		}
-		if album.Label != "Rhymesayers" {
-			t.Fatalf("label = %q, want Rhymesayers", album.Label)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, soundCloudCatsAndDogs, album.Title)
+		assert.Equal(t, "https://soundcloud.com/evidence-official/sets/cats-dogs-6", album.SourceURL)
+		assert.Equal(t, 17, album.TrackCount)
+		assert.Equal(t, "826257014467", album.UPC)
+		require.NotEmpty(t, album.Tracks)
+		assert.Equal(t, soundCloudTrackISRC, album.Tracks[0].ISRC)
+		assert.Equal(t, "Rhymesayers", album.Label)
 	})
 
 	t.Run("search by metadata via api v2", func(t *testing.T) {
@@ -95,21 +81,11 @@ func TestAdapter(t *testing.T) {
 			Title:   "Cats & Dogs",
 			Artists: []string{"Evidence"},
 		})
-		if err != nil {
-			t.Fatalf("SearchByMetadata error: %v", err)
-		}
-		if len(results) != 5 {
-			t.Fatalf("result count = %d, want 5", len(results))
-		}
-		if results[0].CandidateID != "evidence-official/sets/cats-dogs-3" {
-			t.Fatalf("first candidate id = %q", results[0].CandidateID)
-		}
-		if results[1].CandidateID != "evidence-official/sets/cats-dogs-6" {
-			t.Fatalf("second candidate id = %q", results[1].CandidateID)
-		}
-		if results[1].Tracks[0].ISRC != "USBWK1100093" {
-			t.Fatalf("second candidate first isrc = %q", results[1].Tracks[0].ISRC)
-		}
+		require.NoError(t, err)
+		require.Len(t, results, 5)
+		assert.Equal(t, "evidence-official/sets/cats-dogs-3", results[0].CandidateID)
+		assert.Equal(t, "evidence-official/sets/cats-dogs-6", results[1].CandidateID)
+		assert.Equal(t, "USBWK1100093", results[1].Tracks[0].ISRC)
 	})
 
 	t.Run("fetch song from hydration", func(t *testing.T) {
@@ -120,18 +96,10 @@ func TestAdapter(t *testing.T) {
 			CanonicalURL: server.URL + "/track",
 			RawURL:       server.URL + "/track",
 		})
-		if err != nil {
-			t.Fatalf("FetchSong error: %v", err)
-		}
-		if song.Title != "The Liner Notes (feat. Aloe Blacc)" {
-			t.Fatalf("title = %q", song.Title)
-		}
-		if song.AlbumTitle != soundCloudCatsAndDogs {
-			t.Fatalf("album title = %q", song.AlbumTitle)
-		}
-		if song.ISRC != soundCloudTrackISRC {
-			t.Fatalf("isrc = %q", song.ISRC)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, "The Liner Notes (feat. Aloe Blacc)", song.Title)
+		assert.Equal(t, soundCloudCatsAndDogs, song.AlbumTitle)
+		assert.Equal(t, soundCloudTrackISRC, song.ISRC)
 	})
 
 	t.Run("search song by metadata via api v2", func(t *testing.T) {
@@ -141,42 +109,22 @@ func TestAdapter(t *testing.T) {
 			AlbumTitle: soundCloudCatsAndDogs,
 			DurationMS: 268706,
 		})
-		if err != nil {
-			t.Fatalf("SearchSongByMetadata error: %v", err)
-		}
-		if len(results) != 2 {
-			t.Fatalf("result count = %d, want 2", len(results))
-		}
-		if results[0].CandidateID != "evidence-official/the-liner-notes-feat-aloe-1" {
-			t.Fatalf("first candidate id = %q", results[0].CandidateID)
-		}
-		if results[0].AlbumTitle != soundCloudCatsAndDogs {
-			t.Fatalf("album title = %q", results[0].AlbumTitle)
-		}
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+		assert.Equal(t, "evidence-official/the-liner-notes-feat-aloe-1", results[0].CandidateID)
+		assert.Equal(t, soundCloudCatsAndDogs, results[0].AlbumTitle)
 	})
 
 	t.Run("identifier search unsupported", func(t *testing.T) {
 		upcResults, err := adapter.SearchByUPC(context.Background(), "826257014467")
-		if err != nil {
-			t.Fatalf("SearchByUPC error: %v", err)
-		}
-		if len(upcResults) != 0 {
-			t.Fatalf("upc results = %d, want 0", len(upcResults))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, upcResults)
 		isrcResults, err := adapter.SearchByISRC(context.Background(), []string{soundCloudTrackISRC})
-		if err != nil {
-			t.Fatalf("SearchByISRC error: %v", err)
-		}
-		if len(isrcResults) != 0 {
-			t.Fatalf("isrc results = %d, want 0", len(isrcResults))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, isrcResults)
 		songISRCResults, err := adapter.SearchSongByISRC(context.Background(), soundCloudTrackISRC)
-		if err != nil {
-			t.Fatalf("SearchSongByISRC error: %v", err)
-		}
-		if len(songISRCResults) != 0 {
-			t.Fatalf("song isrc results = %d, want 0", len(songISRCResults))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, songISRCResults)
 	})
 }
 
@@ -184,8 +132,6 @@ func mustReadSoundCloudFixture(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
+	require.NoError(t, err)
 	return content
 }

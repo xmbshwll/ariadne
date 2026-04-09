@@ -41,23 +41,10 @@ func TestDeezerAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := DeezerAlbumURL(tt.raw)
 			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
+				requireParseError(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got.ID != tt.wantID {
-				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
-			}
-			if got.CanonicalURL != tt.wantURL {
-				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
-			}
-			if got.RegionHint != tt.wantRegion {
-				t.Fatalf("region = %q, want %q", got.RegionHint, tt.wantRegion)
-			}
+			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, tt.wantRegion)
 		})
 	}
 }
@@ -101,23 +88,10 @@ func TestDeezerSongURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := DeezerSongURL(tt.raw)
 			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
+				requireParseError(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got.ID != tt.wantID {
-				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
-			}
-			if got.CanonicalURL != tt.wantURL {
-				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
-			}
-			if got.RegionHint != tt.wantRegion {
-				t.Fatalf("region = %q, want %q", got.RegionHint, tt.wantRegion)
-			}
+			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, tt.wantRegion)
 		})
 	}
 }

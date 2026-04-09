@@ -16,22 +16,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateDeveloperToken(t *testing.T) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("generate private key: %v", err)
-	}
+	require.NoError(t, err)
 	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		t.Fatalf("marshal private key: %v", err)
-	}
+	require.NoError(t, err)
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
 	keyPath := filepath.Join(t.TempDir(), "AuthKey_TEST12345.p8")
-	if err := osWriteFile(keyPath, pemBytes); err != nil {
-		t.Fatalf("write private key: %v", err)
-	}
+	require.NoError(t, osWriteFile(keyPath, pemBytes))
 
 	now := time.Unix(1_700_000_000, 0).UTC()
 	token, err := GenerateDeveloperToken(Config{
@@ -40,68 +37,42 @@ func TestGenerateDeveloperToken(t *testing.T) {
 		PrivateKeyPath: keyPath,
 		TTL:            2 * time.Hour,
 	}, now)
-	if err != nil {
-		t.Fatalf("GenerateDeveloperToken error: %v", err)
-	}
+	require.NoError(t, err)
 
 	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		t.Fatalf("token parts = %d, want 3", len(parts))
-	}
+	require.Len(t, parts, 3)
 
 	var header map[string]any
 	decodeJSONPart(t, parts[0], &header)
-	if header["alg"] != "ES256" {
-		t.Fatalf("alg = %v", header["alg"])
-	}
-	if header["kid"] != "TEST12345" {
-		t.Fatalf("kid = %v", header["kid"])
-	}
+	assert.Equal(t, "ES256", header["alg"])
+	assert.Equal(t, "TEST12345", header["kid"])
 
 	var claims map[string]any
 	decodeJSONPart(t, parts[1], &claims)
-	if claims["iss"] != "TEAM123456" {
-		t.Fatalf("iss = %v", claims["iss"])
-	}
-	if claims["iat"] != float64(now.Unix()) {
-		t.Fatalf("iat = %v", claims["iat"])
-	}
-	if claims["exp"] != float64(now.Add(2*time.Hour).Unix()) {
-		t.Fatalf("exp = %v", claims["exp"])
-	}
+	assert.Equal(t, "TEAM123456", claims["iss"])
+	assert.Equal(t, float64(now.Unix()), claims["iat"])
+	assert.Equal(t, float64(now.Add(2*time.Hour).Unix()), claims["exp"])
 
 	signingInput := parts[0] + "." + parts[1]
 	hash := sha256.Sum256([]byte(signingInput))
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		t.Fatalf("decode signature: %v", err)
-	}
-	if len(signature) != 64 {
-		t.Fatalf("signature length = %d, want 64", len(signature))
-	}
+	require.NoError(t, err)
+	require.Len(t, signature, 64)
 	r := new(big.Int).SetBytes(signature[:32])
 	s := new(big.Int).SetBytes(signature[32:])
-	if !ecdsa.Verify(&privateKey.PublicKey, hash[:], r, s) {
-		t.Fatalf("signature verification failed")
-	}
+	assert.True(t, ecdsa.Verify(&privateKey.PublicKey, hash[:], r, s))
 }
 
 func TestGenerateDeveloperTokenRequiresConfig(t *testing.T) {
 	_, err := GenerateDeveloperToken(Config{}, time.Now())
-	if err == nil {
-		t.Fatalf("expected configuration error")
-	}
+	require.Error(t, err)
 }
 
 func decodeJSONPart(t *testing.T, encoded string, target any) {
 	t.Helper()
 	payload, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil {
-		t.Fatalf("decode token part: %v", err)
-	}
-	if err := json.Unmarshal(payload, target); err != nil {
-		t.Fatalf("unmarshal token part: %v", err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(payload, target))
 }
 
 func osWriteFile(path string, data []byte) error {

@@ -16,76 +16,76 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-func newAmazonMusicAdapter(client *http.Client) *amazonmusicadapter.Adapter {
-	return amazonmusicadapter.New(client)
+type defaultAdapters struct {
+	amazonMusic  *amazonmusicadapter.Adapter
+	appleMusic   *applemusicadapter.Adapter
+	bandcamp     *bandcampadapter.Adapter
+	deezer       *deezeradapter.Adapter
+	soundCloud   *soundcloudadapter.Adapter
+	spotify      *spotifyadapter.Adapter
+	tidal        *tidaladapter.Adapter
+	youTubeMusic *youtubemusicadapter.Adapter
 }
 
-func newAppleMusicAdapter(client *http.Client, config Config) *applemusicadapter.Adapter {
-	return applemusicadapter.New(
-		client,
-		applemusicadapter.WithDefaultStorefront(config.AppleMusicStorefront),
-		applemusicadapter.WithDeveloperTokenAuth(
-			config.AppleMusic.KeyID,
-			config.AppleMusic.TeamID,
-			config.AppleMusic.PrivateKeyPath,
+func newDefaultAdapters(client *http.Client, config Config) defaultAdapters {
+	return defaultAdapters{
+		amazonMusic: amazonmusicadapter.New(client),
+		appleMusic: applemusicadapter.New(
+			client,
+			applemusicadapter.WithDefaultStorefront(config.AppleMusicStorefront),
+			applemusicadapter.WithDeveloperTokenAuth(
+				config.AppleMusic.KeyID,
+				config.AppleMusic.TeamID,
+				config.AppleMusic.PrivateKeyPath,
+			),
 		),
-	)
+		bandcamp:   bandcampadapter.New(client),
+		deezer:     deezeradapter.New(client),
+		soundCloud: soundcloudadapter.New(client),
+		spotify: spotifyadapter.New(
+			client,
+			spotifyadapter.WithCredentials(
+				config.Spotify.ClientID,
+				config.Spotify.ClientSecret,
+			),
+		),
+		tidal: tidaladapter.New(
+			client,
+			tidaladapter.WithCredentials(
+				config.TIDAL.ClientID,
+				config.TIDAL.ClientSecret,
+			),
+		),
+		youTubeMusic: youtubemusicadapter.New(client),
+	}
 }
 
-func newBandcampAdapter(client *http.Client) *bandcampadapter.Adapter {
-	return bandcampadapter.New(client)
+func defaultSourceAdapters(adapters defaultAdapters) []resolve.SourceAdapter {
+	return []resolve.SourceAdapter{
+		adapters.appleMusic,
+		adapters.deezer,
+		adapters.spotify,
+		adapters.tidal,
+		adapters.soundCloud,
+		adapters.youTubeMusic,
+		adapters.amazonMusic,
+		adapters.bandcamp,
+	}
 }
 
-func newDeezerAdapter(client *http.Client) *deezeradapter.Adapter {
-	return deezeradapter.New(client)
-}
-
-func newSoundCloudAdapter(client *http.Client) *soundcloudadapter.Adapter {
-	return soundcloudadapter.New(client)
-}
-
-func newSpotifyAdapter(client *http.Client, config Config) *spotifyadapter.Adapter {
-	return spotifyadapter.New(
-		client,
-		spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret),
-	)
-}
-
-func newTIDALAdapter(client *http.Client, config Config) *tidaladapter.Adapter {
-	return tidaladapter.New(
-		client,
-		tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret),
-	)
-}
-
-func newYouTubeMusicAdapter(client *http.Client) *youtubemusicadapter.Adapter {
-	return youtubemusicadapter.New(client)
-}
-
-func defaultSourceAdapters(client *http.Client, config Config) []resolve.SourceAdapter {
-	amazonMusic := newAmazonMusicAdapter(client)
-	appleMusic := newAppleMusicAdapter(client, config)
-	bandcamp := newBandcampAdapter(client)
-	deezer := newDeezerAdapter(client)
-	soundCloud := newSoundCloudAdapter(client)
-	youTubeMusic := newYouTubeMusicAdapter(client)
-	spotify := newSpotifyAdapter(client, config)
-	tidal := newTIDALAdapter(client, config)
-	return []resolve.SourceAdapter{appleMusic, deezer, spotify, tidal, soundCloud, youTubeMusic, amazonMusic, bandcamp}
-}
-
-func defaultTargetAdapters(client *http.Client, config Config) []resolve.TargetAdapter {
-	appleMusic := newAppleMusicAdapter(client, config)
-	bandcamp := newBandcampAdapter(client)
-	deezer := newDeezerAdapter(client)
-	soundCloud := newSoundCloudAdapter(client)
-	youTubeMusic := newYouTubeMusicAdapter(client)
-	targets := []resolve.TargetAdapter{appleMusic, bandcamp, deezer, soundCloud, youTubeMusic}
+func defaultTargetAdapters(adapters defaultAdapters, config Config) []resolve.TargetAdapter {
+	targets := []resolve.TargetAdapter{
+		adapters.appleMusic,
+		adapters.bandcamp,
+		adapters.deezer,
+		adapters.soundCloud,
+		adapters.youTubeMusic,
+	}
 	if config.SpotifyEnabled() {
-		targets = append(targets, newSpotifyAdapter(client, config))
+		targets = append(targets, adapters.spotify)
 	}
 	if config.TIDALEnabled() {
-		targets = append(targets, newTIDALAdapter(client, config))
+		targets = append(targets, adapters.tidal)
 	}
 	return filterAdaptersByServiceName(targets, config.TargetServices)
 }
@@ -102,28 +102,29 @@ func allowedTargetServices(services []ServiceName) map[ServiceName]struct{} {
 	return allowed
 }
 
-func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.SongSourceAdapter {
-	appleMusic := newAppleMusicAdapter(client, config)
-	bandcamp := newBandcampAdapter(client)
-	deezer := newDeezerAdapter(client)
-	soundCloud := newSoundCloudAdapter(client)
-	spotify := newSpotifyAdapter(client, config)
-	tidal := newTIDALAdapter(client, config)
-
-	return []resolve.SongSourceAdapter{appleMusic, bandcamp, deezer, soundCloud, spotify, tidal}
+func defaultSongSourceAdapters(adapters defaultAdapters) []resolve.SongSourceAdapter {
+	return []resolve.SongSourceAdapter{
+		adapters.appleMusic,
+		adapters.bandcamp,
+		adapters.deezer,
+		adapters.soundCloud,
+		adapters.spotify,
+		adapters.tidal,
+	}
 }
 
-func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.SongTargetAdapter {
-	appleMusic := newAppleMusicAdapter(client, config)
-	bandcamp := newBandcampAdapter(client)
-	deezer := newDeezerAdapter(client)
-	soundCloud := newSoundCloudAdapter(client)
-	targets := []resolve.SongTargetAdapter{appleMusic, bandcamp, deezer, soundCloud}
+func defaultSongTargetAdapters(adapters defaultAdapters, config Config) []resolve.SongTargetAdapter {
+	targets := []resolve.SongTargetAdapter{
+		adapters.appleMusic,
+		adapters.bandcamp,
+		adapters.deezer,
+		adapters.soundCloud,
+	}
 	if config.SpotifyEnabled() {
-		targets = append(targets, newSpotifyAdapter(client, config))
+		targets = append(targets, adapters.spotify)
 	}
 	if config.TIDALEnabled() {
-		targets = append(targets, newTIDALAdapter(client, config))
+		targets = append(targets, adapters.tidal)
 	}
 	return filterAdaptersByServiceName(targets, config.TargetServices)
 }

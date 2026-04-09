@@ -33,20 +33,10 @@ func TestYouTubeMusicAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := YouTubeMusicAlbumURL(tt.raw)
 			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
+				requireParseError(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got.ID != tt.wantID {
-				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
-			}
-			if got.CanonicalURL != tt.wantURL {
-				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
-			}
+			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, "")
 		})
 	}
 }
@@ -76,20 +66,10 @@ func TestYouTubeMusicSongURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := YouTubeMusicSongURL(tt.raw)
 			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
+				requireParseError(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got.ID != tt.wantID {
-				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
-			}
-			if got.CanonicalURL != tt.wantURL {
-				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
-			}
+			requireParsedURL(t, got, err, tt.wantID, tt.wantURL, "")
 		})
 	}
 }

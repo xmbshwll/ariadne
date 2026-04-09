@@ -3,6 +3,8 @@ package score
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -73,21 +75,11 @@ func TestRankAlbums(t *testing.T) {
 	}
 
 	ranking := RankAlbums(source, candidates, DefaultWeights())
-	if ranking.Best == nil {
-		t.Fatalf("expected best candidate")
-	}
-	if len(ranking.Ranked) != 2 {
-		t.Fatalf("ranked count = %d, want 2", len(ranking.Ranked))
-	}
-	if ranking.Best.Candidate.CandidateID != "best" {
-		t.Fatalf("best candidate = %q, want best", ranking.Best.Candidate.CandidateID)
-	}
-	if ranking.Ranked[0].Score <= ranking.Ranked[1].Score {
-		t.Fatalf("expected descending score order, got %d <= %d", ranking.Ranked[0].Score, ranking.Ranked[1].Score)
-	}
-	if len(ranking.Best.Reasons) == 0 {
-		t.Fatalf("expected scoring reasons for best candidate")
-	}
+	require.NotNil(t, ranking.Best)
+	require.Len(t, ranking.Ranked, 2)
+	assert.Equal(t, "best", ranking.Best.Candidate.CandidateID)
+	assert.Greater(t, ranking.Ranked[0].Score, ranking.Ranked[1].Score)
+	assert.NotEmpty(t, ranking.Best.Reasons)
 }
 
 func TestRankAlbumsAppleMusicAlternates(t *testing.T) {
@@ -149,24 +141,12 @@ func TestRankAlbumsAppleMusicAlternates(t *testing.T) {
 	}
 
 	ranking := RankAlbums(source, candidates, DefaultWeights())
-	if ranking.Best == nil {
-		t.Fatalf("expected best candidate")
-	}
-	if ranking.Ranked[0].Candidate.CandidateID != "exact-remaster" {
-		t.Fatalf("best candidate = %q, want exact-remaster", ranking.Ranked[0].Candidate.CandidateID)
-	}
-	if ranking.Ranked[1].Candidate.CandidateID != "mix" {
-		t.Fatalf("second candidate = %q, want mix", ranking.Ranked[1].Candidate.CandidateID)
-	}
-	if ranking.Ranked[2].Candidate.CandidateID != "super-deluxe" {
-		t.Fatalf("third candidate = %q, want super-deluxe", ranking.Ranked[2].Candidate.CandidateID)
-	}
-	if ranking.Ranked[1].Score >= ranking.Ranked[0].Score {
-		t.Fatalf("mix score = %d, should be lower than exact score %d", ranking.Ranked[1].Score, ranking.Ranked[0].Score)
-	}
-	if ranking.Ranked[2].Score >= ranking.Ranked[1].Score {
-		t.Fatalf("super deluxe score = %d, should be lower than mix score %d", ranking.Ranked[2].Score, ranking.Ranked[1].Score)
-	}
+	require.NotNil(t, ranking.Best)
+	assert.Equal(t, "exact-remaster", ranking.Ranked[0].Candidate.CandidateID)
+	assert.Equal(t, "mix", ranking.Ranked[1].Candidate.CandidateID)
+	assert.Equal(t, "super-deluxe", ranking.Ranked[2].Candidate.CandidateID)
+	assert.Less(t, ranking.Ranked[1].Score, ranking.Ranked[0].Score)
+	assert.Less(t, ranking.Ranked[2].Score, ranking.Ranked[1].Score)
 }
 
 func TestRankAlbumsPrefersTrackTitleOverlapWithoutIdentifiers(t *testing.T) {
@@ -223,15 +203,9 @@ func TestRankAlbumsPrefersTrackTitleOverlapWithoutIdentifiers(t *testing.T) {
 	}
 
 	ranking := RankAlbums(source, candidates, DefaultWeights())
-	if ranking.Best == nil {
-		t.Fatalf("expected best candidate")
-	}
-	if ranking.Best.Candidate.CandidateID != "high-overlap" {
-		t.Fatalf("best candidate = %q, want high-overlap", ranking.Best.Candidate.CandidateID)
-	}
-	if ranking.Ranked[0].Score <= ranking.Ranked[1].Score {
-		t.Fatalf("expected high-overlap score %d to exceed low-overlap score %d", ranking.Ranked[0].Score, ranking.Ranked[1].Score)
-	}
+	require.NotNil(t, ranking.Best)
+	assert.Equal(t, "high-overlap", ranking.Best.Candidate.CandidateID)
+	assert.Greater(t, ranking.Ranked[0].Score, ranking.Ranked[1].Score)
 }
 
 func TestRankAlbumsPrefersExplicitVersionOverClean(t *testing.T) {
@@ -273,20 +247,12 @@ func TestRankAlbumsPrefersExplicitVersionOverClean(t *testing.T) {
 	}
 
 	ranking := RankAlbums(source, candidates, DefaultWeights())
-	if ranking.Best == nil {
-		t.Fatalf("expected best candidate")
-	}
-	if ranking.Best.Candidate.CandidateID != "explicit" {
-		t.Fatalf("best candidate = %q, want explicit", ranking.Best.Candidate.CandidateID)
-	}
+	require.NotNil(t, ranking.Best)
+	assert.Equal(t, "explicit", ranking.Best.Candidate.CandidateID)
 }
 
 func TestRankAlbumsEmpty(t *testing.T) {
 	ranking := RankAlbums(model.CanonicalAlbum{}, nil, DefaultWeights())
-	if ranking.Best != nil {
-		t.Fatalf("expected nil best candidate")
-	}
-	if len(ranking.Ranked) != 0 {
-		t.Fatalf("ranked count = %d, want 0", len(ranking.Ranked))
-	}
+	assert.Nil(t, ranking.Best)
+	assert.Empty(t, ranking.Ranked)
 }

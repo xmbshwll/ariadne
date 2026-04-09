@@ -27,15 +27,16 @@ func NewWithClient(client *http.Client, config Config) *Resolver {
 		client = http.DefaultClient
 	}
 	config = normalizedConfig(config)
+	adapters := newDefaultAdapters(client, config)
 	return &Resolver{
 		inner: resolve.New(
-			defaultSourceAdapters(client, config),
-			defaultTargetAdapters(client, config),
+			defaultSourceAdapters(adapters),
+			defaultTargetAdapters(adapters, config),
 			toInternalScoreWeights(config.ScoreWeights),
 		),
 		songInner: resolve.NewSongs(
-			defaultSongSourceAdapters(client, config),
-			defaultSongTargetAdapters(client, config),
+			defaultSongSourceAdapters(adapters),
+			defaultSongTargetAdapters(adapters, config),
 			toInternalSongScoreWeights(config.SongScoreWeights),
 		),
 	}

@@ -3,6 +3,8 @@ package score
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -70,19 +72,9 @@ func TestRankSongs(t *testing.T) {
 	}
 
 	ranking := RankSongs(source, candidates, DefaultSongWeights())
-	if ranking.Best == nil {
-		t.Fatalf("expected best candidate")
-	}
-	if len(ranking.Ranked) != 2 {
-		t.Fatalf("ranked count = %d, want 2", len(ranking.Ranked))
-	}
-	if ranking.Best.Candidate.CandidateID != "best" {
-		t.Fatalf("best candidate = %q, want best", ranking.Best.Candidate.CandidateID)
-	}
-	if ranking.Ranked[0].Score <= ranking.Ranked[1].Score {
-		t.Fatalf("expected descending score order, got %d <= %d", ranking.Ranked[0].Score, ranking.Ranked[1].Score)
-	}
-	if len(ranking.Best.Reasons) == 0 {
-		t.Fatalf("expected scoring reasons for best candidate")
-	}
+	require.NotNil(t, ranking.Best)
+	require.Len(t, ranking.Ranked, 2)
+	assert.Equal(t, "best", ranking.Best.Candidate.CandidateID)
+	assert.Greater(t, ranking.Ranked[0].Score, ranking.Ranked[1].Score)
+	assert.NotEmpty(t, ranking.Best.Reasons)
 }

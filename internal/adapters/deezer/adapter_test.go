@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -20,14 +22,10 @@ func TestAdapter(t *testing.T) {
 	searchBytes := []byte(`{"data":[{"id":12047952,"title":"Abbey Road (Remastered)"}]}`)
 
 	var album albumResponse
-	if err := json.Unmarshal(albumBytes, &album); err != nil {
-		t.Fatalf("unmarshal album: %v", err)
-	}
+	require.NoError(t, json.Unmarshal(albumBytes, &album))
 
 	var tracks tracksResponse
-	if err := json.Unmarshal(trackBytes, &tracks); err != nil {
-		t.Fatalf("unmarshal tracks: %v", err)
-	}
+	require.NoError(t, json.Unmarshal(trackBytes, &tracks))
 
 	t.Run("to canonical album", func(t *testing.T) {
 		adapter := New(nil)
@@ -40,30 +38,14 @@ func TestAdapter(t *testing.T) {
 		}
 
 		got := adapter.toCanonicalAlbum(parsed, album, tracks)
-		if got.Title != "Abbey Road (Remastered)" {
-			t.Fatalf("title = %q", got.Title)
-		}
-		if got.UPC != "602547670342" {
-			t.Fatalf("upc = %q", got.UPC)
-		}
-		if got.Label != "EMI Catalogue" {
-			t.Fatalf("label = %q", got.Label)
-		}
-		if got.TrackCount != 17 {
-			t.Fatalf("track count = %d", got.TrackCount)
-		}
-		if len(got.Tracks) == 0 {
-			t.Fatalf("expected tracks")
-		}
-		if got.Tracks[0].ISRC != deezerComeTogetherISRC {
-			t.Fatalf("first track isrc = %q", got.Tracks[0].ISRC)
-		}
-		if got.Tracks[0].DurationMS != 258000 {
-			t.Fatalf("first track duration = %d", got.Tracks[0].DurationMS)
-		}
-		if got.Artists[0] != "The Beatles" {
-			t.Fatalf("artist = %q", got.Artists[0])
-		}
+		assert.Equal(t, "Abbey Road (Remastered)", got.Title)
+		assert.Equal(t, "602547670342", got.UPC)
+		assert.Equal(t, "EMI Catalogue", got.Label)
+		assert.Equal(t, 17, got.TrackCount)
+		require.NotEmpty(t, got.Tracks)
+		assert.Equal(t, deezerComeTogetherISRC, got.Tracks[0].ISRC)
+		assert.Equal(t, 258000, got.Tracks[0].DurationMS)
+		assert.Equal(t, "The Beatles", got.Artists[0])
 	})
 
 	t.Run("target search", func(t *testing.T) {
@@ -76,17 +58,13 @@ func TestAdapter(t *testing.T) {
 
 		t.Run("search by upc", func(t *testing.T) {
 			results, err := adapter.SearchByUPC(ctx, "602547670342")
-			if err != nil {
-				t.Fatalf("SearchByUPC error: %v", err)
-			}
+			require.NoError(t, err)
 			assertSingleCandidate(t, results)
 		})
 
 		t.Run("search by isrc", func(t *testing.T) {
 			results, err := adapter.SearchByISRC(ctx, []string{deezerComeTogetherISRC, "GBAYE0601691"})
-			if err != nil {
-				t.Fatalf("SearchByISRC error: %v", err)
-			}
+			require.NoError(t, err)
 			assertSingleCandidate(t, results)
 		})
 
@@ -95,40 +73,24 @@ func TestAdapter(t *testing.T) {
 				Title:   "Abbey Road (Remastered)",
 				Artists: []string{"The Beatles"},
 			})
-			if err != nil {
-				t.Fatalf("SearchByMetadata error: %v", err)
-			}
+			require.NoError(t, err)
 			assertSingleCandidate(t, results)
 		})
 
 		t.Run("song source and search", func(t *testing.T) {
 			song, err := adapter.FetchSong(ctx, model.ParsedAlbumURL{Service: model.ServiceDeezer, EntityType: "song", ID: "116348128", CanonicalURL: "https://www.deezer.com/track/116348128"})
-			if err != nil {
-				t.Fatalf("FetchSong error: %v", err)
-			}
-			if song.ISRC != deezerComeTogetherISRC {
-				t.Fatalf("song isrc = %q", song.ISRC)
-			}
-			if song.AlbumTitle != "Abbey Road (Remastered)" {
-				t.Fatalf("song album title = %q", song.AlbumTitle)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, deezerComeTogetherISRC, song.ISRC)
+			assert.Equal(t, "Abbey Road (Remastered)", song.AlbumTitle)
 
 			isrcResults, err := adapter.SearchSongByISRC(ctx, deezerComeTogetherISRC)
-			if err != nil {
-				t.Fatalf("SearchSongByISRC error: %v", err)
-			}
+			require.NoError(t, err)
 			assertSingleSongCandidate(t, isrcResults)
 
 			metadataResults, err := adapter.SearchSongByMetadata(ctx, model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
-			if err != nil {
-				t.Fatalf("SearchSongByMetadata error: %v", err)
-			}
-			if len(metadataResults) != 2 {
-				t.Fatalf("song metadata result count = %d, want 2", len(metadataResults))
-			}
-			if metadataResults[0].CandidateID != "116348128" {
-				t.Fatalf("first song candidate id = %q", metadataResults[0].CandidateID)
-			}
+			require.NoError(t, err)
+			require.Len(t, metadataResults, 2)
+			assert.Equal(t, "116348128", metadataResults[0].CandidateID)
 		})
 	})
 }
@@ -166,42 +128,24 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 
 func assertSingleCandidate(t *testing.T, results []model.CandidateAlbum) {
 	t.Helper()
-	if len(results) != 1 {
-		t.Fatalf("result count = %d, want 1", len(results))
-	}
-	if results[0].CandidateID != "12047952" {
-		t.Fatalf("candidate id = %q, want 12047952", results[0].CandidateID)
-	}
-	if results[0].MatchURL != "https://www.deezer.com/album/12047952" {
-		t.Fatalf("match url = %q", results[0].MatchURL)
-	}
-	if results[0].UPC != "602547670342" {
-		t.Fatalf("upc = %q", results[0].UPC)
-	}
+	require.Len(t, results, 1)
+	assert.Equal(t, "12047952", results[0].CandidateID)
+	assert.Equal(t, "https://www.deezer.com/album/12047952", results[0].MatchURL)
+	assert.Equal(t, "602547670342", results[0].UPC)
 }
 
 func assertSingleSongCandidate(t *testing.T, results []model.CandidateSong) {
 	t.Helper()
-	if len(results) != 1 {
-		t.Fatalf("result count = %d, want 1", len(results))
-	}
-	if results[0].CandidateID != "116348128" {
-		t.Fatalf("candidate id = %q, want 116348128", results[0].CandidateID)
-	}
-	if results[0].MatchURL != "https://www.deezer.com/track/116348128" {
-		t.Fatalf("match url = %q", results[0].MatchURL)
-	}
-	if results[0].ISRC != deezerComeTogetherISRC {
-		t.Fatalf("isrc = %q", results[0].ISRC)
-	}
+	require.Len(t, results, 1)
+	assert.Equal(t, "116348128", results[0].CandidateID)
+	assert.Equal(t, "https://www.deezer.com/track/116348128", results[0].MatchURL)
+	assert.Equal(t, deezerComeTogetherISRC, results[0].ISRC)
 }
 
 func mustReadTestFile(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
+	require.NoError(t, err)
 	return content
 }
