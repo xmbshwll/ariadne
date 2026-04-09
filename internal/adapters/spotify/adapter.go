@@ -33,10 +33,10 @@ var (
 
 	errUnexpectedSpotifyService     = errors.New("unexpected spotify service")
 	errUnexpectedSpotifyStatus      = errors.New("unexpected spotify status")
-	errSpotifyAlbumEntityNotFound   = errors.New("spotify album entity not found in bootstrap payload")
+	errSpotifyAlbumNotFound         = errors.New("spotify album not found")
 	errSpotifyTrackNotFound         = errors.New("spotify track not found")
-	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected api status")
-	errUnexpectedSpotifyTokenStatus = errors.New("unexpected token status")
+	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected spotify api status")
+	errUnexpectedSpotifyTokenStatus = errors.New("unexpected spotify token status")
 	errEmptySpotifyAccessToken      = errors.New("empty spotify access token")
 	errInitialStateScriptNotFound   = errors.New("initial state script not found")
 
@@ -425,7 +425,7 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 	entityKey := "spotify:album:" + parsed.ID
 	album, ok := payload.Entities.Items[entityKey]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", errSpotifyAlbumEntityNotFound, entityKey)
+		return nil, fmt.Errorf("%w: %s", errSpotifyAlbumNotFound, entityKey)
 	}
 
 	return toCanonicalAlbumBootstrap(parsed, album), nil

@@ -31,8 +31,8 @@ var (
 	errUnexpectedTIDALService     = errors.New("unexpected tidal service")
 	errTIDALAlbumNotFound         = errors.New("tidal album not found")
 	errTIDALTrackNotFound         = errors.New("tidal track not found")
-	errUnexpectedTIDALAPIStatus   = errors.New("unexpected api status")
-	errUnexpectedTIDALTokenStatus = errors.New("unexpected token status")
+	errUnexpectedTIDALAPIStatus   = errors.New("unexpected tidal api status")
+	errUnexpectedTIDALTokenStatus = errors.New("unexpected tidal token status")
 	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
 )
 
@@ -138,18 +138,9 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, fmt.Errorf("tidal search by upc: %w", err)
 	}
 	resources := documentData(document)
-	results := make([]model.CandidateAlbum, 0, min(len(resources), searchLimit))
-	for _, resource := range resources {
-		canonical, err := a.fetchAlbumByID(ctx, resource.ID, canonicalAlbumURL(resource.ID), "")
-		if err != nil {
-			return nil, fmt.Errorf("hydrate tidal album %s from upc: %w", resource.ID, err)
-		}
-		results = append(results, toCandidateAlbum(*canonical))
-		if len(results) >= searchLimit {
-			break
-		}
-	}
-	return results, nil
+	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), "", func(albumID string) string {
+		return fmt.Sprintf("hydrate tidal album %s from upc", albumID)
+	})
 }
 
 func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
@@ -169,20 +160,16 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 			return nil, fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
 		}
-		albumIDs := albumIDsFromTrackDocument(document)
-		for _, albumID := range albumIDs {
-			if _, ok := seen[albumID]; ok {
-				continue
-			}
-			seen[albumID] = struct{}{}
-			canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), "")
-			if err != nil {
-				return nil, fmt.Errorf("hydrate tidal album %s from isrc %s: %w", albumID, isrc, err)
-			}
-			results = append(results, toCandidateAlbum(*canonical))
-			if len(results) >= searchLimit {
-				return results, nil
-			}
+		albumIDs := uniqueStrings(albumIDsFromTrackDocument(document), seen)
+		hydrated, err := a.hydrateAlbumCandidates(ctx, albumIDs, "", func(albumID string) string {
+			return fmt.Sprintf("hydrate tidal album %s from isrc %s", albumID, isrc)
+		})
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, hydrated...)
+		if len(results) >= searchLimit {
+			return results[:searchLimit], nil
 		}
 	}
 	return results, nil
@@ -203,18 +190,9 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("tidal search by metadata: %w", err)
 	}
 	resources := documentData(document)
-	results := make([]model.CandidateAlbum, 0, min(len(resources), searchLimit))
-	for _, resource := range resources {
-		canonical, err := a.fetchAlbumByID(ctx, resource.ID, canonicalAlbumURL(resource.ID), album.RegionHint)
-		if err != nil {
-			return nil, fmt.Errorf("hydrate tidal album %s from metadata: %w", resource.ID, err)
-		}
-		results = append(results, toCandidateAlbum(*canonical))
-		if len(results) >= searchLimit {
-			break
-		}
-	}
-	return results, nil
+	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), album.RegionHint, func(albumID string) string {
+		return fmt.Sprintf("hydrate tidal album %s from metadata", albumID)
+	})
 }
 
 func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
@@ -239,18 +217,9 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		return nil, fmt.Errorf("tidal song search by isrc %s: %w", isrc, err)
 	}
 	resources := documentData(document)
-	results := make([]model.CandidateSong, 0, min(len(resources), searchLimit))
-	for _, resource := range resources {
-		canonical, err := a.fetchSongByID(ctx, resource.ID, canonicalTrackURL(resource.ID), "")
-		if err != nil {
-			return nil, fmt.Errorf("hydrate tidal song %s from isrc: %w", resource.ID, err)
-		}
-		results = append(results, toCandidateSong(*canonical))
-		if len(results) >= searchLimit {
-			break
-		}
-	}
-	return results, nil
+	return a.hydrateSongCandidates(ctx, resourceIDs(resources), "", func(songID string) string {
+		return fmt.Sprintf("hydrate tidal song %s from isrc", songID)
+	})
 }
 
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
@@ -268,18 +237,62 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("tidal song search by metadata: %w", err)
 	}
 	resources := documentData(document)
-	results := make([]model.CandidateSong, 0, min(len(resources), searchLimit))
-	for _, resource := range resources {
-		canonical, err := a.fetchSongByID(ctx, resource.ID, canonicalTrackURL(resource.ID), song.RegionHint)
+	return a.hydrateSongCandidates(ctx, resourceIDs(resources), song.RegionHint, func(songID string) string {
+		return fmt.Sprintf("hydrate tidal song %s from metadata", songID)
+	})
+}
+
+func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
+	results := make([]model.CandidateAlbum, 0, min(len(albumIDs), searchLimit))
+	for _, albumID := range albumIDs {
+		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
-			return nil, fmt.Errorf("hydrate tidal song %s from metadata: %w", resource.ID, err)
+			return nil, fmt.Errorf("%s: %w", errorMessage(albumID), err)
 		}
-		results = append(results, toCandidateSong(*canonical))
+		results = append(results, toCandidateAlbum(*canonical))
 		if len(results) >= searchLimit {
-			break
+			return results, nil
 		}
 	}
 	return results, nil
+}
+
+func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
+	results := make([]model.CandidateSong, 0, min(len(songIDs), searchLimit))
+	for _, songID := range songIDs {
+		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", errorMessage(songID), err)
+		}
+		results = append(results, toCandidateSong(*canonical))
+		if len(results) >= searchLimit {
+			return results, nil
+		}
+	}
+	return results, nil
+}
+
+func resourceIDs(resources []apiResource) []string {
+	ids := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		if resource.ID == "" {
+			continue
+		}
+		ids = append(ids, resource.ID)
+	}
+	return ids
+}
+
+func uniqueStrings(values []string, seen map[string]struct{}) []string {
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalURL string, regionHint string) (*model.CanonicalAlbum, error) {
@@ -580,17 +593,14 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 }
 
 func includedArtistNames(included []apiResource, relations []relationshipData) []string {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
-	}
+	resourceByID := includedResourceIndex(included)
 	results := make([]string, 0, len(relations))
 	seen := make(map[string]struct{}, len(relations))
 	for _, relation := range relations {
 		if relation.Type != "artists" {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
@@ -608,15 +618,12 @@ func includedArtistNames(included []apiResource, relations []relationshipData) [
 }
 
 func firstRelatedResource(included []apiResource, relations []relationshipData, typ string) *apiResource {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
-	}
+	resourceByID := includedResourceIndex(included)
 	for _, relation := range relations {
 		if relation.Type != typ {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
@@ -654,16 +661,13 @@ func firstTrackVolumeNumber(relations []relationshipData) int {
 }
 
 func tracksFromIncluded(included []apiResource, relations []relationshipData, fallbackArtists []string) []model.CanonicalTrack {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
-	}
+	resourceByID := includedResourceIndex(included)
 	tracks := make([]model.CanonicalTrack, 0, len(relations))
 	for _, relation := range relations {
 		if relation.Type != "tracks" {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
@@ -685,15 +689,12 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 }
 
 func artworkURLFromIncluded(included []apiResource, relations []relationshipData) string {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
-	}
+	resourceByID := includedResourceIndex(included)
 	for _, relation := range relations {
 		if relation.Type != "artworks" {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
@@ -708,6 +709,22 @@ func artworkURLFromIncluded(included []apiResource, relations []relationshipData
 		}
 	}
 	return ""
+}
+
+func includedResourceIndex(included []apiResource) map[string]apiResource {
+	resourceByID := make(map[string]apiResource, len(included))
+	for _, resource := range included {
+		resourceByID[includedResourceKey(resource.Type, resource.ID)] = resource
+	}
+	return resourceByID
+}
+
+func includedResourceKey(resourceType string, resourceID string) string {
+	return resourceType + ":" + resourceID
+}
+
+func includedRelationKey(relation relationshipData) string {
+	return includedResourceKey(relation.Type, relation.ID)
 }
 
 func parseISODurationMilliseconds(value string) int {

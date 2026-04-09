@@ -25,6 +25,7 @@ const (
 var (
 	errUnexpectedDeezerService = errors.New("unexpected deezer service")
 	errUnexpectedDeezerStatus  = errors.New("unexpected deezer status")
+	errDeezerAlbumNotFound     = errors.New("deezer album not found")
 	errDeezerTrackNotFound     = errors.New("deezer track not found")
 )
 
@@ -111,16 +112,17 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		if track.Album.ID == 0 {
 			continue
 		}
-		if _, ok := seenAlbumIDs[track.Album.ID]; ok {
+		albumID := track.Album.ID
+		if _, ok := seenAlbumIDs[albumID]; ok {
 			continue
 		}
-		seenAlbumIDs[track.Album.ID] = struct{}{}
+		seenAlbumIDs[albumID] = struct{}{}
 
-		canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(track.Album.ID))
+		candidate, err := a.hydrateAlbumCandidate(ctx, albumID)
 		if err != nil {
-			return nil, fmt.Errorf("hydrate deezer album %d from isrc %s: %w", track.Album.ID, isrc, err)
+			return nil, fmt.Errorf("hydrate deezer album %d from isrc %s: %w", albumID, isrc, err)
 		}
-		results = append(results, toCandidateAlbum(*canonical))
+		results = append(results, candidate)
 		if len(results) >= identifierSearchLimit {
 			break
 		}
@@ -144,11 +146,11 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 
 	results := make([]model.CandidateAlbum, 0, min(len(searchResults.Data), metadataSearchLimit))
 	for _, candidate := range searchResults.Data {
-		canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(candidate.ID))
+		hydrated, err := a.hydrateAlbumCandidate(ctx, candidate.ID)
 		if err != nil {
 			return nil, fmt.Errorf("hydrate deezer candidate %d: %w", candidate.ID, err)
 		}
-		results = append(results, toCandidateAlbum(*canonical))
+		results = append(results, hydrated)
 		if len(results) >= metadataSearchLimit {
 			break
 		}
@@ -197,17 +199,33 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 
 	results := make([]model.CandidateSong, 0, min(len(searchResults.Data), metadataSearchLimit))
 	for _, candidate := range searchResults.Data {
-		canonical, err := a.fetchSongByID(ctx, strconv.Itoa(candidate.ID))
+		hydrated, err := a.hydrateSongCandidate(ctx, candidate.ID)
 		if err != nil {
 			return nil, fmt.Errorf("hydrate deezer song candidate %d: %w", candidate.ID, err)
 		}
-		results = append(results, toCandidateSong(*canonical))
+		results = append(results, hydrated)
 		if len(results) >= metadataSearchLimit {
 			break
 		}
 	}
 
 	return results, nil
+}
+
+func (a *Adapter) hydrateAlbumCandidate(ctx context.Context, albumID int) (model.CandidateAlbum, error) {
+	canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(albumID))
+	if err != nil {
+		return model.CandidateAlbum{}, err
+	}
+	return toCandidateAlbum(*canonical), nil
+}
+
+func (a *Adapter) hydrateSongCandidate(ctx context.Context, trackID int) (model.CandidateSong, error) {
+	canonical, err := a.fetchSongByID(ctx, strconv.Itoa(trackID))
+	if err != nil {
+		return model.CandidateSong{}, err
+	}
+	return toCandidateSong(*canonical), nil
 }
 
 func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string) (*model.CanonicalAlbum, error) {
@@ -245,6 +263,10 @@ func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parse
 	var album albumResponse
 	if err := a.getJSON(ctx, endpoint, &album); err != nil {
 		return nil, err
+	}
+
+	if album.ID == 0 || album.TracklistURL == "" {
+		return nil, errDeezerAlbumNotFound
 	}
 
 	var tracks tracksResponse

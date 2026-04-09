@@ -29,13 +29,14 @@ const (
 var (
 	errUnexpectedAppleMusicService = errors.New("unexpected apple music service")
 	errAppleMusicAlbumNotFound     = errors.New("apple music album not found")
+	errAppleMusicSongNotFound      = errors.New("apple music song not found")
 	errUnexpectedAppleMusicStatus  = errors.New("unexpected apple music status")
 
 	errUnexpectedAppleMusicOfficialStatus = errors.New("unexpected apple music official status")
 	errAppleMusicOfficialAlbumNotFound    = errors.New("apple music official album not found")
 
 	// ErrCredentialsNotConfigured indicates that an Apple Music official API operation requires developer token credentials.
-	ErrCredentialsNotConfigured = errors.New("apple music official auth not configured")
+	ErrCredentialsNotConfigured = errors.New("apple music credentials not configured")
 )
 
 // Option configures the Apple Music adapter.
@@ -322,7 +323,7 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 		return nil, err
 	}
 	if len(payload.Results) == 0 {
-		return nil, fmt.Errorf("%w: %s", errAppleMusicAlbumNotFound, songID)
+		return nil, fmt.Errorf("%w: %s", errAppleMusicSongNotFound, songID)
 	}
 
 	parsed := model.ParsedAlbumURL{

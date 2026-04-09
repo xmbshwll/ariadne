@@ -114,14 +114,13 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 }
 
 func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.ParsedAlbumURL, error) {
-	for _, source := range r.sources {
-		parsed, err := source.ParseSongURL(inputURL)
-		if err != nil || parsed == nil {
-			continue
-		}
-		return source, parsed, nil
-	}
-	return nil, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
+	return parseSourceAdapter(
+		r.sources,
+		inputURL,
+		func(source SongSourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
+			return source.ParseSongURL(raw)
+		},
+	)
 }
 
 func (r *SongResolver) collectCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {

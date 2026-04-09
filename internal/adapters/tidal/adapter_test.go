@@ -215,6 +215,29 @@ func TestAdapter(t *testing.T) {
 	}
 }
 
+func TestIncludedResourceLookupsUseTypeAndID(t *testing.T) {
+	included := []apiResource{
+		{ID: "shared", Type: "albums", Attributes: resourceAttributes{Title: "Album Resource"}},
+		{ID: "shared", Type: "artists", Attributes: resourceAttributes{Name: "Artist Resource"}},
+		{ID: "shared", Type: "artworks", Attributes: resourceAttributes{Files: []resourceFile{{Href: "https://resources.tidal.test/shared.jpg", Meta: fileMeta{Width: 1280, Height: 1280}}}}},
+	}
+
+	artistNames := includedArtistNames(included, []relationshipData{{ID: "shared", Type: "artists"}})
+	if len(artistNames) != 1 || artistNames[0] != "Artist Resource" {
+		t.Fatalf("artist names = %#v, want artist resource", artistNames)
+	}
+
+	album := firstRelatedResource(included, []relationshipData{{ID: "shared", Type: "albums"}}, "albums")
+	if album == nil || album.Attributes.Title != "Album Resource" {
+		t.Fatalf("album = %#v, want album resource", album)
+	}
+
+	artworkURL := artworkURLFromIncluded(included, []relationshipData{{ID: "shared", Type: "artworks"}})
+	if artworkURL != "https://resources.tidal.test/shared.jpg" {
+		t.Fatalf("artwork url = %q, want shared artwork", artworkURL)
+	}
+}
+
 func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 	adapter := New(nil)
 
