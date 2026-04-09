@@ -471,6 +471,7 @@ func toCanonicalSong(parsed model.ParsedAlbumURL, items []lookupItem) *model.Can
 		Artists:                artists,
 		NormalizedArtists:      normalize.Artists(artists),
 		DurationMS:             track.TrackTimeMillis,
+		ISRC:                   firstNonEmpty(track.TrackISRC, track.ISRC),
 		Explicit:               track.TrackExplicitness == explicitTrack,
 		DiscNumber:             track.DiscNumber,
 		TrackNumber:            track.TrackNumber,

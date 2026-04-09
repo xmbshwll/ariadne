@@ -432,6 +432,64 @@ func TestFilterResolutionByStrength(t *testing.T) {
 	}
 }
 
+func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
+	resolution := ariadne.SongResolution{
+		Source: ariadne.CanonicalSong{Service: ariadne.ServiceSpotify, SourceURL: "https://open.spotify.com/track/source"},
+		Matches: map[ariadne.ServiceName]ariadne.SongMatchResult{
+			ariadne.ServiceAppleMusic: {
+				Best: &ariadne.SongScoredMatch{URL: "https://music.apple.com/us/album/best?i=1", Score: 115},
+				Alternates: []ariadne.SongScoredMatch{
+					{URL: "https://music.apple.com/us/album/weak?i=2", Score: 45},
+					{URL: "https://music.apple.com/us/album/strong?i=3", Score: 90},
+				},
+			},
+			ariadne.ServiceDeezer: {
+				Best: &ariadne.SongScoredMatch{URL: "https://www.deezer.com/track/too-weak", Score: 40},
+				Alternates: []ariadne.SongScoredMatch{
+					{URL: "https://www.deezer.com/track/alternate", Score: 82},
+				},
+			},
+		},
+	}
+
+	filtered := filterSongResolutionByStrength(resolution, ariadne.MatchStrengthProbable)
+
+	appleMusic, ok := filtered.Matches[ariadne.ServiceAppleMusic]
+	if !ok {
+		t.Fatalf("expected appleMusic to remain")
+	}
+	if appleMusic.Best == nil {
+		t.Fatalf("expected appleMusic best match")
+	}
+	if len(appleMusic.Alternates) != 1 {
+		t.Fatalf("appleMusic alternates len = %d, want 1", len(appleMusic.Alternates))
+	}
+	if appleMusic.Alternates[0].URL != "https://music.apple.com/us/album/strong?i=3" {
+		t.Fatalf("alternate url = %q", appleMusic.Alternates[0].URL)
+	}
+
+	deezer, ok := filtered.Matches[ariadne.ServiceDeezer]
+	if !ok {
+		t.Fatalf("expected deezer alternate-only match to remain")
+	}
+	if deezer.Best != nil {
+		t.Fatalf("expected deezer best to be pruned")
+	}
+	if len(deezer.Alternates) != 1 {
+		t.Fatalf("deezer alternates len = %d, want 1", len(deezer.Alternates))
+	}
+
+	if resolution.Matches[ariadne.ServiceAppleMusic].Best == nil {
+		t.Fatalf("expected original appleMusic best to remain intact")
+	}
+	if len(resolution.Matches[ariadne.ServiceAppleMusic].Alternates) != 2 {
+		t.Fatalf("original alternates len = %d, want 2", len(resolution.Matches[ariadne.ServiceAppleMusic].Alternates))
+	}
+	if resolution.Matches[ariadne.ServiceDeezer].Best == nil {
+		t.Fatalf("expected original deezer best to remain intact")
+	}
+}
+
 func TestRunResolveFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
@@ -1016,6 +1074,11 @@ func TestParseResolveArgs(t *testing.T) {
 			name:            "unsupported service",
 			args:            []string{"--services=amazonMusic", "https://www.deezer.com/album/12047952"},
 			wantErrContains: "amazonMusic is not available as a target service",
+		},
+		{
+			name:            "unsupported song target service",
+			args:            []string{"--song", "--services=youtubeMusic", "https://open.spotify.com/track/123"},
+			wantErrContains: "target service is not available for song resolution \"youtubeMusic\"",
 		},
 		{
 			name:            "min strength",

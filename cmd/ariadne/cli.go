@@ -121,6 +121,7 @@ var (
 	errNoTargetServicesSelected  = errors.New("no target services selected")
 	errAmazonMusicTargetService  = errors.New("amazonMusic is not available as a target service")
 	errUnsupportedTargetService  = errors.New("unsupported target service")
+	errUnsupportedSongService    = errors.New("target service is not available for song resolution")
 	errSpotifyTargetCredentials  = errors.New("spotify target search requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET")
 	errTIDALTargetCredentials    = errors.New("tidal target search requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET")
 	errUnsupportedMinStrength    = errors.New("unsupported min-strength")
@@ -238,6 +239,9 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 			config.inputURL = args[0]
 			normalized, err := normalizeResolveConfig(config)
 			if err != nil {
+				return err
+			}
+			if err := validateResolveConfig(normalized); err != nil {
 				return err
 			}
 			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeFromConfig(normalized))
@@ -385,7 +389,15 @@ func parseResolveArgs(args []string, baseConfig ariadne.Config) (resolveConfig, 
 		return resolveConfig{}, errResolveUsage
 	}
 	config.inputURL = remaining[0]
-	return normalizeResolveConfig(config)
+
+	normalized, err := normalizeResolveConfig(config)
+	if err != nil {
+		return resolveConfig{}, err
+	}
+	if err := validateResolveConfig(normalized); err != nil {
+		return resolveConfig{}, err
+	}
+	return normalized, nil
 }
 
 func normalizeResolveConfig(config resolveConfig) (resolveConfig, error) {
@@ -411,6 +423,38 @@ func normalizeResolveConfig(config resolveConfig) (resolveConfig, error) {
 	}
 	config.minStrength = strength
 	return config, nil
+}
+
+func validateResolveConfig(config resolveConfig) error {
+	if resolveModeFromConfig(config) != resolveModeSong {
+		return nil
+	}
+
+	for _, service := range config.resolverConfig.TargetServices {
+		if isSupportedSongTargetService(service) {
+			continue
+		}
+		return fmt.Errorf(
+			"%w %q (supported for songs: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal)",
+			errUnsupportedSongService,
+			service,
+		)
+	}
+	return nil
+}
+
+func isSupportedSongTargetService(service ariadne.ServiceName) bool {
+	switch service {
+	case ariadne.ServiceAppleMusic,
+		ariadne.ServiceBandcamp,
+		ariadne.ServiceDeezer,
+		ariadne.ServiceSoundCloud,
+		ariadne.ServiceSpotify,
+		ariadne.ServiceTIDAL:
+		return true
+	default:
+		return false
+	}
 }
 
 func runResolve(args []string, stdout io.Writer) error {
@@ -1035,16 +1079,31 @@ func filterSongResolutionByStrength(resolution ariadne.SongResolution, minStreng
 	if minStrength == ariadne.MatchStrengthVeryWeak {
 		return resolution
 	}
+
 	filtered := resolution
 	filtered.Matches = make(map[ariadne.ServiceName]ariadne.SongMatchResult, len(resolution.Matches))
 	for service, match := range resolution.Matches {
-		if match.Best == nil {
+		pruned := match
+		pruned.Alternates = make([]ariadne.SongScoredMatch, 0, len(match.Alternates))
+		for _, alternate := range match.Alternates {
+			if !meetsMinimumStrength(alternate.Score, minStrength) {
+				continue
+			}
+			pruned.Alternates = append(pruned.Alternates, alternate)
+		}
+
+		if match.Best != nil && meetsMinimumStrength(match.Best.Score, minStrength) {
+			best := *match.Best
+			pruned.Best = &best
+			filtered.Matches[service] = pruned
 			continue
 		}
-		if !meetsMinimumStrength(match.Best.Score, minStrength) {
+
+		pruned.Best = nil
+		if len(pruned.Alternates) == 0 {
 			continue
 		}
-		filtered.Matches[service] = match
+		filtered.Matches[service] = pruned
 	}
 	return filtered
 }

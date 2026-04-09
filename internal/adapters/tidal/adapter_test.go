@@ -69,7 +69,7 @@ func TestAdapter(t *testing.T) {
 			},
 			Included: []apiResource{
 				{ID: "4152940", Type: "artists", Attributes: resourceAttributes{Name: "Fetch"}},
-				{ID: "156205493", Type: "albums", Attributes: resourceAttributes{Title: "Shadows among trees", ReleaseDate: "2020-10-02"}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "4152940", Type: "artists"}}}, CoverArt: relationship{Data: []relationshipData{{ID: "art-1", Type: "artworks"}}}}},
+				{ID: "156205493", Type: "albums", Attributes: resourceAttributes{Title: "Shadows among trees", ReleaseDate: "2020-09-01"}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "4152940", Type: "artists"}}}, CoverArt: relationship{Data: []relationshipData{{ID: "art-1", Type: "artworks"}}}}},
 				{ID: "art-1", Type: "artworks", Attributes: resourceAttributes{Files: []resourceFile{{Href: "https://resources.tidal.test/1280.jpg", Meta: fileMeta{Width: 1280, Height: 1280}}}}},
 			},
 		})
@@ -180,6 +180,9 @@ func TestAdapter(t *testing.T) {
 	}
 	if song.AlbumTitle != "Shadows among trees" {
 		t.Fatalf("song album title = %q", song.AlbumTitle)
+	}
+	if song.ReleaseDate != "2020-10-02" {
+		t.Fatalf("song release date = %q, want 2020-10-02", song.ReleaseDate)
 	}
 
 	songISRCResults, err := adapter.SearchSongByISRC(context.Background(), tidalTrackISRC)

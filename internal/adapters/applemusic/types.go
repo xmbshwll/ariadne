@@ -20,6 +20,8 @@ type lookupItem struct {
 	DiscNumber             int    `json:"discNumber"`
 	TrackNumber            int    `json:"trackNumber"`
 	TrackTimeMillis        int    `json:"trackTimeMillis"`
+	TrackISRC              string `json:"trackIsrc"`
+	ISRC                   string `json:"isrc"`
 	ReleaseDate            string `json:"releaseDate"`
 	ArtworkURL60           string `json:"artworkUrl60"`
 	ArtworkURL100          string `json:"artworkUrl100"`

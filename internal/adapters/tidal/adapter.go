@@ -538,14 +538,16 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	albumNormalizedTitle := ""
 	albumArtists := []string{}
 	albumNormalizedArtists := []string{}
-	releaseDate := ""
+	releaseDate := resource.Attributes.ReleaseDate
 	artworkURL := ""
 	if albumResource != nil {
 		albumTitle = albumResource.Attributes.Title
 		albumNormalizedTitle = normalize.Text(albumTitle)
 		albumArtists = includedArtistNames(included, albumResource.Relationships.Artists.Data)
 		albumNormalizedArtists = normalize.Artists(albumArtists)
-		releaseDate = albumResource.Attributes.ReleaseDate
+		if releaseDate == "" {
+			releaseDate = albumResource.Attributes.ReleaseDate
+		}
 		artworkURL = artworkURLFromIncluded(included, albumResource.Relationships.CoverArt.Data)
 	}
 	if canonicalURL == "" {
