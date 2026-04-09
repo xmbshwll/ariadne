@@ -28,22 +28,27 @@ type albumSearchResponse struct {
 }
 
 type trackLookupResponse struct {
-	ID       int            `json:"id"`
-	Title    string         `json:"title"`
-	ISRC     string         `json:"isrc"`
-	Album    albumLookupRef `json:"album"`
-	Artist   artistRef      `json:"artist"`
-	Duration int            `json:"duration"`
+	ID             int            `json:"id"`
+	Title          string         `json:"title"`
+	Link           string         `json:"link"`
+	ISRC           string         `json:"isrc"`
+	Album          albumLookupRef `json:"album"`
+	Artist         artistRef      `json:"artist"`
+	Duration       int            `json:"duration"`
+	TrackPosition  int            `json:"track_position"`
+	DiskNumber     int            `json:"disk_number"`
+	ExplicitLyrics bool           `json:"explicit_lyrics"`
 }
 
 type trackResponse struct {
-	ID            int       `json:"id"`
-	Title         string    `json:"title"`
-	Duration      int       `json:"duration"`
-	TrackPosition int       `json:"track_position"`
-	DiskNumber    int       `json:"disk_number"`
-	ISRC          string    `json:"isrc"`
-	Artist        artistRef `json:"artist"`
+	ID             int       `json:"id"`
+	Title          string    `json:"title"`
+	Duration       int       `json:"duration"`
+	TrackPosition  int       `json:"track_position"`
+	DiskNumber     int       `json:"disk_number"`
+	ISRC           string    `json:"isrc"`
+	Artist         artistRef `json:"artist"`
+	ExplicitLyrics bool      `json:"explicit_lyrics"`
 }
 
 type albumLookupRef struct {
@@ -51,6 +56,11 @@ type albumLookupRef struct {
 	Title        string `json:"title"`
 	Link         string `json:"link"`
 	TracklistURL string `json:"tracklist"`
+	Cover        string `json:"cover"`
+	CoverMedium  string `json:"cover_medium"`
+	CoverBig     string `json:"cover_big"`
+	CoverXL      string `json:"cover_xl"`
+	ReleaseDate  string `json:"release_date"`
 }
 
 type artistRef struct {

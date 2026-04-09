@@ -98,6 +98,36 @@ func TestAdapter(t *testing.T) {
 			}
 			assertSingleCandidate(t, results)
 		})
+
+		t.Run("song source and search", func(t *testing.T) {
+			song, err := adapter.FetchSong(ctx, model.ParsedAlbumURL{Service: model.ServiceDeezer, EntityType: "song", ID: "116348128", CanonicalURL: "https://www.deezer.com/track/116348128"})
+			if err != nil {
+				t.Fatalf("FetchSong error: %v", err)
+			}
+			if song.ISRC != "GBAYE0601690" {
+				t.Fatalf("song isrc = %q", song.ISRC)
+			}
+			if song.AlbumTitle != "Abbey Road (Remastered)" {
+				t.Fatalf("song album title = %q", song.AlbumTitle)
+			}
+
+			isrcResults, err := adapter.SearchSongByISRC(ctx, "GBAYE0601690")
+			if err != nil {
+				t.Fatalf("SearchSongByISRC error: %v", err)
+			}
+			assertSingleSongCandidate(t, isrcResults)
+
+			metadataResults, err := adapter.SearchSongByMetadata(ctx, model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
+			if err != nil {
+				t.Fatalf("SearchSongByMetadata error: %v", err)
+			}
+			if len(metadataResults) != 2 {
+				t.Fatalf("song metadata result count = %d, want 2", len(metadataResults))
+			}
+			if metadataResults[0].CandidateID != "116348128" {
+				t.Fatalf("first song candidate id = %q", metadataResults[0].CandidateID)
+			}
+		})
 	})
 }
 
@@ -116,10 +146,16 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 			_, _ = w.Write(trackBytes)
 		case "/search/album":
 			_, _ = w.Write(searchBytes)
+		case "/search/track":
+			_, _ = w.Write([]byte(`{"data":[{"id":116348128,"title":"Come Together (Remastered 2009)"},{"id":999999,"title":"Come Together"}]}`))
+		case "/track/116348128":
+			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`))
+		case "/track/999999":
+			_, _ = w.Write([]byte(`{"id":999999,"title":"Come Together","link":"https://www.deezer.com/track/999999","isrc":"OTHER0001","album":{"id":555,"title":"Abbey Road Live","link":"https://www.deezer.com/album/555","release_date":"2020-01-01"},"artist":{"id":2,"name":"Tribute Band"},"duration":200,"track_position":8,"disk_number":1,"explicit_lyrics":false}`))
 		case "/track/isrc:GBAYE0601690":
-			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952"}}`))
+			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`))
 		case "/track/isrc:GBAYE0601691":
-			_, _ = w.Write([]byte(`{"id":116348454,"title":"Something (Remastered 2009)","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952"}}`))
+			_, _ = w.Write([]byte(`{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -139,6 +175,22 @@ func assertSingleCandidate(t *testing.T, results []model.CandidateAlbum) {
 	}
 	if results[0].UPC != "602547670342" {
 		t.Fatalf("upc = %q", results[0].UPC)
+	}
+}
+
+func assertSingleSongCandidate(t *testing.T, results []model.CandidateSong) {
+	t.Helper()
+	if len(results) != 1 {
+		t.Fatalf("result count = %d, want 1", len(results))
+	}
+	if results[0].CandidateID != "116348128" {
+		t.Fatalf("candidate id = %q, want 116348128", results[0].CandidateID)
+	}
+	if results[0].MatchURL != "https://www.deezer.com/track/116348128" {
+		t.Fatalf("match url = %q", results[0].MatchURL)
+	}
+	if results[0].ISRC != "GBAYE0601690" {
+		t.Fatalf("isrc = %q", results[0].ISRC)
 	}
 }
 

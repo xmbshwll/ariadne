@@ -10,6 +10,15 @@ import (
 
 // DeezerAlbumURL parses a Deezer album URL into the shared parsed representation.
 func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	return deezerEntityURL(raw, albumPathSegment, "album", errDeezerNotAlbumURL, errMissingDeezerAlbumID)
+}
+
+// DeezerSongURL parses a Deezer track URL into the shared parsed representation.
+func DeezerSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	return deezerEntityURL(raw, "track", "song", errDeezerNotSongURL, errMissingDeezerTrackID)
+}
+
+func deezerEntityURL(raw string, pathSegment string, entityType string, notEntityErr error, missingIDErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse deezer url: %w", err)
@@ -32,20 +41,20 @@ func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		index++
 	}
 
-	if len(segments[index:]) < 2 || segments[index] != albumPathSegment {
-		return nil, fmt.Errorf("%w: %s", errDeezerNotAlbumURL, raw)
+	if len(segments[index:]) < 2 || segments[index] != pathSegment {
+		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}
 
 	id := segments[index+1]
 	if id == "" {
-		return nil, errMissingDeezerAlbumID
+		return nil, missingIDErr
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
-		EntityType:   "album",
+		EntityType:   entityType,
 		ID:           id,
-		CanonicalURL: "https://www.deezer.com/" + albumPathSegment + "/" + id,
+		CanonicalURL: "https://www.deezer.com/" + pathSegment + "/" + id,
 		RegionHint:   regionHint,
 		RawURL:       raw,
 	}, nil

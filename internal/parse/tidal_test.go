@@ -67,3 +67,63 @@ func TestTIDALAlbumURL(t *testing.T) {
 		})
 	}
 }
+
+func TestTIDALSongURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		wantID  string
+		wantURL string
+		wantErr bool
+	}{
+		{
+			name:    "canonical track url",
+			raw:     "https://tidal.com/track/156205494",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "browse track url",
+			raw:     "https://tidal.com/browse/track/156205494",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "listen host",
+			raw:     "https://listen.tidal.com/track/156205494",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "wrong resource type",
+			raw:     "https://tidal.com/album/156205493",
+			wantErr: true,
+		},
+		{
+			name:    "wrong host",
+			raw:     "https://example.com/track/156205494",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := TIDALSongURL(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.ID != tt.wantID {
+				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
+			}
+			if got.CanonicalURL != tt.wantURL {
+				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
+			}
+		})
+	}
+}

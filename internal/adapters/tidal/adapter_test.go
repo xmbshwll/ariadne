@@ -48,6 +48,53 @@ func TestAdapter(t *testing.T) {
 			},
 		})
 	})
+	mux.HandleFunc("/tracks/156205494", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, apiDocument{
+			Data: apiResource{
+				ID:   "156205494",
+				Type: "tracks",
+				Attributes: resourceAttributes{
+					Title:       "Kings of mist",
+					Duration:    "PT6M30S",
+					ISRC:        "QZMHK2043414",
+					Explicit:    false,
+					ReleaseDate: "2020-10-02",
+				},
+				Relationships: resourceRelationships{
+					Artists: relationship{Data: []relationshipData{{ID: "4152940", Type: "artists"}}},
+					Albums:  relationship{Data: []relationshipData{{ID: "156205493", Type: "albums", Meta: relationshipMeta{TrackNumber: 1, VolumeNumber: 1}}}},
+				},
+			},
+			Included: []apiResource{
+				{ID: "4152940", Type: "artists", Attributes: resourceAttributes{Name: "Fetch"}},
+				{ID: "156205493", Type: "albums", Attributes: resourceAttributes{Title: "Shadows among trees", ReleaseDate: "2020-10-02"}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "4152940", Type: "artists"}}}, CoverArt: relationship{Data: []relationshipData{{ID: "art-1", Type: "artworks"}}}}},
+				{ID: "art-1", Type: "artworks", Attributes: resourceAttributes{Files: []resourceFile{{Href: "https://resources.tidal.test/1280.jpg", Meta: fileMeta{Width: 1280, Height: 1280}}}}},
+			},
+		})
+	})
+	mux.HandleFunc("/tracks/156205495", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, apiDocument{
+			Data: apiResource{
+				ID:   "156205495",
+				Type: "tracks",
+				Attributes: resourceAttributes{
+					Title:       "Kings of mist (Live)",
+					Duration:    "PT7M10S",
+					ISRC:        "OTHER0001",
+					Explicit:    false,
+					ReleaseDate: "2021-01-01",
+				},
+				Relationships: resourceRelationships{
+					Artists: relationship{Data: []relationshipData{{ID: "999", Type: "artists"}}},
+					Albums:  relationship{Data: []relationshipData{{ID: "9999", Type: "albums", Meta: relationshipMeta{TrackNumber: 8, VolumeNumber: 1}}}},
+				},
+			},
+			Included: []apiResource{
+				{ID: "999", Type: "artists", Attributes: resourceAttributes{Name: "Tribute Band"}},
+				{ID: "9999", Type: "albums", Attributes: resourceAttributes{Title: "Shadows among trees Live", ReleaseDate: "2021-01-01"}},
+			},
+		})
+	})
 	mux.HandleFunc("/albums", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("filter[barcodeId]") != "053000502692" {
 			http.NotFound(w, r)
@@ -60,17 +107,17 @@ func TestAdapter(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		writeJSON(t, w, apiDocument{
-			Data:     []apiResource{{ID: "156205494", Type: "tracks"}},
-			Included: []apiResource{{ID: "156205493", Type: "albums"}},
-		})
+		writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
 	})
 	mux.HandleFunc("/searchResults/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/searchResults/Shadows among trees Fetch/relationships/albums" && r.URL.Path != "/searchResults/Shadows%20among%20trees%20Fetch/relationships/albums" {
+		switch r.URL.Path {
+		case "/searchResults/Shadows among trees Fetch/relationships/albums", "/searchResults/Shadows%20among%20trees%20Fetch/relationships/albums":
+			writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
+		case "/searchResults/Kings of mist Fetch/relationships/tracks", "/searchResults/Kings%20of%20mist%20Fetch/relationships/tracks":
+			writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks"}, {ID: "156205495", Type: "tracks"}}})
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
 	})
 
 	server := httptest.NewServer(mux)
@@ -121,6 +168,34 @@ func TestAdapter(t *testing.T) {
 		t.Fatalf("SearchByMetadata error: %v", err)
 	}
 	assertSingleAlbum(t, metadataResults, "156205493")
+
+	song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
+	if err != nil {
+		t.Fatalf("FetchSong error: %v", err)
+	}
+	if song.ISRC != "QZMHK2043414" {
+		t.Fatalf("song isrc = %q", song.ISRC)
+	}
+	if song.AlbumTitle != "Shadows among trees" {
+		t.Fatalf("song album title = %q", song.AlbumTitle)
+	}
+
+	songISRCResults, err := adapter.SearchSongByISRC(context.Background(), "QZMHK2043414")
+	if err != nil {
+		t.Fatalf("SearchSongByISRC error: %v", err)
+	}
+	assertSingleSong(t, songISRCResults, "156205494")
+
+	songMetadataResults, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Kings of mist", Artists: []string{"Fetch"}})
+	if err != nil {
+		t.Fatalf("SearchSongByMetadata error: %v", err)
+	}
+	if len(songMetadataResults) != 2 {
+		t.Fatalf("song metadata result count = %d, want 2", len(songMetadataResults))
+	}
+	if songMetadataResults[0].CandidateID != "156205494" {
+		t.Fatalf("first song candidate id = %q", songMetadataResults[0].CandidateID)
+	}
 }
 
 func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
@@ -129,12 +204,31 @@ func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 	if _, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"}); err == nil {
 		t.Fatalf("expected credentials error for source fetch")
 	}
+	if _, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"}); err == nil {
+		t.Fatalf("expected credentials error for song source fetch")
+	}
 	if _, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"}); err == nil {
 		t.Fatalf("expected credentials error for metadata search")
+	}
+	if _, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Song"}); err == nil {
+		t.Fatalf("expected credentials error for song metadata search")
 	}
 }
 
 func assertSingleAlbum(t *testing.T, candidates []model.CandidateAlbum, wantID string) {
+	t.Helper()
+	if len(candidates) != 1 {
+		t.Fatalf("candidate count = %d, want 1", len(candidates))
+	}
+	if candidates[0].CandidateID != wantID {
+		t.Fatalf("candidate id = %q, want %q", candidates[0].CandidateID, wantID)
+	}
+	if !strings.Contains(candidates[0].MatchURL, wantID) {
+		t.Fatalf("candidate url = %q, want id %q in url", candidates[0].MatchURL, wantID)
+	}
+}
+
+func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID string) {
 	t.Helper()
 	if len(candidates) != 1 {
 		t.Fatalf("candidate count = %d, want 1", len(candidates))

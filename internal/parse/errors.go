@@ -18,7 +18,9 @@ var (
 	errUnsupportedDeezerHost  = errors.New("unsupported deezer host")
 	errInvalidDeezerAlbumPath = errors.New("invalid deezer album path")
 	errDeezerNotAlbumURL      = errors.New("deezer url is not an album url")
+	errDeezerNotSongURL       = errors.New("deezer url is not a song url")
 	errMissingDeezerAlbumID   = errors.New("missing deezer album id")
+	errMissingDeezerTrackID   = errors.New("missing deezer track id")
 
 	errUnsupportedSoundCloudHost      = errors.New("unsupported soundcloud host")
 	errSoundCloudNotAlbumURL          = errors.New("soundcloud url is not an album-like set url")
@@ -33,7 +35,9 @@ var (
 	errUnsupportedTIDALHost  = errors.New("unsupported tidal host")
 	errInvalidTIDALAlbumPath = errors.New("invalid tidal album path")
 	errTIDALNotAlbumURL      = errors.New("tidal url is not an album url")
+	errTIDALNotSongURL       = errors.New("tidal url is not a song url")
 	errMissingTIDALAlbumID   = errors.New("missing tidal album id")
+	errMissingTIDALTrackID   = errors.New("missing tidal track id")
 
 	errUnsupportedYouTubeMusicHost   = errors.New("unsupported youtube music host")
 	errMissingYouTubeMusicBrowseID   = errors.New("missing youtube music browse id")
