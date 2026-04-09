@@ -52,3 +52,23 @@ func TestMetadataQueries(t *testing.T) {
 		})
 	}
 }
+
+func TestSongMetadataQueries(t *testing.T) {
+	song := model.CanonicalSong{
+		Title:   "ΘΕΛΗΜΑ (Thelema)",
+		Artists: []string{"DECIPHER"},
+	}
+
+	got := songMetadataQueries(song)
+	want := []string{
+		"track:ΘΕΛΗΜΑ (Thelema) artist:DECIPHER",
+		"track:ΘΕΛΗΜΑ (Thelema)",
+		"track:Thelema artist:DECIPHER",
+		"track:Thelema",
+		"track:ΘΕΛΗΜΑ artist:DECIPHER",
+		"track:ΘΕΛΗΜΑ",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("songMetadataQueries() = %#v, want %#v", got, want)
+	}
+}

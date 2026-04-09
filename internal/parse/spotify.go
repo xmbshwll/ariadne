@@ -10,6 +10,15 @@ import (
 
 // SpotifyAlbumURL parses a Spotify album URL into the shared parsed representation.
 func SpotifyAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	return spotifyEntityURL(raw, albumPathSegment, "album", errSpotifyNotAlbumURL, errMissingSpotifyAlbumID)
+}
+
+// SpotifySongURL parses a Spotify track URL into the shared parsed representation.
+func SpotifySongURL(raw string) (*model.ParsedAlbumURL, error) {
+	return spotifyEntityURL(raw, "track", "song", errSpotifyNotSongURL, errMissingSpotifyTrackID)
+}
+
+func spotifyEntityURL(raw string, pathSegment string, entityType string, notEntityErr error, missingIDErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse spotify url: %w", err)
@@ -21,20 +30,20 @@ func SpotifyAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 || segments[0] != albumPathSegment {
-		return nil, fmt.Errorf("%w: %s", errSpotifyNotAlbumURL, raw)
+	if len(segments) < 2 || segments[0] != pathSegment {
+		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}
 
 	id := segments[1]
 	if id == "" {
-		return nil, errMissingSpotifyAlbumID
+		return nil, missingIDErr
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceSpotify,
-		EntityType:   "album",
+		EntityType:   entityType,
 		ID:           id,
-		CanonicalURL: "https://open.spotify.com/" + albumPathSegment + "/" + id,
+		CanonicalURL: "https://open.spotify.com/" + pathSegment + "/" + id,
 		RawURL:       raw,
 	}, nil
 }

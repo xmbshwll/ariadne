@@ -102,13 +102,13 @@ func TestAdapter(t *testing.T) {
 			})
 		})
 		mux.HandleFunc("/tracks/track-1", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(t, w, apiTrack{ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}})
+			writeJSON(t, w, apiTrack{ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}})
 		})
 		mux.HandleFunc("/tracks/track-2", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(t, w, apiTrack{ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Artists: []apiArtist{{Name: "The Beatles"}}})
+			writeJSON(t, w, apiTrack{ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}})
 		})
 		mux.HandleFunc("/tracks/track-weak-1", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(t, w, apiTrack{ID: "track-weak-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, ExternalIDs: apiExternalIDs{ISRC: "OTHER0001"}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}})
+			writeJSON(t, w, apiTrack{ID: "track-weak-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, ExternalIDs: apiExternalIDs{ISRC: "OTHER0001"}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}, Album: apiTrackAlbum{ID: "album-weak", Name: "Abbey Road", ReleaseDate: "2020-01-01", Images: []apiImage{{URL: "https://i.scdn.co/image/weak", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}}})
 		})
 		mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query().Get("q")
@@ -116,11 +116,13 @@ func TestAdapter(t *testing.T) {
 			case strings.Contains(query, "upc:602547670342"):
 				writeJSON(t, w, apiAlbumSearchResponse{Albums: apiAlbumSearchPage{Items: []apiAlbumSummary{{ID: "album-good"}}}})
 			case strings.Contains(query, "isrc:GBAYE0601690"):
-				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-1", Album: apiTrackAlbum{ID: "album-good"}}}}})
+				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-1", Name: "Come Together", DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}}}}})
 			case strings.Contains(query, "isrc:GBAYE0601691"):
-				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-2", Album: apiTrackAlbum{ID: "album-good"}}}}})
+				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-2", Name: "Something", DurationMS: 182293, Artists: []apiArtist{{Name: "The Beatles"}}, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}}}}})
 			case strings.Contains(query, "album:Abbey Road (Remastered)"), strings.Contains(query, "album:Abbey Road artist:The Beatles"), strings.Contains(query, "album:Abbey Road"):
 				writeJSON(t, w, apiAlbumSearchResponse{Albums: apiAlbumSearchPage{Items: []apiAlbumSummary{{ID: "album-good"}, {ID: "album-weak"}}}})
+			case strings.Contains(query, "track:Come Together artist:The Beatles"), strings.Contains(query, "track:Come Together"):
+				writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-1", Name: "Come Together", DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}}, {ID: "track-weak-1", Name: "Come Together", DurationMS: 200000, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}, ExternalIDs: apiExternalIDs{ISRC: "OTHER0001"}, Album: apiTrackAlbum{ID: "album-weak", Name: "Abbey Road", ReleaseDate: "2020-01-01", Images: []apiImage{{URL: "https://i.scdn.co/image/weak", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}}}}}})
 			default:
 				http.NotFound(w, r)
 			}
@@ -170,10 +172,48 @@ func TestAdapter(t *testing.T) {
 		if metadataResults[0].CandidateID != "album-good" {
 			t.Fatalf("first metadata candidate = %q", metadataResults[0].CandidateID)
 		}
+
+		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: "https://open.spotify.com/track/track-1"})
+		if err != nil {
+			t.Fatalf("FetchSong api error: %v", err)
+		}
+		if song.ISRC != "GBAYE0601690" {
+			t.Fatalf("song isrc = %q", song.ISRC)
+		}
+		if song.AlbumTitle != "Abbey Road (Remastered)" {
+			t.Fatalf("song album title = %q", song.AlbumTitle)
+		}
+
+		songISRCResults, err := adapter.SearchSongByISRC(context.Background(), "GBAYE0601690")
+		if err != nil {
+			t.Fatalf("SearchSongByISRC error: %v", err)
+		}
+		assertSingleSong(t, songISRCResults, "track-1")
+
+		songMetadataResults, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
+		if err != nil {
+			t.Fatalf("SearchSongByMetadata error: %v", err)
+		}
+		if len(songMetadataResults) != 2 {
+			t.Fatalf("song metadata result count = %d, want 2", len(songMetadataResults))
+		}
+		if songMetadataResults[0].CandidateID != "track-1" {
+			t.Fatalf("first song metadata candidate = %q", songMetadataResults[0].CandidateID)
+		}
 	})
 }
 
 func assertSingleAlbum(t *testing.T, candidates []model.CandidateAlbum, wantID string) {
+	t.Helper()
+	if len(candidates) != 1 {
+		t.Fatalf("candidate count = %d, want 1", len(candidates))
+	}
+	if candidates[0].CandidateID != wantID {
+		t.Fatalf("candidate id = %q, want %q", candidates[0].CandidateID, wantID)
+	}
+}
+
+func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID string) {
 	t.Helper()
 	if len(candidates) != 1 {
 		t.Fatalf("candidate count = %d, want 1", len(candidates))

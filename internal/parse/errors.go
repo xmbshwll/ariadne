@@ -26,7 +26,9 @@ var (
 
 	errUnsupportedSpotifyHost = errors.New("unsupported spotify host")
 	errSpotifyNotAlbumURL     = errors.New("spotify url is not an album url")
+	errSpotifyNotSongURL      = errors.New("spotify url is not a song url")
 	errMissingSpotifyAlbumID  = errors.New("missing spotify album id")
+	errMissingSpotifyTrackID  = errors.New("missing spotify track id")
 
 	errUnsupportedTIDALHost  = errors.New("unsupported tidal host")
 	errInvalidTIDALAlbumPath = errors.New("invalid tidal album path")

@@ -55,3 +55,57 @@ func TestSpotifyAlbumURL(t *testing.T) {
 		})
 	}
 }
+
+func TestSpotifySongURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		wantID  string
+		wantURL string
+		wantErr bool
+	}{
+		{
+			name:    "canonical",
+			raw:     "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+			wantID:  "2EqlS6tkEnglzr7tkKAAYD",
+			wantURL: "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+		},
+		{
+			name:    "query string",
+			raw:     "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD?si=test",
+			wantID:  "2EqlS6tkEnglzr7tkKAAYD",
+			wantURL: "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+		},
+		{
+			name:    "wrong resource type",
+			raw:     "https://open.spotify.com/album/0ETFjACtuP2ADo6LFhL6HN",
+			wantErr: true,
+		},
+		{
+			name:    "wrong host",
+			raw:     "https://example.com/track/2EqlS6tkEnglzr7tkKAAYD",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SpotifySongURL(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.ID != tt.wantID {
+				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
+			}
+			if got.CanonicalURL != tt.wantURL {
+				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
+			}
+		})
+	}
+}
