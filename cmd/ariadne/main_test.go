@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,9 +45,14 @@ func TestRun(t *testing.T) {
 			args: []string{"help"},
 			wantStdout: []string{
 				"Usage:",
-				"ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>",
-				"<album-url>",
+				"ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+				"ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
+				"<url>",
 				"Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL",
+				"URL from Apple Music, Deezer, Spotify, or TIDAL.",
+				"Behavior: auto-detect song URLs first, then fall back to album resolution.",
+				"Commands:",
+				"resolve-song  Resolve a supported song URL across services.",
 				"--config",
 				"Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.",
 				"--verbose, -v",
@@ -76,7 +82,13 @@ func TestRun(t *testing.T) {
 		{
 			name:        "resolve usage",
 			args:        []string{"resolve"},
-			wantErr:     "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>",
+			wantErr:     "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+			avoidStdout: []string{"{"},
+		},
+		{
+			name:        "resolve-song usage",
+			args:        []string{"resolve-song"},
+			wantErr:     "usage: ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
 			avoidStdout: []string{"{"},
 		},
 	}
@@ -277,6 +289,74 @@ func TestNewCLIResolution(t *testing.T) {
 	}
 }
 
+func TestNewCLISongResolution(t *testing.T) {
+	resolution := ariadne.SongResolution{
+		InputURL: "https://open.spotify.com/track/song-1",
+		Source: ariadne.CanonicalSong{
+			Service:     ariadne.ServiceSpotify,
+			SourceID:    "song-1",
+			SourceURL:   "https://open.spotify.com/track/song-1",
+			RegionHint:  "us",
+			Title:       "Song",
+			Artists:     []string{"Artist"},
+			DurationMS:  180000,
+			ISRC:        "ISRC001",
+			TrackNumber: 1,
+			AlbumID:     "album-1",
+			AlbumTitle:  "Album",
+		},
+		Matches: map[ariadne.ServiceName]ariadne.SongMatchResult{
+			ariadne.ServiceAppleMusic: {
+				Service: ariadne.ServiceAppleMusic,
+				Best: &ariadne.SongScoredMatch{
+					URL:     "https://music.apple.com/us/album/album/2?i=3",
+					Score:   115,
+					Reasons: []string{"isrc exact match", "title exact match"},
+					Candidate: ariadne.CandidateSong{
+						CandidateID: "apple-song-1",
+						CanonicalSong: ariadne.CanonicalSong{
+							RegionHint:  "us",
+							Title:       "Song",
+							Artists:     []string{"Artist"},
+							DurationMS:  180050,
+							ISRC:        "ISRC001",
+							AlbumTitle:  "Album",
+							TrackNumber: 1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	output := newCLISongResolution(resolution)
+	if output.InputURL != resolution.InputURL {
+		t.Fatalf("input url = %q, want %q", output.InputURL, resolution.InputURL)
+	}
+	if output.Source.Service != "spotify" {
+		t.Fatalf("source service = %q, want spotify", output.Source.Service)
+	}
+	if output.Source.ISRC != "ISRC001" {
+		t.Fatalf("source isrc = %q, want ISRC001", output.Source.ISRC)
+	}
+	if output.Source.AlbumTitle != "Album" {
+		t.Fatalf("source album title = %q, want Album", output.Source.AlbumTitle)
+	}
+	appleMusic, ok := output.Links["appleMusic"]
+	if !ok {
+		t.Fatalf("expected appleMusic link entry")
+	}
+	if appleMusic.Best == nil {
+		t.Fatalf("expected appleMusic best match")
+	}
+	if appleMusic.Best.SongID != "apple-song-1" {
+		t.Fatalf("song id = %q, want apple-song-1", appleMusic.Best.SongID)
+	}
+	if appleMusic.Best.DurationMS != 180050 {
+		t.Fatalf("duration_ms = %d, want 180050", appleMusic.Best.DurationMS)
+	}
+}
+
 func TestResolverRequiresCredentialsForTIDALSourceFetch(t *testing.T) {
 	resolver := ariadne.New(ariadne.DefaultConfig())
 
@@ -418,6 +498,133 @@ func TestRunResolveFixtureOutput(t *testing.T) {
 	}
 	if _, ok := output["youtubeMusic"]; ok {
 		t.Fatalf("expected youtubeMusic to be omitted")
+	}
+}
+
+func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
+	originalFactory := resolverFactory
+	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
+		return ariadne.NewWithEntityAdapters(
+			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+				"https://fixture.test/source": {
+					Service:   ariadne.ServiceDeezer,
+					SourceID:  "src-1",
+					SourceURL: "https://fixture.test/source",
+					Title:     "Fixture Album",
+				},
+			}}},
+			[]ariadne.TargetAdapter{fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify}},
+			[]ariadne.SongSourceAdapter{fixtureSongSourceAdapterForCLI{songByURL: map[string]ariadne.CanonicalSong{
+				"https://fixture.test/songs/1": {
+					Service:     ariadne.ServiceSpotify,
+					SourceID:    "song-1",
+					SourceURL:   "https://fixture.test/songs/1",
+					Title:       "Fixture Song",
+					Artists:     []string{"Fixture Artist"},
+					DurationMS:  180000,
+					ISRC:        "ISRCSONG001",
+					AlbumTitle:  "Fixture Album",
+					TrackNumber: 1,
+				},
+			}}},
+			[]ariadne.SongTargetAdapter{fixtureSongTargetAdapterForCLI{service: ariadne.ServiceAppleMusic, isrcResults: []ariadne.CandidateSong{{
+				CanonicalSong: ariadne.CanonicalSong{
+					Service:     ariadne.ServiceAppleMusic,
+					SourceID:    "apple-song-1",
+					SourceURL:   "https://music.apple.com/us/album/fixture-album/2?i=3",
+					Title:       "Fixture Song",
+					Artists:     []string{"Fixture Artist"},
+					DurationMS:  180050,
+					ISRC:        "ISRCSONG001",
+					AlbumTitle:  "Fixture Album",
+					TrackNumber: 1,
+				},
+				CandidateID: "apple-song-1",
+				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
+			}}}},
+		)
+	}
+	defer func() { resolverFactory = originalFactory }()
+
+	var stdout bytes.Buffer
+	err := runResolve([]string{"https://fixture.test/songs/1"}, &stdout)
+	if err != nil {
+		t.Fatalf("runResolve error: %v", err)
+	}
+
+	var output map[string]string
+	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+		t.Fatalf("unmarshal cli output: %v", err)
+	}
+	if output["spotify"] != "https://fixture.test/songs/1" {
+		t.Fatalf("source link = %q", output["spotify"])
+	}
+	if output["appleMusic"] != "https://music.apple.com/us/album/fixture-album/2?i=3" {
+		t.Fatalf("appleMusic link = %q", output["appleMusic"])
+	}
+}
+
+func TestRunResolveSongFixtureOutput(t *testing.T) {
+	originalFactory := resolverFactory
+	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
+		return ariadne.NewWithEntityAdapters(
+			nil,
+			nil,
+			[]ariadne.SongSourceAdapter{fixtureSongSourceAdapterForCLI{songByURL: map[string]ariadne.CanonicalSong{
+				"https://fixture.test/songs/1": {
+					Service:     ariadne.ServiceSpotify,
+					SourceID:    "song-1",
+					SourceURL:   "https://fixture.test/songs/1",
+					RegionHint:  "us",
+					Title:       "Fixture Song",
+					Artists:     []string{"Fixture Artist"},
+					DurationMS:  180000,
+					ISRC:        "ISRCSONG001",
+					AlbumTitle:  "Fixture Album",
+					TrackNumber: 1,
+				},
+			}}},
+			[]ariadne.SongTargetAdapter{fixtureSongTargetAdapterForCLI{service: ariadne.ServiceAppleMusic, isrcResults: []ariadne.CandidateSong{{
+				CanonicalSong: ariadne.CanonicalSong{
+					Service:     ariadne.ServiceAppleMusic,
+					SourceID:    "apple-song-1",
+					SourceURL:   "https://music.apple.com/us/album/fixture-album/2?i=3",
+					RegionHint:  "us",
+					Title:       "Fixture Song",
+					Artists:     []string{"Fixture Artist"},
+					DurationMS:  180050,
+					ISRC:        "ISRCSONG001",
+					AlbumTitle:  "Fixture Album",
+					TrackNumber: 1,
+				},
+				CandidateID: "apple-song-1",
+				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
+			}}}},
+		)
+	}
+	defer func() { resolverFactory = originalFactory }()
+
+	var stdout bytes.Buffer
+	err := run([]string{"resolve-song", "--verbose", "https://fixture.test/songs/1"}, &stdout, io.Discard)
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+
+	var output cliSongResolution
+	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+		t.Fatalf("unmarshal cli output: %v", err)
+	}
+	if output.Source.Title != "Fixture Song" {
+		t.Fatalf("source title = %q", output.Source.Title)
+	}
+	if output.Source.ISRC != "ISRCSONG001" {
+		t.Fatalf("source isrc = %q", output.Source.ISRC)
+	}
+	if output.Links["appleMusic"].Best == nil {
+		t.Fatalf("expected appleMusic best match")
+	}
+	if output.Links["appleMusic"].Best.SongID != "apple-song-1" {
+		t.Fatalf("song id = %q", output.Links["appleMusic"].Best.SongID)
 	}
 }
 
@@ -787,7 +994,7 @@ func TestParseResolveArgs(t *testing.T) {
 		{
 			name:            "missing url",
 			args:            []string{"--apple-music-storefront=gb"},
-			wantErrContains: "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>",
+			wantErrContains: "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
 		},
 		{
 			name:            "unsupported service",
@@ -875,6 +1082,27 @@ func TestParseResolveArgs(t *testing.T) {
 	}
 }
 
+func TestParseResolveSongArgs(t *testing.T) {
+	config, err := parseResolveSongArgs([]string{"--format=yaml", "https://open.spotify.com/track/123"}, ariadne.LoadConfig())
+	if err != nil {
+		t.Fatalf("parseResolveSongArgs error: %v", err)
+	}
+	if config.inputURL != "https://open.spotify.com/track/123" {
+		t.Fatalf("inputURL = %q", config.inputURL)
+	}
+	if config.format != outputFormatYAML {
+		t.Fatalf("format = %q, want yaml", config.format)
+	}
+
+	_, err = parseResolveSongArgs([]string{"--verbose"}, ariadne.LoadConfig())
+	if err == nil {
+		t.Fatalf("expected usage error")
+	}
+	if !strings.Contains(err.Error(), resolveSongUsage) {
+		t.Fatalf("error = %q, want substring %q", err.Error(), resolveSongUsage)
+	}
+}
+
 func TestScoreSummary(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -946,4 +1174,51 @@ func (a fixtureTargetAdapterForCLI) SearchByMetadata(_ context.Context, _ ariadn
 		return nil, a.metadataErr
 	}
 	return append([]ariadne.CandidateAlbum(nil), a.metaResults...), nil
+}
+
+type fixtureSongSourceAdapterForCLI struct {
+	songByURL map[string]ariadne.CanonicalSong
+}
+
+func (a fixtureSongSourceAdapterForCLI) Service() ariadne.ServiceName {
+	return "fixture-song"
+}
+
+func (a fixtureSongSourceAdapterForCLI) ParseSongURL(raw string) (*ariadne.ParsedURL, error) {
+	song, ok := a.songByURL[raw]
+	if !ok {
+		return nil, errUnsupportedCLIFixture
+	}
+	return &ariadne.ParsedURL{Service: song.Service, EntityType: "song", ID: song.SourceID, CanonicalURL: raw, RawURL: raw}, nil
+}
+
+func (a fixtureSongSourceAdapterForCLI) FetchSong(_ context.Context, parsed ariadne.ParsedURL) (*ariadne.CanonicalSong, error) {
+	song, ok := a.songByURL[parsed.RawURL]
+	if !ok {
+		return nil, errCLIFixtureNotFound
+	}
+	songCopy := song
+	return &songCopy, nil
+}
+
+type fixtureSongTargetAdapterForCLI struct {
+	service     ariadne.ServiceName
+	isrcResults []ariadne.CandidateSong
+	metaResults []ariadne.CandidateSong
+	metadataErr error
+}
+
+func (a fixtureSongTargetAdapterForCLI) Service() ariadne.ServiceName {
+	return a.service
+}
+
+func (a fixtureSongTargetAdapterForCLI) SearchSongByISRC(_ context.Context, _ string) ([]ariadne.CandidateSong, error) {
+	return append([]ariadne.CandidateSong(nil), a.isrcResults...), nil
+}
+
+func (a fixtureSongTargetAdapterForCLI) SearchSongByMetadata(_ context.Context, _ ariadne.CanonicalSong) ([]ariadne.CandidateSong, error) {
+	if a.metadataErr != nil {
+		return nil, a.metadataErr
+	}
+	return append([]ariadne.CandidateSong(nil), a.metaResults...), nil
 }

@@ -736,11 +736,24 @@ func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.Son
 		candidates = append(candidates, tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret)))
 	}
 
+	allowed := map[ServiceName]struct{}{}
+	if len(config.TargetServices) > 0 {
+		allowed = make(map[ServiceName]struct{}, len(config.TargetServices))
+		for _, service := range config.TargetServices {
+			allowed[service] = struct{}{}
+		}
+	}
+
 	targets := make([]resolve.SongTargetAdapter, 0, len(candidates))
 	for _, candidate := range candidates {
 		adapter, ok := candidate.(resolve.SongTargetAdapter)
 		if !ok {
 			continue
+		}
+		if len(allowed) > 0 {
+			if _, ok := allowed[fromInternalServiceName(adapter.Service())]; !ok {
+				continue
+			}
 		}
 		targets = append(targets, adapter)
 	}

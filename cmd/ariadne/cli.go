@@ -27,19 +27,22 @@ const (
 	outputFormatJSON  = "json"
 	outputFormatYAML  = "yaml"
 	outputFormatCSV   = "csv"
-	resolveUsage      = "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>"
+	resolveUsage      = "usage: ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>"
+	resolveSongUsage  = "usage: ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>"
 )
 
-const resolveHelpText = `Resolve album URLs across music services.
+const resolveHelpText = `Resolve a supported music URL across music services.
 
 Usage:
-  ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>
+  ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>
 
 Positional parameter:
-  <album-url>
+  <url>
     Required.
     Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL,
-    SoundCloud, YouTube Music, Bandcamp, or Amazon Music.
+    SoundCloud, YouTube Music, Bandcamp, or Amazon Music, or a supported song
+    URL from Apple Music, Deezer, Spotify, or TIDAL.
+    Behavior: auto-detect song URLs first, then fall back to album resolution.
     Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.
 
 Flags:
@@ -92,6 +95,67 @@ Flags:
 Notes:
   - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
   - Apple Music UPC and ISRC target search are enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
+  - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
+  - Song resolution currently supports Apple Music, Deezer, Spotify, and TIDAL.`
+
+const resolveSongHelpText = `Resolve song URLs across music services.
+
+Usage:
+  ariadne resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>
+
+Positional parameter:
+  <song-url>
+    Required.
+    Values: a supported song URL from Apple Music, Deezer, Spotify, or TIDAL.
+
+Flags:
+  --config
+    Values: empty string to disable file loading, or a path to a config file.
+    Supported file styles: .env-style key=value files, plus Viper-supported structured files such as yaml, yml, json, or toml.
+    Default: %s
+    Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.
+
+  --verbose, -v
+    Values: true, false.
+    Default: false.
+    false prints compact service-link output only.
+    true includes source metadata, per-service summaries, scores, reasons, and alternates.
+
+  --format
+    Values:
+      json  - indented JSON; best default for scripts and APIs.
+      yaml  - YAML rendering of the same payload.
+      csv   - compact or verbose CSV depending on --verbose.
+    Default: json.
+
+  --services
+    Values: comma-separated list drawn from appleMusic, deezer, spotify, tidal.
+    Use this to limit which target services are searched.
+    Caveats:
+      spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.
+      tidal requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
+
+  --min-strength
+    Values:
+      very_weak - include every retained match.
+      weak      - exclude very weak matches.
+      probable  - show only stronger likely matches.
+      strong    - show only highest-confidence matches.
+    Default: very_weak.
+
+  --apple-music-storefront
+    Values: an Apple Music storefront country code in ISO 3166-1 alpha-2 form, for example us, gb, de, fr, jp, ca, or au.
+    Default: %s.
+    Used for Apple Music lookups and searches when the source URL does not already imply a storefront.
+
+  --http-timeout
+    Values: a Go duration such as 5s, 15s, 30s, or 1m.
+    Default: %s.
+    Sets the per-request timeout on Ariadne's default HTTP client for service API and page requests.
+
+Notes:
+  - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
+  - Apple Music ISRC target search is enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
   - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.`
 
 var (
@@ -104,6 +168,7 @@ var (
 	errMissingCommand           = errors.New("missing command")
 	errUnknownCommand           = errors.New("unknown command")
 	errResolveUsage             = errors.New(resolveUsage)
+	errResolveSongUsage         = errors.New(resolveSongUsage)
 	errUnsupportedFormat        = errors.New("unsupported format")
 	errNoTargetServicesSelected = errors.New("no target services selected")
 	errAmazonMusicTargetService = errors.New("amazonMusic is not available as a target service")
@@ -133,6 +198,13 @@ var (
 	}
 )
 
+type resolveMode string
+
+const (
+	resolveModeAuto resolveMode = "auto"
+	resolveModeSong resolveMode = "song"
+)
+
 type resolveConfig struct {
 	inputURL          string
 	verbose           bool
@@ -151,20 +223,20 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	if len(args) == 0 {
-		if err := renderResolveHelp(stderr, baseConfig, configPath); err != nil {
+		if err := renderRootHelp(stderr, baseConfig, configPath); err != nil {
 			return fmt.Errorf("print usage: %w", err)
 		}
 		return errMissingCommand
 	}
 	if isHelpArg(args[0]) {
-		return renderResolveHelp(stdout, baseConfig, configPath)
+		return renderRootHelp(stdout, baseConfig, configPath)
 	}
 
 	root := newRootCmd(stdout, stderr, baseConfig, configPath)
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
 		if isUnknownCommandError(err) {
-			if helpErr := renderResolveHelp(stderr, baseConfig, configPath); helpErr != nil {
+			if helpErr := renderRootHelp(stderr, baseConfig, configPath); helpErr != nil {
 				return fmt.Errorf("print usage: %w", helpErr)
 			}
 			return fmt.Errorf("%w: %s", errUnknownCommand, args[0])
@@ -186,14 +258,14 @@ func isUnknownCommandError(err error) bool {
 func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "ariadne",
-		Short:         "Resolve album URLs across music services.",
+		Short:         "Resolve music URLs across services.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	cmd.SetOut(stdout)
 	cmd.SetErr(stderr)
 	cmd.PersistentFlags().String("config", configPath, "configuration source (values: empty string to disable file loading, or a path to an .env, yaml, yml, json, or toml file)")
-	cmd.AddCommand(newResolveCmd(baseConfig, configPath))
+	cmd.AddCommand(newResolveCmd(baseConfig, configPath), newResolveSongCmd(baseConfig, configPath))
 	return cmd
 }
 
@@ -201,8 +273,8 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 	config := defaultResolveConfig(baseConfig)
 
 	cmd := &cobra.Command{
-		Use:   "resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <album-url>",
-		Short: "Resolve one album URL into likely equivalents on other services.",
+		Use:   "resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <url>",
+		Short: "Resolve one music URL into likely equivalents on other services.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return errResolveUsage
@@ -215,7 +287,7 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			return executeResolve(normalized, cmd.OutOrStdout())
+			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeAuto)
 		},
 	}
 
@@ -227,8 +299,38 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 	return cmd
 }
 
-func renderResolveHelp(w io.Writer, baseConfig ariadne.Config, configPath string) error {
-	if _, err := io.WriteString(w, resolveHelpTextFor(baseConfig, configPath)); err != nil {
+func newResolveSongCmd(baseConfig ariadne.Config, configPath string) *cobra.Command {
+	config := defaultResolveConfig(baseConfig)
+
+	cmd := &cobra.Command{
+		Use:   "resolve-song [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] <song-url>",
+		Short: "Resolve one song URL into likely equivalents on other services.",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return errResolveSongUsage
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			config.inputURL = args[0]
+			normalized, err := normalizeResolveConfig(config)
+			if err != nil {
+				return err
+			}
+			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeSong)
+		},
+	}
+
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		_, _ = io.WriteString(cmd.OutOrStdout(), resolveSongHelpTextFor(baseConfig, configPath))
+	})
+
+	bindResolveFlags(cmd.Flags(), &config)
+	return cmd
+}
+
+func renderRootHelp(w io.Writer, baseConfig ariadne.Config, configPath string) error {
+	if _, err := io.WriteString(w, rootHelpTextFor(baseConfig, configPath)); err != nil {
 		return fmt.Errorf("%w: %w", errRenderResolveHelp, err)
 	}
 	return nil
@@ -254,6 +356,34 @@ func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 	}
 
 	return fmt.Sprintf(resolveHelpText, configPath, storefrontDefault, baseConfig.HTTPTimeout)
+}
+
+func resolveSongHelpTextFor(baseConfig ariadne.Config, configPath string) string {
+	if configPath == "" {
+		configPath = `"" (disable file loading)`
+	}
+
+	storefrontDefault := "APPLE_MUSIC_STOREFRONT or us"
+	if baseConfig.AppleMusicStorefront != "" {
+		storefrontDefault = baseConfig.AppleMusicStorefront
+	}
+
+	return fmt.Sprintf(resolveSongHelpText, configPath, storefrontDefault, baseConfig.HTTPTimeout)
+}
+
+func rootHelpTextFor(baseConfig ariadne.Config, configPath string) string {
+	return strings.Join([]string{
+		"Usage:",
+		"  ariadne <command> [flags]",
+		"",
+		"Commands:",
+		"  resolve       Auto-detect a supported album or song URL and resolve it across services.",
+		"  resolve-song  Resolve a supported song URL across services.",
+		"",
+		resolveHelpTextFor(baseConfig, configPath),
+		"",
+		resolveSongHelpTextFor(baseConfig, configPath),
+	}, "\n")
 }
 
 func configPathFromArgs(args []string) string {
@@ -334,16 +464,24 @@ func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
 }
 
 func parseResolveArgs(args []string, baseConfig ariadne.Config) (resolveConfig, error) {
+	return parseResolveArgsForMode(args, baseConfig, resolveModeAuto)
+}
+
+func parseResolveSongArgs(args []string, baseConfig ariadne.Config) (resolveConfig, error) {
+	return parseResolveArgsForMode(args, baseConfig, resolveModeSong)
+}
+
+func parseResolveArgsForMode(args []string, baseConfig ariadne.Config, mode resolveMode) (resolveConfig, error) {
 	config := defaultResolveConfig(baseConfig)
-	fs := pflag.NewFlagSet("resolve", pflag.ContinueOnError)
+	fs := pflag.NewFlagSet(string(mode), pflag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	bindResolveFlags(fs, &config)
 	if err := fs.Parse(args); err != nil {
-		return resolveConfig{}, errResolveUsage
+		return resolveConfig{}, usageErrorForMode(mode)
 	}
 	remaining := fs.Args()
 	if len(remaining) != 1 {
-		return resolveConfig{}, errResolveUsage
+		return resolveConfig{}, usageErrorForMode(mode)
 	}
 	config.inputURL = remaining[0]
 	return normalizeResolveConfig(config)
@@ -379,24 +517,57 @@ func runResolve(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return executeResolve(config, stdout)
+	return executeResolve(config, stdout, resolveModeAuto)
 }
 
-func executeResolve(config resolveConfig, stdout io.Writer) error {
+func runResolveSong(args []string, stdout io.Writer) error {
+	baseConfig, err := loadCLIConfig(configPathFromArgs(args))
+	if err != nil {
+		return err
+	}
+	config, err := parseResolveSongArgs(args, baseConfig)
+	if err != nil {
+		return err
+	}
+	return executeResolve(config, stdout, resolveModeSong)
+}
+
+func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) error {
 	resolver := resolverFactory(config.resolverConfig)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	resolution, err := resolver.ResolveAlbum(ctx, config.inputURL)
-	if err != nil {
-		//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
-		return err
+	switch mode {
+	case resolveModeSong:
+		resolution, err := resolver.ResolveSong(ctx, config.inputURL)
+		if err != nil {
+			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
+			return err
+		}
+		return writeCLISongOutput(stdout, *resolution, config)
+	case resolveModeAuto:
+		resolution, err := resolver.Resolve(ctx, config.inputURL)
+		if err != nil {
+			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
+			return err
+		}
+		if resolution.Song != nil {
+			return writeCLISongOutput(stdout, *resolution.Song, config)
+		}
+		if resolution.Album != nil {
+			return writeCLIOutput(stdout, *resolution.Album, config)
+		}
+		return fmt.Errorf("resolve %q: empty resolution", config.inputURL)
+	default:
+		return fmt.Errorf("unsupported resolve mode %q", mode)
 	}
+}
 
-	if err := writeCLIOutput(stdout, *resolution, config); err != nil {
-		return err
+func usageErrorForMode(mode resolveMode) error {
+	if mode == resolveModeSong {
+		return errResolveSongUsage
 	}
-	return nil
+	return errResolveUsage
 }
 
 type cliResolution struct {
@@ -439,6 +610,53 @@ type cliMatch struct {
 	UPC         string   `json:"upc,omitempty"`
 }
 
+type cliSongResolution struct {
+	InputURL string                        `json:"input_url"`
+	Source   cliSong                       `json:"source"`
+	Links    map[string]cliSongMatchResult `json:"links,omitempty"`
+}
+
+type cliSong struct {
+	Service      string   `json:"service"`
+	ID           string   `json:"id"`
+	URL          string   `json:"url"`
+	RegionHint   string   `json:"region_hint,omitempty"`
+	Title        string   `json:"title"`
+	Artists      []string `json:"artists"`
+	DurationMS   int      `json:"duration_ms,omitempty"`
+	ISRC         string   `json:"isrc,omitempty"`
+	Explicit     bool     `json:"explicit,omitempty"`
+	DiscNumber   int      `json:"disc_number,omitempty"`
+	TrackNumber  int      `json:"track_number,omitempty"`
+	AlbumID      string   `json:"album_id,omitempty"`
+	AlbumTitle   string   `json:"album_title,omitempty"`
+	ReleaseDate  string   `json:"release_date,omitempty"`
+	ArtworkURL   string   `json:"artwork_url,omitempty"`
+	EditionHints []string `json:"edition_hints,omitempty"`
+}
+
+type cliSongMatchResult struct {
+	Found      bool           `json:"found"`
+	Summary    string         `json:"summary"`
+	Best       *cliSongMatch  `json:"best,omitempty"`
+	Alternates []cliSongMatch `json:"alternates,omitempty"`
+}
+
+type cliSongMatch struct {
+	URL         string   `json:"url"`
+	Score       int      `json:"score"`
+	Reasons     []string `json:"reasons,omitempty"`
+	SongID      string   `json:"song_id,omitempty"`
+	RegionHint  string   `json:"region_hint,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	Artists     []string `json:"artists,omitempty"`
+	DurationMS  int      `json:"duration_ms,omitempty"`
+	ISRC        string   `json:"isrc,omitempty"`
+	AlbumTitle  string   `json:"album_title,omitempty"`
+	TrackNumber int      `json:"track_number,omitempty"`
+	ReleaseDate string   `json:"release_date,omitempty"`
+}
+
 func newCLIOutput(resolution ariadne.Resolution, cfg resolveConfig) any {
 	if cfg.verbose {
 		return newCLIResolution(resolution)
@@ -477,6 +695,44 @@ func writeCLIOutput(w io.Writer, resolution ariadne.Resolution, cfg resolveConfi
 	}
 }
 
+func newCLISongOutput(resolution ariadne.SongResolution, cfg resolveConfig) any {
+	if cfg.verbose {
+		return newCLISongResolution(resolution)
+	}
+	return newCLISongLinks(resolution)
+}
+
+func writeCLISongOutput(w io.Writer, resolution ariadne.SongResolution, cfg resolveConfig) error {
+	resolution = filterSongResolutionByStrength(resolution, cfg.minStrength)
+	output := newCLISongOutput(resolution, cfg)
+
+	switch cfg.format {
+	case outputFormatJSON:
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(output); err != nil {
+			return fmt.Errorf("encode song resolution json: %w", err)
+		}
+		return nil
+	case outputFormatYAML:
+		data, err := yaml.Marshal(output)
+		if err != nil {
+			return fmt.Errorf("encode song resolution yaml: %w", err)
+		}
+		if _, err := w.Write(data); err != nil {
+			return fmt.Errorf("write song resolution yaml: %w", err)
+		}
+		return nil
+	case outputFormatCSV:
+		if cfg.verbose {
+			return writeVerboseSongCSV(w, resolution)
+		}
+		return writeCompactSongCSV(w, resolution)
+	default:
+		return fmt.Errorf("%w: %q", errUnsupportedFormat, cfg.format)
+	}
+}
+
 func newCLIResolution(resolution ariadne.Resolution) cliResolution {
 	links := make(map[string]cliMatchResult, len(resolution.Matches))
 	for service, match := range resolution.Matches {
@@ -491,6 +747,36 @@ func newCLIResolution(resolution ariadne.Resolution) cliResolution {
 }
 
 func newCLILinks(resolution ariadne.Resolution) map[string]string {
+	links := map[string]string{}
+	if resolution.Source.Service != "" && resolution.Source.SourceURL != "" {
+		links[string(resolution.Source.Service)] = resolution.Source.SourceURL
+	}
+	for service, match := range resolution.Matches {
+		if match.Best == nil || match.Best.URL == "" {
+			continue
+		}
+		if _, exists := links[string(service)]; exists {
+			continue
+		}
+		links[string(service)] = match.Best.URL
+	}
+	return links
+}
+
+func newCLISongResolution(resolution ariadne.SongResolution) cliSongResolution {
+	links := make(map[string]cliSongMatchResult, len(resolution.Matches))
+	for service, match := range resolution.Matches {
+		links[string(service)] = newCLISongMatchResult(match)
+	}
+
+	return cliSongResolution{
+		InputURL: resolution.InputURL,
+		Source:   newCLISong(resolution.Source),
+		Links:    links,
+	}
+}
+
+func newCLISongLinks(resolution ariadne.SongResolution) map[string]string {
 	links := map[string]string{}
 	if resolution.Source.Service != "" && resolution.Source.SourceURL != "" {
 		links[string(resolution.Source.Service)] = resolution.Source.SourceURL
@@ -533,6 +819,43 @@ func writeVerboseCSV(w io.Writer, resolution ariadne.Resolution) error {
 		return fmt.Errorf("write csv header: %w", err)
 	}
 	for _, row := range newVerboseCSVRows(resolution) {
+		if err := writer.Write(row); err != nil {
+			return fmt.Errorf("write csv row: %w", err)
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return fmt.Errorf("flush csv: %w", err)
+	}
+	return nil
+}
+
+func writeCompactSongCSV(w io.Writer, resolution ariadne.SongResolution) error {
+	writer := csv.NewWriter(w)
+	if err := writer.Write([]string{"service", "url"}); err != nil {
+		return fmt.Errorf("write csv header: %w", err)
+	}
+	links := newCLISongLinks(resolution)
+	services := sortedKeys(links)
+	for _, service := range services {
+		if err := writer.Write([]string{service, links[service]}); err != nil {
+			return fmt.Errorf("write csv row: %w", err)
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return fmt.Errorf("flush csv: %w", err)
+	}
+	return nil
+}
+
+func writeVerboseSongCSV(w io.Writer, resolution ariadne.SongResolution) error {
+	writer := csv.NewWriter(w)
+	headers := []string{"input_url", "service", "kind", "url", "found", "summary", "score", "song_id", "region_hint", "title", "artists", "duration_ms", "isrc", "album_title", "track_number", "release_date", "reasons"}
+	if err := writer.Write(headers); err != nil {
+		return fmt.Errorf("write csv header: %w", err)
+	}
+	for _, row := range newVerboseSongCSVRows(resolution) {
 		if err := writer.Write(row); err != nil {
 			return fmt.Errorf("write csv row: %w", err)
 		}
@@ -611,6 +934,86 @@ func newCSVMatchRow(inputURL, service, kind string, found bool, summary string, 
 		strings.Join(match.Candidate.Artists, " | "),
 		match.Candidate.ReleaseDate,
 		match.Candidate.UPC,
+		strings.Join(match.Reasons, " | "),
+	}
+}
+
+func newVerboseSongCSVRows(resolution ariadne.SongResolution) [][]string {
+	rows := [][]string{{
+		resolution.InputURL,
+		string(resolution.Source.Service),
+		"source",
+		resolution.Source.SourceURL,
+		"true",
+		"source",
+		"",
+		resolution.Source.SourceID,
+		resolution.Source.RegionHint,
+		resolution.Source.Title,
+		strings.Join(resolution.Source.Artists, " | "),
+		strconv.Itoa(resolution.Source.DurationMS),
+		resolution.Source.ISRC,
+		resolution.Source.AlbumTitle,
+		strconv.Itoa(resolution.Source.TrackNumber),
+		resolution.Source.ReleaseDate,
+		"",
+	}}
+
+	services := make([]string, 0, len(resolution.Matches))
+	for service := range resolution.Matches {
+		services = append(services, string(service))
+	}
+	sort.Strings(services)
+	for _, service := range services {
+		result := resolution.Matches[ariadne.ServiceName(service)]
+		if result.Best == nil {
+			rows = append(rows, []string{
+				resolution.InputURL,
+				service,
+				"best",
+				"",
+				"false",
+				"not_found",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+				"",
+			})
+			continue
+		}
+		rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
+		for _, alternate := range result.Alternates {
+			rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "alternate", true, scoreSummary(alternate.Score), alternate))
+		}
+	}
+	return rows
+}
+
+func newSongCSVMatchRow(inputURL, service, kind string, found bool, summary string, match ariadne.SongScoredMatch) []string {
+	return []string{
+		inputURL,
+		service,
+		kind,
+		match.URL,
+		strconv.FormatBool(found),
+		summary,
+		strconv.Itoa(match.Score),
+		match.Candidate.CandidateID,
+		match.Candidate.RegionHint,
+		match.Candidate.Title,
+		strings.Join(match.Candidate.Artists, " | "),
+		strconv.Itoa(match.Candidate.DurationMS),
+		match.Candidate.ISRC,
+		match.Candidate.AlbumTitle,
+		strconv.Itoa(match.Candidate.TrackNumber),
+		match.Candidate.ReleaseDate,
 		strings.Join(match.Reasons, " | "),
 	}
 }
@@ -725,6 +1128,24 @@ func filterResolutionByStrength(resolution ariadne.Resolution, minStrength ariad
 	return filtered
 }
 
+func filterSongResolutionByStrength(resolution ariadne.SongResolution, minStrength ariadne.MatchStrength) ariadne.SongResolution {
+	if minStrength == ariadne.MatchStrengthVeryWeak {
+		return resolution
+	}
+	filtered := resolution
+	filtered.Matches = make(map[ariadne.ServiceName]ariadne.SongMatchResult, len(resolution.Matches))
+	for service, match := range resolution.Matches {
+		if match.Best == nil {
+			continue
+		}
+		if !meetsMinimumStrength(match.Best.Score, minStrength) {
+			continue
+		}
+		filtered.Matches[service] = match
+	}
+	return filtered
+}
+
 func meetsMinimumStrength(score int, minStrength ariadne.MatchStrength) bool {
 	return matchStrengthRank(ariadne.MatchStrengthForScore(score)) >= matchStrengthRank(minStrength)
 }
@@ -759,6 +1180,27 @@ func newCLIAlbum(album ariadne.CanonicalAlbum) cliAlbum {
 	}
 }
 
+func newCLISong(song ariadne.CanonicalSong) cliSong {
+	return cliSong{
+		Service:      string(song.Service),
+		ID:           song.SourceID,
+		URL:          song.SourceURL,
+		RegionHint:   song.RegionHint,
+		Title:        song.Title,
+		Artists:      append([]string(nil), song.Artists...),
+		DurationMS:   song.DurationMS,
+		ISRC:         song.ISRC,
+		Explicit:     song.Explicit,
+		DiscNumber:   song.DiscNumber,
+		TrackNumber:  song.TrackNumber,
+		AlbumID:      song.AlbumID,
+		AlbumTitle:   song.AlbumTitle,
+		ReleaseDate:  song.ReleaseDate,
+		ArtworkURL:   song.ArtworkURL,
+		EditionHints: append([]string(nil), song.EditionHints...),
+	}
+}
+
 func newCLIMatchResult(result ariadne.MatchResult) cliMatchResult {
 	output := cliMatchResult{
 		Found:      result.Best != nil,
@@ -772,6 +1214,23 @@ func newCLIMatchResult(result ariadne.MatchResult) cliMatchResult {
 	}
 	for _, alternate := range result.Alternates {
 		output.Alternates = append(output.Alternates, newCLIMatch(alternate))
+	}
+	return output
+}
+
+func newCLISongMatchResult(result ariadne.SongMatchResult) cliSongMatchResult {
+	output := cliSongMatchResult{
+		Found:      result.Best != nil,
+		Summary:    "not_found",
+		Alternates: make([]cliSongMatch, 0, len(result.Alternates)),
+	}
+	if result.Best != nil {
+		best := newCLISongMatch(*result.Best)
+		output.Best = &best
+		output.Summary = scoreSummary(result.Best.Score)
+	}
+	for _, alternate := range result.Alternates {
+		output.Alternates = append(output.Alternates, newCLISongMatch(alternate))
 	}
 	return output
 }
@@ -791,5 +1250,22 @@ func newCLIMatch(match ariadne.ScoredMatch) cliMatch {
 		Artists:     append([]string(nil), match.Candidate.Artists...),
 		ReleaseDate: match.Candidate.ReleaseDate,
 		UPC:         match.Candidate.UPC,
+	}
+}
+
+func newCLISongMatch(match ariadne.SongScoredMatch) cliSongMatch {
+	return cliSongMatch{
+		URL:         match.URL,
+		Score:       match.Score,
+		Reasons:     append([]string(nil), match.Reasons...),
+		SongID:      match.Candidate.CandidateID,
+		RegionHint:  match.Candidate.RegionHint,
+		Title:       match.Candidate.Title,
+		Artists:     append([]string(nil), match.Candidate.Artists...),
+		DurationMS:  match.Candidate.DurationMS,
+		ISRC:        match.Candidate.ISRC,
+		AlbumTitle:  match.Candidate.AlbumTitle,
+		TrackNumber: match.Candidate.TrackNumber,
+		ReleaseDate: match.Candidate.ReleaseDate,
 	}
 }
