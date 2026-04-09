@@ -120,6 +120,65 @@ func TestAdapter(t *testing.T) {
 			}
 		}]
 	}`
+	lookupSongPayload := `{
+		"resultCount": 1,
+		"results": [{
+			"wrapperType": "track",
+			"kind": "song",
+			"artistId": 136975,
+			"collectionId": 1441164426,
+			"trackId": 1441164430,
+			"artistName": "The Beatles",
+			"collectionName": "Abbey Road (Remastered)",
+			"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4",
+			"trackName": "Come Together",
+			"discNumber": 1,
+			"trackNumber": 1,
+			"trackTimeMillis": 258947,
+			"releaseDate": "1969-09-26T07:00:00Z",
+			"artworkUrl100": "https://image.test/100x100bb.jpg",
+			"trackExplicitness": "notExplicit"
+		}]
+	}`
+	searchSongPayload := `{
+		"resultCount": 2,
+		"results": [
+			{
+				"wrapperType": "track",
+				"kind": "song",
+				"artistId": 136975,
+				"collectionId": 1441164426,
+				"trackId": 1441164430,
+				"artistName": "The Beatles",
+				"collectionName": "Abbey Road (Remastered)",
+				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4",
+				"trackName": "Come Together",
+				"discNumber": 1,
+				"trackNumber": 1,
+				"trackTimeMillis": 258947,
+				"releaseDate": "1969-09-26T07:00:00Z",
+				"artworkUrl100": "https://image.test/100x100bb.jpg",
+				"trackExplicitness": "notExplicit"
+			},
+			{
+				"wrapperType": "track",
+				"kind": "song",
+				"artistId": 999,
+				"collectionId": 555,
+				"trackId": 999999,
+				"artistName": "Tribute Band",
+				"collectionName": "Abbey Road Live",
+				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-live/555?uo=4",
+				"trackName": "Come Together (Live)",
+				"discNumber": 1,
+				"trackNumber": 8,
+				"trackTimeMillis": 300000,
+				"releaseDate": "2021-01-01T07:00:00Z",
+				"artworkUrl100": "https://image.test/weak.jpg",
+				"trackExplicitness": "notExplicit"
+			}
+		]
+	}`
 	keyPath := writeTestPrivateKey(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,12 +193,20 @@ func TestAdapter(t *testing.T) {
 				_, _ = w.Write(lookupPayload)
 			case "1474815798":
 				_, _ = w.Write([]byte(lookup2019MixPayload))
+			case "1441164430":
+				_, _ = w.Write([]byte(lookupSongPayload))
+			case "999999":
+				_, _ = w.Write([]byte(`{"resultCount":1,"results":[{"wrapperType":"track","kind":"song","artistId":999,"collectionId":555,"trackId":999999,"artistName":"Tribute Band","collectionName":"Abbey Road Live","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-live/555?uo=4","trackName":"Come Together (Live)","discNumber":1,"trackNumber":8,"trackTimeMillis":300000,"releaseDate":"2021-01-01T07:00:00Z","artworkUrl100":"https://image.test/weak.jpg","trackExplicitness":"notExplicit"}]}`))
 			default:
 				http.NotFound(w, r)
 			}
 		case "/search":
 			if got := r.URL.Query().Get("country"); got != "gb" {
 				http.Error(w, "expected gb storefront", http.StatusBadRequest)
+				return
+			}
+			if r.URL.Query().Get("entity") == "song" {
+				_, _ = w.Write([]byte(searchSongPayload))
 				return
 			}
 			_, _ = w.Write([]byte(searchPayload))
@@ -328,6 +395,64 @@ func TestAdapter(t *testing.T) {
 		}
 		if results[0].Tracks[0].ISRC != "GBAYE0601690" {
 			t.Fatalf("first isrc = %q", results[0].Tracks[0].ISRC)
+		}
+	})
+
+	t.Run("fetch song", func(t *testing.T) {
+		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+			Service:      model.ServiceAppleMusic,
+			EntityType:   "song",
+			ID:           "1441164430",
+			CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=1441164430",
+			RegionHint:   "us",
+		})
+		if err != nil {
+			t.Fatalf("FetchSong error: %v", err)
+		}
+		if song.Title != "Come Together" {
+			t.Fatalf("title = %q", song.Title)
+		}
+		if song.AlbumTitle != "Abbey Road (Remastered)" {
+			t.Fatalf("album title = %q", song.AlbumTitle)
+		}
+		if song.TrackNumber != 1 {
+			t.Fatalf("track number = %d", song.TrackNumber)
+		}
+	})
+
+	t.Run("search song by metadata", func(t *testing.T) {
+		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
+			Title:      "Come Together",
+			Artists:    []string{"The Beatles"},
+			RegionHint: "gb",
+		})
+		if err != nil {
+			t.Fatalf("SearchSongByMetadata error: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("result count = %d, want 2", len(results))
+		}
+		if results[0].CandidateID != "1441164430" {
+			t.Fatalf("first candidate id = %q, want 1441164430", results[0].CandidateID)
+		}
+		if results[0].AlbumTitle != "Abbey Road (Remastered)" {
+			t.Fatalf("first album title = %q", results[0].AlbumTitle)
+		}
+	})
+
+	t.Run("search song by isrc with official auth", func(t *testing.T) {
+		results, err := authAdapter.SearchSongByISRC(context.Background(), "GBAYE0601690")
+		if err != nil {
+			t.Fatalf("SearchSongByISRC error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("result count = %d, want 1", len(results))
+		}
+		if results[0].CandidateID != "1441164430" {
+			t.Fatalf("candidate id = %q, want 1441164430", results[0].CandidateID)
+		}
+		if results[0].Title != "Come Together" {
+			t.Fatalf("title = %q", results[0].Title)
 		}
 	})
 }

@@ -117,6 +117,15 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parsed, nil
 }
 
+// ParseSongURL parses an Apple Music song URL.
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parse.AppleMusicSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse apple music song url: %w", err)
+	}
+	return parsed, nil
+}
+
 // FetchAlbum loads Apple Music album metadata from the lookup API and maps it into the canonical model.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceAppleMusic {
@@ -215,6 +224,71 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	return results, nil
 }
 
+// FetchSong loads Apple Music song metadata from the lookup API and maps it into the canonical model.
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceAppleMusic {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedAppleMusicService, parsed.Service)
+	}
+	return a.fetchSongByID(ctx, parsed.ID, parsed.CanonicalURL, a.storefrontFor(parsed.RegionHint))
+}
+
+// SearchSongByISRC uses the official Apple Music catalog API when MusicKit auth is configured.
+func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
+	isrc = strings.TrimSpace(isrc)
+	if isrc == "" || !a.authEnabled() {
+		return nil, nil
+	}
+
+	storefront := a.defaultStorefront
+	endpoint := fmt.Sprintf("%s/catalog/%s/songs?filter[isrc]=%s", a.apiBaseURL, url.PathEscape(storefront), url.QueryEscape(isrc))
+	var payload map[string]any
+	if err := a.getOfficialJSON(ctx, endpoint, &payload); err != nil {
+		return nil, fmt.Errorf("search apple music song by isrc: %w", err)
+	}
+	songIDs := officialSongIDs(payload)
+	return a.hydrateSongs(ctx, songIDs, storefront)
+}
+
+// SearchSongByMetadata searches Apple Music songs by title and artist metadata via the public search API.
+func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	queries := songMetadataQueries(song)
+	if len(queries) == 0 {
+		return nil, nil
+	}
+
+	storefront := a.storefrontFor(song.RegionHint)
+	results := make([]model.CandidateSong, 0, searchLimit)
+	seen := make(map[int64]struct{}, searchLimit)
+
+	for _, query := range queries {
+		searchURL := fmt.Sprintf("%s/search?term=%s&entity=song&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
+		var payload lookupResponse
+		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
+			return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
+		}
+
+		for _, item := range payload.Results {
+			if item.WrapperType != "track" || item.Kind != "song" || item.TrackID == 0 {
+				continue
+			}
+			if _, ok := seen[item.TrackID]; ok {
+				continue
+			}
+			seen[item.TrackID] = struct{}{}
+
+			canonical, err := a.fetchSongByID(ctx, strconv.FormatInt(item.TrackID, 10), canonicalTrackURL(item.CollectionViewURL, item.TrackID), storefront)
+			if err != nil {
+				return nil, fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
+			}
+			results = append(results, toCandidateSong(*canonical))
+			if len(results) >= searchLimit {
+				return results, nil
+			}
+		}
+	}
+	return results, nil
+}
+
 func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalURL string, storefront string) (*model.CanonicalAlbum, error) {
 	lookupURL := fmt.Sprintf("%s/lookup?id=%s&entity=song&country=%s", a.lookupBaseURL, url.QueryEscape(albumID), url.QueryEscape(a.storefrontFor(storefront)))
 	var payload lookupResponse
@@ -236,6 +310,29 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 		parsed.CanonicalURL = canonicalCollectionURL(payload.Results[0].CollectionViewURL, "")
 	}
 	return toCanonicalAlbum(parsed, payload.Results), nil
+}
+
+func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL string, storefront string) (*model.CanonicalSong, error) {
+	lookupURL := fmt.Sprintf("%s/lookup?id=%s&entity=song&country=%s", a.lookupBaseURL, url.QueryEscape(songID), url.QueryEscape(a.storefrontFor(storefront)))
+	var payload lookupResponse
+	if err := a.getJSON(ctx, lookupURL, &payload); err != nil {
+		return nil, err
+	}
+	if len(payload.Results) == 0 {
+		return nil, fmt.Errorf("%w: %s", errAppleMusicAlbumNotFound, songID)
+	}
+
+	parsed := model.ParsedAlbumURL{
+		Service:      model.ServiceAppleMusic,
+		EntityType:   "song",
+		ID:           songID,
+		CanonicalURL: canonicalURL,
+		RegionHint:   a.storefrontFor(storefront),
+	}
+	if parsed.CanonicalURL == "" {
+		parsed.CanonicalURL = canonicalTrackURL(payload.Results[0].CollectionViewURL, payload.Results[0].TrackID)
+	}
+	return toCanonicalSong(parsed, payload.Results), nil
 }
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
@@ -346,6 +443,45 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	}
 }
 
+func toCanonicalSong(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalSong {
+	const explicitTrack = "explicit"
+
+	var track lookupItem
+	for _, item := range items {
+		if item.WrapperType == "track" && item.Kind == "song" {
+			track = item
+			break
+		}
+	}
+	if track.TrackID == 0 && len(items) > 0 {
+		track = items[0]
+	}
+
+	artists := []string{track.ArtistName}
+	return &model.CanonicalSong{
+		Service:                model.ServiceAppleMusic,
+		SourceID:               strconv.FormatInt(track.TrackID, 10),
+		SourceURL:              firstNonEmpty(canonicalTrackURL(track.CollectionViewURL, track.TrackID), parsed.CanonicalURL),
+		RegionHint:             parsed.RegionHint,
+		Title:                  track.TrackName,
+		NormalizedTitle:        normalize.Text(track.TrackName),
+		Artists:                artists,
+		NormalizedArtists:      normalize.Artists(artists),
+		DurationMS:             track.TrackTimeMillis,
+		Explicit:               track.TrackExplicitness == explicitTrack,
+		DiscNumber:             track.DiscNumber,
+		TrackNumber:            track.TrackNumber,
+		AlbumID:                strconv.FormatInt(track.CollectionID, 10),
+		AlbumTitle:             track.CollectionName,
+		AlbumNormalizedTitle:   normalize.Text(track.CollectionName),
+		AlbumArtists:           artists,
+		AlbumNormalizedArtists: normalize.Artists(artists),
+		ReleaseDate:            dateOnly(track.ReleaseDate),
+		ArtworkURL:             preferredArtworkURL(track),
+		EditionHints:           normalize.EditionHints(track.TrackName),
+	}
+}
+
 func canonicalCollectionURL(raw string, fallback string) string {
 	if raw == "" {
 		return fallback
@@ -356,6 +492,14 @@ func canonicalCollectionURL(raw string, fallback string) string {
 	}
 	parsed.RawQuery = ""
 	return parsed.String()
+}
+
+func canonicalTrackURL(collectionURL string, trackID int64) string {
+	base := canonicalCollectionURL(collectionURL, "")
+	if base == "" || trackID == 0 {
+		return base
+	}
+	return base + "?i=" + strconv.FormatInt(trackID, 10)
 }
 
 func preferredArtworkURL(item lookupItem) string {
@@ -404,6 +548,38 @@ func metadataQueries(album model.CanonicalAlbum) []string {
 
 	for _, title := range normalize.SearchTitleVariants(album.Title) {
 		for _, artist := range normalize.SearchArtistVariants(album.Artists) {
+			appendUnique(strings.TrimSpace(strings.Join([]string{title, artist}, " ")))
+		}
+		appendUnique(title)
+	}
+	return queries
+}
+
+func songMetadataQueries(song model.CanonicalSong) []string {
+	if strings.TrimSpace(song.Title) == "" {
+		return nil
+	}
+
+	queries := make([]string, 0, 8)
+	seen := make(map[string]struct{}, 8)
+	appendUnique := func(query string) {
+		query = strings.TrimSpace(query)
+		if query == "" {
+			return
+		}
+		key := normalize.Text(query)
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		queries = append(queries, query)
+	}
+
+	for _, title := range normalize.SearchTitleVariants(song.Title) {
+		for _, artist := range normalize.SearchArtistVariants(song.Artists) {
 			appendUnique(strings.TrimSpace(strings.Join([]string{title, artist}, " ")))
 		}
 		appendUnique(title)
@@ -465,6 +641,30 @@ func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, 
 	return results, nil
 }
 
+func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
+	results := make([]model.CandidateSong, 0, len(songIDs))
+	seen := make(map[string]struct{}, len(songIDs))
+	for _, songID := range songIDs {
+		songID = strings.TrimSpace(songID)
+		if songID == "" {
+			continue
+		}
+		if _, ok := seen[songID]; ok {
+			continue
+		}
+		seen[songID] = struct{}{}
+		song, err := a.fetchSongByID(ctx, songID, "", storefront)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, toCandidateSong(*song))
+		if len(results) >= searchLimit {
+			break
+		}
+	}
+	return results, nil
+}
+
 func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, storefront string) (*model.CanonicalAlbum, error) {
 	endpoint := fmt.Sprintf("%s/catalog/%s/albums/%s?include=tracks", a.apiBaseURL, url.PathEscape(storefront), url.PathEscape(albumID))
 	var payload map[string]any
@@ -497,6 +697,20 @@ func officialAlbumIDs(payload map[string]any) []string {
 			continue
 		}
 		ids = appendUniqueString(ids, seen, officialAlbumID(resource))
+	}
+	return ids
+}
+
+func officialSongIDs(payload map[string]any) []string {
+	data, _ := payload["data"].([]any)
+	ids := make([]string, 0, len(data))
+	seen := make(map[string]struct{}, len(data))
+	for _, item := range data {
+		resource, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		ids = appendUniqueString(ids, seen, officialString(resource, "id"))
 	}
 	return ids
 }
@@ -667,6 +881,14 @@ func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
 	}
 }
 
+func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
+	return model.CandidateSong{
+		CanonicalSong: song,
+		CandidateID:   song.SourceID,
+		MatchURL:      song.SourceURL,
+	}
+}
+
 func appendUniqueString(values []string, seen map[string]struct{}, value string) []string {
 	if value == "" {
 		return values
@@ -676,4 +898,14 @@ func appendUniqueString(values []string, seen map[string]struct{}, value string)
 	}
 	seen[value] = struct{}{}
 	return append(values, value)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

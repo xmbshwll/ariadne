@@ -12,6 +12,30 @@ const albumPathSegment = "album"
 
 // AppleMusicAlbumURL parses an Apple Music album URL into the shared parsed representation.
 func AppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parseAppleMusicAlbumURL(raw)
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
+}
+
+// AppleMusicSongURL parses an Apple Music song URL into the shared parsed representation.
+func AppleMusicSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parseAppleMusicAlbumURL(raw)
+	if err != nil {
+		return nil, err
+	}
+	trackID := strings.TrimSpace(parsedQuery(raw, "i"))
+	if trackID == "" {
+		return nil, fmt.Errorf("%w: %s", errMissingAppleMusicTrackID, raw)
+	}
+	parsed.EntityType = "song"
+	parsed.ID = trackID
+	parsed.CanonicalURL = parsed.CanonicalURL + "?i=" + trackID
+	return parsed, nil
+}
+
+func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse apple music url: %w", err)
@@ -49,4 +73,12 @@ func AppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		RegionHint:   storefront,
 		RawURL:       raw,
 	}, nil
+}
+
+func parsedQuery(raw string, key string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return parsed.Query().Get(key)
 }
