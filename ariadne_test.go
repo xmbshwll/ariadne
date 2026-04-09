@@ -105,6 +105,61 @@ func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 	}
 }
 
+func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
+	resolver := NewWithEntityAdapters(
+		[]SourceAdapter{librarySourceAdapter{}},
+		[]TargetAdapter{libraryTargetAdapter{}},
+		[]SongSourceAdapter{librarySongSourceAdapter{}},
+		[]SongTargetAdapter{librarySongTargetAdapter{}},
+	)
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
+	if err != nil {
+		t.Fatalf("ResolveSong error: %v", err)
+	}
+	if resolution.Source.Service != ServiceSpotify {
+		t.Fatalf("source service = %q, want spotify", resolution.Source.Service)
+	}
+	match := resolution.Matches[ServiceAppleMusic]
+	if match.Best == nil {
+		t.Fatalf("expected apple music best match")
+	}
+	if match.Best.Candidate.CandidateID != "apple-song-1" {
+		t.Fatalf("candidate id = %q, want apple-song-1", match.Best.Candidate.CandidateID)
+	}
+}
+
+func TestResolverResolveDispatchesByEntityType(t *testing.T) {
+	resolver := NewWithEntityAdapters(
+		[]SourceAdapter{librarySourceAdapter{}},
+		[]TargetAdapter{libraryTargetAdapter{}},
+		[]SongSourceAdapter{librarySongSourceAdapter{}},
+		[]SongTargetAdapter{librarySongTargetAdapter{}},
+	)
+
+	albumEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/source")
+	if err != nil {
+		t.Fatalf("Resolve album error: %v", err)
+	}
+	if albumEntity.Album == nil || albumEntity.Song != nil {
+		t.Fatalf("expected album resolution only")
+	}
+	if albumEntity.Parsed.EntityType != "album" {
+		t.Fatalf("parsed entity type = %q, want album", albumEntity.Parsed.EntityType)
+	}
+
+	songEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/songs/1")
+	if err != nil {
+		t.Fatalf("Resolve song error: %v", err)
+	}
+	if songEntity.Song == nil || songEntity.Album != nil {
+		t.Fatalf("expected song resolution only")
+	}
+	if songEntity.Parsed.EntityType != "song" {
+		t.Fatalf("parsed entity type = %q, want song", songEntity.Parsed.EntityType)
+	}
+}
+
 type librarySourceAdapter struct{}
 
 func (librarySourceAdapter) Service() ServiceName {
@@ -172,5 +227,75 @@ func (libraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]Candi
 }
 
 func (libraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
+	return nil, nil
+}
+
+type librarySongSourceAdapter struct{}
+
+func (librarySongSourceAdapter) Service() ServiceName {
+	return ServiceSpotify
+}
+
+func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedURL, error) {
+	if raw != "https://fixture.test/songs/1" {
+		return nil, errUnsupportedLibrarySource
+	}
+	return &ParsedURL{
+		Service:      ServiceSpotify,
+		EntityType:   "song",
+		ID:           "song-1",
+		CanonicalURL: raw,
+		RawURL:       raw,
+	}, nil
+}
+
+func (librarySongSourceAdapter) FetchSong(_ context.Context, parsed ParsedURL) (*CanonicalSong, error) {
+	return &CanonicalSong{
+		Service:              parsed.Service,
+		SourceID:             parsed.ID,
+		SourceURL:            parsed.CanonicalURL,
+		Title:                "Fixture Song",
+		NormalizedTitle:      "fixture song",
+		Artists:              []string{"Fixture Artist"},
+		NormalizedArtists:    []string{"fixture artist"},
+		DurationMS:           180000,
+		ISRC:                 "ISRCSONG001",
+		TrackNumber:          1,
+		AlbumTitle:           "Fixture Album",
+		AlbumNormalizedTitle: "fixture album",
+	}, nil
+}
+
+type librarySongTargetAdapter struct{}
+
+func (librarySongTargetAdapter) Service() ServiceName {
+	return ServiceAppleMusic
+}
+
+func (librarySongTargetAdapter) SearchSongByISRC(_ context.Context, isrc string) ([]CandidateSong, error) {
+	if isrc == "" {
+		return nil, nil
+	}
+	return []CandidateSong{{
+		CanonicalSong: CanonicalSong{
+			Service:              ServiceAppleMusic,
+			SourceID:             "apple-song-1",
+			SourceURL:            "https://music.apple.com/us/song/apple-song-1",
+			Title:                "Fixture Song",
+			NormalizedTitle:      "fixture song",
+			Artists:              []string{"Fixture Artist"},
+			NormalizedArtists:    []string{"fixture artist"},
+			DurationMS:           180100,
+			ISRC:                 isrc,
+			TrackNumber:          1,
+			AlbumTitle:           "Fixture Album",
+			AlbumNormalizedTitle: "fixture album",
+		},
+		CandidateID: "apple-song-1",
+		MatchURL:    "https://music.apple.com/us/song/apple-song-1",
+	}}, nil
+}
+
+func (librarySongTargetAdapter) SearchSongByMetadata(_ context.Context, _ CanonicalSong) ([]CandidateSong, error) {
 	return nil, nil
 }

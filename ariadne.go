@@ -197,7 +197,7 @@ type CandidateSong struct {
 	MatchURL string
 }
 
-// ScoredMatch is one ranked candidate returned by the resolver.
+// ScoredMatch is one ranked candidate returned by the album resolver.
 type ScoredMatch struct {
 	// URL is the best presentation URL for the candidate.
 	URL string
@@ -209,6 +209,18 @@ type ScoredMatch struct {
 	Candidate CandidateAlbum
 }
 
+// SongScoredMatch is one ranked song candidate returned by the song resolver.
+type SongScoredMatch struct {
+	// URL is the best presentation URL for the candidate.
+	URL string
+	// Score is the aggregate matching score.
+	Score int
+	// Reasons lists the major signals that contributed to the score.
+	Reasons []string
+	// Candidate is the underlying canonicalized song payload.
+	Candidate CandidateSong
+}
+
 // MatchResult is the ranked output for one target service.
 type MatchResult struct {
 	// Service is the target service that was searched.
@@ -217,6 +229,16 @@ type MatchResult struct {
 	Best *ScoredMatch
 	// Alternates contains lower-ranked candidates after Best.
 	Alternates []ScoredMatch
+}
+
+// SongMatchResult is the ranked song output for one target service.
+type SongMatchResult struct {
+	// Service is the target service that was searched.
+	Service ServiceName
+	// Best is the highest-ranked candidate, or nil when nothing matched.
+	Best *SongScoredMatch
+	// Alternates contains lower-ranked candidates after Best.
+	Alternates []SongScoredMatch
 }
 
 // Resolution is the full output of resolving one input album URL.
@@ -231,11 +253,40 @@ type Resolution struct {
 	Matches map[ServiceName]MatchResult
 }
 
+// SongResolution is the full output of resolving one input song URL.
+type SongResolution struct {
+	// InputURL is the original URL passed to ResolveSong.
+	InputURL string
+	// Parsed is the normalized parsed form of the source URL.
+	Parsed ParsedURL
+	// Source is the canonical song fetched from the source service.
+	Source CanonicalSong
+	// Matches contains ranked target-service matches keyed by service name.
+	Matches map[ServiceName]SongMatchResult
+}
+
+// EntityResolution is the generic output of resolving one input URL.
+type EntityResolution struct {
+	// Parsed is the normalized parsed form of the source URL.
+	Parsed ParsedURL
+	// Album is set when the input resolved as an album.
+	Album *Resolution
+	// Song is set when the input resolved as a song.
+	Song *SongResolution
+}
+
 // SourceAdapter fetches canonical album metadata from a parsed source URL.
 type SourceAdapter interface {
 	Service() ServiceName
 	ParseAlbumURL(raw string) (*ParsedAlbumURL, error)
 	FetchAlbum(ctx context.Context, parsed ParsedAlbumURL) (*CanonicalAlbum, error)
+}
+
+// SongSourceAdapter fetches canonical song metadata from a parsed source URL.
+type SongSourceAdapter interface {
+	Service() ServiceName
+	ParseSongURL(raw string) (*ParsedURL, error)
+	FetchSong(ctx context.Context, parsed ParsedURL) (*CanonicalSong, error)
 }
 
 // TargetAdapter searches a target service for matching albums.
@@ -244,6 +295,13 @@ type TargetAdapter interface {
 	SearchByUPC(ctx context.Context, upc string) ([]CandidateAlbum, error)
 	SearchByISRC(ctx context.Context, isrcs []string) ([]CandidateAlbum, error)
 	SearchByMetadata(ctx context.Context, album CanonicalAlbum) ([]CandidateAlbum, error)
+}
+
+// SongTargetAdapter searches a target service for matching songs.
+type SongTargetAdapter interface {
+	Service() ServiceName
+	SearchSongByISRC(ctx context.Context, isrc string) ([]CandidateSong, error)
+	SearchSongByMetadata(ctx context.Context, song CanonicalSong) ([]CandidateSong, error)
 }
 
 var (
@@ -262,6 +320,7 @@ var (
 
 	errSourceAdapterReturnedNilParsed = errors.New("source adapter returned nil parsed url")
 	errSourceAdapterReturnedNilAlbum  = errors.New("source adapter returned nil album")
+	errSourceAdapterReturnedNilSong   = errors.New("source adapter returned nil song")
 )
 
 // ScoreWeights configures how ranking signals contribute to match scores.
@@ -362,14 +421,37 @@ func (c Config) TIDALEnabled() bool {
 	return c.TIDAL.ClientID != "" && c.TIDAL.ClientSecret != ""
 }
 
-// Resolver wraps the internal resolver with a public library-facing API.
+// Resolver wraps the internal resolvers with a public library-facing API.
 type Resolver struct {
-	inner *resolve.Resolver
+	inner     *resolve.Resolver
+	songInner *resolve.SongResolver
 }
 
-// DefaultScoreWeights returns the built-in ranking weights.
+// DefaultScoreWeights returns the built-in album ranking weights.
 func DefaultScoreWeights() ScoreWeights {
 	return fromInternalScoreWeights(score.DefaultWeights())
+}
+
+// SongScoreWeights configures how ranking signals contribute to song match scores.
+type SongScoreWeights struct {
+	ISRCExact            int
+	TitleExact           int
+	CoreTitleExact       int
+	PrimaryArtistExact   int
+	ArtistOverlap        int
+	DurationNear         int
+	AlbumTitleExact      int
+	ReleaseDateExact     int
+	ReleaseYearExact     int
+	TrackNumberExact     int
+	ExplicitMismatch     int
+	EditionMismatch      int
+	EditionMarkerPenalty int
+}
+
+// DefaultSongScoreWeights returns the built-in song ranking weights.
+func DefaultSongScoreWeights() SongScoreWeights {
+	return fromInternalSongScoreWeights(score.DefaultSongWeights())
 }
 
 // MatchStrengthForScore maps a raw score into a confidence band.
@@ -413,17 +495,33 @@ func NewWithClient(client *http.Client, config Config) *Resolver {
 		client = http.DefaultClient
 	}
 	config = normalizedConfig(config)
-	return &Resolver{inner: resolve.New(defaultSourceAdapters(client, config), defaultTargetAdapters(client, config), toInternalScoreWeights(config.ScoreWeights))}
+	return &Resolver{
+		inner:     resolve.New(defaultSourceAdapters(client, config), defaultTargetAdapters(client, config), toInternalScoreWeights(config.ScoreWeights)),
+		songInner: resolve.NewSongs(defaultSongSourceAdapters(client, config), defaultSongTargetAdapters(client, config), toInternalSongScoreWeights(DefaultSongScoreWeights())),
+	}
 }
 
-// NewWithAdapters builds a Resolver from caller-provided source and target adapters using the default ranking weights.
+// NewWithAdapters builds a Resolver from caller-provided album source and target adapters using the default ranking weights.
 func NewWithAdapters(sources []SourceAdapter, targets []TargetAdapter) *Resolver {
 	return NewWithAdaptersAndWeights(sources, targets, DefaultScoreWeights())
 }
 
-// NewWithAdaptersAndWeights builds a Resolver from caller-provided source and target adapters and explicit ranking weights.
+// NewWithAdaptersAndWeights builds a Resolver from caller-provided album source and target adapters and explicit ranking weights.
 func NewWithAdaptersAndWeights(sources []SourceAdapter, targets []TargetAdapter, weights ScoreWeights) *Resolver {
-	return &Resolver{inner: resolve.New(wrapSourceAdapters(sources), wrapTargetAdapters(targets), toInternalScoreWeights(weights))}
+	return NewWithEntityAdaptersAndWeights(sources, targets, nil, nil, weights, DefaultSongScoreWeights())
+}
+
+// NewWithEntityAdapters builds a Resolver from caller-provided album and song adapters using default ranking weights.
+func NewWithEntityAdapters(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter) *Resolver {
+	return NewWithEntityAdaptersAndWeights(albumSources, albumTargets, songSources, songTargets, DefaultScoreWeights(), DefaultSongScoreWeights())
+}
+
+// NewWithEntityAdaptersAndWeights builds a Resolver from caller-provided album and song adapters and explicit ranking weights.
+func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter, albumWeights ScoreWeights, songWeights SongScoreWeights) *Resolver {
+	return &Resolver{
+		inner:     resolve.New(wrapSourceAdapters(albumSources), wrapTargetAdapters(albumTargets), toInternalScoreWeights(albumWeights)),
+		songInner: resolve.NewSongs(wrapSongSourceAdapters(songSources), wrapSongTargetAdapters(songTargets), toInternalSongScoreWeights(songWeights)),
+	}
 }
 
 // ResolveAlbum resolves one input album URL into a canonical source album plus per-service matches.
@@ -448,6 +546,35 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 	}
 	public := fromInternalResolution(*resolution)
 	return &public, nil
+}
+
+// ResolveSong resolves one input song URL into a canonical source song plus per-service matches.
+func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
+	resolution, err := r.songInner.ResolveSong(ctx, inputURL)
+	if err != nil {
+		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
+		return nil, err
+	}
+	public := fromInternalSongResolution(*resolution)
+	return &public, nil
+}
+
+// Resolve parses an input URL and dispatches to album or song resolution.
+func (r *Resolver) Resolve(ctx context.Context, inputURL string) (*EntityResolution, error) {
+	songResolution, err := r.ResolveSong(ctx, inputURL)
+	if err == nil {
+		return &EntityResolution{Parsed: songResolution.Parsed, Song: songResolution}, nil
+	}
+	if !errors.Is(err, ErrUnsupportedURL) && !errors.Is(err, ErrNoSourceAdapters) {
+		return nil, err
+	}
+
+	albumResolution, albumErr := r.ResolveAlbum(ctx, inputURL)
+	if albumErr != nil {
+		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
+		return nil, albumErr
+	}
+	return &EntityResolution{Parsed: ParsedURL(albumResolution.Parsed), Album: albumResolution}, nil
 }
 
 func configFromInternal(cfg internalconfig.Config) Config {
@@ -580,6 +707,46 @@ func filterTargetAdapters(targets []resolve.TargetAdapter, services []ServiceNam
 	return filtered
 }
 
+func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.SongSourceAdapter {
+	appleMusic := newAppleMusicAdapter(client, config)
+	deezer := deezeradapter.New(client)
+	spotify := spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret))
+	tidal := tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret))
+
+	candidates := []any{appleMusic, deezer, spotify, tidal}
+	sources := make([]resolve.SongSourceAdapter, 0, len(candidates))
+	for _, candidate := range candidates {
+		adapter, ok := candidate.(resolve.SongSourceAdapter)
+		if !ok {
+			continue
+		}
+		sources = append(sources, adapter)
+	}
+	return sources
+}
+
+func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.SongTargetAdapter {
+	appleMusic := newAppleMusicAdapter(client, config)
+	deezer := deezeradapter.New(client)
+	candidates := []any{appleMusic, deezer}
+	if config.SpotifyEnabled() {
+		candidates = append(candidates, spotifyadapter.New(client, spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret)))
+	}
+	if config.TIDALEnabled() {
+		candidates = append(candidates, tidaladapter.New(client, tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret)))
+	}
+
+	targets := make([]resolve.SongTargetAdapter, 0, len(candidates))
+	for _, candidate := range candidates {
+		adapter, ok := candidate.(resolve.SongTargetAdapter)
+		if !ok {
+			continue
+		}
+		targets = append(targets, adapter)
+	}
+	return targets
+}
+
 func wrapSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
 	wrapped := make([]resolve.SourceAdapter, 0, len(sources))
 	for _, source := range sources {
@@ -588,10 +755,26 @@ func wrapSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
 	return wrapped
 }
 
+func wrapSongSourceAdapters(sources []SongSourceAdapter) []resolve.SongSourceAdapter {
+	wrapped := make([]resolve.SongSourceAdapter, 0, len(sources))
+	for _, source := range sources {
+		wrapped = append(wrapped, songSourceAdapterBridge{source: source})
+	}
+	return wrapped
+}
+
 func wrapTargetAdapters(targets []TargetAdapter) []resolve.TargetAdapter {
 	wrapped := make([]resolve.TargetAdapter, 0, len(targets))
 	for _, target := range targets {
 		wrapped = append(wrapped, targetAdapterBridge{target: target})
+	}
+	return wrapped
+}
+
+func wrapSongTargetAdapters(targets []SongTargetAdapter) []resolve.SongTargetAdapter {
+	wrapped := make([]resolve.SongTargetAdapter, 0, len(targets))
+	for _, target := range targets {
+		wrapped = append(wrapped, songTargetAdapterBridge{target: target})
 	}
 	return wrapped
 }
@@ -630,6 +813,40 @@ func (b sourceAdapterBridge) FetchAlbum(ctx context.Context, parsed model.Parsed
 	return &internal, nil
 }
 
+type songSourceAdapterBridge struct {
+	source SongSourceAdapter
+}
+
+func (b songSourceAdapterBridge) Service() model.ServiceName {
+	return toInternalServiceName(b.source.Service())
+}
+
+func (b songSourceAdapterBridge) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := b.source.ParseSongURL(raw)
+	if err != nil || parsed == nil {
+		if err != nil {
+			//nolint:wrapcheck // Preserve adapter parse errors without adding another wrapper layer.
+			return nil, err
+		}
+		return nil, errSourceAdapterReturnedNilParsed
+	}
+	internal := toInternalParsedAlbumURL(ParsedAlbumURL(*parsed))
+	return &internal, nil
+}
+
+func (b songSourceAdapterBridge) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	song, err := b.source.FetchSong(ctx, ParsedURL(fromInternalParsedAlbumURL(parsed)))
+	if err != nil || song == nil {
+		if err != nil {
+			//nolint:wrapcheck // Preserve adapter fetch errors without adding another wrapper layer.
+			return nil, err
+		}
+		return nil, errSourceAdapterReturnedNilSong
+	}
+	internal := toInternalCanonicalSong(*song)
+	return &internal, nil
+}
+
 type targetAdapterBridge struct {
 	target TargetAdapter
 }
@@ -663,6 +880,32 @@ func (b targetAdapterBridge) SearchByMetadata(ctx context.Context, album model.C
 		return nil, err
 	}
 	return toInternalCandidateAlbums(albums), nil
+}
+
+type songTargetAdapterBridge struct {
+	target SongTargetAdapter
+}
+
+func (b songTargetAdapterBridge) Service() model.ServiceName {
+	return toInternalServiceName(b.target.Service())
+}
+
+func (b songTargetAdapterBridge) SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
+	songs, err := b.target.SearchSongByISRC(ctx, isrc)
+	if err != nil {
+		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+		return nil, err
+	}
+	return toInternalCandidateSongs(songs), nil
+}
+
+func (b songTargetAdapterBridge) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	songs, err := b.target.SearchSongByMetadata(ctx, fromInternalCanonicalSong(song))
+	if err != nil {
+		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
+		return nil, err
+	}
+	return toInternalCandidateSongs(songs), nil
 }
 
 func toInternalServiceName(service ServiceName) model.ServiceName {
@@ -715,6 +958,42 @@ func fromInternalScoreWeights(weights score.Weights) ScoreWeights {
 		ReleaseYearExact:     weights.ReleaseYearExact,
 		DurationNear:         weights.DurationNear,
 		LabelExact:           weights.LabelExact,
+		ExplicitMismatch:     weights.ExplicitMismatch,
+		EditionMismatch:      weights.EditionMismatch,
+		EditionMarkerPenalty: weights.EditionMarkerPenalty,
+	}
+}
+
+func toInternalSongScoreWeights(weights SongScoreWeights) score.SongWeights {
+	return score.SongWeights{
+		ISRCExact:            weights.ISRCExact,
+		TitleExact:           weights.TitleExact,
+		CoreTitleExact:       weights.CoreTitleExact,
+		PrimaryArtistExact:   weights.PrimaryArtistExact,
+		ArtistOverlap:        weights.ArtistOverlap,
+		DurationNear:         weights.DurationNear,
+		AlbumTitleExact:      weights.AlbumTitleExact,
+		ReleaseDateExact:     weights.ReleaseDateExact,
+		ReleaseYearExact:     weights.ReleaseYearExact,
+		TrackNumberExact:     weights.TrackNumberExact,
+		ExplicitMismatch:     weights.ExplicitMismatch,
+		EditionMismatch:      weights.EditionMismatch,
+		EditionMarkerPenalty: weights.EditionMarkerPenalty,
+	}
+}
+
+func fromInternalSongScoreWeights(weights score.SongWeights) SongScoreWeights {
+	return SongScoreWeights{
+		ISRCExact:            weights.ISRCExact,
+		TitleExact:           weights.TitleExact,
+		CoreTitleExact:       weights.CoreTitleExact,
+		PrimaryArtistExact:   weights.PrimaryArtistExact,
+		ArtistOverlap:        weights.ArtistOverlap,
+		DurationNear:         weights.DurationNear,
+		AlbumTitleExact:      weights.AlbumTitleExact,
+		ReleaseDateExact:     weights.ReleaseDateExact,
+		ReleaseYearExact:     weights.ReleaseYearExact,
+		TrackNumberExact:     weights.TrackNumberExact,
 		ExplicitMismatch:     weights.ExplicitMismatch,
 		EditionMismatch:      weights.EditionMismatch,
 		EditionMarkerPenalty: weights.EditionMarkerPenalty,
@@ -819,6 +1098,58 @@ func fromInternalCanonicalAlbum(album model.CanonicalAlbum) CanonicalAlbum {
 	}
 }
 
+func toInternalCanonicalSong(song CanonicalSong) model.CanonicalSong {
+	return model.CanonicalSong{
+		Service:                toInternalServiceName(song.Service),
+		SourceID:               song.SourceID,
+		SourceURL:              song.SourceURL,
+		RegionHint:             song.RegionHint,
+		Title:                  song.Title,
+		NormalizedTitle:        song.NormalizedTitle,
+		Artists:                append([]string(nil), song.Artists...),
+		NormalizedArtists:      append([]string(nil), song.NormalizedArtists...),
+		DurationMS:             song.DurationMS,
+		ISRC:                   song.ISRC,
+		Explicit:               song.Explicit,
+		DiscNumber:             song.DiscNumber,
+		TrackNumber:            song.TrackNumber,
+		AlbumID:                song.AlbumID,
+		AlbumTitle:             song.AlbumTitle,
+		AlbumNormalizedTitle:   song.AlbumNormalizedTitle,
+		AlbumArtists:           append([]string(nil), song.AlbumArtists...),
+		AlbumNormalizedArtists: append([]string(nil), song.AlbumNormalizedArtists...),
+		ReleaseDate:            song.ReleaseDate,
+		ArtworkURL:             song.ArtworkURL,
+		EditionHints:           append([]string(nil), song.EditionHints...),
+	}
+}
+
+func fromInternalCanonicalSong(song model.CanonicalSong) CanonicalSong {
+	return CanonicalSong{
+		Service:                fromInternalServiceName(song.Service),
+		SourceID:               song.SourceID,
+		SourceURL:              song.SourceURL,
+		RegionHint:             song.RegionHint,
+		Title:                  song.Title,
+		NormalizedTitle:        song.NormalizedTitle,
+		Artists:                append([]string(nil), song.Artists...),
+		NormalizedArtists:      append([]string(nil), song.NormalizedArtists...),
+		DurationMS:             song.DurationMS,
+		ISRC:                   song.ISRC,
+		Explicit:               song.Explicit,
+		DiscNumber:             song.DiscNumber,
+		TrackNumber:            song.TrackNumber,
+		AlbumID:                song.AlbumID,
+		AlbumTitle:             song.AlbumTitle,
+		AlbumNormalizedTitle:   song.AlbumNormalizedTitle,
+		AlbumArtists:           append([]string(nil), song.AlbumArtists...),
+		AlbumNormalizedArtists: append([]string(nil), song.AlbumNormalizedArtists...),
+		ReleaseDate:            song.ReleaseDate,
+		ArtworkURL:             song.ArtworkURL,
+		EditionHints:           append([]string(nil), song.EditionHints...),
+	}
+}
+
 func toInternalCandidateAlbum(album CandidateAlbum) model.CandidateAlbum {
 	return model.CandidateAlbum{
 		CanonicalAlbum: toInternalCanonicalAlbum(album.CanonicalAlbum),
@@ -842,6 +1173,33 @@ func toInternalCandidateAlbums(albums []CandidateAlbum) []model.CandidateAlbum {
 	internal := make([]model.CandidateAlbum, 0, len(albums))
 	for _, album := range albums {
 		internal = append(internal, toInternalCandidateAlbum(album))
+	}
+	return internal
+}
+
+func toInternalCandidateSong(song CandidateSong) model.CandidateSong {
+	return model.CandidateSong{
+		CanonicalSong: toInternalCanonicalSong(song.CanonicalSong),
+		CandidateID:   song.CandidateID,
+		MatchURL:      song.MatchURL,
+	}
+}
+
+func fromInternalCandidateSong(song model.CandidateSong) CandidateSong {
+	return CandidateSong{
+		CanonicalSong: fromInternalCanonicalSong(song.CanonicalSong),
+		CandidateID:   song.CandidateID,
+		MatchURL:      song.MatchURL,
+	}
+}
+
+func toInternalCandidateSongs(songs []CandidateSong) []model.CandidateSong {
+	if len(songs) == 0 {
+		return nil
+	}
+	internal := make([]model.CandidateSong, 0, len(songs))
+	for _, song := range songs {
+		internal = append(internal, toInternalCandidateSong(song))
 	}
 	return internal
 }
@@ -870,6 +1228,30 @@ func fromInternalMatchResult(result resolve.MatchResult) MatchResult {
 	return public
 }
 
+func fromInternalSongScoredMatch(match resolve.SongScoredMatch) SongScoredMatch {
+	return SongScoredMatch{
+		URL:       match.URL,
+		Score:     match.Score,
+		Reasons:   append([]string(nil), match.Reasons...),
+		Candidate: fromInternalCandidateSong(match.Candidate),
+	}
+}
+
+func fromInternalSongMatchResult(result resolve.SongMatchResult) SongMatchResult {
+	public := SongMatchResult{
+		Service:    fromInternalServiceName(result.Service),
+		Alternates: make([]SongScoredMatch, 0, len(result.Alternates)),
+	}
+	if result.Best != nil {
+		best := fromInternalSongScoredMatch(*result.Best)
+		public.Best = &best
+	}
+	for _, alternate := range result.Alternates {
+		public.Alternates = append(public.Alternates, fromInternalSongScoredMatch(alternate))
+	}
+	return public
+}
+
 func fromInternalResolution(resolution resolve.Resolution) Resolution {
 	matches := make(map[ServiceName]MatchResult, len(resolution.Matches))
 	for service, match := range resolution.Matches {
@@ -879,6 +1261,19 @@ func fromInternalResolution(resolution resolve.Resolution) Resolution {
 		InputURL: resolution.InputURL,
 		Parsed:   fromInternalParsedAlbumURL(resolution.Parsed),
 		Source:   fromInternalCanonicalAlbum(resolution.Source),
+		Matches:  matches,
+	}
+}
+
+func fromInternalSongResolution(resolution resolve.SongResolution) SongResolution {
+	matches := make(map[ServiceName]SongMatchResult, len(resolution.Matches))
+	for service, match := range resolution.Matches {
+		matches[fromInternalServiceName(service)] = fromInternalSongMatchResult(match)
+	}
+	return SongResolution{
+		InputURL: resolution.InputURL,
+		Parsed:   ParsedURL(fromInternalParsedAlbumURL(resolution.Parsed)),
+		Source:   fromInternalCanonicalSong(resolution.Source),
 		Matches:  matches,
 	}
 }
