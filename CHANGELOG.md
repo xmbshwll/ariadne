@@ -4,6 +4,18 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.3.1 - 2026-04-09
+
+### Added
+
+- README documentation describing the matching pipeline, scoring signals, and confidence bands
+
+### Changed
+
+- metadata search now tries alternate album title variants, including parenthetical alternates and stripped title forms
+- improved Spotify and Apple Music resolution for releases whose source titles use mixed-script or parenthetical naming such as `ΘΕΛΗΜΑ (Thelema)`
+- added test coverage for title-search variants and adapter metadata query generation
+
 ## v0.3.0 - 2026-04-07
 
 ### Added
