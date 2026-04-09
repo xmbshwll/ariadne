@@ -52,7 +52,13 @@ test-race:
 
 test-release:
 	GOWORK=off $(GO) test ./...
-	cd $(CMD_MODULE_DIR) && GOWORK=off $(GO) test ./...
+	cd $(CMD_MODULE_DIR) && \
+		rm -f go.release.test.mod go.release.test.sum && \
+		cp go.mod go.release.test.mod && \
+		if [ -f go.sum ]; then cp go.sum go.release.test.sum; fi && \
+		$(GO) mod edit -modfile=go.release.test.mod -replace=github.com/xmbshwll/ariadne=.. && \
+		GOWORK=off $(GO) test -modfile=go.release.test.mod ./... && \
+		rm -f go.release.test.mod go.release.test.sum
 
 lint:
 	$(GOLANGCI_LINT) run --config $(GOLANGCI_LINT_CONFIG) ./...
@@ -68,7 +74,13 @@ fmt:
 verify: fmt lint test-race
 
 verify-release: test-release
-	cd $(CMD_MODULE_DIR) && GOWORK=off $(GO) build ./...
+	cd $(CMD_MODULE_DIR) && \
+		rm -f go.release.test.mod go.release.test.sum && \
+		cp go.mod go.release.test.mod && \
+		if [ -f go.sum ]; then cp go.sum go.release.test.sum; fi && \
+		$(GO) mod edit -modfile=go.release.test.mod -replace=github.com/xmbshwll/ariadne=.. && \
+		GOWORK=off $(GO) build -modfile=go.release.test.mod ./... && \
+		rm -f go.release.test.mod go.release.test.sum
 
 deps:
 	$(GO) mod tidy

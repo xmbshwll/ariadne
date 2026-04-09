@@ -20,7 +20,7 @@ These checks confirm that:
 
 - the repository still works in normal workspace-based development
 - the root library module passes with `GOWORK=off`
-- the `cmd` module passes with `GOWORK=off`
+- the `cmd` module passes with `GOWORK=off` against the current root checkout via a temporary local replace during verification
 - the CLI still builds from the `cmd` module directly
 
 Also check the working tree:
@@ -69,6 +69,8 @@ This publishes:
 ### Library and CLI release together
 
 Use this when both modules changed and the CLI should depend on the new library release.
+
+Before the library is tagged, `make verify-release` intentionally tests the `cmd` module against the current root checkout using a temporary local replace instead of the last published library version. That keeps pre-release verification useful while `cmd/go.mod` still points at the most recent published tag.
 
 #### Step 1: release the library first
 
