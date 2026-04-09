@@ -11,7 +11,7 @@ cfg := ariadne.LoadConfig()
 resolver := ariadne.New(cfg)
 ```
 
-If you want to limit which services are searched:
+If you want to limit which services are searched for both album and song resolution:
 
 ```go
 cfg := ariadne.LoadConfig()
@@ -22,7 +22,7 @@ cfg.TargetServices = []ariadne.ServiceName{
 resolver := ariadne.New(cfg)
 ```
 
-If you want to tune match scoring:
+If you want to tune album match scoring:
 
 ```go
 cfg := ariadne.LoadConfig()
@@ -31,7 +31,7 @@ cfg.ScoreWeights.UPCExact = 120
 resolver := ariadne.New(cfg)
 ```
 
-For the service-by-service runtime behavior, see [`service-resolution.md`](./service-resolution.md).
+For the service-by-service runtime behavior, including first-wave song support, see [`service-resolution.md`](./service-resolution.md).
 
 ## Environment variables
 
@@ -51,12 +51,12 @@ For the service-by-service runtime behavior, see [`service-resolution.md`](./ser
 
 ### Spotify
 
-- If both `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set, Spotify target search is enabled and Spotify source fetch prefers the official Web API.
+- If both `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are set, Spotify album and song target search are enabled and Spotify source fetch prefers the official Web API.
 - If either is missing, Spotify can still be used as an input service through public page bootstrap, but Spotify target search is disabled.
 
 ### Apple Music
 
-- `APPLE_MUSIC_STOREFRONT` controls the default storefront for Apple Music lookup and search.
+- `APPLE_MUSIC_STOREFRONT` controls the default storefront for Apple Music album and song lookup/search.
 - Storefront precedence is:
   1. CLI flag `--apple-music-storefront=<storefront>`
   2. `APPLE_MUSIC_STOREFRONT`
@@ -65,13 +65,13 @@ For the service-by-service runtime behavior, see [`service-resolution.md`](./ser
   - `APPLE_MUSIC_KEY_ID`
   - `APPLE_MUSIC_TEAM_ID`
   - `APPLE_MUSIC_PRIVATE_KEY_PATH`
-  Ariadne also enables official MusicKit identifier search by UPC and ISRC.
+  Ariadne also enables official MusicKit identifier search by album UPC, album-track ISRC, and song ISRC.
 - Source fetch and metadata search still use the public lookup/search APIs.
 
 ### TIDAL
 
 - `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` are required for the TIDAL runtime adapter.
-- There is no public runtime fallback, so both TIDAL source fetch and TIDAL target search require credentials.
+- There is no public runtime fallback, so both TIDAL album/song source fetch and TIDAL album/song target search require credentials.
 
 ## Library vs CLI configuration
 
@@ -80,6 +80,8 @@ For the service-by-service runtime behavior, see [`service-resolution.md`](./ser
 The library reads environment variables through `ariadne.LoadConfig()`.
 
 You can also set `cfg.HTTPTimeout` directly in code to control the default client's per-request timeout.
+
+`cfg.TargetServices` applies to both album and song target selection.
 
 ### CLI
 
@@ -120,6 +122,7 @@ Or let the CLI load `.env` directly, which is the default behavior:
 
 ```bash
 ariadne resolve https://www.deezer.com/album/12047952
+ariadne resolve-song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
 ariadne resolve --config=.env https://www.deezer.com/album/12047952
 ariadne resolve --config=./config/ariadne.yaml https://www.deezer.com/album/12047952
 ```

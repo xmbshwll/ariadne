@@ -92,6 +92,46 @@ func ExampleResolver_ResolveAlbum() {
 	// https://open.spotify.com/album/example-1
 }
 
+func ExampleResolver_ResolveSong() {
+	resolver := ariadne.NewWithEntityAdapters(
+		nil,
+		nil,
+		[]ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
+		[]ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
+	)
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://example.test/songs/1")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(resolution.Source.Title)
+	fmt.Println(resolution.Matches[ariadne.ServiceAppleMusic].Best.URL)
+	// Output:
+	// Example Song
+	// https://music.apple.com/us/album/example-album/2?i=3
+}
+
+func ExampleResolver_Resolve() {
+	resolver := ariadne.NewWithEntityAdapters(
+		[]ariadne.SourceAdapter{exampleSourceAdapter{}},
+		[]ariadne.TargetAdapter{exampleTargetAdapter{}},
+		[]ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
+		[]ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
+	)
+
+	resolution, err := resolver.Resolve(context.Background(), "https://example.test/songs/1")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(resolution.Parsed.EntityType)
+	fmt.Println(resolution.Song.Source.Title)
+	// Output:
+	// song
+	// Example Song
+}
+
 func ExampleNewWithAdaptersAndWeights() {
 	weights := ariadne.DefaultScoreWeights()
 	weights.TrackTitleStrong = 40
@@ -172,5 +212,69 @@ func (exampleTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]ariad
 }
 
 func (exampleTargetAdapter) SearchByMetadata(_ context.Context, _ ariadne.CanonicalAlbum) ([]ariadne.CandidateAlbum, error) {
+	return nil, nil
+}
+
+type exampleSongSourceAdapter struct{}
+
+func (exampleSongSourceAdapter) Service() ariadne.ServiceName {
+	return ariadne.ServiceSpotify
+}
+
+func (exampleSongSourceAdapter) ParseSongURL(raw string) (*ariadne.ParsedURL, error) {
+	return &ariadne.ParsedURL{
+		Service:      ariadne.ServiceSpotify,
+		EntityType:   "song",
+		ID:           "song-1",
+		CanonicalURL: raw,
+		RawURL:       raw,
+	}, nil
+}
+
+func (exampleSongSourceAdapter) FetchSong(_ context.Context, parsed ariadne.ParsedURL) (*ariadne.CanonicalSong, error) {
+	return &ariadne.CanonicalSong{
+		Service:              parsed.Service,
+		SourceID:             parsed.ID,
+		SourceURL:            parsed.CanonicalURL,
+		Title:                "Example Song",
+		NormalizedTitle:      "example song",
+		Artists:              []string{"Example Artist"},
+		NormalizedArtists:    []string{"example artist"},
+		DurationMS:           180000,
+		ISRC:                 "ISRCSONG001",
+		TrackNumber:          1,
+		AlbumTitle:           "Example Album",
+		AlbumNormalizedTitle: "example album",
+	}, nil
+}
+
+type exampleSongTargetAdapter struct{}
+
+func (exampleSongTargetAdapter) Service() ariadne.ServiceName {
+	return ariadne.ServiceAppleMusic
+}
+
+func (exampleSongTargetAdapter) SearchSongByISRC(_ context.Context, isrc string) ([]ariadne.CandidateSong, error) {
+	return []ariadne.CandidateSong{{
+		CanonicalSong: ariadne.CanonicalSong{
+			Service:              ariadne.ServiceAppleMusic,
+			SourceID:             "apple-song-1",
+			SourceURL:            "https://music.apple.com/us/album/example-album/2?i=3",
+			Title:                "Example Song",
+			NormalizedTitle:      "example song",
+			Artists:              []string{"Example Artist"},
+			NormalizedArtists:    []string{"example artist"},
+			DurationMS:           180050,
+			ISRC:                 isrc,
+			TrackNumber:          1,
+			AlbumTitle:           "Example Album",
+			AlbumNormalizedTitle: "example album",
+		},
+		CandidateID: "apple-song-1",
+		MatchURL:    "https://music.apple.com/us/album/example-album/2?i=3",
+	}}, nil
+}
+
+func (exampleSongTargetAdapter) SearchSongByMetadata(_ context.Context, _ ariadne.CanonicalSong) ([]ariadne.CandidateSong, error) {
 	return nil, nil
 }
