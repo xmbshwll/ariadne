@@ -188,11 +188,13 @@ func TestIncludedResourceLookupsUseTypeAndID(t *testing.T) {
 	artistNames := includedArtistNames(includedResourceIndex(included), []relationshipData{{ID: "shared", Type: "artists"}})
 	assert.Equal(t, []string{"Artist Resource"}, artistNames)
 
-	album := firstRelatedResource(included, []relationshipData{{ID: "shared", Type: "albums"}}, "albums")
+	resourceByID := includedResourceIndex(included)
+
+	album := firstRelatedResource(resourceByID, []relationshipData{{ID: "shared", Type: "albums"}}, "albums")
 	require.NotNil(t, album)
 	assert.Equal(t, "Album Resource", album.Attributes.Title)
 
-	artworkURL := artworkURLFromIncluded(included, []relationshipData{{ID: "shared", Type: "artworks"}})
+	artworkURL := artworkURLFromIncluded(resourceByID, []relationshipData{{ID: "shared", Type: "artworks"}})
 	assert.Equal(t, "https://resources.tidal.test/shared.jpg", artworkURL)
 }
 

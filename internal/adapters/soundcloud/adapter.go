@@ -527,25 +527,28 @@ func toCanonicalSong(track soundTrack) *model.CanonicalSong {
 		durationMS = track.Duration
 	}
 	albumTitle := firstNonEmpty(track.PublisherMetadata.AlbumTitle)
+	albumArtists := []string(nil)
+	albumNormalizedArtists := []string(nil)
+	if albumTitle != "" {
+		albumArtists = artists
+		albumNormalizedArtists = normalize.Artists(artists)
+	}
 	canonicalURL := canonicalizeSoundCloudURL(track.PermalinkURL)
-	normalizedArtists := normalize.Artists(artists)
 	return &model.CanonicalSong{
-		Service:              model.ServiceSoundCloud,
-		SourceID:             soundCloudSourceID(canonicalURL),
-		SourceURL:            canonicalURL,
-		Title:                track.Title,
-		NormalizedTitle:      normalize.Text(track.Title),
-		Artists:              artists,
-		NormalizedArtists:    normalizedArtists,
-		DurationMS:           durationMS,
-		ISRC:                 strings.TrimSpace(track.PublisherMetadata.ISRC),
-		Explicit:             track.PublisherMetadata.Explicit,
-		AlbumTitle:           albumTitle,
-		AlbumNormalizedTitle: normalize.Text(albumTitle),
-		// SoundCloud track payloads do not expose distinct album-artist metadata in
-		// toCanonicalSong, so AlbumArtists intentionally reuse the track artists.
-		AlbumArtists:           artists,
-		AlbumNormalizedArtists: normalizedArtists,
+		Service:                model.ServiceSoundCloud,
+		SourceID:               soundCloudSourceID(canonicalURL),
+		SourceURL:              canonicalURL,
+		Title:                  track.Title,
+		NormalizedTitle:        normalize.Text(track.Title),
+		Artists:                artists,
+		NormalizedArtists:      normalize.Artists(artists),
+		DurationMS:             durationMS,
+		ISRC:                   strings.TrimSpace(track.PublisherMetadata.ISRC),
+		Explicit:               track.PublisherMetadata.Explicit,
+		AlbumTitle:             albumTitle,
+		AlbumNormalizedTitle:   normalize.Text(albumTitle),
+		AlbumArtists:           albumArtists,
+		AlbumNormalizedArtists: albumNormalizedArtists,
 		ReleaseDate:            firstNonEmpty(dateOnly(track.ReleaseDate), dateOnly(track.DisplayDate)),
 		ArtworkURL:             strings.TrimSpace(track.ArtworkURL),
 		EditionHints:           normalize.EditionHints(track.Title),

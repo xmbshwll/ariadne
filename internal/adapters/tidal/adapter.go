@@ -524,7 +524,7 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 	resourceByID := includedResourceIndex(included)
 	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 	tracks := tracksFromIncluded(included, resource.Relationships.Items.Data, artistNames)
-	artworkURL := artworkURLFromIncluded(included, resource.Relationships.CoverArt.Data)
+	artworkURL := artworkURLFromIncluded(resourceByID, resource.Relationships.CoverArt.Data)
 	trackCount := resource.Attributes.NumberOfItems
 	if trackCount == 0 {
 		trackCount = len(tracks)
@@ -556,7 +556,7 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalSong {
 	resourceByID := includedResourceIndex(included)
 	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
-	albumResource := firstRelatedResource(included, resource.Relationships.Albums.Data, "albums")
+	albumResource := firstRelatedResource(resourceByID, resource.Relationships.Albums.Data, "albums")
 	albumTitle := ""
 	albumNormalizedTitle := ""
 	albumArtists := []string{}
@@ -571,7 +571,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 		if releaseDate == "" {
 			releaseDate = albumResource.Attributes.ReleaseDate
 		}
-		artworkURL = artworkURLFromIncluded(included, albumResource.Relationships.CoverArt.Data)
+		artworkURL = artworkURLFromIncluded(resourceByID, albumResource.Relationships.CoverArt.Data)
 	}
 	if canonicalURL == "" {
 		canonicalURL = canonicalTrackURL(resource.ID)
@@ -625,8 +625,7 @@ func includedArtistNames(resourceByID map[string]apiResource, relations []relati
 	return results
 }
 
-func firstRelatedResource(included []apiResource, relations []relationshipData, typ string) *apiResource {
-	resourceByID := includedResourceIndex(included)
+func firstRelatedResource(resourceByID map[string]apiResource, relations []relationshipData, typ string) *apiResource {
 	for _, relation := range relations {
 		if relation.Type != typ {
 			continue
@@ -696,8 +695,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 	return tracks
 }
 
-func artworkURLFromIncluded(included []apiResource, relations []relationshipData) string {
-	resourceByID := includedResourceIndex(included)
+func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []relationshipData) string {
 	for _, relation := range relations {
 		if relation.Type != "artworks" {
 			continue

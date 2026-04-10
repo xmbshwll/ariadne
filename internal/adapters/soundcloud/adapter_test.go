@@ -164,6 +164,24 @@ func TestAdapter(t *testing.T) {
 	})
 }
 
+func TestToCanonicalSongLeavesAlbumArtistsEmptyWithoutAlbumTitle(t *testing.T) {
+	song := toCanonicalSong(soundTrack{
+		Title:        "Loose Track",
+		PermalinkURL: "https://soundcloud.com/example/loose-track",
+		User:         soundUser{Username: "Example Artist"},
+		PublisherMetadata: publisherMetadata{
+			Artist:     "Example Artist",
+			AlbumTitle: "",
+		},
+	})
+
+	require.NotNil(t, song)
+	assert.Empty(t, song.AlbumTitle)
+	assert.Nil(t, song.AlbumArtists)
+	assert.Nil(t, song.AlbumNormalizedArtists)
+	assert.Equal(t, []string{"Example Artist"}, song.Artists)
+}
+
 func mustReadSoundCloudFixture(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
