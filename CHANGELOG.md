@@ -4,6 +4,8 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.4.0 - 2026-04-10
+
 ### Added
 
 - first-class song resolution across Spotify, Apple Music, Deezer, TIDAL, Bandcamp, and SoundCloud
@@ -24,6 +26,10 @@ All notable changes to Ariadne are documented here.
 - song source adapters that incorrectly return `(nil, nil)` now produce a descriptive resolver error instead of triggering nil dereferences
 - `--min-strength` filtering now prunes weak alternates for album output as well as song output
 - service-name normalization now accepts canonical public names like `appleMusic` and `youtubeMusic` reliably in addition to aliases
+- verbose YAML CLI output now uses the same explicit snake_case field names as JSON output
+- `--config ""` now disables config-file loading cleanly when passed as a separate CLI token
+- empty Spotify and TIDAL song metadata searches now short-circuit before credential checks instead of failing unnecessarily
+- SoundCloud track canonicalization no longer invents album-artist metadata when the source payload has no album title
 
 ### Limitations
 
