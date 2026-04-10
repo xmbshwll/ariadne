@@ -97,6 +97,8 @@ func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets 
 //
 // Callers should use errors.Is on the returned error when branching on public
 // resolver failure modes. The stable exported sentinels are:
+//   - ErrResolverNotInitialized when ResolveAlbum is called on a nil Resolver
+//     or one whose albumResolver guard detects a missing inner resolver
 //   - ErrUnsupportedURL when no registered source adapter recognizes inputURL
 //   - ErrNoSourceAdapters when the resolver was built without any source adapters
 //   - ErrAmazonMusicDeferred when an Amazon Music URL is recognized but runtime
@@ -126,6 +128,8 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 //
 // Callers should use errors.Is on the returned error when branching on
 // ResolveSong failure modes. The stable exported sentinels are:
+//   - ErrResolverNotInitialized when ResolveSong is called on a nil Resolver
+//     or one whose songResolver guard detects a missing inner resolver
 //   - ErrUnsupportedURL when no registered source adapter recognizes inputURL
 //   - ErrNoSourceAdapters when the resolver was built without any source adapters
 //   - ErrAmazonMusicDeferred when an Amazon Music URL is recognized but runtime

@@ -302,7 +302,6 @@ func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist,
 	if err != nil {
 		return nil, err
 	}
-	var fallback *soundPlaylist
 	for _, entry := range entries {
 		if entry.Hydratable != "playlist" {
 			continue
@@ -311,15 +310,9 @@ func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist,
 		if err := json.Unmarshal(entry.Data, &playlist); err != nil || playlist.PermalinkURL == "" {
 			continue
 		}
-		if fallback == nil {
-			fallback = &playlist
-		}
 		if canonicalizeSoundCloudURL(playlist.PermalinkURL) == canonicalURL {
 			return &playlist, nil
 		}
-	}
-	if fallback != nil {
-		return fallback, nil
 	}
 	return nil, errSoundCloudPlaylistNotFound
 }

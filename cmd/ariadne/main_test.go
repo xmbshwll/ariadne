@@ -125,13 +125,41 @@ func TestRunHelpIgnoresMalformedConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), ".env")
 	require.NoError(t, os.WriteFile(configPath, []byte("ARIADNE_HTTP_TIMEOUT=not-a-duration\n"), 0o600))
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	tests := []struct {
+		name       string
+		args       []string
+		wantStdout []string
+	}{
+		{
+			name:       "root help",
+			args:       []string{"--config", configPath, "help"},
+			wantStdout: []string{"Usage:"},
+		},
+		{
+			name:       "subcommand help command",
+			args:       []string{"--config", configPath, "help", "resolve"},
+			wantStdout: []string{"Resolve a supported music URL across music services.", "--resolution-timeout"},
+		},
+		{
+			name:       "subcommand help flag",
+			args:       []string{"--config", configPath, "resolve", "--help"},
+			wantStdout: []string{"Resolve a supported music URL across music services.", "--resolution-timeout"},
+		},
+	}
 
-	err := run([]string{"--config", configPath, "help"}, &stdout, &stderr)
-	require.NoError(t, err)
-	assert.Contains(t, stdout.String(), "Usage:")
-	assert.Empty(t, stderr.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+
+			err := run(tt.args, &stdout, &stderr)
+			require.NoError(t, err)
+			for _, want := range tt.wantStdout {
+				assert.Contains(t, stdout.String(), want)
+			}
+			assert.Empty(t, stderr.String())
+		})
+	}
 }
 
 func TestRunMissingCommandIgnoresMalformedConfig(t *testing.T) {

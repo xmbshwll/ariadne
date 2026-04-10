@@ -41,7 +41,7 @@ func TestAppleMusicAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := AppleMusicAlbumURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, tt.wantRegion)
@@ -88,7 +88,7 @@ func TestAppleMusicSongURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := AppleMusicSongURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, tt.wantRegion)

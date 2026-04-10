@@ -38,7 +38,7 @@ func TestSpotifyAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := SpotifyAlbumURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
@@ -94,7 +94,7 @@ func TestSpotifySongURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := SpotifySongURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, "")

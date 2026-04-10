@@ -30,7 +30,7 @@ func deezerEntityURL(raw string, pathSegment string, entityType string, notEntit
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 {
+	if len(segments) == 0 {
 		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
 	}
 
@@ -40,9 +40,14 @@ func deezerEntityURL(raw string, pathSegment string, entityType string, notEntit
 		regionHint = segments[0]
 		index++
 	}
-
-	if len(segments[index:]) < 2 || segments[index] != pathSegment {
+	if len(segments) <= index {
+		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
+	}
+	if segments[index] != pathSegment {
 		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
+	}
+	if len(segments) == index+1 {
+		return nil, missingIDErr
 	}
 
 	id := segments[index+1]

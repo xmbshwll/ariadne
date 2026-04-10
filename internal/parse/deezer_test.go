@@ -26,6 +26,11 @@ func TestDeezerAlbumURL(t *testing.T) {
 			wantRegion: "us",
 		},
 		{
+			name:    "missing album id",
+			raw:     "https://www.deezer.com/album",
+			wantErr: true,
+		},
+		{
 			name:    "non album url",
 			raw:     "https://www.deezer.com/track/116348452",
 			wantErr: true,
@@ -41,7 +46,7 @@ func TestDeezerAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := DeezerAlbumURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, tt.wantRegion)
@@ -73,6 +78,11 @@ func TestDeezerSongURL(t *testing.T) {
 			wantRegion: "us",
 		},
 		{
+			name:    "missing track id",
+			raw:     "https://www.deezer.com/track",
+			wantErr: true,
+		},
+		{
 			name:    "non song url",
 			raw:     "https://www.deezer.com/album/12047952",
 			wantErr: true,
@@ -88,7 +98,7 @@ func TestDeezerSongURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := DeezerSongURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, tt.wantRegion)

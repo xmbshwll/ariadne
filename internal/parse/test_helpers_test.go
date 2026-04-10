@@ -8,9 +8,10 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-func requireParseError(t *testing.T, err error) {
+func requireParseError(t *testing.T, got *model.ParsedAlbumURL, err error) {
 	t.Helper()
 	require.Error(t, err)
+	require.Nil(t, got)
 }
 
 func requireParsedURL(t *testing.T, got *model.ParsedAlbumURL, err error, wantEntityType string, wantID string, wantURL string, wantRegion string) {

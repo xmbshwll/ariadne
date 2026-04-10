@@ -33,7 +33,7 @@ func TestSoundCloudAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := SoundCloudAlbumURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
@@ -66,13 +66,18 @@ func TestSoundCloudSongURL(t *testing.T) {
 			raw:     "https://soundcloud.com/evidence-official/sets/cats-dogs-6",
 			wantErr: true,
 		},
+		{
+			name:    "nested track path is rejected",
+			raw:     "https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1/comments",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := SoundCloudSongURL(tt.raw)
 			if tt.wantErr {
-				requireParseError(t, err)
+				requireParseError(t, got, err)
 				return
 			}
 			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, "")

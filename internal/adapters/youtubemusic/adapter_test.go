@@ -41,6 +41,7 @@ func TestAdapter(t *testing.T) {
 			CanonicalURL: server.URL + "/browse/MPREb_tQfaWH32ovE",
 		})
 		require.NoError(t, err)
+		require.NotNil(t, album)
 		assert.Equal(t, "Abbey Road (Super Deluxe Edition)", album.Title)
 		assert.Equal(t, "https://music.youtube.com/playlist?list=OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", album.SourceURL)
 		assert.Equal(t, "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", album.SourceID)

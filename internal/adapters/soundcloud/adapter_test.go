@@ -55,6 +55,11 @@ func TestAdapter(t *testing.T) {
 		}
 	}))
 	defer server.Close()
+	sourcePayload = []byte(strings.ReplaceAll(
+		string(sourcePayload),
+		"https://soundcloud.com/evidence-official/sets/cats-dogs-6",
+		server.URL+"/album",
+	))
 	trackPayload = []byte(strings.ReplaceAll(
 		string(trackPayload),
 		"https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1",
@@ -74,12 +79,24 @@ func TestAdapter(t *testing.T) {
 		album, err := adapter.FetchAlbum(context.Background(), parsed)
 		require.NoError(t, err)
 		assert.Equal(t, soundCloudCatsAndDogs, album.Title)
-		assert.Equal(t, "https://soundcloud.com/evidence-official/sets/cats-dogs-6", album.SourceURL)
+		assert.Equal(t, server.URL+"/album", album.SourceURL)
 		assert.Equal(t, 17, album.TrackCount)
 		assert.Equal(t, "826257014467", album.UPC)
 		require.NotEmpty(t, album.Tracks)
 		assert.Equal(t, soundCloudTrackISRC, album.Tracks[0].ISRC)
 		assert.Equal(t, "Rhymesayers", album.Label)
+	})
+
+	t.Run("extract playlist hydration requires exact url match", func(t *testing.T) {
+		body := fmt.Appendf(
+			nil,
+			`<html><body><script>window.__sc_hydration = [{"hydratable":"playlist","data":%s}];</script></body></html>`,
+			sourcePayload,
+		)
+		playlist, err := extractPlaylistHydration(body, server.URL+"/missing-album")
+		require.Error(t, err)
+		assert.Nil(t, playlist)
+		assert.ErrorIs(t, err, errSoundCloudPlaylistNotFound)
 	})
 
 	t.Run("search by metadata via api v2", func(t *testing.T) {

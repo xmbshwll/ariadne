@@ -44,7 +44,7 @@ func SoundCloudSongURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 || segments[1] == "sets" {
+	if len(segments) != 2 || segments[1] == "sets" {
 		return nil, fmt.Errorf("%w: %s", errSoundCloudNotSongURL, raw)
 	}
 

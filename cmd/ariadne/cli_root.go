@@ -135,7 +135,13 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		return errMissingCommand
 	}
 	if isHelpArg(commandArgs[0]) {
-		return renderRootHelp(stdout, helpConfig, configPath)
+		if len(commandArgs) == 1 {
+			return renderRootHelp(stdout, helpConfig, configPath)
+		}
+		return executeRootCommand(stdout, stderr, helpConfig, configPath, args)
+	}
+	if containsHelpArg(commandArgs[1:]) {
+		return executeRootCommand(stdout, stderr, helpConfig, configPath, args)
 	}
 
 	baseConfig, err := loadCLIConfig(configPath)
@@ -145,9 +151,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 
 	unknownCommand := firstCommandArg(commandArgs, args)
 
-	root := newRootCmd(stdout, stderr, baseConfig, configPath)
-	root.SetArgs(args)
-	if err := root.Execute(); err != nil {
+	if err := executeRootCommand(stdout, stderr, baseConfig, configPath, args); err != nil {
 		if isUnknownCommandError(err) {
 			if helpErr := renderRootHelp(stderr, baseConfig, configPath); helpErr != nil {
 				return fmt.Errorf("print usage: %w", helpErr)
@@ -189,12 +193,27 @@ func firstCommandArg(commandArgs []string, args []string) string {
 	return "<unknown>"
 }
 
+func containsHelpArg(args []string) bool {
+	for _, arg := range args {
+		if isHelpArg(arg) {
+			return true
+		}
+	}
+	return false
+}
+
 func isHelpArg(arg string) bool {
 	return arg == "help" || arg == "--help" || arg == "-h"
 }
 
 func isUnknownCommandError(err error) bool {
 	return strings.HasPrefix(err.Error(), "unknown command ")
+}
+
+func executeRootCommand(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string, args []string) error {
+	root := newRootCmd(stdout, stderr, baseConfig, configPath)
+	root.SetArgs(args)
+	return root.Execute()
 }
 
 func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string) *cobra.Command {

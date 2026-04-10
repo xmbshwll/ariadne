@@ -400,9 +400,10 @@ func firstSongLookupItem(items []lookupItem) (lookupItem, bool) {
 		if item.TrackID == 0 {
 			continue
 		}
-		if item.WrapperType == wrapperTypeTrack || item.Kind == entitySong {
-			return item, true
+		if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong {
+			continue
 		}
+		return item, true
 	}
 	return lookupItem{}, false
 }
