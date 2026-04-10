@@ -67,6 +67,18 @@ func TestSpotifySongURL(t *testing.T) {
 			wantURL: "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
 		},
 		{
+			name:    "spotify host",
+			raw:     "https://spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+			wantID:  "2EqlS6tkEnglzr7tkKAAYD",
+			wantURL: "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+		},
+		{
+			name:    "www spotify host",
+			raw:     "https://www.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+			wantID:  "2EqlS6tkEnglzr7tkKAAYD",
+			wantURL: "https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD",
+		},
+		{
 			name:    "wrong resource type",
 			raw:     "https://open.spotify.com/album/0ETFjACtuP2ADo6LFhL6HN",
 			wantErr: true,

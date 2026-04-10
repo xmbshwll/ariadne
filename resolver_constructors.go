@@ -151,7 +151,10 @@ func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResol
 	return &public, nil
 }
 
-// Resolve parses an input URL and dispatches to album or song resolution.
+// Resolve tries ResolveSong first and returns an EntityResolution containing
+// either Song or Album. Non-fallback ResolveSong failures, such as credential
+// errors, are returned immediately. Resolve falls back to ResolveAlbum only
+// when ResolveSong returns ErrUnsupportedURL or ErrNoSourceAdapters.
 func (r *Resolver) Resolve(ctx context.Context, inputURL string) (*EntityResolution, error) {
 	songResolution, err := r.ResolveSong(ctx, inputURL)
 	if err == nil {

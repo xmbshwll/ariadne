@@ -23,12 +23,17 @@ func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) er
 	ctx, cancel := context.WithTimeout(context.Background(), config.resolutionTimeout)
 	defer cancel()
 
+	emptyResolutionError := fmt.Errorf("resolve %q: %w", config.inputURL, errEmptyResolution)
+
 	switch mode {
 	case resolveModeSong:
 		resolution, err := resolver.ResolveSong(ctx, config.inputURL)
 		if err != nil {
 			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 			return err
+		}
+		if resolution == nil {
+			return emptyResolutionError
 		}
 		return writeCLISongOutput(stdout, *resolution, config)
 	case resolveModeAlbum:
@@ -37,6 +42,9 @@ func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) er
 			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 			return err
 		}
+		if resolution == nil {
+			return emptyResolutionError
+		}
 		return writeCLIOutput(stdout, *resolution, config)
 	case resolveModeAuto:
 		resolution, err := resolver.Resolve(ctx, config.inputURL)
@@ -44,13 +52,16 @@ func executeResolve(config resolveConfig, stdout io.Writer, mode resolveMode) er
 			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 			return err
 		}
+		if resolution == nil {
+			return emptyResolutionError
+		}
 		if resolution.Song != nil {
 			return writeCLISongOutput(stdout, *resolution.Song, config)
 		}
 		if resolution.Album != nil {
 			return writeCLIOutput(stdout, *resolution.Album, config)
 		}
-		return fmt.Errorf("resolve %q: %w", config.inputURL, errEmptyResolution)
+		return emptyResolutionError
 	default:
 		return fmt.Errorf("%w %q", errUnsupportedResolveMode, mode)
 	}

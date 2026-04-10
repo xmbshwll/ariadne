@@ -22,7 +22,7 @@ func TestAdapter(t *testing.T) {
 		ID:           "B0064UPU4G",
 		CanonicalURL: "https://music.amazon.com/albums/B0064UPU4G",
 	})
-	assert.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
+	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
 
 	upcResults, err := adapter.SearchByUPC(context.Background(), "123")
 	require.NoError(t, err)

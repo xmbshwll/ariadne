@@ -24,6 +24,7 @@ const (
 	defaultAPIBaseURL    = "https://api.music.apple.com/v1"
 	searchLimit          = 5
 	entitySong           = "song"
+	wrapperTypeTrack     = "track"
 )
 
 var (
@@ -262,8 +263,6 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	results := make([]model.CandidateSong, 0, searchLimit)
 	seen := make(map[int64]struct{}, searchLimit)
 
-	const wrapperTypeTrack = "track"
-
 	for _, query := range queries {
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=%s&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), entitySong, searchLimit, url.QueryEscape(storefront))
 		var payload lookupResponse
@@ -401,7 +400,7 @@ func firstSongLookupItem(items []lookupItem) (lookupItem, bool) {
 		if item.TrackID == 0 {
 			continue
 		}
-		if item.WrapperType == "track" || item.Kind == entitySong {
+		if item.WrapperType == wrapperTypeTrack || item.Kind == entitySong {
 			return item, true
 		}
 	}
@@ -418,7 +417,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	explicit := false
 
 	for _, item := range items[1:] {
-		if item.WrapperType != "track" || item.Kind != entitySong {
+		if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong {
 			continue
 		}
 		trackCount++

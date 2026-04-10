@@ -535,21 +535,24 @@ func toCanonicalSong(track soundTrack) *model.CanonicalSong {
 	}
 	albumTitle := firstNonEmpty(track.PublisherMetadata.AlbumTitle)
 	canonicalURL := canonicalizeSoundCloudURL(track.PermalinkURL)
+	normalizedArtists := normalize.Artists(artists)
 	return &model.CanonicalSong{
-		Service:                model.ServiceSoundCloud,
-		SourceID:               soundCloudSourceID(canonicalURL),
-		SourceURL:              canonicalURL,
-		Title:                  track.Title,
-		NormalizedTitle:        normalize.Text(track.Title),
-		Artists:                artists,
-		NormalizedArtists:      normalize.Artists(artists),
-		DurationMS:             durationMS,
-		ISRC:                   strings.TrimSpace(track.PublisherMetadata.ISRC),
-		Explicit:               track.PublisherMetadata.Explicit,
-		AlbumTitle:             albumTitle,
-		AlbumNormalizedTitle:   normalize.Text(albumTitle),
+		Service:              model.ServiceSoundCloud,
+		SourceID:             soundCloudSourceID(canonicalURL),
+		SourceURL:            canonicalURL,
+		Title:                track.Title,
+		NormalizedTitle:      normalize.Text(track.Title),
+		Artists:              artists,
+		NormalizedArtists:    normalizedArtists,
+		DurationMS:           durationMS,
+		ISRC:                 strings.TrimSpace(track.PublisherMetadata.ISRC),
+		Explicit:             track.PublisherMetadata.Explicit,
+		AlbumTitle:           albumTitle,
+		AlbumNormalizedTitle: normalize.Text(albumTitle),
+		// SoundCloud track payloads do not expose distinct album-artist metadata in
+		// toCanonicalSong, so AlbumArtists intentionally reuse the track artists.
 		AlbumArtists:           artists,
-		AlbumNormalizedArtists: normalize.Artists(artists),
+		AlbumNormalizedArtists: normalizedArtists,
 		ReleaseDate:            firstNonEmpty(dateOnly(track.ReleaseDate), dateOnly(track.DisplayDate)),
 		ArtworkURL:             strings.TrimSpace(track.ArtworkURL),
 		EditionHints:           normalize.EditionHints(track.Title),

@@ -140,14 +140,23 @@ func DefaultSongScoreWeights() SongScoreWeights {
 	return fromInternalSongScoreWeights(score.DefaultSongWeights())
 }
 
+const (
+	// MatchScoreStrong is the minimum score for the highest-confidence band.
+	MatchScoreStrong = 100
+	// MatchScoreProbable is the minimum score for likely-good matches.
+	MatchScoreProbable = 70
+	// MatchScoreWeak is the minimum score for low-confidence but retained matches.
+	MatchScoreWeak = 50
+)
+
 // MatchStrengthForScore maps a raw score into a confidence band.
 func MatchStrengthForScore(score int) MatchStrength {
 	switch {
-	case score >= 100:
+	case score >= MatchScoreStrong:
 		return MatchStrengthStrong
-	case score >= 70:
+	case score >= MatchScoreProbable:
 		return MatchStrengthProbable
-	case score >= 50:
+	case score >= MatchScoreWeak:
 		return MatchStrengthWeak
 	default:
 		return MatchStrengthVeryWeak
