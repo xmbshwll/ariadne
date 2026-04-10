@@ -14,7 +14,7 @@ import (
 
 var (
 	// ErrUnsupportedURL indicates that no registered source adapter recognized the input URL.
-	ErrUnsupportedURL = errors.New("unsupported album url")
+	ErrUnsupportedURL = errors.New("unsupported url")
 	// ErrNoSourceAdapters indicates that the resolver was created without source adapters.
 	ErrNoSourceAdapters = errors.New("no source adapters configured")
 )
@@ -90,7 +90,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		return nil, fmt.Errorf("fetch source album with %s: %w", sourceAdapter.Service(), err)
 	}
 
-	targets := r.targetSearchesFor(sourceAlbum.Service)
+	targets := excludeTargetService(r.targets, sourceAlbum.Service)
 	resolution := &Resolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
@@ -110,7 +110,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 			ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
 
 			matchesMu.Lock()
-			resolution.Matches[target.Service()] = matchResultFromRanking(target.Service(), ranking)
+			resolution.Matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
 			matchesMu.Unlock()
 			return nil
 		})
@@ -122,42 +122,30 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 	return resolution, nil
 }
 
-func (r *Resolver) targetSearchesFor(sourceService model.ServiceName) []TargetAdapter {
-	targets := make([]TargetAdapter, 0, len(r.targets))
-	for _, target := range r.targets {
+func excludeTargetService[T interface{ Service() model.ServiceName }](targets []T, sourceService model.ServiceName) []T {
+	filtered := make([]T, 0, len(targets))
+	for _, target := range targets {
 		if target.Service() == sourceService {
 			continue
 		}
-		targets = append(targets, target)
+		filtered = append(filtered, target)
 	}
-	return targets
+	return filtered
 }
 
 func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlbumURL, error) {
-	for _, source := range r.sources {
-		parsed, err := source.ParseAlbumURL(inputURL)
-		if err != nil || parsed == nil {
-			continue
-		}
-		return source, parsed, nil
-	}
-	return nil, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
+	return parseSourceAdapter(
+		r.sources,
+		inputURL,
+		func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
+			return source.ParseAlbumURL(raw)
+		},
+	)
 }
 
 func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	combined := make([]model.CandidateAlbum, 0)
-	seen := make(map[string]struct{})
-
-	appendUnique := func(candidates []model.CandidateAlbum) {
-		for _, candidate := range candidates {
-			key := candidateKey(candidate)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			combined = append(combined, candidate)
-		}
-	}
+	combined := []model.CandidateAlbum{}
+	seen := map[string]struct{}{}
 
 	if source.UPC != "" {
 		candidates, err := target.SearchByUPC(ctx, source.UPC)
@@ -165,7 +153,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 			return nil, err
 		}
-		appendUnique(candidates)
+		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
 	}
 
 	isrcs := collectISRCs(source)
@@ -175,7 +163,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 			return nil, err
 		}
-		appendUnique(candidates)
+		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
 	}
 
 	metadataCandidates, err := target.SearchByMetadata(ctx, source)
@@ -183,9 +171,33 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
 		return nil, err
 	}
-	appendUnique(metadataCandidates)
+	combined = appendUniqueByKey(combined, seen, metadataCandidates, albumCandidateKey)
 
 	return combined, nil
+}
+
+func parseSourceAdapter[S any, P any](sources []S, inputURL string, parse func(S, string) (*P, error)) (S, *P, error) {
+	var zero S
+	for _, source := range sources {
+		parsed, err := parse(source, inputURL)
+		if err != nil || parsed == nil {
+			continue
+		}
+		return source, parsed, nil
+	}
+	return zero, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
+}
+
+func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {
+	for _, item := range items {
+		key := keyFunc(item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		dst = append(dst, item)
+	}
+	return dst
 }
 
 func collectISRCs(album model.CanonicalAlbum) []string {
@@ -204,14 +216,14 @@ func collectISRCs(album model.CanonicalAlbum) []string {
 	return isrcs
 }
 
-func candidateKey(candidate model.CandidateAlbum) string {
+func albumCandidateKey(candidate model.CandidateAlbum) string {
 	if candidate.CandidateID != "" {
 		return string(candidate.Service) + ":id:" + candidate.CandidateID
 	}
 	return string(candidate.Service) + ":url:" + candidate.MatchURL
 }
 
-func matchResultFromRanking(service model.ServiceName, ranking score.Ranking) MatchResult {
+func albumMatchResultFromRanking(service model.ServiceName, ranking score.Ranking) MatchResult {
 	result := MatchResult{
 		Service:    service,
 		Alternates: make([]ScoredMatch, 0),
@@ -220,15 +232,15 @@ func matchResultFromRanking(service model.ServiceName, ranking score.Ranking) Ma
 		return result
 	}
 
-	best := toScoredMatch(*ranking.Best)
+	best := toAlbumScoredMatch(*ranking.Best)
 	result.Best = &best
 	for _, ranked := range ranking.Ranked[1:] {
-		result.Alternates = append(result.Alternates, toScoredMatch(ranked))
+		result.Alternates = append(result.Alternates, toAlbumScoredMatch(ranked))
 	}
 	return result
 }
 
-func toScoredMatch(ranked score.RankedCandidate) ScoredMatch {
+func toAlbumScoredMatch(ranked score.RankedCandidate) ScoredMatch {
 	return ScoredMatch{
 		URL:       ranked.Candidate.MatchURL,
 		Score:     ranked.Score,

@@ -1,6 +1,10 @@
 package parse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/xmbshwll/ariadne/internal/model"
+)
 
 func TestTIDALAlbumURL(t *testing.T) {
 	tests := []struct {
@@ -8,7 +12,7 @@ func TestTIDALAlbumURL(t *testing.T) {
 		raw     string
 		wantID  string
 		wantURL string
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name:    "canonical album url",
@@ -37,33 +41,84 @@ func TestTIDALAlbumURL(t *testing.T) {
 		{
 			name:    "wrong resource type",
 			raw:     "https://tidal.com/track/123",
-			wantErr: true,
+			wantErr: errTIDALNotAlbumURL,
 		},
 		{
 			name:    "wrong host",
 			raw:     "https://example.com/album/156205493",
-			wantErr: true,
+			wantErr: errUnsupportedTIDALHost,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TIDALAlbumURL(tt.raw)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
+			if tt.wantErr != nil {
+				requireParseErrorIs(t, got, err, tt.wantErr)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			requireParsedURL(t, got, err, model.ServiceTIDAL, "album", tt.wantID, tt.wantURL, "")
+		})
+	}
+}
+
+func TestTIDALSongURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		wantID  string
+		wantURL string
+		wantErr error
+	}{
+		{
+			name:    "canonical track url",
+			raw:     "https://tidal.com/track/156205494",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "browse track url",
+			raw:     "https://tidal.com/browse/track/156205494",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "listen host",
+			raw:     "https://listen.tidal.com/track/156205494",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "www host with query string",
+			raw:     "https://www.tidal.com/track/156205494?foo=bar",
+			wantID:  "156205494",
+			wantURL: "https://tidal.com/track/156205494",
+		},
+		{
+			name:    "missing track id",
+			raw:     "https://tidal.com/track",
+			wantErr: errInvalidTIDALPath,
+		},
+		{
+			name:    "wrong resource type",
+			raw:     "https://tidal.com/album/156205493",
+			wantErr: errTIDALNotSongURL,
+		},
+		{
+			name:    "wrong host",
+			raw:     "https://example.com/track/156205494",
+			wantErr: errUnsupportedTIDALHost,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := TIDALSongURL(tt.raw)
+			if tt.wantErr != nil {
+				requireParseErrorIs(t, got, err, tt.wantErr)
+				return
 			}
-			if got.ID != tt.wantID {
-				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
-			}
-			if got.CanonicalURL != tt.wantURL {
-				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
-			}
+			requireParsedURL(t, got, err, model.ServiceTIDAL, "song", tt.wantID, tt.wantURL, "")
 		})
 	}
 }

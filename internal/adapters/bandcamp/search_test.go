@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -44,18 +46,12 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body := mustReadBandcampFixture(t, tt.fixture)
 			candidates := extractSearchCandidates(body)
-			if len(candidates) != tt.wantCount {
-				t.Fatalf("candidate count = %d, want %d", len(candidates), tt.wantCount)
-			}
+			require.Len(t, candidates, tt.wantCount)
 
 			ranked := rankSearchCandidates(tt.source, candidates)
-			if len(ranked) != tt.wantCount {
-				t.Fatalf("ranked count = %d, want %d", len(ranked), tt.wantCount)
-			}
+			require.Len(t, ranked, tt.wantCount)
 			for i, want := range tt.wantTitles {
-				if ranked[i].Title != want {
-					t.Fatalf("ranked[%d] title = %q, want %q", i, ranked[i].Title, want)
-				}
+				assert.Equal(t, want, ranked[i].Title)
 			}
 		})
 	}
@@ -64,20 +60,26 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 func TestExtractSearchCandidatesDeduplicatesURLs(t *testing.T) {
 	body := mustReadBandcampFixture(t, "testdata/search-fixture-url-dedup.html")
 	candidates := extractSearchCandidates(body)
-	if len(candidates) != 1 {
-		t.Fatalf("candidate count = %d, want 1", len(candidates))
-	}
-	if candidates[0].URL != "https://artist.bandcamp.com/album/example-album" {
-		t.Fatalf("candidate url = %q, want canonical bandcamp url", candidates[0].URL)
-	}
+	require.Len(t, candidates, 1)
+	assert.Equal(t, "https://artist.bandcamp.com/album/example-album", candidates[0].URL)
+}
+
+func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.T) {
+	body := mustReadBandcampFixture(t, "testdata/search-fixture-track.html")
+	candidates := extractSongSearchCandidates(body)
+	require.Len(t, candidates, 2)
+
+	assert.Equal(t, "Come Together", candidates[0].Title)
+	assert.Equal(t, "https://comradiation.bandcamp.com/track/come-together", candidates[0].URL)
+
+	assert.Equal(t, "Something", candidates[1].Title)
+	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
 }
 
 func mustReadBandcampFixture(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
+	require.NoError(t, err)
 	return content
 }

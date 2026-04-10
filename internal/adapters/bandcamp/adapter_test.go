@@ -11,7 +11,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
+)
+
+const (
+	bandcampSearchPath = "/search"
+	lonAbatyAbbeyRoad  = "Lôn Abaty / Abbey Road"
 )
 
 func TestAdapter(t *testing.T) {
@@ -22,7 +29,7 @@ func TestAdapter(t *testing.T) {
 		switch r.URL.Path {
 		case "/album/l-n-abaty-abbey-road":
 			_, _ = w.Write(sourcePage)
-		case "/search":
+		case bandcampSearchPath:
 			searchHTML := fmt.Sprintf(`
 				<html><body>
 					<li class="searchresult data-search">
@@ -59,36 +66,16 @@ func TestAdapter(t *testing.T) {
 
 	t.Run("fetch album", func(t *testing.T) {
 		album, err := adapter.FetchAlbum(context.Background(), parsed)
-		if err != nil {
-			t.Fatalf("FetchAlbum error: %v", err)
-		}
-		if album.Title != "Lôn Abaty / Abbey Road" {
-			t.Fatalf("title = %q", album.Title)
-		}
-		if album.SourceID != "l-n-abaty-abbey-road" {
-			t.Fatalf("source id = %q", album.SourceID)
-		}
-		if album.SourceURL != parsed.CanonicalURL {
-			t.Fatalf("source url = %q", album.SourceURL)
-		}
-		if album.TrackCount != 14 {
-			t.Fatalf("track count = %d", album.TrackCount)
-		}
-		if len(album.Tracks) != 14 {
-			t.Fatalf("tracks len = %d", len(album.Tracks))
-		}
-		if album.Tracks[0].Title == "" {
-			t.Fatalf("expected first track title")
-		}
-		if album.TotalDurationMS <= 0 {
-			t.Fatalf("expected total duration ms > 0")
-		}
-		if album.ArtworkURL == "" {
-			t.Fatalf("expected artwork url")
-		}
-		if album.ReleaseDate != "2021-12-02" {
-			t.Fatalf("release date = %q, want 2021-12-02", album.ReleaseDate)
-		}
+		require.NoError(t, err)
+		assert.Equal(t, lonAbatyAbbeyRoad, album.Title)
+		assert.Equal(t, "l-n-abaty-abbey-road", album.SourceID)
+		assert.Equal(t, parsed.CanonicalURL, album.SourceURL)
+		assert.Equal(t, 14, album.TrackCount)
+		require.Len(t, album.Tracks, 14)
+		assert.NotEmpty(t, album.Tracks[0].Title)
+		assert.Positive(t, album.TotalDurationMS)
+		assert.NotEmpty(t, album.ArtworkURL)
+		assert.Equal(t, "2021-12-02", album.ReleaseDate)
 	})
 
 	t.Run("search by metadata", func(t *testing.T) {
@@ -96,28 +83,16 @@ func TestAdapter(t *testing.T) {
 			Title:   "Abbey Road",
 			Artists: []string{"COMRADIATION"},
 		})
-		if err != nil {
-			t.Fatalf("SearchByMetadata error: %v", err)
-		}
-		if len(results) != 1 {
-			t.Fatalf("result count = %d, want 1", len(results))
-		}
-		if results[0].CandidateID != "l-n-abaty-abbey-road" {
-			t.Fatalf("candidate id = %q", results[0].CandidateID)
-		}
-		if !strings.Contains(results[0].MatchURL, "/album/l-n-abaty-abbey-road") {
-			t.Fatalf("candidate url = %q", results[0].MatchURL)
-		}
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "l-n-abaty-abbey-road", results[0].CandidateID)
+		assert.Contains(t, results[0].MatchURL, "/album/l-n-abaty-abbey-road")
 	})
 
 	t.Run("search by upc unsupported", func(t *testing.T) {
 		results, err := adapter.SearchByUPC(context.Background(), "123")
-		if err != nil {
-			t.Fatalf("SearchByUPC error: %v", err)
-		}
-		if len(results) != 0 {
-			t.Fatalf("result count = %d, want 0", len(results))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 }
 
@@ -140,7 +115,7 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case bandcampSearchPath:
 			searchHTML := fmt.Sprintf(`
 				<html><body>
 					<li class="searchresult data-search">
@@ -172,18 +147,77 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 
 	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
 	results, err := adapter.SearchByMetadata(context.Background(), source)
-	if err != nil {
-		t.Fatalf("SearchByMetadata error: %v", err)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	assert.Equal(t, "live-at-kexp-high", results[0].CandidateID)
+	assert.Equal(t, "live-at-kexp-low", results[1].CandidateID)
+}
+
+func TestSongAdapter(t *testing.T) {
+	trackPage := mustBandcampTrackPage(t, "Come Together", "COMRADIATION", lonAbatyAbbeyRoad, "2021-12-02", 251000)
+	liveTrackPage := mustBandcampTrackPage(t, "Come Together (Live)", "Tribute Band", "Abbey Road Live", "2020-01-01", 300000)
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/track/come-together":
+			_, _ = w.Write(trackPage)
+		case bandcampSearchPath:
+			searchHTML := fmt.Sprintf(`
+				<html><body>
+					<li class="searchresult data-search">
+					  <div class="itemtype">TRACK</div>
+					  <div class="heading"><a href="%s/track/come-together?from=search">Come Together</a></div>
+					  <div class="subhead">by COMRADIATION</div>
+					  <div class="released">released December 2, 2021</div>
+					</li>
+					<li class="searchresult data-search">
+					  <div class="itemtype">TRACK</div>
+					  <div class="heading"><a href="%s/track/come-together-live">Come Together (Live)</a></div>
+					  <div class="subhead">by Tribute Band</div>
+					  <div class="released">released January 1, 2020</div>
+					</li>
+				</body></html>
+			`, server.URL, server.URL)
+			_, _ = w.Write([]byte(searchHTML))
+		case "/track/come-together-live":
+			_, _ = w.Write(liveTrackPage)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
+	parsed := model.ParsedAlbumURL{
+		Service:      model.ServiceBandcamp,
+		EntityType:   "song",
+		ID:           "come-together",
+		CanonicalURL: server.URL + "/track/come-together",
+		RawURL:       server.URL + "/track/come-together",
 	}
-	if len(results) != 2 {
-		t.Fatalf("result count = %d, want 2", len(results))
-	}
-	if results[0].CandidateID != "live-at-kexp-high" {
-		t.Fatalf("first candidate = %q, want live-at-kexp-high", results[0].CandidateID)
-	}
-	if results[1].CandidateID != "live-at-kexp-low" {
-		t.Fatalf("second candidate = %q, want live-at-kexp-low", results[1].CandidateID)
-	}
+
+	t.Run("fetch song", func(t *testing.T) {
+		song, err := adapter.FetchSong(context.Background(), parsed)
+		require.NoError(t, err)
+		assert.Equal(t, "Come Together", song.Title)
+		assert.Equal(t, lonAbatyAbbeyRoad, song.AlbumTitle)
+		assert.Equal(t, 251000, song.DurationMS)
+	})
+
+	t.Run("search song by metadata", func(t *testing.T) {
+		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
+			Title:      "Come Together",
+			Artists:    []string{"COMRADIATION"},
+			DurationMS: 251000,
+			AlbumTitle: lonAbatyAbbeyRoad,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+		assert.Equal(t, "come-together", results[0].CandidateID)
+		assert.Equal(t, lonAbatyAbbeyRoad, results[0].AlbumTitle)
+		assert.Equal(t, "come-together-live", results[1].CandidateID)
+	})
 }
 
 func TestRealSavedPages(t *testing.T) {
@@ -251,23 +285,14 @@ func TestRealSavedPages(t *testing.T) {
 			}
 
 			album, err := adapter.FetchAlbum(context.Background(), parsed)
-			if err != nil {
-				t.Fatalf("FetchAlbum error: %v", err)
-			}
-			if album.Title != tt.wantTitle {
-				t.Fatalf("title = %q, want %q", album.Title, tt.wantTitle)
-			}
-			if len(album.Artists) == 0 || album.Artists[0] != tt.wantArtist {
-				t.Fatalf("artist = %v, want %q", album.Artists, tt.wantArtist)
-			}
-			if album.TrackCount != tt.wantTracks {
-				t.Fatalf("track count = %d, want %d", album.TrackCount, tt.wantTracks)
-			}
-			if album.ReleaseDate != tt.wantDate {
-				t.Fatalf("release date = %q, want %q", album.ReleaseDate, tt.wantDate)
-			}
-			if tt.wantArtwork && album.ArtworkURL == "" {
-				t.Fatalf("expected artwork url")
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantTitle, album.Title)
+			require.NotEmpty(t, album.Artists)
+			assert.Equal(t, tt.wantArtist, album.Artists[0])
+			assert.Equal(t, tt.wantTracks, album.TrackCount)
+			assert.Equal(t, tt.wantDate, album.ReleaseDate)
+			if tt.wantArtwork {
+				assert.NotEmpty(t, album.ArtworkURL)
 			}
 		})
 	}
@@ -309,9 +334,37 @@ func mustBandcampAlbumPage(t *testing.T, title string, artist string, releaseDat
 		},
 	}
 	content, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("marshal bandcamp album payload: %v", err)
+	require.NoError(t, err)
+	page := fmt.Sprintf("<html><body><script type=\"application/ld+json\">%s</script></body></html>", content)
+	return []byte(page)
+}
+
+func mustBandcampTrackPage(t *testing.T, title string, artist string, albumTitle string, releaseDate string, durationMS int) []byte {
+	t.Helper()
+	payload := map[string]any{
+		"@context":      "https://schema.org",
+		"@type":         "MusicRecording",
+		"@id":           "https://example.bandcamp.com/track/test",
+		"name":          title,
+		"datePublished": releaseDate + " 00:00:00 GMT",
+		"duration":      fmt.Sprintf("PT%dM%dS", durationMS/60000, (durationMS/1000)%60),
+		"image":         "https://f4.bcbits.com/img/example-track.jpg",
+		"byArtist": map[string]any{
+			"@type": "MusicGroup",
+			"name":  artist,
+		},
+		"publisher": map[string]any{
+			"@type": "MusicGroup",
+			"name":  artist,
+		},
+		"inAlbum": map[string]any{
+			"@type": "MusicAlbum",
+			"@id":   "https://example.bandcamp.com/album/example-album",
+			"name":  albumTitle,
+		},
 	}
+	content, err := json.Marshal(payload)
+	require.NoError(t, err)
 	page := fmt.Sprintf("<html><body><script type=\"application/ld+json\">%s</script></body></html>", content)
 	return []byte(page)
 }
@@ -320,8 +373,6 @@ func mustReadTestFile(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
+	require.NoError(t, err)
 	return content
 }

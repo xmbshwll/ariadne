@@ -30,8 +30,9 @@ var (
 
 	errUnexpectedTIDALService     = errors.New("unexpected tidal service")
 	errTIDALAlbumNotFound         = errors.New("tidal album not found")
-	errUnexpectedTIDALAPIStatus   = errors.New("unexpected api status")
-	errUnexpectedTIDALTokenStatus = errors.New("unexpected token status")
+	errTIDALTrackNotFound         = errors.New("tidal track not found")
+	errUnexpectedTIDALAPIStatus   = errors.New("unexpected tidal api status")
+	errUnexpectedTIDALTokenStatus = errors.New("unexpected tidal token status")
 	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
 )
 
@@ -107,6 +108,14 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parsed, nil
 }
 
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parse.TIDALSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse tidal song url: %w", err)
+	}
+	return parsed, nil
+}
+
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	if parsed.Service != model.ServiceTIDAL {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedTIDALService, parsed.Service)
@@ -129,63 +138,57 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, fmt.Errorf("tidal search by upc: %w", err)
 	}
 	resources := documentData(document)
-	results := make([]model.CandidateAlbum, 0, min(len(resources), searchLimit))
-	for _, resource := range resources {
-		canonical, err := a.fetchAlbumByID(ctx, resource.ID, canonicalAlbumURL(resource.ID), "")
-		if err != nil {
-			return nil, fmt.Errorf("hydrate tidal album %s from upc: %w", resource.ID, err)
-		}
-		results = append(results, toCandidateAlbum(*canonical))
-		if len(results) >= searchLimit {
-			break
-		}
-	}
-	return results, nil
+	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), "", func(albumID string) string {
+		return fmt.Sprintf("hydrate tidal album %s from upc", albumID)
+	})
 }
 
 func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
-
-	results := make([]model.CandidateAlbum, 0, len(isrcs))
-	seen := make(map[string]struct{}, len(isrcs))
+	trimmedISRCs := make([]string, 0, len(isrcs))
 	for _, isrc := range isrcs {
 		isrc = strings.TrimSpace(isrc)
 		if isrc == "" {
 			continue
 		}
+		trimmedISRCs = append(trimmedISRCs, isrc)
+	}
+	if len(trimmedISRCs) == 0 {
+		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+
+	results := make([]model.CandidateAlbum, 0, len(trimmedISRCs))
+	seen := make(map[string]struct{}, len(trimmedISRCs))
+	for _, isrc := range trimmedISRCs {
 		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 			return nil, fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
 		}
-		albumIDs := albumIDsFromTrackDocument(document)
-		for _, albumID := range albumIDs {
-			if _, ok := seen[albumID]; ok {
-				continue
-			}
-			seen[albumID] = struct{}{}
-			canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), "")
-			if err != nil {
-				return nil, fmt.Errorf("hydrate tidal album %s from isrc %s: %w", albumID, isrc, err)
-			}
-			results = append(results, toCandidateAlbum(*canonical))
-			if len(results) >= searchLimit {
-				return results, nil
-			}
+		albumIDs := uniqueStrings(albumIDsFromTrackDocument(document), seen)
+		hydrated, err := a.hydrateAlbumCandidates(ctx, albumIDs, "", func(albumID string) string {
+			return fmt.Sprintf("hydrate tidal album %s from isrc %s", albumID, isrc)
+		})
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, hydrated...)
+		if len(results) >= searchLimit {
+			return results[:searchLimit], nil
 		}
 	}
 	return results, nil
 }
 
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
 	query := metadataQuery(album)
 	if query == "" {
 		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
 	}
 	countryCode := a.countryCodeFor(album.RegionHint)
 	endpoint := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", a.apiBaseURL, url.PathEscape(query), url.QueryEscape(countryCode))
@@ -194,18 +197,109 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("tidal search by metadata: %w", err)
 	}
 	resources := documentData(document)
-	results := make([]model.CandidateAlbum, 0, min(len(resources), searchLimit))
-	for _, resource := range resources {
-		canonical, err := a.fetchAlbumByID(ctx, resource.ID, canonicalAlbumURL(resource.ID), album.RegionHint)
+	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), album.RegionHint, func(albumID string) string {
+		return fmt.Sprintf("hydrate tidal album %s from metadata", albumID)
+	})
+}
+
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceTIDAL {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedTIDALService, parsed.Service)
+	}
+	return a.fetchSongByID(ctx, parsed.ID, parsed.CanonicalURL, parsed.RegionHint)
+}
+
+func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
+	isrc = strings.TrimSpace(isrc)
+	if isrc == "" {
+		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+
+	endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc))
+	var document apiDocument
+	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
+		return nil, fmt.Errorf("tidal song search by isrc %s: %w", isrc, err)
+	}
+	resources := documentData(document)
+	return a.hydrateSongCandidates(ctx, resourceIDs(resources), "", func(songID string) string {
+		return fmt.Sprintf("hydrate tidal song %s from isrc", songID)
+	})
+}
+
+func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	query := songMetadataQuery(song)
+	if query == "" {
+		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+	countryCode := a.countryCodeFor(song.RegionHint)
+	endpoint := fmt.Sprintf("%s/searchResults/%s/relationships/tracks?countryCode=%s", a.apiBaseURL, url.PathEscape(query), url.QueryEscape(countryCode))
+	var document apiDocument
+	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
+		return nil, fmt.Errorf("tidal song search by metadata: %w", err)
+	}
+	resources := documentData(document)
+	return a.hydrateSongCandidates(ctx, resourceIDs(resources), song.RegionHint, func(songID string) string {
+		return fmt.Sprintf("hydrate tidal song %s from metadata", songID)
+	})
+}
+
+func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
+	results := make([]model.CandidateAlbum, 0, min(len(albumIDs), searchLimit))
+	for _, albumID := range albumIDs {
+		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
-			return nil, fmt.Errorf("hydrate tidal album %s from metadata: %w", resource.ID, err)
+			return nil, fmt.Errorf("%s: %w", errorMessage(albumID), err)
 		}
 		results = append(results, toCandidateAlbum(*canonical))
 		if len(results) >= searchLimit {
-			break
+			return results, nil
 		}
 	}
 	return results, nil
+}
+
+func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
+	results := make([]model.CandidateSong, 0, min(len(songIDs), searchLimit))
+	for _, songID := range songIDs {
+		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", errorMessage(songID), err)
+		}
+		results = append(results, toCandidateSong(*canonical))
+		if len(results) >= searchLimit {
+			return results, nil
+		}
+	}
+	return results, nil
+}
+
+func resourceIDs(resources []apiResource) []string {
+	ids := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		if resource.ID == "" {
+			continue
+		}
+		ids = append(ids, resource.ID)
+	}
+	return ids
+}
+
+func uniqueStrings(values []string, seen map[string]struct{}) []string {
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalURL string, regionHint string) (*model.CanonicalAlbum, error) {
@@ -220,6 +314,20 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 		return nil, fmt.Errorf("%w: %s", errTIDALAlbumNotFound, albumID)
 	}
 	return toCanonicalAlbum(*resource, document.Included, canonicalURL, regionHint), nil
+}
+
+func (a *Adapter) fetchSongByID(ctx context.Context, trackID string, canonicalURL string, regionHint string) (*model.CanonicalSong, error) {
+	var document apiDocument
+	countryCode := a.countryCodeFor(regionHint)
+	endpoint := fmt.Sprintf("%s/tracks/%s?countryCode=%s&include=%s", a.apiBaseURL, url.PathEscape(trackID), url.QueryEscape(countryCode), url.QueryEscape("artists,albums,coverArt"))
+	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
+		return nil, err
+	}
+	resource := firstDataResource(document)
+	if resource == nil {
+		return nil, fmt.Errorf("%w: %s", errTIDALTrackNotFound, trackID)
+	}
+	return toCanonicalSong(*resource, document.Included, canonicalURL, regionHint), nil
 }
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
@@ -330,6 +438,17 @@ func metadataQuery(album model.CanonicalAlbum) string {
 	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
+func songMetadataQuery(song model.CanonicalSong) string {
+	parts := make([]string, 0, 2)
+	if song.Title != "" {
+		parts = append(parts, song.Title)
+	}
+	if len(song.Artists) > 0 {
+		parts = append(parts, song.Artists[0])
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
 func firstDataResource(document apiDocument) *apiResource {
 	resources := documentData(document)
 	if len(resources) == 0 {
@@ -402,9 +521,10 @@ func albumIDsFromTrackDocument(document apiDocument) []string {
 }
 
 func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalAlbum {
-	artistNames := includedNames(included, resource.Relationships.Artists.Data, "artists")
+	resourceByID := includedResourceIndex(included)
+	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 	tracks := tracksFromIncluded(included, resource.Relationships.Items.Data, artistNames)
-	artworkURL := artworkURLFromIncluded(included, resource.Relationships.CoverArt.Data)
+	artworkURL := artworkURLFromIncluded(resourceByID, resource.Relationships.CoverArt.Data)
 	trackCount := resource.Attributes.NumberOfItems
 	if trackCount == 0 {
 		trackCount = len(tracks)
@@ -433,18 +553,62 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 	}
 }
 
-func includedNames(included []apiResource, relations []relationshipData, typ string) []string {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
+func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalSong {
+	resourceByID := includedResourceIndex(included)
+	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+	albumResource := firstRelatedResource(resourceByID, resource.Relationships.Albums.Data, "albums")
+	albumTitle := ""
+	albumNormalizedTitle := ""
+	albumArtists := []string{}
+	albumNormalizedArtists := []string{}
+	releaseDate := resource.Attributes.ReleaseDate
+	artworkURL := ""
+	if albumResource != nil {
+		albumTitle = albumResource.Attributes.Title
+		albumNormalizedTitle = normalize.Text(albumTitle)
+		albumArtists = includedArtistNames(resourceByID, albumResource.Relationships.Artists.Data)
+		albumNormalizedArtists = normalize.Artists(albumArtists)
+		if releaseDate == "" {
+			releaseDate = albumResource.Attributes.ReleaseDate
+		}
+		artworkURL = artworkURLFromIncluded(resourceByID, albumResource.Relationships.CoverArt.Data)
 	}
+	if canonicalURL == "" {
+		canonicalURL = canonicalTrackURL(resource.ID)
+	}
+	return &model.CanonicalSong{
+		Service:                model.ServiceTIDAL,
+		SourceID:               resource.ID,
+		SourceURL:              canonicalURL,
+		RegionHint:             strings.ToUpper(strings.TrimSpace(regionHint)),
+		Title:                  resource.Attributes.Title,
+		NormalizedTitle:        normalize.Text(resource.Attributes.Title),
+		Artists:                artistNames,
+		NormalizedArtists:      normalize.Artists(artistNames),
+		DurationMS:             parseISODurationMilliseconds(resource.Attributes.Duration),
+		ISRC:                   resource.Attributes.ISRC,
+		Explicit:               resource.Attributes.Explicit,
+		DiscNumber:             firstTrackVolumeNumber(resource.Relationships.Albums.Data),
+		TrackNumber:            firstTrackNumber(resource.Relationships.Albums.Data),
+		AlbumID:                firstRelatedID(resource.Relationships.Albums.Data, "albums"),
+		AlbumTitle:             albumTitle,
+		AlbumNormalizedTitle:   albumNormalizedTitle,
+		AlbumArtists:           albumArtists,
+		AlbumNormalizedArtists: albumNormalizedArtists,
+		ReleaseDate:            releaseDate,
+		ArtworkURL:             artworkURL,
+		EditionHints:           normalize.EditionHints(resource.Attributes.Title),
+	}
+}
+
+func includedArtistNames(resourceByID map[string]apiResource, relations []relationshipData) []string {
 	results := make([]string, 0, len(relations))
 	seen := make(map[string]struct{}, len(relations))
 	for _, relation := range relations {
-		if relation.Type != typ {
+		if relation.Type != "artists" {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
@@ -461,21 +625,60 @@ func includedNames(included []apiResource, relations []relationshipData, typ str
 	return results
 }
 
-func tracksFromIncluded(included []apiResource, relations []relationshipData, fallbackArtists []string) []model.CanonicalTrack {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
+func firstRelatedResource(resourceByID map[string]apiResource, relations []relationshipData, typ string) *apiResource {
+	for _, relation := range relations {
+		if relation.Type != typ {
+			continue
+		}
+		resource, ok := resourceByID[includedRelationKey(relation)]
+		if !ok {
+			continue
+		}
+		relatedResource := resource
+		return &relatedResource
 	}
+	return nil
+}
+
+func firstRelatedID(relations []relationshipData, typ string) string {
+	for _, relation := range relations {
+		if relation.Type == typ && relation.ID != "" {
+			return relation.ID
+		}
+	}
+	return ""
+}
+
+func firstTrackNumber(relations []relationshipData) int {
+	for _, relation := range relations {
+		if relation.Meta.TrackNumber > 0 {
+			return relation.Meta.TrackNumber
+		}
+	}
+	return 0
+}
+
+func firstTrackVolumeNumber(relations []relationshipData) int {
+	for _, relation := range relations {
+		if relation.Meta.VolumeNumber > 0 {
+			return relation.Meta.VolumeNumber
+		}
+	}
+	return 0
+}
+
+func tracksFromIncluded(included []apiResource, relations []relationshipData, fallbackArtists []string) []model.CanonicalTrack {
+	resourceByID := includedResourceIndex(included)
 	tracks := make([]model.CanonicalTrack, 0, len(relations))
 	for _, relation := range relations {
 		if relation.Type != "tracks" {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
-		trackArtists := includedNames(included, resource.Relationships.Artists.Data, "artists")
+		trackArtists := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 		if len(trackArtists) == 0 {
 			trackArtists = append([]string(nil), fallbackArtists...)
 		}
@@ -492,16 +695,12 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 	return tracks
 }
 
-func artworkURLFromIncluded(included []apiResource, relations []relationshipData) string {
-	resourceByID := make(map[string]apiResource, len(included))
-	for _, resource := range included {
-		resourceByID[resource.ID] = resource
-	}
+func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []relationshipData) string {
 	for _, relation := range relations {
 		if relation.Type != "artworks" {
 			continue
 		}
-		resource, ok := resourceByID[relation.ID]
+		resource, ok := resourceByID[includedRelationKey(relation)]
 		if !ok {
 			continue
 		}
@@ -516,6 +715,22 @@ func artworkURLFromIncluded(included []apiResource, relations []relationshipData
 		}
 	}
 	return ""
+}
+
+func includedResourceIndex(included []apiResource) map[string]apiResource {
+	resourceByID := make(map[string]apiResource, len(included))
+	for _, resource := range included {
+		resourceByID[includedResourceKey(resource.Type, resource.ID)] = resource
+	}
+	return resourceByID
+}
+
+func includedResourceKey(resourceType string, resourceID string) string {
+	return resourceType + ":" + resourceID
+}
+
+func includedRelationKey(relation relationshipData) string {
+	return includedResourceKey(relation.Type, relation.ID)
 }
 
 func parseISODurationMilliseconds(value string) int {
@@ -559,8 +774,16 @@ func canonicalAlbumURL(albumID string) string {
 	return "https://tidal.com/album/" + albumID
 }
 
+func canonicalTrackURL(trackID string) string {
+	return "https://tidal.com/track/" + trackID
+}
+
 func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
 	return model.CandidateAlbum{CanonicalAlbum: album, CandidateID: album.SourceID, MatchURL: album.SourceURL}
+}
+
+func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
+	return model.CandidateSong{CanonicalSong: song, CandidateID: song.SourceID, MatchURL: song.SourceURL}
 }
 
 func firstNonEmpty(values ...string) string {

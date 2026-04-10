@@ -10,6 +10,15 @@ import (
 
 // DeezerAlbumURL parses a Deezer album URL into the shared parsed representation.
 func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	return deezerEntityURL(raw, albumPathSegment, "album", errDeezerNotAlbumURL, errMissingDeezerAlbumID)
+}
+
+// DeezerSongURL parses a Deezer track URL into the shared parsed representation.
+func DeezerSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	return deezerEntityURL(raw, "track", "song", errDeezerNotSongURL, errMissingDeezerTrackID)
+}
+
+func deezerEntityURL(raw string, pathSegment string, entityType string, notEntityErr error, missingIDErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse deezer url: %w", err)
@@ -21,8 +30,8 @@ func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	segments := pathSegments(parsed.Path)
-	if len(segments) < 2 {
-		return nil, fmt.Errorf("%w: %s", errInvalidDeezerAlbumPath, parsed.Path)
+	if len(segments) == 0 {
+		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
 	}
 
 	regionHint := ""
@@ -31,21 +40,26 @@ func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		regionHint = segments[0]
 		index++
 	}
-
-	if len(segments[index:]) < 2 || segments[index] != albumPathSegment {
-		return nil, fmt.Errorf("%w: %s", errDeezerNotAlbumURL, raw)
+	if len(segments) <= index {
+		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
+	}
+	if segments[index] != pathSegment {
+		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
+	}
+	if len(segments) == index+1 {
+		return nil, missingIDErr
 	}
 
 	id := segments[index+1]
 	if id == "" {
-		return nil, errMissingDeezerAlbumID
+		return nil, missingIDErr
 	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
-		EntityType:   "album",
+		EntityType:   entityType,
 		ID:           id,
-		CanonicalURL: "https://www.deezer.com/" + albumPathSegment + "/" + id,
+		CanonicalURL: "https://www.deezer.com/" + pathSegment + "/" + id,
 		RegionHint:   regionHint,
 		RawURL:       raw,
 	}, nil

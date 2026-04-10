@@ -25,6 +25,8 @@ const (
 var (
 	errUnexpectedDeezerService = errors.New("unexpected deezer service")
 	errUnexpectedDeezerStatus  = errors.New("unexpected deezer status")
+	errDeezerAlbumNotFound     = errors.New("deezer album not found")
+	errDeezerTrackNotFound     = errors.New("deezer track not found")
 )
 
 // Adapter implements Deezer source operations.
@@ -54,6 +56,15 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parse.DeezerAlbumURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse deezer album url: %w", err)
+	}
+	return parsed, nil
+}
+
+// ParseSongURL parses a Deezer track URL.
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parse.DeezerSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse deezer song url: %w", err)
 	}
 	return parsed, nil
 }
@@ -101,16 +112,17 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		if track.Album.ID == 0 {
 			continue
 		}
-		if _, ok := seenAlbumIDs[track.Album.ID]; ok {
+		albumID := track.Album.ID
+		if _, ok := seenAlbumIDs[albumID]; ok {
 			continue
 		}
-		seenAlbumIDs[track.Album.ID] = struct{}{}
+		seenAlbumIDs[albumID] = struct{}{}
 
-		canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(track.Album.ID))
+		candidate, err := a.hydrateAlbumCandidate(ctx, albumID)
 		if err != nil {
-			return nil, fmt.Errorf("hydrate deezer album %d from isrc %s: %w", track.Album.ID, isrc, err)
+			return nil, fmt.Errorf("hydrate deezer album %d from isrc %s: %w", albumID, isrc, err)
 		}
-		results = append(results, toCandidateAlbum(*canonical))
+		results = append(results, candidate)
 		if len(results) >= identifierSearchLimit {
 			break
 		}
@@ -134,11 +146,11 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 
 	results := make([]model.CandidateAlbum, 0, min(len(searchResults.Data), metadataSearchLimit))
 	for _, candidate := range searchResults.Data {
-		canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(candidate.ID))
+		hydrated, err := a.hydrateAlbumCandidate(ctx, candidate.ID)
 		if err != nil {
 			return nil, fmt.Errorf("hydrate deezer candidate %d: %w", candidate.ID, err)
 		}
-		results = append(results, toCandidateAlbum(*canonical))
+		results = append(results, hydrated)
 		if len(results) >= metadataSearchLimit {
 			break
 		}
@@ -147,21 +159,114 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	return results, nil
 }
 
+// FetchSong loads a Deezer track and converts it into the canonical song model.
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceDeezer {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedDeezerService, parsed.Service)
+	}
+	return a.fetchSongByID(ctx, parsed.ID)
+}
+
+// SearchSongByISRC resolves Deezer songs from an ISRC.
+func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
+	isrc = strings.TrimSpace(isrc)
+	if isrc == "" {
+		return nil, nil
+	}
+
+	track, err := a.fetchTrackLookup(ctx, a.baseURL+"/track/isrc:"+url.PathEscape(isrc))
+	if err != nil {
+		if errors.Is(err, errDeezerTrackNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("search deezer song by isrc %s: %w", isrc, err)
+	}
+	return []model.CandidateSong{toCandidateSong(*a.toCanonicalSong(*track))}, nil
+}
+
+// SearchSongByMetadata searches Deezer tracks using song title and artist metadata.
+func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	query := songMetadataQuery(song)
+	if query == "" {
+		return nil, nil
+	}
+
+	var searchResults tracksResponse
+	endpoint := a.baseURL + "/search/track?q=" + url.QueryEscape(query)
+	if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
+		return nil, fmt.Errorf("search deezer song by metadata %q: %w", query, err)
+	}
+
+	results := make([]model.CandidateSong, 0, min(len(searchResults.Data), metadataSearchLimit))
+	for _, candidate := range searchResults.Data {
+		hydrated, err := a.hydrateSongCandidate(ctx, candidate.ID)
+		if err != nil {
+			return nil, fmt.Errorf("hydrate deezer song candidate %d: %w", candidate.ID, err)
+		}
+		results = append(results, hydrated)
+		if len(results) >= metadataSearchLimit {
+			break
+		}
+	}
+
+	return results, nil
+}
+
+func (a *Adapter) hydrateAlbumCandidate(ctx context.Context, albumID int) (model.CandidateAlbum, error) {
+	canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(albumID))
+	if err != nil {
+		return model.CandidateAlbum{}, err
+	}
+	return toCandidateAlbum(*canonical), nil
+}
+
+func (a *Adapter) hydrateSongCandidate(ctx context.Context, trackID int) (model.CandidateSong, error) {
+	canonical, err := a.fetchSongByID(ctx, strconv.Itoa(trackID))
+	if err != nil {
+		return model.CandidateSong{}, err
+	}
+	return toCandidateSong(*canonical), nil
+}
+
 func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string) (*model.CanonicalAlbum, error) {
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
 		EntityType:   "album",
 		ID:           albumID,
-		CanonicalURL: "https://www.deezer.com/album/" + albumID,
-		RawURL:       "https://www.deezer.com/album/" + albumID,
+		CanonicalURL: canonicalAlbumURLString(albumID),
+		RawURL:       canonicalAlbumURLString(albumID),
 	}
 	return a.fetchAlbumByLookup(ctx, a.baseURL+"/album/"+albumID, parsed)
+}
+
+func (a *Adapter) fetchSongByID(ctx context.Context, trackID string) (*model.CanonicalSong, error) {
+	track, err := a.fetchTrackLookup(ctx, a.baseURL+"/track/"+trackID)
+	if err != nil {
+		return nil, fmt.Errorf("fetch deezer song %s: %w", trackID, err)
+	}
+	canonical := a.toCanonicalSong(*track)
+	return canonical, nil
+}
+
+func (a *Adapter) fetchTrackLookup(ctx context.Context, endpoint string) (*trackLookupResponse, error) {
+	var track trackLookupResponse
+	if err := a.getJSON(ctx, endpoint, &track); err != nil {
+		return nil, err
+	}
+	if track.ID == 0 {
+		return nil, errDeezerTrackNotFound
+	}
+	return &track, nil
 }
 
 func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parsedOverride ...model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	var album albumResponse
 	if err := a.getJSON(ctx, endpoint, &album); err != nil {
 		return nil, err
+	}
+
+	if album.ID == 0 || album.TracklistURL == "" {
+		return nil, errDeezerAlbumNotFound
 	}
 
 	var tracks tracksResponse
@@ -303,8 +408,27 @@ func metadataQuery(album model.CanonicalAlbum) string {
 	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
+func songMetadataQuery(song model.CanonicalSong) string {
+	parts := make([]string, 0, 2)
+	if song.Title != "" {
+		parts = append(parts, song.Title)
+	}
+	if len(song.Artists) > 0 {
+		parts = append(parts, song.Artists[0])
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
+}
+
 func canonicalAlbumURL(albumID int) string {
 	return fmt.Sprintf("https://www.deezer.com/album/%d", albumID)
+}
+
+func canonicalAlbumURLString(albumID string) string {
+	return "https://www.deezer.com/album/" + albumID
+}
+
+func canonicalTrackURL(trackID int) string {
+	return fmt.Sprintf("https://www.deezer.com/track/%d", trackID)
 }
 
 func firstNonEmpty(values ...string) string {
@@ -314,4 +438,42 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func (a *Adapter) toCanonicalSong(track trackLookupResponse) *model.CanonicalSong {
+	artists := []string{}
+	if track.Artist.Name != "" {
+		artists = append(artists, track.Artist.Name)
+	}
+	artworkURL := firstNonEmpty(track.Album.CoverXL, track.Album.CoverBig, track.Album.CoverMedium, track.Album.Cover)
+	return &model.CanonicalSong{
+		Service:                model.ServiceDeezer,
+		SourceID:               strconv.Itoa(track.ID),
+		SourceURL:              firstNonEmpty(track.Link, canonicalTrackURL(track.ID)),
+		Title:                  track.Title,
+		NormalizedTitle:        normalize.Text(track.Title),
+		Artists:                artists,
+		NormalizedArtists:      normalize.Artists(artists),
+		DurationMS:             track.Duration * 1000,
+		ISRC:                   track.ISRC,
+		Explicit:               track.ExplicitLyrics,
+		DiscNumber:             track.DiskNumber,
+		TrackNumber:            track.TrackPosition,
+		AlbumID:                strconv.Itoa(track.Album.ID),
+		AlbumTitle:             track.Album.Title,
+		AlbumNormalizedTitle:   normalize.Text(track.Album.Title),
+		AlbumArtists:           append([]string(nil), artists...),
+		AlbumNormalizedArtists: normalize.Artists(artists),
+		ReleaseDate:            track.Album.ReleaseDate,
+		ArtworkURL:             artworkURL,
+		EditionHints:           normalize.EditionHints(track.Title),
+	}
+}
+
+func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
+	return model.CandidateSong{
+		CanonicalSong: song,
+		CandidateID:   song.SourceID,
+		MatchURL:      song.SourceURL,
+	}
 }

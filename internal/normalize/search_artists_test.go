@@ -1,8 +1,9 @@
 package normalize
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSearchArtistVariants(t *testing.T) {
@@ -35,10 +36,7 @@ func TestSearchArtistVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := SearchArtistVariants(tt.input)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("SearchArtistVariants(%q) = %#v, want %#v", tt.input, got, tt.want)
-			}
+			assert.Equal(t, tt.want, SearchArtistVariants(tt.input))
 		})
 	}
 }

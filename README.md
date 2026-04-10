@@ -6,16 +6,18 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/xmbshwll/ariadne.svg)](https://pkg.go.dev/github.com/xmbshwll/ariadne)
 [![Go Report Card](https://goreportcard.com/badge/github.com/xmbshwll/ariadne)](https://goreportcard.com/report/github.com/xmbshwll/ariadne)
 
-Ariadne is a Go library and CLI for finding matching album URLs across music services.
+Ariadne is a Go library and CLI for finding matching album and song URLs across music services.
 
-Give it one supported album URL and Ariadne will fetch canonical album metadata, search other services for likely matches, and rank the results.
+Give it one supported album or song URL and Ariadne will fetch canonical metadata, search other services for likely matches, and rank the results.
+
+Song resolution is currently strongest on Spotify, Apple Music, Deezer, TIDAL, Bandcamp, and SoundCloud. YouTube Music song resolution is still not implemented.
 
 ## What it is useful for
 
 Ariadne is a good fit when you need to:
 
-- turn one album URL into equivalent links on other services
-- normalize album metadata from different platforms
+- turn one album or song URL into equivalent links on other services
+- normalize release and track metadata from different platforms
 - build redirect tools, catalog sync jobs, or internal music tooling
 - automate cross-service matching without hand-writing service-specific logic
 
@@ -54,6 +56,24 @@ Resolve an album URL:
 ariadne resolve https://www.deezer.com/album/12047952
 ```
 
+Resolve a song URL explicitly:
+
+```bash
+ariadne resolve --song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
+```
+
+Force album resolution explicitly when needed:
+
+```bash
+ariadne resolve --album https://www.deezer.com/album/12047952
+```
+
+If neither `--song` nor `--album` is set, `resolve` auto-detects the resource type:
+
+```bash
+ariadne resolve https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
+```
+
 By default, Ariadne prints compact JSON with the best link it found for each service.
 
 Example:
@@ -68,6 +88,8 @@ Example:
 
 Useful flags:
 
+- `--song` to force song resolution for the input URL
+- `--album` to force album resolution for the input URL
 - `--verbose` to include source metadata, scores, reasoning, and alternates
 - `--format=json|yaml|csv` to change output format
 - `--services=spotify,deezer` to limit which target services are searched
@@ -75,10 +97,12 @@ Useful flags:
 - `--http-timeout=30s` to raise or lower the per-request HTTP timeout
 - `--config=.env` or `--config=path/to/config.yaml` to load config from a file
 
+`--song` and `--album` are mutually exclusive.
+
 Full command shape:
 
 ```bash
-ariadne resolve [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <album-url>
+ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <url>
 ```
 
 ### Library
@@ -107,22 +131,40 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("source:", resolution.Source.Title)
+	fmt.Println("album source:", resolution.Source.Title)
 	fmt.Println("spotify:", resolution.Matches[ariadne.ServiceSpotify].Best.URL)
+
+	songResolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("song source:", songResolution.Source.Title)
+
+	entityResolution, err := resolver.Resolve(context.Background(), "https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if entityResolution.Song != nil {
+		fmt.Println("resolved a song")
+	}
 }
 ```
 
-If you want to supply your own adapters, you can also build a resolver with:
+If you want to supply your own adapters, you can build a resolver with either:
 
 ```go
-resolver := ariadne.NewWithAdapters(sourceAdapters, targetAdapters)
+resolver := ariadne.NewWithAdapters(albumSourceAdapters, albumTargetAdapters)
+resolver := ariadne.NewWithEntityAdapters(albumSourceAdapters, albumTargetAdapters, songSourceAdapters, songTargetAdapters)
 ```
 
 ## How matching works
 
-Ariadne uses the same matching pipeline for every supported service.
+Ariadne uses the same high-level pipeline for every supported service, but it keeps album and song matching separate internally.
 
-### 1. Parse and canonicalize the source album
+### Album resolution
+
+#### 1. Parse and canonicalize the source album
 
 The input URL is first parsed by the registered source adapters until one recognizes it.
 That adapter then fetches the source album and converts it into a shared canonical shape with fields such as:
@@ -138,9 +180,7 @@ That adapter then fetches the source album and converts it into a shared canonic
 - explicit flag
 - edition hints such as remaster or deluxe
 
-This gives the resolver one normalized source record regardless of which service the input came from.
-
-### 2. Search each target service in layers
+#### 2. Search each target service in layers
 
 Each target service is searched independently, and the source service is skipped.
 For each target, Ariadne collects candidates in this order:
@@ -151,13 +191,11 @@ For each target, Ariadne collects candidates in this order:
 
 Metadata search is the fallback that keeps the resolver useful for services that expose weak identifiers or none at all. It uses search-oriented variants of the source metadata, including split artist credits and alternate title forms when available.
 
-### 3. Deduplicate candidates
+#### 3. Deduplicate and score candidates
 
 Results collected from UPC, ISRC, and metadata search are merged and deduplicated per service. If the same album is found through multiple paths, it is scored only once.
 
-### 4. Score every candidate with shared signals
-
-Ariadne then ranks all candidates for a target service with a shared scoring model. The score combines positive and negative signals, including:
+Ariadne then ranks all candidates for a target service with an album-oriented scorer. The score combines positive and negative signals, including:
 
 - exact UPC match
 - strong or partial ISRC overlap
@@ -172,9 +210,49 @@ Ariadne then ranks all candidates for a target service with a shared scoring mod
 - penalties for explicit mismatches
 - penalties for edition mismatches such as remaster vs non-remaster
 
-This matters because no single signal is reliable across every service. A candidate can still rank well even when, for example, UPC is missing, as long as the artist, track list, date, and title line up.
+### Song resolution
 
-### 5. Sort and return best match plus alternates
+Song resolution follows the same layered structure, but it uses song-native metadata and a separate scorer.
+
+#### 1. Parse and canonicalize the source song
+
+The source adapter normalizes fields such as:
+
+- song title
+- credited artists
+- duration
+- ISRC
+- explicit flag
+- disc and track number
+- album context when available
+- release date
+- edition hints such as live, edit, or remaster
+
+#### 2. Search each target service in layers
+
+For first-wave song services, Ariadne searches in this order:
+
+1. **ISRC search** when the source song exposes an ISRC
+2. **Metadata search** using song title and artist queries
+
+#### 3. Deduplicate and score candidates
+
+Song candidates are deduplicated per service, then scored with song-oriented signals such as:
+
+- exact ISRC match
+- exact title match
+- core title match after removing edition markers
+- exact primary artist match or broader artist overlap
+- near duration
+- exact album-title match when album context exists
+- exact release-date match or same-year match
+- exact track-number match when available
+- penalties for explicit mismatches
+- penalties for edition mismatches
+
+This keeps songs from being forced through the album scorer while still reusing the same overall resolver style.
+
+### Return best match plus alternates
 
 Candidates are sorted by descending score. For each target service, Ariadne returns:
 
@@ -200,16 +278,16 @@ Sources such as Bandcamp often rely much more heavily on metadata search, so tit
 
 ## Service support
 
-| Service | Can use as input | Can search as target | Requirements | Status |
-|---|---|---|---|---|
-| Spotify | Yes | Yes | Target search requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` | supported |
-| Apple Music | Yes | Yes | UPC/ISRC search requires `APPLE_MUSIC_KEY_ID`, `APPLE_MUSIC_TEAM_ID`, and `APPLE_MUSIC_PRIVATE_KEY_PATH` | supported |
-| Deezer | Yes | Yes | None | supported |
-| Bandcamp | Yes | Yes | None; scraping-based | experimental |
-| SoundCloud | Yes | Yes | None; public page/API extraction | experimental |
-| YouTube Music | Yes | Yes | None; public HTML extraction | experimental |
-| TIDAL | Yes | Yes | `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` | experimental |
-| Amazon Music | Parse only | No | Runtime resolution intentionally deferred | deferred |
+| Service | Album input | Album target | Song input | Song target | Requirements | Status |
+|---|---|---|---|---|---|---|
+| Spotify | Yes | Yes | Yes | Yes | Album/song target search requires `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` | supported |
+| Apple Music | Yes | Yes | Yes | Yes | Album UPC/song ISRC search requires `APPLE_MUSIC_KEY_ID`, `APPLE_MUSIC_TEAM_ID`, and `APPLE_MUSIC_PRIVATE_KEY_PATH` | supported |
+| Deezer | Yes | Yes | Yes | Yes | None | supported |
+| Bandcamp | Yes | Yes | Yes | Yes | None; scraping-based metadata-first song matching | experimental |
+| SoundCloud | Yes | Yes | Yes | Yes | None; public page/API extraction and metadata-first song matching | experimental |
+| YouTube Music | Yes | Yes | No | No | None; public HTML extraction | experimental |
+| TIDAL | Yes | Yes | Yes | Yes | `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` | experimental |
+| Amazon Music | Parse only | No | No | No | Runtime resolution intentionally deferred | deferred |
 
 For a detailed explanation of how each service works at runtime, see [`docs/service-resolution.md`](./docs/service-resolution.md).
 
@@ -231,7 +309,7 @@ Supported environment variables:
 - `TIDAL_CLIENT_SECRET`
 - `ARIADNE_HTTP_TIMEOUT` — per-request HTTP timeout as a Go duration such as `15s`, `30s`, or `1m`
 
-Ranking weights are configured in code through `ariadne.Config.ScoreWeights`.
+Ranking weights are configured in code through `ariadne.Config.ScoreWeights`. Song target filtering uses the same `cfg.TargetServices` list as album resolution.
 
 ### CLI configuration
 

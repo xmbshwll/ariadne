@@ -7,6 +7,8 @@ BINARY ?= ariadne
 CMD_MODULE_DIR ?= cmd
 CLI_PACKAGE ?= ./ariadne
 BUILD_DIR ?= bin
+RELEASE_TEST_MODFILE ?= go.release.test.mod
+RELEASE_TEST_SUMFILE ?= go.release.test.sum
 
 help:
 	@echo "Available targets:"
@@ -52,7 +54,15 @@ test-race:
 
 test-release:
 	GOWORK=off $(GO) test ./...
-	cd $(CMD_MODULE_DIR) && GOWORK=off $(GO) test ./...
+	cd $(CMD_MODULE_DIR) && \
+		trap 'rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE)' EXIT && \
+		rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE) && \
+		cp go.mod $(RELEASE_TEST_MODFILE) && \
+		if [ -f go.sum ]; then cp go.sum $(RELEASE_TEST_SUMFILE); fi && \
+		$(GO) mod edit -modfile=$(RELEASE_TEST_MODFILE) -replace=github.com/xmbshwll/ariadne=.. && \
+		GOWORK=off $(GO) test -modfile=$(RELEASE_TEST_MODFILE) ./... && \
+		rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE) && \
+		trap - EXIT
 
 lint:
 	$(GOLANGCI_LINT) run --config $(GOLANGCI_LINT_CONFIG) ./...
@@ -68,7 +78,15 @@ fmt:
 verify: fmt lint test-race
 
 verify-release: test-release
-	cd $(CMD_MODULE_DIR) && GOWORK=off $(GO) build ./...
+	cd $(CMD_MODULE_DIR) && \
+		trap 'rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE)' EXIT && \
+		rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE) && \
+		cp go.mod $(RELEASE_TEST_MODFILE) && \
+		if [ -f go.sum ]; then cp go.sum $(RELEASE_TEST_SUMFILE); fi && \
+		$(GO) mod edit -modfile=$(RELEASE_TEST_MODFILE) -replace=github.com/xmbshwll/ariadne=.. && \
+		GOWORK=off $(GO) build -modfile=$(RELEASE_TEST_MODFILE) ./... && \
+		rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE) && \
+		trap - EXIT
 
 deps:
 	$(GO) mod tidy

@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var errUnsupportedLibrarySource = errors.New("unsupported")
@@ -35,34 +38,93 @@ func TestLoadConfigFromEnv(t *testing.T) {
 		}
 	})
 
-	if config.AppleMusicStorefront != "gb" {
-		t.Fatalf("apple music storefront = %q, want gb", config.AppleMusicStorefront)
-	}
-	if config.Spotify.ClientID != "spotify-client" || config.Spotify.ClientSecret != "spotify-secret" {
-		t.Fatalf("unexpected spotify config: %#v", config.Spotify)
-	}
-	if config.AppleMusic.KeyID != "music-key" || config.AppleMusic.TeamID != "team-id" || config.AppleMusic.PrivateKeyPath != "/tmp/AuthKey_TEST.p8" {
-		t.Fatalf("unexpected apple music config: %#v", config.AppleMusic)
-	}
-	if config.TIDAL.ClientID != "tidal-client" || config.TIDAL.ClientSecret != "tidal-secret" {
-		t.Fatalf("unexpected tidal config: %#v", config.TIDAL)
-	}
-	if config.HTTPTimeout != 45*time.Second {
-		t.Fatalf("http timeout = %s, want 45s", config.HTTPTimeout)
-	}
+	assert.Equal(t, "gb", config.AppleMusicStorefront)
+	assert.Equal(t, "spotify-client", config.Spotify.ClientID)
+	assert.Equal(t, "spotify-secret", config.Spotify.ClientSecret)
+	assert.Equal(t, "music-key", config.AppleMusic.KeyID)
+	assert.Equal(t, "team-id", config.AppleMusic.TeamID)
+	assert.Equal(t, "/tmp/AuthKey_TEST.p8", config.AppleMusic.PrivateKeyPath)
+	assert.Equal(t, "tidal-client", config.TIDAL.ClientID)
+	assert.Equal(t, "tidal-secret", config.TIDAL.ClientSecret)
+	assert.Equal(t, 45*time.Second, config.HTTPTimeout)
 }
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	if config.AppleMusicStorefront != "us" {
-		t.Fatalf("apple music storefront = %q, want us", config.AppleMusicStorefront)
+	assert.Equal(t, "us", config.AppleMusicStorefront)
+	assert.NotEqual(t, ScoreWeights{}, config.ScoreWeights)
+	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
+	assert.Equal(t, 15*time.Second, config.HTTPTimeout)
+}
+
+func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
+	tests := []struct {
+		name string
+		ok   bool
+		fn   func() bool
+	}{
+		{
+			name: "spotify client id whitespace",
+			fn: func() bool {
+				return Config{
+					Spotify: SpotifyConfig{ClientID: " ", ClientSecret: "secret"},
+				}.SpotifyEnabled()
+			},
+		},
+		{
+			name: "spotify client secret whitespace",
+			fn: func() bool {
+				return Config{
+					Spotify: SpotifyConfig{ClientID: "id", ClientSecret: " "},
+				}.SpotifyEnabled()
+			},
+		},
+		{
+			name: "tidal client id whitespace",
+			fn: func() bool {
+				return Config{
+					TIDAL: TIDALConfig{ClientID: " ", ClientSecret: "secret"},
+				}.TIDALEnabled()
+			},
+		},
+		{
+			name: "tidal client secret whitespace",
+			fn: func() bool {
+				return Config{
+					TIDAL: TIDALConfig{ClientID: "id", ClientSecret: " "},
+				}.TIDALEnabled()
+			},
+		},
+		{
+			name: "spotify trims valid credentials",
+			ok:   true,
+			fn: func() bool {
+				return Config{
+					Spotify: SpotifyConfig{ClientID: " id ", ClientSecret: " secret "},
+				}.SpotifyEnabled()
+			},
+		},
+		{
+			name: "tidal trims valid credentials",
+			ok:   true,
+			fn: func() bool {
+				return Config{
+					TIDAL: TIDALConfig{ClientID: " id ", ClientSecret: " secret "},
+				}.TIDALEnabled()
+			},
+		},
 	}
-	if config.ScoreWeights == (ScoreWeights{}) {
-		t.Fatalf("expected default score weights")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.ok, tt.fn())
+		})
 	}
-	if config.HTTPTimeout != 15*time.Second {
-		t.Fatalf("http timeout = %s, want 15s", config.HTTPTimeout)
-	}
+}
+
+func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
+	config := normalizedConfig(Config{})
+	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
 }
 
 func TestMatchStrengthForScore(t *testing.T) {
@@ -77,9 +139,7 @@ func TestMatchStrengthForScore(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := MatchStrengthForScore(tt.score); got != tt.want {
-			t.Fatalf("MatchStrengthForScore(%d) = %q, want %q", tt.score, got, tt.want)
-		}
+		assert.Equal(t, tt.want, MatchStrengthForScore(tt.score))
 	}
 }
 
@@ -90,19 +150,65 @@ func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 	)
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
-	if err != nil {
-		t.Fatalf("ResolveAlbum error: %v", err)
-	}
-	if resolution.Source.Service != ServiceDeezer {
-		t.Fatalf("source service = %q, want deezer", resolution.Source.Service)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, ServiceDeezer, resolution.Source.Service)
 	match := resolution.Matches[ServiceSpotify]
-	if match.Best == nil {
-		t.Fatalf("expected spotify best match")
-	}
-	if match.Best.Candidate.CandidateID != "spotify-1" {
-		t.Fatalf("candidate id = %q, want spotify-1", match.Best.Candidate.CandidateID)
-	}
+	require.NotNil(t, match.Best)
+	assert.Equal(t, "spotify-1", match.Best.Candidate.CandidateID)
+}
+
+func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
+	resolver := newTestEntityResolver()
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
+	require.NoError(t, err)
+	assert.Equal(t, ServiceSpotify, resolution.Source.Service)
+	match := resolution.Matches[ServiceAppleMusic]
+	require.NotNil(t, match.Best)
+	assert.Equal(t, "apple-song-1", match.Best.Candidate.CandidateID)
+}
+
+func TestResolverResolveDispatchesByEntityType(t *testing.T) {
+	resolver := newTestEntityResolver()
+
+	albumEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/source")
+	require.NoError(t, err)
+	require.NotNil(t, albumEntity.Album)
+	assert.Nil(t, albumEntity.Song)
+	assert.Equal(t, "album", albumEntity.Parsed.EntityType)
+
+	songEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/songs/1")
+	require.NoError(t, err)
+	require.NotNil(t, songEntity.Song)
+	assert.Nil(t, songEntity.Album)
+	assert.Equal(t, "song", songEntity.Parsed.EntityType)
+}
+
+func TestResolveAlbumReturnsErrorForNilResolver(t *testing.T) {
+	var resolver *Resolver
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrResolverNotInitialized)
+}
+
+func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
+	resolver := &Resolver{}
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrResolverNotInitialized)
+}
+
+func newTestEntityResolver() *Resolver {
+	return NewWithEntityAdapters(
+		[]SourceAdapter{librarySourceAdapter{}},
+		[]TargetAdapter{libraryTargetAdapter{}},
+		[]SongSourceAdapter{librarySongSourceAdapter{}},
+		[]SongTargetAdapter{librarySongTargetAdapter{}},
+	)
 }
 
 type librarySourceAdapter struct{}
@@ -172,5 +278,75 @@ func (libraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]Candi
 }
 
 func (libraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
+	return nil, nil
+}
+
+type librarySongSourceAdapter struct{}
+
+func (librarySongSourceAdapter) Service() ServiceName {
+	return ServiceSpotify
+}
+
+func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedURL, error) {
+	if raw != "https://fixture.test/songs/1" {
+		return nil, errUnsupportedLibrarySource
+	}
+	return &ParsedURL{
+		Service:      ServiceSpotify,
+		EntityType:   "song",
+		ID:           "song-1",
+		CanonicalURL: raw,
+		RawURL:       raw,
+	}, nil
+}
+
+func (librarySongSourceAdapter) FetchSong(_ context.Context, parsed ParsedURL) (*CanonicalSong, error) {
+	return &CanonicalSong{
+		Service:              parsed.Service,
+		SourceID:             parsed.ID,
+		SourceURL:            parsed.CanonicalURL,
+		Title:                "Fixture Song",
+		NormalizedTitle:      "fixture song",
+		Artists:              []string{"Fixture Artist"},
+		NormalizedArtists:    []string{"fixture artist"},
+		DurationMS:           180000,
+		ISRC:                 "ISRCSONG001",
+		TrackNumber:          1,
+		AlbumTitle:           "Fixture Album",
+		AlbumNormalizedTitle: "fixture album",
+	}, nil
+}
+
+type librarySongTargetAdapter struct{}
+
+func (librarySongTargetAdapter) Service() ServiceName {
+	return ServiceAppleMusic
+}
+
+func (librarySongTargetAdapter) SearchSongByISRC(_ context.Context, isrc string) ([]CandidateSong, error) {
+	if isrc == "" {
+		return nil, nil
+	}
+	return []CandidateSong{{
+		CanonicalSong: CanonicalSong{
+			Service:              ServiceAppleMusic,
+			SourceID:             "apple-song-1",
+			SourceURL:            "https://music.apple.com/us/song/apple-song-1",
+			Title:                "Fixture Song",
+			NormalizedTitle:      "fixture song",
+			Artists:              []string{"Fixture Artist"},
+			NormalizedArtists:    []string{"fixture artist"},
+			DurationMS:           180100,
+			ISRC:                 isrc,
+			TrackNumber:          1,
+			AlbumTitle:           "Fixture Album",
+			AlbumNormalizedTitle: "fixture album",
+		},
+		CandidateID: "apple-song-1",
+		MatchURL:    "https://music.apple.com/us/song/apple-song-1",
+	}}, nil
+}
+
+func (librarySongTargetAdapter) SearchSongByMetadata(_ context.Context, _ CanonicalSong) ([]CandidateSong, error) {
 	return nil, nil
 }

@@ -1,9 +1,9 @@
 package spotify
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -45,10 +45,24 @@ func TestMetadataQueries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := metadataQueries(tt.album)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("metadataQueries() = %#v, want %#v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, metadataQueries(tt.album))
 		})
 	}
+}
+
+func TestSongMetadataQueries(t *testing.T) {
+	song := model.CanonicalSong{
+		Title:   "ΘΕΛΗΜΑ (Thelema)",
+		Artists: []string{"DECIPHER"},
+	}
+
+	want := []string{
+		"track:ΘΕΛΗΜΑ (Thelema) artist:DECIPHER",
+		"track:ΘΕΛΗΜΑ (Thelema)",
+		"track:Thelema artist:DECIPHER",
+		"track:Thelema",
+		"track:ΘΕΛΗΜΑ artist:DECIPHER",
+		"track:ΘΕΛΗΜΑ",
+	}
+	assert.Equal(t, want, songMetadataQueries(song))
 }

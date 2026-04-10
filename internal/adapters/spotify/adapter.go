@@ -33,9 +33,10 @@ var (
 
 	errUnexpectedSpotifyService     = errors.New("unexpected spotify service")
 	errUnexpectedSpotifyStatus      = errors.New("unexpected spotify status")
-	errSpotifyAlbumEntityNotFound   = errors.New("spotify album entity not found in bootstrap payload")
-	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected api status")
-	errUnexpectedSpotifyTokenStatus = errors.New("unexpected token status")
+	errSpotifyAlbumNotFound         = errors.New("spotify album not found")
+	errSpotifyTrackNotFound         = errors.New("spotify track not found")
+	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected spotify api status")
+	errUnexpectedSpotifyTokenStatus = errors.New("unexpected spotify token status")
 	errEmptySpotifyAccessToken      = errors.New("empty spotify access token")
 	errInitialStateScriptNotFound   = errors.New("initial state script not found")
 
@@ -115,6 +116,15 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parse.SpotifyAlbumURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse spotify album url: %w", err)
+	}
+	return parsed, nil
+}
+
+// ParseSongURL parses a Spotify track URL.
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+	parsed, err := parse.SpotifySongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse spotify song url: %w", err)
 	}
 	return parsed, nil
 }
@@ -225,6 +235,74 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	return a.hydrateAlbumCandidates(ctx, items)
 }
 
+// FetchSong loads a Spotify track via the Web API.
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceSpotify {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedSpotifyService, parsed.Service)
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+
+	track, err := a.fetchTrackAPI(ctx, parsed.ID)
+	if err != nil {
+		return nil, fmt.Errorf("spotify fetch song api %s: %w", parsed.ID, err)
+	}
+	return toCanonicalSongAPI(parsed.CanonicalURL, track), nil
+}
+
+// SearchSongByISRC searches Spotify tracks by ISRC.
+func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
+	if strings.TrimSpace(isrc) == "" {
+		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+
+	endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape("isrc:"+strings.TrimSpace(isrc)), searchLimit)
+	var response apiTrackSearchResponse
+	if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
+		return nil, fmt.Errorf("spotify song search by isrc %s: %w", isrc, err)
+	}
+	return a.hydrateSongCandidates(ctx, response.Tracks.Items)
+}
+
+// SearchSongByMetadata searches Spotify tracks by title and artist metadata.
+func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
+	queries := songMetadataQueries(song)
+	if len(queries) == 0 {
+		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
+
+	items := make([]apiTrackSearchItem, 0, searchLimit)
+	seen := make(map[string]struct{}, searchLimit)
+	for _, query := range queries {
+		endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape(query), searchLimit)
+		var response apiTrackSearchResponse
+		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
+			return nil, fmt.Errorf("spotify song search by metadata %q: %w", query, err)
+		}
+		for _, item := range response.Tracks.Items {
+			if item.ID == "" {
+				continue
+			}
+			if _, ok := seen[item.ID]; ok {
+				continue
+			}
+			seen[item.ID] = struct{}{}
+			items = append(items, item)
+			if len(items) >= searchLimit {
+				return a.hydrateSongCandidates(ctx, items)
+			}
+		}
+	}
+	return a.hydrateSongCandidates(ctx, items)
+}
+
 func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*apiAlbumResponse, error) {
 	var album apiAlbumResponse
 	endpoint := a.apiBaseURL + "/albums/" + albumID
@@ -276,6 +354,17 @@ func (a *Adapter) hydrateAlbumTrackDetails(ctx context.Context, album *apiAlbumR
 		album.Tracks.Items[i].Explicit = detail.Explicit
 	}
 	return nil
+}
+
+func (a *Adapter) fetchTrackAPI(ctx context.Context, trackID string) (*apiTrack, error) {
+	tracks, err := a.fetchTrackDetailsAPI(ctx, []string{trackID})
+	if err != nil {
+		return nil, err
+	}
+	if len(tracks) == 0 {
+		return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
+	}
+	return &tracks[0], nil
 }
 
 func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) ([]apiTrack, error) {
@@ -335,7 +424,7 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 	entityKey := "spotify:album:" + parsed.ID
 	album, ok := payload.Entities.Items[entityKey]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", errSpotifyAlbumEntityNotFound, entityKey)
+		return nil, fmt.Errorf("%w: %s", errSpotifyAlbumNotFound, entityKey)
 	}
 
 	return toCanonicalAlbumBootstrap(parsed, album), nil
@@ -362,6 +451,35 @@ func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, summaries []apiAlb
 			CanonicalAlbum: *canonical,
 			CandidateID:    canonical.SourceID,
 			MatchURL:       canonical.SourceURL,
+		})
+	}
+	return results, nil
+}
+
+func (a *Adapter) hydrateSongCandidates(ctx context.Context, items []apiTrackSearchItem) ([]model.CandidateSong, error) {
+	results := make([]model.CandidateSong, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if item.ID == "" {
+			continue
+		}
+		if _, ok := seen[item.ID]; ok {
+			continue
+		}
+		seen[item.ID] = struct{}{}
+
+		track, err := a.fetchTrackAPI(ctx, item.ID)
+		if err != nil {
+			if errors.Is(err, errSpotifyTrackNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("hydrate spotify track %s: %w", item.ID, err)
+		}
+		canonical := toCanonicalSongAPI(canonicalTrackURL(item.ID), track)
+		results = append(results, model.CandidateSong{
+			CanonicalSong: *canonical,
+			CandidateID:   canonical.SourceID,
+			MatchURL:      canonical.SourceURL,
 		})
 	}
 	return results, nil
@@ -561,6 +679,34 @@ func toCanonicalAlbumAPI(sourceURL string, album *apiAlbumResponse) *model.Canon
 	}
 }
 
+func toCanonicalSongAPI(sourceURL string, track *apiTrack) *model.CanonicalSong {
+	artists := spotifyArtistNamesAPI(track.Artists)
+	albumArtists := spotifyArtistNamesAPI(track.Album.Artists)
+	albumTitle := track.Album.Name
+	return &model.CanonicalSong{
+		Service:                model.ServiceSpotify,
+		SourceID:               track.ID,
+		SourceURL:              sourceURL,
+		Title:                  track.Name,
+		NormalizedTitle:        normalize.Text(track.Name),
+		Artists:                artists,
+		NormalizedArtists:      normalize.Artists(artists),
+		DurationMS:             track.DurationMS,
+		ISRC:                   track.ExternalIDs.ISRC,
+		Explicit:               track.Explicit,
+		DiscNumber:             track.DiscNumber,
+		TrackNumber:            track.TrackNumber,
+		AlbumID:                track.Album.ID,
+		AlbumTitle:             albumTitle,
+		AlbumNormalizedTitle:   normalize.Text(albumTitle),
+		AlbumArtists:           albumArtists,
+		AlbumNormalizedArtists: normalize.Artists(albumArtists),
+		ReleaseDate:            track.Album.ReleaseDate,
+		ArtworkURL:             spotifyArtworkURLAPI(track.Album.Images),
+		EditionHints:           normalize.EditionHints(track.Name),
+	}
+}
+
 func spotifyArtistNamesBootstrap(list spotifyArtistList) []string {
 	out := make([]string, 0, len(list.Items))
 	for _, item := range list.Items {
@@ -664,6 +810,38 @@ func metadataQueries(album model.CanonicalAlbum) []string {
 	return queries
 }
 
+func songMetadataQueries(song model.CanonicalSong) []string {
+	if strings.TrimSpace(song.Title) == "" {
+		return nil
+	}
+
+	queries := make([]string, 0, 8)
+	seen := make(map[string]struct{}, 8)
+	appendUnique := func(query string) {
+		query = strings.TrimSpace(query)
+		if query == "" {
+			return
+		}
+		key := normalize.Text(query)
+		if key == "" {
+			return
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		queries = append(queries, query)
+	}
+
+	for _, title := range normalize.SearchTitleVariants(song.Title) {
+		for _, artist := range normalize.SearchArtistVariants(song.Artists) {
+			appendUnique(strings.Join([]string{"track:" + title, "artist:" + artist}, " "))
+		}
+		appendUnique("track:" + title)
+	}
+	return queries
+}
+
 func albumIDsToSummaries(ids []string) []apiAlbumSummary {
 	items := make([]apiAlbumSummary, 0, len(ids))
 	for _, id := range ids {
@@ -674,4 +852,8 @@ func albumIDsToSummaries(ids []string) []apiAlbumSummary {
 
 func canonicalAlbumURL(albumID string) string {
 	return "https://open.spotify.com/album/" + albumID
+}
+
+func canonicalTrackURL(trackID string) string {
+	return "https://open.spotify.com/track/" + trackID
 }

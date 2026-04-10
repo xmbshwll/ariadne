@@ -4,6 +4,31 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+### Added
+
+- first-class song resolution across Spotify, Apple Music, Deezer, TIDAL, Bandcamp, and SoundCloud
+- generic library entry point via `Resolver.Resolve(...)` alongside explicit `ResolveSong(...)`
+- metadata-first second-wave song support for Bandcamp and SoundCloud
+- YouTube Music song URL parsing during second-wave evaluation work
+
+### Changed
+
+- the CLI now uses `ariadne resolve [--song|--album] <url>` instead of a separate `resolve-song` command
+- `ariadne resolve` now defers entity auto-detection to the library when no entity flag is provided
+- public docs, examples, and service support tables now cover album and song resolution separately
+- the CLI now supports an overall `--resolution-timeout` separate from the per-request `--http-timeout`
+
+### Fixed
+
+- `Resolver.ResolveAlbum(...)` and `Resolver.ResolveSong(...)` now fail safely for nil or partially initialized resolvers instead of panicking
+- song source adapters that incorrectly return `(nil, nil)` now produce a descriptive resolver error instead of triggering nil dereferences
+- `--min-strength` filtering now prunes weak alternates for album output as well as song output
+- service-name normalization now accepts canonical public names like `appleMusic` and `youtubeMusic` reliably in addition to aliases
+
+### Limitations
+
+- YouTube Music song runtime resolution is still not implemented; only URL parsing is currently available
+
 ## v0.3.1 - 2026-04-09
 
 ### Added

@@ -137,6 +137,7 @@ type apiTrack struct {
 	Explicit    bool           `json:"explicit"`
 	Artists     []apiArtist    `json:"artists"`
 	ExternalIDs apiExternalIDs `json:"external_ids"`
+	Album       apiTrackAlbum  `json:"album"`
 }
 
 type apiAlbumSearchResponse struct {
@@ -162,10 +163,17 @@ type apiTrackSearchPage struct {
 type apiTrackSearchItem struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
+	DurationMS  int            `json:"duration_ms"`
+	Explicit    bool           `json:"explicit"`
+	Artists     []apiArtist    `json:"artists"`
 	ExternalIDs apiExternalIDs `json:"external_ids"`
 	Album       apiTrackAlbum  `json:"album"`
 }
 
 type apiTrackAlbum struct {
-	ID string `json:"id"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	ReleaseDate string      `json:"release_date"`
+	Images      []apiImage  `json:"images"`
+	Artists     []apiArtist `json:"artists"`
 }

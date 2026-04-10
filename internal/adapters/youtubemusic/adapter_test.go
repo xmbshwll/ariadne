@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -38,30 +40,16 @@ func TestAdapter(t *testing.T) {
 			ID:           "MPREb_tQfaWH32ovE",
 			CanonicalURL: server.URL + "/browse/MPREb_tQfaWH32ovE",
 		})
-		if err != nil {
-			t.Fatalf("FetchAlbum error: %v", err)
-		}
-		if album.Title != "Abbey Road (Super Deluxe Edition)" {
-			t.Fatalf("title = %q", album.Title)
-		}
-		if album.SourceURL != "https://music.youtube.com/playlist?list=OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4" {
-			t.Fatalf("source url = %q", album.SourceURL)
-		}
-		if album.SourceID != "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4" {
-			t.Fatalf("source id = %q", album.SourceID)
-		}
-		if len(album.Artists) != 1 || album.Artists[0] != "The Beatles" {
-			t.Fatalf("artists = %#v", album.Artists)
-		}
-		if album.TrackCount == 0 {
-			t.Fatalf("expected track count")
-		}
-		if album.Tracks[0].Title != "Come Together (2019 Mix)" {
-			t.Fatalf("first track title = %q", album.Tracks[0].Title)
-		}
-		if album.ArtworkURL == "" {
-			t.Fatalf("expected artwork url")
-		}
+		require.NoError(t, err)
+		require.NotNil(t, album)
+		assert.Equal(t, "Abbey Road (Super Deluxe Edition)", album.Title)
+		assert.Equal(t, "https://music.youtube.com/playlist?list=OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", album.SourceURL)
+		assert.Equal(t, "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", album.SourceID)
+		assert.Equal(t, []string{"The Beatles"}, album.Artists)
+		assert.NotZero(t, album.TrackCount)
+		require.NotEmpty(t, album.Tracks)
+		assert.Equal(t, "Come Together (2019 Mix)", album.Tracks[0].Title)
+		assert.NotEmpty(t, album.ArtworkURL)
 	})
 
 	t.Run("search by metadata hydrates browse result", func(t *testing.T) {
@@ -69,38 +57,20 @@ func TestAdapter(t *testing.T) {
 			Title:   "Abbey Road",
 			Artists: []string{"The Beatles"},
 		})
-		if err != nil {
-			t.Fatalf("SearchByMetadata error: %v", err)
-		}
-		if len(results) != 1 {
-			t.Fatalf("result count = %d, want 1", len(results))
-		}
-		if results[0].CandidateID != "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4" {
-			t.Fatalf("candidate id = %q", results[0].CandidateID)
-		}
-		if results[0].Title != "Abbey Road (Super Deluxe Edition)" {
-			t.Fatalf("candidate title = %q", results[0].Title)
-		}
-		if len(results[0].Tracks) == 0 {
-			t.Fatalf("expected hydrated track list")
-		}
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", results[0].CandidateID)
+		assert.Equal(t, "Abbey Road (Super Deluxe Edition)", results[0].Title)
+		assert.NotEmpty(t, results[0].Tracks)
 	})
 
 	t.Run("identifier search unsupported", func(t *testing.T) {
 		upcResults, err := adapter.SearchByUPC(context.Background(), "123")
-		if err != nil {
-			t.Fatalf("SearchByUPC error: %v", err)
-		}
-		if len(upcResults) != 0 {
-			t.Fatalf("upc results = %d, want 0", len(upcResults))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, upcResults)
 		isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"ABC"})
-		if err != nil {
-			t.Fatalf("SearchByISRC error: %v", err)
-		}
-		if len(isrcResults) != 0 {
-			t.Fatalf("isrc results = %d, want 0", len(isrcResults))
-		}
+		require.NoError(t, err)
+		assert.Empty(t, isrcResults)
 	})
 }
 
@@ -108,8 +78,6 @@ func mustReadYouTubeMusicFixture(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
+	require.NoError(t, err)
 	return content
 }

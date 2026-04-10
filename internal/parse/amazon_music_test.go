@@ -1,6 +1,10 @@
 package parse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/xmbshwll/ariadne/internal/model"
+)
 
 func TestAmazonMusicAlbumURL(t *testing.T) {
 	tests := []struct {
@@ -38,20 +42,10 @@ func TestAmazonMusicAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := AmazonMusicAlbumURL(tt.raw)
 			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
+				requireParseError(t, got, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got.ID != tt.wantID {
-				t.Fatalf("id = %q, want %q", got.ID, tt.wantID)
-			}
-			if got.CanonicalURL != tt.wantURL {
-				t.Fatalf("canonical url = %q, want %q", got.CanonicalURL, tt.wantURL)
-			}
+			requireParsedURL(t, got, err, model.ServiceAmazonMusic, "album", tt.wantID, tt.wantURL, "")
 		})
 	}
 }

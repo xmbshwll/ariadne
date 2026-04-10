@@ -1,4 +1,4 @@
-# How Ariadne resolves albums
+# How Ariadne resolves albums and songs
 
 This document explains what Ariadne actually does at runtime for each supported service.
 
@@ -6,64 +6,79 @@ This document explains what Ariadne actually does at runtime for each supported 
 
 For every supported input URL, Ariadne follows the same high-level flow:
 
-1. parse the input album URL
+1. parse the input URL as an album or song
 2. fetch canonical metadata from the source service
-3. search each target service in this order, where supported:
-   - album `UPC`
-   - track `ISRC`
-   - album metadata (`title + primary artist`)
+3. search each target service in identifier-first layers, where supported
 4. deduplicate candidates
-5. score them with the shared ranking logic
+5. score them with the entity-appropriate ranking logic
 6. return the best match and alternates per service
+
+Album resolution prefers `UPC`, then track `ISRC`, then album metadata.
+Song resolution prefers song `ISRC`, then song metadata.
 
 Not every service supports every search step. The sections below describe the current runtime path for each service.
 
 ## Summary
 
-| Service | Source fetch path | Target search path | Identifier support | Status |
-|---|---|---|---|---|
-| Spotify | Web API when credentials exist, otherwise public page bootstrap | Web API with app credentials | UPC + ISRC + metadata | supported |
-| Apple Music | Public iTunes Lookup API | Public iTunes Search for metadata, official MusicKit for UPC/ISRC when `.p8` credentials exist | UPC + ISRC + metadata | supported |
-| Deezer | Public Deezer album API | Public Deezer UPC lookup, track ISRC lookup, and metadata search | UPC + ISRC + metadata | supported |
-| Bandcamp | Album page HTML + schema.org JSON-LD | Bandcamp search HTML + candidate hydration | metadata only | experimental |
-| SoundCloud | Public set page hydration from `__sc_hydration` | Public-facing `api-v2` playlist search | metadata only in resolver | experimental |
-| YouTube Music | Public album page HTML extraction | Public search HTML + candidate hydration | metadata only in resolver | experimental |
-| TIDAL | Official catalog API with client credentials | Official metadata, UPC, and ISRC search with client credentials | UPC + ISRC + metadata | experimental |
-| Amazon Music | no runtime adapter | no runtime adapter | none | deferred |
+| Service | Album source | Album target | Song source | Song target | Identifier support | Status |
+|---|---|---|---|---|---|---|
+| Spotify | Web API when credentials exist, otherwise public page bootstrap | Web API with app credentials | Web API when credentials exist, otherwise public page bootstrap | Web API with app credentials | album: UPC + ISRC + metadata; song: ISRC + metadata | supported |
+| Apple Music | Public iTunes Lookup API | Public iTunes Search for metadata, official MusicKit for UPC/ISRC when `.p8` credentials exist | Public iTunes Lookup API | Public iTunes Search for metadata, official MusicKit for song ISRC when `.p8` credentials exist | album: UPC + ISRC + metadata; song: ISRC + metadata | supported |
+| Deezer | Public Deezer album API | Public Deezer UPC lookup, track ISRC lookup, and metadata search | Public Deezer track API | Public Deezer track ISRC lookup and metadata search | album: UPC + ISRC + metadata; song: ISRC + metadata | supported |
+| Bandcamp | Album page HTML + schema.org JSON-LD | Bandcamp search HTML + candidate hydration | Track page HTML + schema.org JSON-LD | Bandcamp search HTML + candidate hydration | metadata only | experimental |
+| SoundCloud | Public set page hydration from `__sc_hydration` | Public-facing `api-v2` playlist search | Public track page hydration from `__sc_hydration` | Public-facing `api-v2` track search | metadata only in resolver | experimental |
+| YouTube Music | Public album page HTML extraction | Public search HTML + candidate hydration | parse-only investigation so far; no runtime song adapter | no runtime song adapter | metadata only in resolver | experimental |
+| TIDAL | Official catalog API with client credentials | Official metadata, UPC, and ISRC search with client credentials | Official catalog API with client credentials | Official song ISRC and metadata search with client credentials | album: UPC + ISRC + metadata; song: ISRC + metadata | experimental |
+| Amazon Music | no runtime adapter | no runtime adapter | no runtime adapter | no runtime adapter | none | deferred |
 
 ## Spotify
 
-### As a source
+### As an album source
 
 - Supported input URLs look like `https://open.spotify.com/album/{id}`.
 - Ariadne parses the album ID from the URL.
 - If `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` are configured, source fetch prefers the official Spotify Web API.
 - If those credentials are missing, Ariadne falls back to the public page bootstrap so Spotify can still be used as an input service.
 
-### As a target
+### As an album target
 
-Spotify target search is enabled only when app credentials are configured. When it is enabled, Ariadne searches in this order:
+Spotify album target search is enabled only when app credentials are configured. When it is enabled, Ariadne searches in this order:
 
 1. album `UPC`
 2. track `ISRC`
 3. metadata search by album title and artist
 
-Candidates are then reranked by the shared scorer.
+Candidates are then reranked by the shared album scorer.
+
+### As a song source
+
+- Supported input URLs look like `https://open.spotify.com/track/{id}`.
+- Song source fetch follows the same preference order as albums: Web API when credentials exist, otherwise public page bootstrap.
+
+### As a song target
+
+Spotify song target search is enabled only when app credentials are configured. When it is enabled, Ariadne searches in this order:
+
+1. song `ISRC`
+2. metadata search by song title and artist
+
+Candidates are then reranked by the shared song scorer.
 
 ### Notes
 
 - Spotify is one of the strongest services in Ariadne.
-- Canonical output URLs are rebuilt as `https://open.spotify.com/album/{id}`.
+- Canonical album output URLs are rebuilt as `https://open.spotify.com/album/{id}`.
+- Canonical song output URLs are rebuilt as `https://open.spotify.com/track/{id}`.
 
 ## Apple Music
 
-### As a source
+### As an album source
 
 - Supported input URLs are storefront-aware album URLs such as `https://music.apple.com/us/album/.../{id}`.
 - Ariadne preserves the storefront from the input URL as a region hint.
 - Source fetch uses the public iTunes Lookup API.
 
-### As a target
+### As an album target
 
 Apple Music always supports metadata search through the public iTunes Search API. Matching results are then hydrated through lookup before scoring.
 
@@ -80,20 +95,33 @@ Ariadne also enables official MusicKit identifier search by:
 
 Storefront matters. Ariadne uses the source storefront when present, otherwise the configured or default storefront.
 
+### As a song source
+
+- Supported input URLs are Apple Music track links represented as album-page URLs with a song query parameter, for example `https://music.apple.com/us/album/.../{album-id}?i={track-id}`.
+- Ariadne preserves the storefront from the input URL as a region hint.
+- Song source fetch also uses the public iTunes Lookup API.
+
+### As a song target
+
+Apple Music always supports metadata search for songs through the public iTunes Search API, then hydrates results through lookup before scoring.
+
+If Apple Music credentials are configured, Ariadne also enables official MusicKit song lookup by `ISRC`.
+
 ### Notes
 
 - Apple Music combines two runtime paths: public APIs for source fetch and metadata search, plus MusicKit for identifier search.
-- Canonical output URLs preserve storefront and album ID.
+- Canonical album output URLs preserve storefront and album ID.
+- Canonical song output URLs preserve storefront, album context, and the `?i={track-id}` query.
 
 ## Deezer
 
-### As a source
+### As an album source
 
 - Supported input URLs look like `https://www.deezer.com/album/{id}`.
 - Ariadne normalizes region-prefixed Deezer links back to a regionless canonical album URL.
 - Source fetch uses the public Deezer album API.
 
-### As a target
+### As an album target
 
 Deezer supports all three matching layers:
 
@@ -103,19 +131,34 @@ Deezer supports all three matching layers:
 
 Candidates are reranked after hydration.
 
+### As a song source
+
+- Supported input URLs look like `https://www.deezer.com/track/{id}`.
+- Source fetch uses the public Deezer track API.
+
+### As a song target
+
+Deezer song search uses:
+
+1. direct track lookup by `ISRC`
+2. metadata search by song title and artist
+
+Candidates are reranked after hydration.
+
 ### Notes
 
 - Deezer is one of the strongest low-friction services in the project.
-- Canonical output URLs are rebuilt as `https://www.deezer.com/album/{id}`.
+- Canonical album output URLs are rebuilt as `https://www.deezer.com/album/{id}`.
+- Canonical song output URLs are rebuilt as `https://www.deezer.com/track/{id}`.
 
 ## Bandcamp
 
-### As a source
+### As an album source
 
 - Supported input URLs are Bandcamp album pages such as `https://artist.bandcamp.com/album/{slug}`.
 - Source fetch loads the album page and extracts schema.org JSON-LD from the HTML.
 
-### As a target
+### As an album target
 
 Bandcamp has no reliable identifier search. Ariadne instead:
 
@@ -124,20 +167,34 @@ Bandcamp has no reliable identifier search. Ariadne instead:
 3. hydrates those candidate album pages
 4. reranks the hydrated results with the shared scorer
 
+### As a song source
+
+- Supported input URLs are Bandcamp track pages such as `https://artist.bandcamp.com/track/{slug}`.
+- Source fetch loads the track page and extracts schema.org JSON-LD from the HTML.
+
+### As a song target
+
+Bandcamp song matching is metadata-first. Ariadne:
+
+1. searches `bandcamp.com/search?q=...`
+2. extracts track-result links from the HTML
+3. hydrates those track pages
+4. reranks the hydrated results with the shared song scorer
+
 ### Notes
 
 - Bandcamp is useful for fuzzy matching, but it is still a scraping-based adapter.
-- Canonical output URLs are the cleaned album page URLs.
+- Canonical output URLs are the cleaned album or track page URLs.
 
 ## SoundCloud
 
-### As a source
+### As an album source
 
 - Supported input URLs are album-like set pages such as `https://soundcloud.com/{user}/sets/{slug}`.
 - SoundCloud albums are really playlist or set resources rather than strong album objects.
 - Source fetch loads the set page and extracts playlist data from `__sc_hydration`.
 
-### As a target
+### As an album target
 
 SoundCloud does not use release-level identifier search in Ariadne. Instead it uses:
 
@@ -147,14 +204,27 @@ SoundCloud does not use release-level identifier search in Ariadne. Instead it u
 
 Some tracks expose UPC-like or ISRC-like publisher metadata, but Ariadne does not treat SoundCloud as a reliable identifier-first target.
 
+### As a song source
+
+- Supported input URLs are track pages such as `https://soundcloud.com/{user}/{slug}`.
+- Source fetch loads the track page and extracts track data from `__sc_hydration`.
+
+### As a song target
+
+SoundCloud song resolution is also metadata-first. Ariadne uses:
+
+1. metadata search against the public-facing `api-v2` track search
+2. the discovered public `client_id` from the web app
+3. shared song scoring against returned track candidates
+
 ### Notes
 
 - SoundCloud is experimental because album semantics are weaker and the search path is unofficial.
-- Canonical output URLs use the playlist or set `permalink_url`.
+- Canonical output URLs use the set or track `permalink_url`.
 
 ## YouTube Music
 
-### As a source
+### As an album source
 
 Supported input URLs include both:
 
@@ -163,7 +233,7 @@ Supported input URLs include both:
 
 Source fetch uses public HTML extraction with a browser-like user-agent. Ariadne extracts title, canonical URL, artwork, artist, and track titles from inline page data.
 
-### As a target
+### As an album target
 
 YouTube Music does not use identifier search in Ariadne. Instead it:
 
@@ -172,6 +242,10 @@ YouTube Music does not use identifier search in Ariadne. Instead it:
 3. hydrates each candidate by loading its album page
 4. scores the hydrated candidates with the shared matcher
 
+### Song support
+
+YouTube Music song resolution is still not implemented. Ariadne now parses common `music.youtube.com/watch?v=...` song URLs during evaluation work, but there is no stable runtime source or target adapter yet.
+
 ### Notes
 
 - This adapter is experimental and somewhat brittle because it depends on public page structure instead of an official catalog API.
@@ -179,7 +253,7 @@ YouTube Music does not use identifier search in Ariadne. Instead it:
 
 ## TIDAL
 
-### As a source
+### As an album source
 
 Supported input URLs include both:
 
@@ -193,9 +267,9 @@ Source fetch uses the official TIDAL API and requires:
 
 There is no public runtime fallback.
 
-### As a target
+### As an album target
 
-When credentials are configured, TIDAL target matching searches in this order:
+When credentials are configured, TIDAL album matching searches in this order:
 
 1. album `UPC` / `barcodeId`
 2. track `ISRC`
@@ -203,22 +277,43 @@ When credentials are configured, TIDAL target matching searches in this order:
 
 All calls go through the official client-credentials token exchange and catalog API.
 
+### As a song source
+
+Supported input URLs include both:
+
+- `https://tidal.com/track/{id}`
+- `https://tidal.com/browse/track/{id}`
+
+Song source fetch uses the same official TIDAL API and requires the same credentials.
+
+### As a song target
+
+When credentials are configured, TIDAL song matching searches in this order:
+
+1. song `ISRC`
+2. metadata search
+
 ### Notes
 
 - TIDAL is technically strong, but still marked experimental because credentials are harder for typical OSS users to obtain.
-- Canonical output URLs are rebuilt as `https://tidal.com/album/{id}`.
+- Canonical album output URLs are rebuilt as `https://tidal.com/album/{id}`.
+- Canonical song output URLs are rebuilt as `https://tidal.com/track/{id}`.
 
 ## Amazon Music
 
-### As a source
+### As an album source
 
 - Ariadne recognizes Amazon Music album URLs such as `https://music.amazon.com/albums/{ASIN}`.
 - Runtime source resolution is intentionally deferred after parsing.
 - If you pass an Amazon Music URL as input, Ariadne returns a clear deferred-runtime error instead of pretending source fetch is supported.
 
-### As a target
+### As an album target
 
 Ariadne does not currently search Amazon Music as a target service.
+
+### Song support
+
+Amazon Music song resolution is not implemented.
 
 ### Notes
 
