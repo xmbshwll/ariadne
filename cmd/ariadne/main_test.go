@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -290,6 +291,83 @@ func TestNewCLIResolution(t *testing.T) {
 	assert.Equal(t, "4", tidal.Alternates[0].AlbumID)
 }
 
+func TestCLIOutputYAMLUsesSnakeCaseTags(t *testing.T) {
+	albumOutput := cliResolution{
+		InputURL: "https://open.spotify.com/album/abc",
+		Source: cliAlbum{
+			Service:     "spotify",
+			ID:          "abc",
+			URL:         "https://open.spotify.com/album/abc",
+			RegionHint:  "us",
+			Title:       "Album",
+			Artists:     []string{"Artist"},
+			ReleaseDate: "2024-01-01",
+		},
+		Links: map[string]cliMatchResult{
+			"deezer": {
+				Found:   true,
+				Summary: "strong",
+				Best: &cliMatch{
+					URL:         "https://www.deezer.com/album/1",
+					Score:       120,
+					AlbumID:     "1",
+					RegionHint:  "us",
+					ReleaseDate: "2024-01-01",
+				},
+			},
+		},
+	}
+
+	albumYAML, err := yaml.Marshal(albumOutput)
+	require.NoError(t, err)
+	albumYAMLText := string(albumYAML)
+	assert.Contains(t, albumYAMLText, "input_url:")
+	assert.Contains(t, albumYAMLText, "region_hint:")
+	assert.Contains(t, albumYAMLText, "album_id:")
+	assert.Contains(t, albumYAMLText, "release_date:")
+	assert.NotContains(t, albumYAMLText, "inputurl:")
+	assert.NotContains(t, albumYAMLText, "albumid:")
+
+	songOutput := cliSongResolution{
+		InputURL: "https://open.spotify.com/track/song-1",
+		Source: cliSong{
+			Service:     "spotify",
+			ID:          "song-1",
+			URL:         "https://open.spotify.com/track/song-1",
+			Title:       "Song",
+			Artists:     []string{"Artist"},
+			DurationMS:  180000,
+			AlbumTitle:  "Album",
+			TrackNumber: 1,
+		},
+		Links: map[string]cliSongMatchResult{
+			"appleMusic": {
+				Found:   true,
+				Summary: "strong",
+				Best: &cliSongMatch{
+					URL:         "https://music.apple.com/us/album/album/2?i=3",
+					Score:       115,
+					SongID:      "apple-song-1",
+					DurationMS:  180050,
+					AlbumTitle:  "Album",
+					TrackNumber: 1,
+				},
+			},
+		},
+	}
+
+	songYAML, err := yaml.Marshal(songOutput)
+	require.NoError(t, err)
+	songYAMLText := string(songYAML)
+	assert.Contains(t, songYAMLText, "input_url:")
+	assert.Contains(t, songYAMLText, "song_id:")
+	assert.Contains(t, songYAMLText, "duration_ms:")
+	assert.Contains(t, songYAMLText, "album_title:")
+	assert.Contains(t, songYAMLText, "track_number:")
+	assert.NotContains(t, songYAMLText, "songid:")
+	assert.NotContains(t, songYAMLText, "durationms:")
+}
+
 func TestNewCLISongResolution(t *testing.T) {
 	resolution := ariadne.SongResolution{
 		InputURL: "https://open.spotify.com/track/song-1",
@@ -340,6 +418,11 @@ func TestNewCLISongResolution(t *testing.T) {
 	require.NotNil(t, appleMusic.Best)
 	assert.Equal(t, "apple-song-1", appleMusic.Best.SongID)
 	assert.Equal(t, 180050, appleMusic.Best.DurationMS)
+}
+
+func TestArgsWithoutConfigFlagConsumesExplicitEmptyValue(t *testing.T) {
+	args := []string{"--config", "", "resolve", "https://fixture.test/source"}
+	assert.Equal(t, []string{"resolve", "https://fixture.test/source"}, argsWithoutConfigFlag(args))
 }
 
 func TestResolverRequiresCredentialsForTIDALSourceFetch(t *testing.T) {

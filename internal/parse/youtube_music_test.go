@@ -1,6 +1,10 @@
 package parse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/xmbshwll/ariadne/internal/model"
+)
 
 func TestYouTubeMusicAlbumURL(t *testing.T) {
 	tests := []struct {
@@ -36,7 +40,7 @@ func TestYouTubeMusicAlbumURL(t *testing.T) {
 				requireParseError(t, got, err)
 				return
 			}
-			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, model.ServiceYouTubeMusic, "album", tt.wantID, tt.wantURL, "")
 		})
 	}
 }
@@ -69,7 +73,7 @@ func TestYouTubeMusicSongURL(t *testing.T) {
 				requireParseError(t, got, err)
 				return
 			}
-			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, model.ServiceYouTubeMusic, "song", tt.wantID, tt.wantURL, "")
 		})
 	}
 }

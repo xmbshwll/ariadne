@@ -270,13 +270,12 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 
 // SearchSongByMetadata searches Spotify tracks by title and artist metadata.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
-
 	queries := songMetadataQueries(song)
 	if len(queries) == 0 {
 		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
 	}
 
 	items := make([]apiTrackSearchItem, 0, searchLimit)

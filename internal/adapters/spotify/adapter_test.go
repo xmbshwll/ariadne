@@ -166,6 +166,14 @@ func TestAdapter(t *testing.T) {
 	})
 }
 
+func TestSearchSongByMetadataEmptySongWithoutCredentialsReturnsNil(t *testing.T) {
+	adapter := New(http.DefaultClient)
+
+	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{})
+	require.NoError(t, err)
+	assert.Nil(t, results)
+}
+
 func assertSingleAlbum(t *testing.T, candidates []model.CandidateAlbum, wantID string) {
 	t.Helper()
 	require.Len(t, candidates, 1)

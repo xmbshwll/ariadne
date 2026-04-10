@@ -70,6 +70,24 @@ type Ranking struct {
 	Ranked []RankedCandidate
 }
 
+type scoreContribution struct {
+	value  int
+	reason string
+}
+
+func collectScoreContributions(contributions ...scoreContribution) (int, []string) {
+	score := 0
+	reasons := make([]string, 0, len(contributions))
+	for _, contribution := range contributions {
+		if contribution.reason == "" {
+			continue
+		}
+		score += contribution.value
+		reasons = append(reasons, contribution.reason)
+	}
+	return score, reasons
+}
+
 // RankAlbums scores and sorts target candidates for a single source album.
 func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, weights Weights) Ranking {
 	ranked := make([]RankedCandidate, 0, len(candidates))
@@ -93,126 +111,181 @@ func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, 
 }
 
 func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) RankedCandidate {
-	score := 0
-	reasons := make([]string, 0, 8)
-
-	sourceTitle := normalizedOrDerived(source.Title, source.NormalizedTitle)
-	candidateTitle := normalizedOrDerived(candidate.Title, candidate.NormalizedTitle)
-	sourceCoreTitle := coreTitle(source.Title, source.NormalizedTitle)
-	candidateCoreTitle := coreTitle(candidate.Title, candidate.NormalizedTitle)
-	if sourceTitle != "" && sourceTitle == candidateTitle {
-		score += weights.TitleExact
-		reasons = append(reasons, "title exact match")
-	} else if sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle {
-		score += weights.CoreTitleExact
-		reasons = append(reasons, "core title match")
-	}
-
-	sourceArtists := normalizedArtists(source)
-	candidateArtists := normalizedArtists(candidate.CanonicalAlbum)
-	if len(sourceArtists) > 0 && len(candidateArtists) > 0 {
-		if sourceArtists[0] == candidateArtists[0] {
-			score += weights.PrimaryArtistExact
-			reasons = append(reasons, "primary artist exact match")
-		} else if artistOverlap(sourceArtists, candidateArtists) {
-			score += weights.ArtistOverlap
-			reasons = append(reasons, "artist overlap")
-		}
-	}
-
-	if source.UPC != "" && candidate.UPC != "" && source.UPC == candidate.UPC {
-		score += weights.UPCExact
-		reasons = append(reasons, "upc exact match")
-	}
-
-	overlap, sourceISRCCount := isrcOverlap(source, candidate.CanonicalAlbum)
-	if sourceISRCCount > 0 && overlap > 0 {
-		ratio := float64(overlap) / float64(sourceISRCCount)
-		if ratio >= 0.70 {
-			score += weights.ISRCStrongOverlap
-			reasons = append(reasons, fmt.Sprintf("strong isrc overlap (%d/%d)", overlap, sourceISRCCount))
-		} else {
-			partialScore := int(ratio * float64(weights.ISRCPartialScale))
-			score += partialScore
-			reasons = append(reasons, fmt.Sprintf("partial isrc overlap (%d/%d)", overlap, sourceISRCCount))
-		}
-	}
-
-	trackTitleOverlapCount, sourceTrackTitleCount := trackTitleOverlap(source, candidate.CanonicalAlbum)
-	if sourceTrackTitleCount > 0 && trackTitleOverlapCount > 0 {
-		ratio := float64(trackTitleOverlapCount) / float64(sourceTrackTitleCount)
-		switch {
-		case ratio >= 0.70:
-			score += weights.TrackTitleStrong
-			reasons = append(reasons, fmt.Sprintf("strong track title overlap (%d/%d)", trackTitleOverlapCount, sourceTrackTitleCount))
-		case ratio >= 0.40:
-			partialScore := int(ratio * float64(weights.TrackTitlePartial))
-			if partialScore != 0 {
-				score += partialScore
-				reasons = append(reasons, fmt.Sprintf("partial track title overlap (%d/%d)", trackTitleOverlapCount, sourceTrackTitleCount))
-			}
-		}
-	}
-
-	if source.TrackCount > 0 && candidate.TrackCount > 0 {
-		diff := source.TrackCount - candidate.TrackCount
-		if diff < 0 {
-			diff = -diff
-		}
-		switch {
-		case diff == 0:
-			score += weights.TrackCountExact
-			reasons = append(reasons, "track count exact match")
-		case diff == 1:
-			score += weights.TrackCountNear
-			reasons = append(reasons, "track count near match")
-		case diff >= 3:
-			score += weights.TrackCountMismatch
-			reasons = append(reasons, "track count mismatch")
-		}
-	}
-
-	if source.ReleaseDate != "" && candidate.ReleaseDate != "" {
-		switch {
-		case source.ReleaseDate == candidate.ReleaseDate:
-			score += weights.ReleaseDateExact
-			reasons = append(reasons, "release date exact match")
-		case sameReleaseYear(source.ReleaseDate, candidate.ReleaseDate):
-			score += weights.ReleaseYearExact
-			reasons = append(reasons, "release year match")
-		}
-	}
-
-	if source.TotalDurationMS > 0 && candidate.TotalDurationMS > 0 && durationNear(source.TotalDurationMS, candidate.TotalDurationMS) {
-		score += weights.DurationNear
-		reasons = append(reasons, "duration near match")
-	}
-
-	if source.Label != "" && candidate.Label != "" && normalizedOrDerived(source.Label, "") == normalizedOrDerived(candidate.Label, "") {
-		score += weights.LabelExact
-		reasons = append(reasons, "label exact match")
-	}
-
-	if source.Explicit != candidate.Explicit {
-		score += weights.ExplicitMismatch
-		reasons = append(reasons, "explicit mismatch")
-	}
-
-	if editionMismatch(source.EditionHints, candidate.EditionHints) {
-		score += weights.EditionMismatch
-		reasons = append(reasons, "edition mismatch")
-	}
-
-	if penalty, markers := editionMarkerMismatchPenalty(source, candidate.CanonicalAlbum, weights); penalty != 0 {
-		score += penalty
-		reasons = append(reasons, "edition marker mismatch: "+strings.Join(markers, ", "))
-	}
+	score, reasons := collectScoreContributions(
+		scoreAlbumTitle(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumArtists(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumUPC(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumISRCOverlap(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumTrackTitleOverlap(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumTrackCount(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumReleaseDate(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumDuration(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumLabel(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumExplicit(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumEditionHints(source, candidate.CanonicalAlbum, weights),
+		scoreAlbumEditionMarkers(source, candidate.CanonicalAlbum, weights),
+	)
 
 	return RankedCandidate{
 		Candidate: candidate,
 		Score:     score,
 		Reasons:   reasons,
 	}
+}
+
+func scoreAlbumTitle(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	sourceTitle := normalizedOrDerived(source.Title, source.NormalizedTitle)
+	candidateTitle := normalizedOrDerived(candidate.Title, candidate.NormalizedTitle)
+	if sourceTitle != "" && sourceTitle == candidateTitle {
+		return scoreContribution{value: weights.TitleExact, reason: "title exact match"}
+	}
+
+	sourceCoreTitle := coreTitle(source.Title, source.NormalizedTitle)
+	candidateCoreTitle := coreTitle(candidate.Title, candidate.NormalizedTitle)
+	if sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle {
+		return scoreContribution{value: weights.CoreTitleExact, reason: "core title match"}
+	}
+
+	return scoreContribution{}
+}
+
+func scoreAlbumArtists(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	sourceArtists := normalizedArtists(source)
+	candidateArtists := normalizedArtists(candidate)
+	if len(sourceArtists) == 0 || len(candidateArtists) == 0 {
+		return scoreContribution{}
+	}
+	if sourceArtists[0] == candidateArtists[0] {
+		return scoreContribution{value: weights.PrimaryArtistExact, reason: "primary artist exact match"}
+	}
+	if artistOverlap(sourceArtists, candidateArtists) {
+		return scoreContribution{value: weights.ArtistOverlap, reason: "artist overlap"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumUPC(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if source.UPC != "" && candidate.UPC != "" && source.UPC == candidate.UPC {
+		return scoreContribution{value: weights.UPCExact, reason: "upc exact match"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumISRCOverlap(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	overlap, sourceISRCCount := isrcOverlap(source, candidate)
+	if sourceISRCCount == 0 || overlap == 0 {
+		return scoreContribution{}
+	}
+
+	ratio := float64(overlap) / float64(sourceISRCCount)
+	if ratio >= 0.70 {
+		return scoreContribution{
+			value:  weights.ISRCStrongOverlap,
+			reason: fmt.Sprintf("strong isrc overlap (%d/%d)", overlap, sourceISRCCount),
+		}
+	}
+
+	return scoreContribution{
+		value:  int(ratio * float64(weights.ISRCPartialScale)),
+		reason: fmt.Sprintf("partial isrc overlap (%d/%d)", overlap, sourceISRCCount),
+	}
+}
+
+func scoreAlbumTrackTitleOverlap(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	overlap, sourceTrackTitleCount := trackTitleOverlap(source, candidate)
+	if sourceTrackTitleCount == 0 || overlap == 0 {
+		return scoreContribution{}
+	}
+
+	ratio := float64(overlap) / float64(sourceTrackTitleCount)
+	if ratio >= 0.70 {
+		return scoreContribution{
+			value:  weights.TrackTitleStrong,
+			reason: fmt.Sprintf("strong track title overlap (%d/%d)", overlap, sourceTrackTitleCount),
+		}
+	}
+	if ratio < 0.40 {
+		return scoreContribution{}
+	}
+
+	partialScore := int(ratio * float64(weights.TrackTitlePartial))
+	if partialScore == 0 {
+		return scoreContribution{}
+	}
+	return scoreContribution{
+		value:  partialScore,
+		reason: fmt.Sprintf("partial track title overlap (%d/%d)", overlap, sourceTrackTitleCount),
+	}
+}
+
+func scoreAlbumTrackCount(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if source.TrackCount == 0 || candidate.TrackCount == 0 {
+		return scoreContribution{}
+	}
+
+	diff := source.TrackCount - candidate.TrackCount
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff == 0 {
+		return scoreContribution{value: weights.TrackCountExact, reason: "track count exact match"}
+	}
+	if diff == 1 {
+		return scoreContribution{value: weights.TrackCountNear, reason: "track count near match"}
+	}
+	if diff >= 3 {
+		return scoreContribution{value: weights.TrackCountMismatch, reason: "track count mismatch"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumReleaseDate(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if source.ReleaseDate == "" || candidate.ReleaseDate == "" {
+		return scoreContribution{}
+	}
+	if source.ReleaseDate == candidate.ReleaseDate {
+		return scoreContribution{value: weights.ReleaseDateExact, reason: "release date exact match"}
+	}
+	if sameReleaseYear(source.ReleaseDate, candidate.ReleaseDate) {
+		return scoreContribution{value: weights.ReleaseYearExact, reason: "release year match"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumDuration(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if source.TotalDurationMS > 0 && candidate.TotalDurationMS > 0 && durationNear(source.TotalDurationMS, candidate.TotalDurationMS) {
+		return scoreContribution{value: weights.DurationNear, reason: "duration near match"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumLabel(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if source.Label != "" && candidate.Label != "" && normalizedOrDerived(source.Label, "") == normalizedOrDerived(candidate.Label, "") {
+		return scoreContribution{value: weights.LabelExact, reason: "label exact match"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumExplicit(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if source.Explicit != candidate.Explicit {
+		return scoreContribution{value: weights.ExplicitMismatch, reason: "explicit mismatch"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumEditionHints(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	if editionMismatch(source.EditionHints, candidate.EditionHints) {
+		return scoreContribution{value: weights.EditionMismatch, reason: "edition mismatch"}
+	}
+	return scoreContribution{}
+}
+
+func scoreAlbumEditionMarkers(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
+	penalty, markers := editionMarkerMismatchPenalty(source, candidate, weights)
+	if penalty == 0 {
+		return scoreContribution{}
+	}
+	return scoreContribution{value: penalty, reason: "edition marker mismatch: " + strings.Join(markers, ", ")}
 }
 
 func normalizedOrDerived(raw string, normalized string) string {

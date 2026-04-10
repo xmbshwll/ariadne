@@ -3,7 +3,7 @@ package parse
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestTIDALAlbumURL(t *testing.T) {
@@ -54,11 +54,10 @@ func TestTIDALAlbumURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TIDALAlbumURL(tt.raw)
 			if tt.wantErr != nil {
-				requireParseError(t, got, err)
-				assert.ErrorIs(t, err, tt.wantErr)
+				requireParseErrorIs(t, got, err, tt.wantErr)
 				return
 			}
-			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, model.ServiceTIDAL, "album", tt.wantID, tt.wantURL, "")
 		})
 	}
 }
@@ -116,11 +115,10 @@ func TestTIDALSongURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TIDALSongURL(tt.raw)
 			if tt.wantErr != nil {
-				requireParseError(t, got, err)
-				assert.ErrorIs(t, err, tt.wantErr)
+				requireParseErrorIs(t, got, err, tt.wantErr)
 				return
 			}
-			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, model.ServiceTIDAL, "song", tt.wantID, tt.wantURL, "")
 		})
 	}
 }
