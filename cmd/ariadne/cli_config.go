@@ -62,7 +62,7 @@ func configPathFromArgs(args []string) string {
 		switch {
 		case arg == "--config":
 			if i+1 >= len(args) {
-				return defaultConfigPath
+				return ""
 			}
 			return args[i+1]
 		case strings.HasPrefix(arg, "--config="):

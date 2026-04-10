@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -158,7 +159,6 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 			}
 			return fmt.Errorf("%w: %s", errUnknownCommand, unknownCommand)
 		}
-		//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 		return err
 	}
 	return nil
@@ -194,12 +194,7 @@ func firstCommandArg(commandArgs []string, args []string) string {
 }
 
 func containsHelpArg(args []string) bool {
-	for _, arg := range args {
-		if isHelpArg(arg) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(args, isHelpArg)
 }
 
 func isHelpArg(arg string) bool {
@@ -207,13 +202,16 @@ func isHelpArg(arg string) bool {
 }
 
 func isUnknownCommandError(err error) bool {
-	return strings.HasPrefix(err.Error(), "unknown command ")
+	return strings.Contains(err.Error(), "unknown command ")
 }
 
 func executeRootCommand(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string, args []string) error {
 	root := newRootCmd(stdout, stderr, baseConfig, configPath)
 	root.SetArgs(args)
-	return root.Execute()
+	if err := root.Execute(); err != nil {
+		return fmt.Errorf("execute root command: %w", err)
+	}
+	return nil
 }
 
 func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string) *cobra.Command {

@@ -440,8 +440,9 @@ func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
 
 	deezer, ok := filtered.Matches[ariadne.ServiceDeezer]
 	require.True(t, ok)
-	assert.Nil(t, deezer.Best)
-	assert.Len(t, deezer.Alternates, 1)
+	require.NotNil(t, deezer.Best)
+	assert.Equal(t, "https://www.deezer.com/track/alternate", deezer.Best.URL)
+	assert.Empty(t, deezer.Alternates)
 
 	require.NotNil(t, resolution.Matches[ariadne.ServiceAppleMusic].Best)
 	assert.Len(t, resolution.Matches[ariadne.ServiceAppleMusic].Alternates, 2)

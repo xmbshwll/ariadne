@@ -27,6 +27,11 @@ func TestSoundCloudAlbumURL(t *testing.T) {
 			raw:     "https://soundcloud.com/evidence-official/the-liner-notes-feat-aloe-1",
 			wantErr: true,
 		},
+		{
+			name:    "nested set path is rejected",
+			raw:     "https://soundcloud.com/evidence-official/sets/cats-dogs-6/comments",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

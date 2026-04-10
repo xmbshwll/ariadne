@@ -428,10 +428,10 @@ func songMetadataQuery(song model.CanonicalSong) string {
 }
 
 func canonicalizeSoundCloudURL(raw string) string {
-	if parsed, err := parse.SoundCloudSongURL(raw); err == nil {
+	if parsed, err := parse.SoundCloudAlbumURL(raw); err == nil {
 		return parsed.CanonicalURL
 	}
-	if parsed, err := parse.SoundCloudAlbumURL(raw); err == nil {
+	if parsed, err := parse.SoundCloudSongURL(raw); err == nil {
 		return parsed.CanonicalURL
 	}
 	return strings.TrimSpace(raw)
@@ -553,10 +553,10 @@ func toCanonicalSong(track soundTrack) *model.CanonicalSong {
 }
 
 func soundCloudSourceID(canonicalURL string) string {
-	if parsed, err := parse.SoundCloudSongURL(canonicalURL); err == nil {
+	if parsed, err := parse.SoundCloudAlbumURL(canonicalURL); err == nil {
 		return parsed.ID
 	}
-	if parsed, err := parse.SoundCloudAlbumURL(canonicalURL); err == nil {
+	if parsed, err := parse.SoundCloudSongURL(canonicalURL); err == nil {
 		return parsed.ID
 	}
 	return canonicalURL

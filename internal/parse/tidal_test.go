@@ -1,6 +1,10 @@
 package parse
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestTIDALAlbumURL(t *testing.T) {
 	tests := []struct {
@@ -8,7 +12,7 @@ func TestTIDALAlbumURL(t *testing.T) {
 		raw     string
 		wantID  string
 		wantURL string
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name:    "canonical album url",
@@ -37,20 +41,21 @@ func TestTIDALAlbumURL(t *testing.T) {
 		{
 			name:    "wrong resource type",
 			raw:     "https://tidal.com/track/123",
-			wantErr: true,
+			wantErr: errTIDALNotAlbumURL,
 		},
 		{
 			name:    "wrong host",
 			raw:     "https://example.com/album/156205493",
-			wantErr: true,
+			wantErr: errUnsupportedTIDALHost,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TIDALAlbumURL(tt.raw)
-			if tt.wantErr {
+			if tt.wantErr != nil {
 				requireParseError(t, got, err)
+				assert.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
@@ -64,7 +69,7 @@ func TestTIDALSongURL(t *testing.T) {
 		raw     string
 		wantID  string
 		wantURL string
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name:    "canonical track url",
@@ -93,25 +98,26 @@ func TestTIDALSongURL(t *testing.T) {
 		{
 			name:    "missing track id",
 			raw:     "https://tidal.com/track",
-			wantErr: true,
+			wantErr: errInvalidTIDALPath,
 		},
 		{
 			name:    "wrong resource type",
 			raw:     "https://tidal.com/album/156205493",
-			wantErr: true,
+			wantErr: errTIDALNotSongURL,
 		},
 		{
 			name:    "wrong host",
 			raw:     "https://example.com/track/156205494",
-			wantErr: true,
+			wantErr: errUnsupportedTIDALHost,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TIDALSongURL(tt.raw)
-			if tt.wantErr {
+			if tt.wantErr != nil {
 				requireParseError(t, got, err)
+				assert.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			requireParsedURL(t, got, err, "song", tt.wantID, tt.wantURL, "")

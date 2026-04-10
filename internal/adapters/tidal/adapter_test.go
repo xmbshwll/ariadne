@@ -25,7 +25,7 @@ func TestAdapter(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
 	})
 	mux.HandleFunc("/albums/156205493", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(t, w, apiDocument{
+		writeJSON(w, apiDocument{
 			Data: apiResource{
 				ID:   "156205493",
 				Type: "albums",
@@ -53,7 +53,7 @@ func TestAdapter(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/tracks/156205494", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(t, w, apiDocument{
+		writeJSON(w, apiDocument{
 			Data: apiResource{
 				ID:   "156205494",
 				Type: "tracks",
@@ -77,7 +77,7 @@ func TestAdapter(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/tracks/156205495", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(t, w, apiDocument{
+		writeJSON(w, apiDocument{
 			Data: apiResource{
 				ID:   "156205495",
 				Type: "tracks",
@@ -100,28 +100,28 @@ func TestAdapter(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/tracks/missing", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(t, w, apiDocument{})
+		writeJSON(w, apiDocument{})
 	})
 	mux.HandleFunc("/albums", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("filter[barcodeId]") != "053000502692" {
 			http.NotFound(w, r)
 			return
 		}
-		writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
+		writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
 	})
 	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("filter[isrc]") != tidalTrackISRC {
 			http.NotFound(w, r)
 			return
 		}
-		writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
+		writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
 	})
 	mux.HandleFunc("/searchResults/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/searchResults/Shadows among trees Fetch/relationships/albums", "/searchResults/Shadows%20among%20trees%20Fetch/relationships/albums":
-			writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
+			writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
 		case "/searchResults/Kings of mist Fetch/relationships/tracks", "/searchResults/Kings%20of%20mist%20Fetch/relationships/tracks":
-			writeJSON(t, w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks"}, {ID: "156205495", Type: "tracks"}}})
+			writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks"}, {ID: "156205495", Type: "tracks"}}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -200,13 +200,17 @@ func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 	adapter := New(nil)
 
 	_, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
 	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	_, err = adapter.SearchByISRC(context.Background(), []string{"QZMHK2043414"})
+	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
 	_, err = adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	_, err = adapter.SearchSongByISRC(context.Background(), "QZMHK2043414")
+	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
 	_, err = adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Song"})
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
 }
 
 func TestAdapterSkipsCredentialChecksForEmptySearches(t *testing.T) {
@@ -265,7 +269,7 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	assert.Contains(t, candidates[0].MatchURL, wantID)
 }
 
-func writeJSON(_ *testing.T, w http.ResponseWriter, payload any) {
+func writeJSON(w http.ResponseWriter, payload any) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
