@@ -217,6 +217,8 @@ func TestAdapter(t *testing.T) {
 				_, _ = w.Write([]byte(lookupSongPayload))
 			case "999999":
 				_, _ = w.Write([]byte(`{"resultCount":1,"results":[{"wrapperType":"track","kind":"song","artistId":999,"collectionId":555,"trackId":999999,"artistName":"Tribute Band","collectionName":"Abbey Road Live","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-live/555?uo=4","trackName":"Come Together (Live)","discNumber":1,"trackNumber":8,"trackTimeMillis":300000,"trackIsrc":"LIVE0000001","releaseDate":"2021-01-01T07:00:00Z","artworkUrl100":"https://image.test/weak.jpg","trackExplicitness":"notExplicit"}]}`))
+			case "123456789":
+				_, _ = w.Write([]byte(`{"resultCount":1,"results":[{"wrapperType":"collection","collectionType":"Album","artistId":136975,"collectionId":1441164426,"artistName":"The Beatles","collectionName":"Abbey Road (Remastered)","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4"}]}`))
 			default:
 				http.NotFound(w, r)
 			}
@@ -363,6 +365,19 @@ func TestAdapter(t *testing.T) {
 		assert.Equal(t, "Abbey Road (Remastered)", song.AlbumTitle)
 		assert.Equal(t, 1, song.TrackNumber)
 		assert.Equal(t, comeTogetherISRC, song.ISRC)
+	})
+
+	t.Run("fetch song rejects non-song lookup payloads", func(t *testing.T) {
+		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+			Service:      model.ServiceAppleMusic,
+			EntityType:   entitySong,
+			ID:           "123456789",
+			CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=123456789",
+			RegionHint:   "us",
+		})
+		require.Error(t, err)
+		assert.Nil(t, song)
+		assert.ErrorIs(t, err, errAppleMusicSongNotFound)
 	})
 
 	t.Run("search song by metadata", func(t *testing.T) {

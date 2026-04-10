@@ -73,11 +73,23 @@ func collectSearchCandidates(matches [][][]byte, build func(match [][]byte) sear
 }
 
 func rankSearchCandidates(source model.CanonicalAlbum, candidates []searchCandidate) []searchCandidate {
+	return rankCandidates(candidates, func(candidate searchCandidate) int {
+		return scoreSearchCandidate(source, candidate)
+	})
+}
+
+func rankSongSearchCandidates(source model.CanonicalSong, candidates []searchCandidate) []searchCandidate {
+	return rankCandidates(candidates, func(candidate searchCandidate) int {
+		return scoreSongSearchCandidate(source, candidate)
+	})
+}
+
+func rankCandidates(candidates []searchCandidate, scoreCandidate func(searchCandidate) int) []searchCandidate {
 	ranked := make([]rankedSearchCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
 		ranked = append(ranked, rankedSearchCandidate{
 			Candidate: candidate,
-			Score:     scoreSearchCandidate(source, candidate),
+			Score:     scoreCandidate(candidate),
 		})
 	}
 
@@ -96,54 +108,80 @@ func rankSearchCandidates(source model.CanonicalAlbum, candidates []searchCandid
 }
 
 func scoreSearchCandidate(source model.CanonicalAlbum, candidate searchCandidate) int {
-	score := 0
+	score := scoreSearchMetadata(source.Title, source.Artists, source.ReleaseDate, candidate)
 
-	sourceTitle := normalize.Text(source.Title)
-	candidateTitle := normalize.Text(candidate.Title)
-	sourceCoreTitle := coreTitle(source.Title)
-	candidateCoreTitle := coreTitle(candidate.Title)
+	if source.TrackCount <= 0 || candidate.TrackCount <= 0 {
+		return score
+	}
+
+	diff := source.TrackCount - candidate.TrackCount
+	if diff < 0 {
+		diff = -diff
+	}
 	switch {
-	case sourceTitle != "" && sourceTitle == candidateTitle:
-		score += 40
-	case sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle:
-		score += 25
-	case strings.Contains(candidateTitle, sourceTitle) || strings.Contains(sourceTitle, candidateTitle):
-		score += 10
-	}
-
-	sourceArtist := ""
-	if len(source.Artists) > 0 {
-		sourceArtist = normalize.Text(source.Artists[0])
-	}
-	candidateArtist := normalize.Text(candidate.Artist)
-	if sourceArtist != "" && sourceArtist == candidateArtist {
-		score += 45
-	} else if sourceArtist != "" && strings.Contains(candidateArtist, sourceArtist) {
-		score += 20
-	}
-
-	if source.TrackCount > 0 && candidate.TrackCount > 0 {
-		diff := source.TrackCount - candidate.TrackCount
-		if diff < 0 {
-			diff = -diff
-		}
-		switch {
-		case diff == 0:
-			score += 15
-		case diff == 1:
-			score += 5
-		case diff >= 3:
-			score -= 10
-		}
-	}
-
-	if source.ReleaseDate != "" && candidate.ReleaseDate != "" && len(source.ReleaseDate) >= 4 && len(candidate.ReleaseDate) >= 4 {
-		if source.ReleaseDate[:4] == candidate.ReleaseDate[:4] {
-			score += 5
-		}
+	case diff == 0:
+		score += 15
+	case diff == 1:
+		score += 5
+	case diff >= 3:
+		score -= 10
 	}
 
 	return score
+}
+
+func scoreSongSearchCandidate(source model.CanonicalSong, candidate searchCandidate) int {
+	return scoreSearchMetadata(source.Title, source.Artists, source.ReleaseDate, candidate)
+}
+
+func scoreSearchMetadata(sourceTitle string, sourceArtists []string, sourceReleaseDate string, candidate searchCandidate) int {
+	score := scoreTitle(sourceTitle, candidate.Title)
+	score += scoreArtist(sourceArtists, candidate.Artist)
+	score += scoreReleaseDate(sourceReleaseDate, candidate.ReleaseDate)
+	return score
+}
+
+func scoreTitle(sourceTitle string, candidateTitle string) int {
+	sourceTitle = normalize.Text(sourceTitle)
+	candidateTitle = normalize.Text(candidateTitle)
+	sourceCoreTitle := coreTitle(sourceTitle)
+	candidateCoreTitle := coreTitle(candidateTitle)
+	switch {
+	case sourceTitle != "" && sourceTitle == candidateTitle:
+		return 40
+	case sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle:
+		return 25
+	case strings.Contains(candidateTitle, sourceTitle) || strings.Contains(sourceTitle, candidateTitle):
+		return 10
+	default:
+		return 0
+	}
+}
+
+func scoreArtist(sourceArtists []string, candidateArtist string) int {
+	sourceArtist := ""
+	if len(sourceArtists) > 0 {
+		sourceArtist = normalize.Text(sourceArtists[0])
+	}
+	candidateArtist = normalize.Text(candidateArtist)
+	switch {
+	case sourceArtist != "" && sourceArtist == candidateArtist:
+		return 45
+	case sourceArtist != "" && strings.Contains(candidateArtist, sourceArtist):
+		return 20
+	default:
+		return 0
+	}
+}
+
+func scoreReleaseDate(sourceReleaseDate string, candidateReleaseDate string) int {
+	if sourceReleaseDate == "" || candidateReleaseDate == "" || len(sourceReleaseDate) < 4 || len(candidateReleaseDate) < 4 {
+		return 0
+	}
+	if sourceReleaseDate[:4] == candidateReleaseDate[:4] {
+		return 5
+	}
+	return 0
 }
 
 func cleanSearchText(value string) string {

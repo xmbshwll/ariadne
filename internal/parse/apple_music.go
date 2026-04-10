@@ -12,11 +12,7 @@ const albumPathSegment = "album"
 
 // AppleMusicAlbumURL parses an Apple Music album URL into the shared parsed representation.
 func AppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parseAppleMusicAlbumURL(raw)
-	if err != nil {
-		return nil, err
-	}
-	return parsed, nil
+	return parseAppleMusicAlbumURL(raw)
 }
 
 // AppleMusicSongURL parses an Apple Music song URL into the shared parsed representation.
@@ -61,9 +57,6 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	canonicalURL := fmt.Sprintf("https://music.apple.com/%s/%s/%s/%s", storefront, albumPathSegment, segments[len(segments)-2], id)
-	if len(segments) == 3 {
-		canonicalURL = fmt.Sprintf("https://music.apple.com/%s/%s/%s", storefront, albumPathSegment, id)
-	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceAppleMusic,

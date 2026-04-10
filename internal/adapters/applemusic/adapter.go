@@ -322,7 +322,8 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 	if err := a.getJSON(ctx, lookupURL, &payload); err != nil {
 		return nil, err
 	}
-	if len(payload.Results) == 0 {
+	track, ok := firstSongLookupItem(payload.Results)
+	if !ok {
 		return nil, fmt.Errorf("%w: %s", errAppleMusicSongNotFound, songID)
 	}
 
@@ -334,9 +335,9 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 		RegionHint:   a.storefrontFor(storefront),
 	}
 	if parsed.CanonicalURL == "" {
-		parsed.CanonicalURL = canonicalTrackURL(payload.Results[0].CollectionViewURL, payload.Results[0].TrackID)
+		parsed.CanonicalURL = canonicalTrackURL(track.CollectionViewURL, track.TrackID)
 	}
-	return toCanonicalSong(parsed, payload.Results), nil
+	return toCanonicalSong(parsed, track), nil
 }
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
@@ -395,6 +396,18 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 	return nil
 }
 
+func firstSongLookupItem(items []lookupItem) (lookupItem, bool) {
+	for _, item := range items {
+		if item.TrackID == 0 {
+			continue
+		}
+		if item.WrapperType == "track" || item.Kind == entitySong {
+			return item, true
+		}
+	}
+	return lookupItem{}, false
+}
+
 func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
 	const explicitTrack = "explicit"
 
@@ -447,19 +460,8 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	}
 }
 
-func toCanonicalSong(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalSong {
+func toCanonicalSong(parsed model.ParsedAlbumURL, track lookupItem) *model.CanonicalSong {
 	const explicitTrack = "explicit"
-
-	var track lookupItem
-	for _, item := range items {
-		if item.WrapperType == "track" && item.Kind == entitySong {
-			track = item
-			break
-		}
-	}
-	if track.TrackID == 0 && len(items) > 0 {
-		track = items[0]
-	}
 
 	artists := []string{track.ArtistName}
 	return &model.CanonicalSong{

@@ -36,7 +36,7 @@ func TestSoundCloudAlbumURL(t *testing.T) {
 				requireParseError(t, err)
 				return
 			}
-			requireParsedURL(t, got, err, "set", tt.wantID, tt.wantURL, "")
+			requireParsedURL(t, got, err, "album", tt.wantID, tt.wantURL, "")
 		})
 	}
 }

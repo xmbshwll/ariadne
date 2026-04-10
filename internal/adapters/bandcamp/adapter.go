@@ -172,7 +172,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("fetch bandcamp search page: %w", err)
 	}
 
-	searchCandidates := extractSongSearchCandidates(body)
+	searchCandidates := rankSongSearchCandidates(song, extractSongSearchCandidates(body))
 	results := make([]model.CandidateSong, 0, minInt(len(searchCandidates), searchHydrationLimit))
 	for i, candidate := range searchCandidates {
 		if i >= searchHydrationLimit {

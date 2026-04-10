@@ -64,6 +64,18 @@ func TestExtractSearchCandidatesDeduplicatesURLs(t *testing.T) {
 	assert.Equal(t, "https://artist.bandcamp.com/album/example-album", candidates[0].URL)
 }
 
+func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.T) {
+	body := mustReadBandcampFixture(t, "testdata/search-fixture-track.html")
+	candidates := extractSongSearchCandidates(body)
+	require.Len(t, candidates, 2)
+
+	assert.Equal(t, "Come Together", candidates[0].Title)
+	assert.Equal(t, "https://comradiation.bandcamp.com/track/come-together", candidates[0].URL)
+
+	assert.Equal(t, "Something", candidates[1].Title)
+	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
+}
+
 func mustReadBandcampFixture(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)

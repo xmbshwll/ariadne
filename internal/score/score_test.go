@@ -142,6 +142,7 @@ func TestRankAlbumsAppleMusicAlternates(t *testing.T) {
 
 	ranking := RankAlbums(source, candidates, DefaultWeights())
 	require.NotNil(t, ranking.Best)
+	require.Len(t, ranking.Ranked, 3)
 	assert.Equal(t, "exact-remaster", ranking.Ranked[0].Candidate.CandidateID)
 	assert.Equal(t, "mix", ranking.Ranked[1].Candidate.CandidateID)
 	assert.Equal(t, "super-deluxe", ranking.Ranked[2].Candidate.CandidateID)
@@ -204,6 +205,7 @@ func TestRankAlbumsPrefersTrackTitleOverlapWithoutIdentifiers(t *testing.T) {
 
 	ranking := RankAlbums(source, candidates, DefaultWeights())
 	require.NotNil(t, ranking.Best)
+	require.Len(t, ranking.Ranked, 2)
 	assert.Equal(t, "high-overlap", ranking.Best.Candidate.CandidateID)
 	assert.Greater(t, ranking.Ranked[0].Score, ranking.Ranked[1].Score)
 }

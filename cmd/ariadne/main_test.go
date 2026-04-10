@@ -82,6 +82,12 @@ func TestRun(t *testing.T) {
 			wantStderr: []string{"Usage:"},
 		},
 		{
+			name:       "unknown command after config flag",
+			args:       []string{"--config", ".env", "unknown"},
+			wantErr:    "unknown command: unknown",
+			wantStderr: []string{"Usage:"},
+		},
+		{
 			name:        "resolve usage",
 			args:        []string{"resolve"},
 			wantErr:     "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",

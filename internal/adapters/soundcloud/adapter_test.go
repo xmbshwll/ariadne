@@ -64,7 +64,7 @@ func TestAdapter(t *testing.T) {
 	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceSoundCloud,
-		EntityType:   "set",
+		EntityType:   "album",
 		ID:           "evidence-official/sets/cats-dogs-6",
 		CanonicalURL: server.URL + "/album",
 		RawURL:       server.URL + "/album",

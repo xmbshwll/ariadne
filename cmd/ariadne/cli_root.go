@@ -143,6 +143,8 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		return err
 	}
 
+	unknownCommand := firstCommandArg(commandArgs, args)
+
 	root := newRootCmd(stdout, stderr, baseConfig, configPath)
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
@@ -150,7 +152,7 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 			if helpErr := renderRootHelp(stderr, baseConfig, configPath); helpErr != nil {
 				return fmt.Errorf("print usage: %w", helpErr)
 			}
-			return fmt.Errorf("%w: %s", errUnknownCommand, args[0])
+			return fmt.Errorf("%w: %s", errUnknownCommand, unknownCommand)
 		}
 		//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 		return err
@@ -175,6 +177,16 @@ func argsWithoutConfigFlag(args []string) []string {
 		}
 	}
 	return filtered
+}
+
+func firstCommandArg(commandArgs []string, args []string) string {
+	if len(commandArgs) > 0 {
+		return commandArgs[0]
+	}
+	if len(args) > 0 {
+		return args[0]
+	}
+	return "<unknown>"
 }
 
 func isHelpArg(arg string) bool {
