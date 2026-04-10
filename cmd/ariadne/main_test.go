@@ -877,6 +877,9 @@ func TestParseResolveArgs(t *testing.T) {
 		wantServices          []ariadne.ServiceName
 		wantHTTPTimeout       time.Duration
 		wantResolutionTimeout time.Duration
+		wantVerbose           bool
+		wantForceSong         bool
+		wantForceAlbum        bool
 		wantErrContains       string
 	}{
 		{
@@ -894,6 +897,7 @@ func TestParseResolveArgs(t *testing.T) {
 			wantStorefront:  "de",
 			wantFormat:      "json",
 			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+			wantVerbose:     true,
 		},
 		{
 			name:            "yaml format",
@@ -932,6 +936,7 @@ func TestParseResolveArgs(t *testing.T) {
 			wantStorefront:  "de",
 			wantFormat:      "json",
 			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+			wantForceSong:   true,
 		},
 		{
 			name:            "force album",
@@ -940,6 +945,7 @@ func TestParseResolveArgs(t *testing.T) {
 			wantStorefront:  "de",
 			wantFormat:      "json",
 			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+			wantForceAlbum:  true,
 		},
 		{
 			name:            "conflicting entity flags",
@@ -1029,15 +1035,9 @@ func TestParseResolveArgs(t *testing.T) {
 			for i, service := range tt.wantServices {
 				assert.Equal(t, service, resolveConfig.resolverConfig.TargetServices[i])
 			}
-			if tt.name == "verbose flag" {
-				assert.True(t, resolveConfig.verbose)
-			}
-			if tt.name == "force song" {
-				assert.True(t, resolveConfig.forceSong)
-			}
-			if tt.name == "force album" {
-				assert.True(t, resolveConfig.forceAlbum)
-			}
+			assert.Equal(t, tt.wantVerbose, resolveConfig.verbose)
+			assert.Equal(t, tt.wantForceSong, resolveConfig.forceSong)
+			assert.Equal(t, tt.wantForceAlbum, resolveConfig.forceAlbum)
 		})
 	}
 }

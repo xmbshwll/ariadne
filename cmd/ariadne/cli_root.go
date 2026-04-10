@@ -171,7 +171,10 @@ func argsWithoutConfigFlag(args []string) []string {
 		switch {
 		case arg == "--config":
 			if i+1 < len(args) {
-				i++
+				value := args[i+1]
+				if strings.TrimSpace(value) != "" && !strings.HasPrefix(value, "-") {
+					i++
+				}
 			}
 			continue
 		case strings.HasPrefix(arg, "--config="):

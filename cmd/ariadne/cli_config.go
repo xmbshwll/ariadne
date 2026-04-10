@@ -64,7 +64,11 @@ func configPathFromArgs(args []string) string {
 			if i+1 >= len(args) {
 				return ""
 			}
-			return args[i+1]
+			value := args[i+1]
+			if strings.TrimSpace(value) == "" || strings.HasPrefix(value, "-") {
+				return ""
+			}
+			return value
 		case strings.HasPrefix(arg, "--config="):
 			value, _ := strings.CutPrefix(arg, "--config=")
 			return value

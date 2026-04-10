@@ -39,6 +39,7 @@ func TestAdapter(t *testing.T) {
 
 		album, err := adapter.FetchAlbum(context.Background(), parsed)
 		require.NoError(t, err)
+		require.NotNil(t, album)
 		assert.Equal(t, "Abbey Road (Remastered)", album.Title)
 		assert.NotEmpty(t, album.Label)
 		assert.Equal(t, 17, album.TrackCount)

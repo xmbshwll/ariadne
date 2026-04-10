@@ -218,7 +218,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("artists,albums,coverArt"))
+	endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc))
 	var document apiDocument
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, fmt.Errorf("tidal song search by isrc %s: %w", isrc, err)
@@ -521,7 +521,8 @@ func albumIDsFromTrackDocument(document apiDocument) []string {
 }
 
 func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalAlbum {
-	artistNames := includedArtistNames(included, resource.Relationships.Artists.Data)
+	resourceByID := includedResourceIndex(included)
+	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 	tracks := tracksFromIncluded(included, resource.Relationships.Items.Data, artistNames)
 	artworkURL := artworkURLFromIncluded(included, resource.Relationships.CoverArt.Data)
 	trackCount := resource.Attributes.NumberOfItems
@@ -553,7 +554,8 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 }
 
 func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalSong {
-	artistNames := includedArtistNames(included, resource.Relationships.Artists.Data)
+	resourceByID := includedResourceIndex(included)
+	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 	albumResource := firstRelatedResource(included, resource.Relationships.Albums.Data, "albums")
 	albumTitle := ""
 	albumNormalizedTitle := ""
@@ -564,7 +566,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	if albumResource != nil {
 		albumTitle = albumResource.Attributes.Title
 		albumNormalizedTitle = normalize.Text(albumTitle)
-		albumArtists = includedArtistNames(included, albumResource.Relationships.Artists.Data)
+		albumArtists = includedArtistNames(resourceByID, albumResource.Relationships.Artists.Data)
 		albumNormalizedArtists = normalize.Artists(albumArtists)
 		if releaseDate == "" {
 			releaseDate = albumResource.Attributes.ReleaseDate
@@ -599,8 +601,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	}
 }
 
-func includedArtistNames(included []apiResource, relations []relationshipData) []string {
-	resourceByID := includedResourceIndex(included)
+func includedArtistNames(resourceByID map[string]apiResource, relations []relationshipData) []string {
 	results := make([]string, 0, len(relations))
 	seen := make(map[string]struct{}, len(relations))
 	for _, relation := range relations {
@@ -678,7 +679,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 		if !ok {
 			continue
 		}
-		trackArtists := includedArtistNames(included, resource.Relationships.Artists.Data)
+		trackArtists := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 		if len(trackArtists) == 0 {
 			trackArtists = append([]string(nil), fallbackArtists...)
 		}
