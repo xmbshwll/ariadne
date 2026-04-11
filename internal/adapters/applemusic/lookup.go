@@ -48,11 +48,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 	if parsed.CanonicalURL == "" {
 		parsed.CanonicalURL = canonicalCollectionURL(payload.Results[0].CollectionViewURL, "")
 	}
-	album := toCanonicalAlbum(parsed, payload.Results)
-	if album == nil {
-		return nil, fmt.Errorf("%w: %s", errAppleMusicAlbumNotFound, albumID)
-	}
-	return album, nil
+	return toCanonicalAlbum(parsed, payload.Results), nil
 }
 
 func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL string, storefront string) (*model.CanonicalSong, error) {
