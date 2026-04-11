@@ -1,7 +1,5 @@
 package main
 
-import "github.com/xmbshwll/ariadne"
-
 type cliResolution struct {
 	InputURL string                    `json:"input_url" yaml:"input_url"`
 	Source   cliAlbum                  `json:"source" yaml:"source"`
@@ -87,11 +85,4 @@ type cliSongMatch struct {
 	AlbumTitle  string   `json:"album_title,omitempty" yaml:"album_title,omitempty"`
 	TrackNumber int      `json:"track_number,omitempty" yaml:"track_number,omitempty"`
 	ReleaseDate string   `json:"release_date,omitempty" yaml:"release_date,omitempty"`
-}
-
-func newCLIOutput(resolution ariadne.Resolution, cfg resolveConfig) any {
-	if cfg.verbose {
-		return newCLIResolution(resolution)
-	}
-	return newCLILinks(resolution)
 }

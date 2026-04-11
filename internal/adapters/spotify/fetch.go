@@ -24,6 +24,9 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 		if err == nil {
 			return toCanonicalAlbumAPI(parsed.CanonicalURL, album), nil
 		}
+		if !errors.Is(err, errSpotifyAlbumNotFound) {
+			return nil, err
+		}
 	}
 
 	return a.fetchAlbumBootstrap(ctx, parsed)
@@ -31,8 +34,9 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 
 // SearchByUPC searches Spotify albums by UPC via the Web API.
 func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
-	if strings.TrimSpace(upc) == "" {
-		return nil, nil
+	upc = strings.TrimSpace(upc)
+	if upc == "" {
+		return []model.CandidateAlbum{}, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured
@@ -48,18 +52,24 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 
 // SearchByISRC searches Spotify track results by ISRC, then hydrates the owning albums.
 func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
-
-	albumIDs := make([]string, 0, len(isrcs))
-	seen := make(map[string]struct{}, len(isrcs))
+	trimmedISRCs := make([]string, 0, len(isrcs))
 	for _, isrc := range isrcs {
 		isrc = strings.TrimSpace(isrc)
 		if isrc == "" {
 			continue
 		}
+		trimmedISRCs = append(trimmedISRCs, isrc)
+	}
+	if len(trimmedISRCs) == 0 {
+		return []model.CandidateAlbum{}, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
+	}
 
+	albumIDs := make([]string, 0, len(trimmedISRCs))
+	seen := make(map[string]struct{}, len(trimmedISRCs))
+	for _, isrc := range trimmedISRCs {
 		endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape("isrc:"+isrc), 1)
 		var response apiTrackSearchResponse
 		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
@@ -155,7 +165,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
 	queries := songMetadataQueries(song)
 	if len(queries) == 0 {
-		return nil, nil
+		return []model.CandidateSong{}, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured
@@ -190,6 +200,9 @@ func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*apiAlbumR
 	var album apiAlbumResponse
 	endpoint := a.apiBaseURL + "/albums/" + albumID
 	if err := a.getAPIJSON(ctx, endpoint, &album); err != nil {
+		if isSpotifyAPIStatus(err, http.StatusNotFound) {
+			return nil, fmt.Errorf("%w: %s", errSpotifyAlbumNotFound, albumID)
+		}
 		return nil, fmt.Errorf("spotify fetch album api %s: %w", albumID, err)
 	}
 	if err := a.hydrateAlbumTrackDetails(ctx, &album); err != nil {
@@ -263,6 +276,9 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		endpoint := a.apiBaseURL + "/tracks/" + trackID
 		var track apiTrack
 		if err := a.getAPIJSON(ctx, endpoint, &track); err != nil {
+			if isSpotifyAPIStatus(err, http.StatusNotFound) {
+				return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
+			}
 			return nil, err
 		}
 		tracks = append(tracks, track)

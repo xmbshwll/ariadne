@@ -13,6 +13,10 @@ import (
 func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
 	const explicitTrack = "explicit"
 
+	if len(items) == 0 {
+		return nil
+	}
+
 	collection := items[0]
 	tracks := make([]model.CanonicalTrack, 0, len(items)-1)
 	totalDurationMS := 0

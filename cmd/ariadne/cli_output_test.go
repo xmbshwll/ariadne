@@ -304,6 +304,42 @@ func TestFilterResolutionByStrength(t *testing.T) {
 	assert.Len(t, resolution.Matches[ariadne.ServiceSpotify].Alternates, 2)
 }
 
+func TestVerboseCSVRowsIncludeAlternatesWithoutBest(t *testing.T) {
+	albumRows := newVerboseCSVRows(ariadne.Resolution{
+		InputURL: "https://fixture.test/album",
+		Source:   ariadne.CanonicalAlbum{Service: ariadne.ServiceDeezer, SourceID: "src", SourceURL: "https://fixture.test/album"},
+		Matches: map[ariadne.ServiceName]ariadne.MatchResult{
+			ariadne.ServiceSpotify: {
+				Alternates: []ariadne.ScoredMatch{{
+					URL:       "https://open.spotify.com/album/alt",
+					Score:     80,
+					Candidate: ariadne.CandidateAlbum{CandidateID: "alt", CanonicalAlbum: ariadne.CanonicalAlbum{Title: "Alt Album"}},
+				}},
+			},
+		},
+	})
+	assert.Len(t, albumRows, 3)
+	assert.Equal(t, "alternate", albumRows[2][2])
+	assert.Equal(t, "https://open.spotify.com/album/alt", albumRows[2][3])
+
+	songRows := newVerboseSongCSVRows(ariadne.SongResolution{
+		InputURL: "https://fixture.test/song",
+		Source:   ariadne.CanonicalSong{Service: ariadne.ServiceSpotify, SourceID: "src", SourceURL: "https://fixture.test/song"},
+		Matches: map[ariadne.ServiceName]ariadne.SongMatchResult{
+			ariadne.ServiceAppleMusic: {
+				Alternates: []ariadne.SongScoredMatch{{
+					URL:       "https://music.apple.com/us/album/alt?i=1",
+					Score:     82,
+					Candidate: ariadne.CandidateSong{CandidateID: "alt-song", CanonicalSong: ariadne.CanonicalSong{Title: "Alt Song"}},
+				}},
+			},
+		},
+	})
+	assert.Len(t, songRows, 3)
+	assert.Equal(t, "alternate", songRows[2][2])
+	assert.Equal(t, "https://music.apple.com/us/album/alt?i=1", songRows[2][3])
+}
+
 func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
 	resolution := ariadne.SongResolution{
 		Source: ariadne.CanonicalSong{Service: ariadne.ServiceSpotify, SourceURL: "https://open.spotify.com/track/source"},

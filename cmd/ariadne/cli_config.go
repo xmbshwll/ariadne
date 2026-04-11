@@ -225,7 +225,13 @@ func resolveModeFromConfig(config resolveConfig) resolveMode {
 
 func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.ServiceName, error) {
 	if strings.TrimSpace(raw) == "" {
-		return append([]ariadne.ServiceName(nil), appConfig.TargetServices...), nil
+		services := append([]ariadne.ServiceName(nil), appConfig.TargetServices...)
+		for _, service := range services {
+			if err := validateRequestedService(service, appConfig); err != nil {
+				return nil, err
+			}
+		}
+		return services, nil
 	}
 
 	services := make([]ariadne.ServiceName, 0)

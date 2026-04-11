@@ -21,6 +21,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	storefront := a.storefrontFor(album.RegionHint)
 	results := make([]model.CandidateAlbum, 0, searchLimit)
 	seen := make(map[int64]struct{}, searchLimit)
+	var firstHydrationErr error
 
 	for _, query := range queries {
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=album&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
@@ -40,13 +41,19 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 
 			canonical, err := a.fetchAlbumByID(ctx, strconv.FormatInt(item.CollectionID, 10), canonicalCollectionURL(item.CollectionViewURL, ""), storefront)
 			if err != nil {
-				return nil, fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
+				if firstHydrationErr == nil {
+					firstHydrationErr = fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
+				}
+				continue
 			}
 			results = append(results, toCandidateAlbum(*canonical))
 			if len(results) >= searchLimit {
 				return results, nil
 			}
 		}
+	}
+	if len(results) == 0 && firstHydrationErr != nil {
+		return nil, firstHydrationErr
 	}
 	return results, nil
 }
@@ -61,6 +68,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	storefront := a.storefrontFor(song.RegionHint)
 	results := make([]model.CandidateSong, 0, searchLimit)
 	seen := make(map[int64]struct{}, searchLimit)
+	var firstHydrationErr error
 
 	for _, query := range queries {
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=%s&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), entitySong, searchLimit, url.QueryEscape(storefront))
@@ -80,13 +88,19 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 
 			canonical, err := a.fetchSongByID(ctx, strconv.FormatInt(item.TrackID, 10), canonicalTrackURL(item.CollectionViewURL, item.TrackID), storefront)
 			if err != nil {
-				return nil, fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
+				if firstHydrationErr == nil {
+					firstHydrationErr = fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
+				}
+				continue
 			}
 			results = append(results, toCandidateSong(*canonical))
 			if len(results) >= searchLimit {
 				return results, nil
 			}
 		}
+	}
+	if len(results) == 0 && firstHydrationErr != nil {
+		return nil, firstHydrationErr
 	}
 	return results, nil
 }

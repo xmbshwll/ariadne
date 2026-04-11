@@ -66,10 +66,21 @@ func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
 func TestParseResolveArgsPreservesConfiguredTargetServices(t *testing.T) {
 	resolveConfig, err := parseResolveArgs(
 		[]string{"https://www.deezer.com/album/12047952"},
-		ariadne.Config{TargetServices: []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic}},
+		ariadne.Config{
+			Spotify:        ariadne.SpotifyConfig{ClientID: "client-id", ClientSecret: "client-secret"},
+			TargetServices: []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic},
+		},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic}, resolveConfig.resolverConfig.TargetServices)
+}
+
+func TestParseResolveArgsValidatesConfiguredTargetServices(t *testing.T) {
+	_, err := parseResolveArgs(
+		[]string{"https://www.deezer.com/album/12047952"},
+		ariadne.Config{TargetServices: []ariadne.ServiceName{ariadne.ServiceSpotify}},
+	)
+	require.ErrorIs(t, err, errSpotifyTargetCredentials)
 }
 
 func TestParseResolveArgs(t *testing.T) {

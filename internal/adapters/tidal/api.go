@@ -83,9 +83,10 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 	if strings.TrimSpace(token.AccessToken) == "" {
 		return "", errEmptyTIDALAccessToken
 	}
+	ttl := max(token.ExpiresIn-30, 0)
 	a.token = cachedToken{
 		accessToken: token.AccessToken,
-		expiresAt:   time.Now().Add(time.Duration(token.ExpiresIn-30) * time.Second),
+		expiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
 	}
 	return a.token.accessToken, nil
 }

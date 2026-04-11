@@ -132,8 +132,9 @@ func editionMarkers(title string) []string {
 	normalized := normalize.Text(title)
 	candidates := []string{"super deluxe", "deluxe", "remix", "mix", "anniversary", "live", "acoustic"}
 	markers := make([]string, 0, len(candidates))
+	padded := " " + normalized + " "
 	for _, candidate := range candidates {
-		if strings.Contains(normalized, candidate) {
+		if strings.Contains(padded, " "+candidate+" ") {
 			markers = append(markers, candidate)
 		}
 	}

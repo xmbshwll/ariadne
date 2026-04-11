@@ -106,30 +106,31 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 }
 
 func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
+	apiBaseURL := normalizeBaseURL(inputs.opts.apiBaseURL)
 	token, err := fetchToken(ctx, inputs.opts.authBaseURL, inputs.appConfig.Spotify.ClientID, inputs.appConfig.Spotify.ClientSecret)
 	if err != nil {
 		return validationArtifacts{}, err
 	}
 
-	albumBody, album, err := fetchSpotifyAlbum(ctx, inputs.opts.apiBaseURL, inputs.parsed.ID, token)
+	albumBody, album, err := fetchSpotifyAlbum(ctx, apiBaseURL, inputs.parsed.ID, token)
 	if err != nil {
 		return validationArtifacts{}, err
 	}
 
-	upc, isrcs, metadata, err := validateSpotifyAlbumMetadata(ctx, inputs.opts.apiBaseURL, token, album)
+	upc, isrcs, metadata, err := validateSpotifyAlbumMetadata(ctx, apiBaseURL, token, album)
 	if err != nil {
 		return validationArtifacts{}, err
 	}
 
-	upcBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
+	upcBody, err := getAPI(ctx, apiURL(apiBaseURL, "/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+strconv.Itoa(searchLimit)), token)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search spotify by upc: %w", err)
 	}
-	isrcBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+strconv.Itoa(searchLimit), token)
+	isrcBody, err := getAPI(ctx, apiURL(apiBaseURL, "/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+strconv.Itoa(searchLimit)), token)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search spotify by isrc: %w", err)
 	}
-	metadataBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/search?q="+url.QueryEscape(metadata)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
+	metadataBody, err := getAPI(ctx, apiURL(apiBaseURL, "/search?q="+url.QueryEscape(metadata)+"&type=album&limit="+strconv.Itoa(searchLimit)), token)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search spotify by metadata: %w", err)
 	}
@@ -144,7 +145,7 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 }
 
 func fetchSpotifyAlbum(ctx context.Context, apiBaseURL, albumID, token string) ([]byte, spotifyAlbumPayload, error) {
-	albumBody, err := getAPI(ctx, apiBaseURL+"/albums/"+albumID, token)
+	albumBody, err := getAPI(ctx, apiURL(apiBaseURL, "/albums/"+albumID), token)
 	if err != nil {
 		return nil, spotifyAlbumPayload{}, fmt.Errorf("fetch spotify album payload: %w", err)
 	}
@@ -386,7 +387,7 @@ func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, alb
 		if trackID == "" {
 			continue
 		}
-		body, err := getAPI(ctx, strings.TrimRight(apiBaseURL, "/")+"/tracks/"+trackID, token)
+		body, err := getAPI(ctx, apiURL(apiBaseURL, "/tracks/"+trackID), token)
 		if err != nil {
 			return nil, err
 		}
@@ -408,6 +409,14 @@ func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, alb
 		}
 	}
 	return isrcs, nil
+}
+
+func normalizeBaseURL(baseURL string) string {
+	return strings.TrimRight(baseURL, "/")
+}
+
+func apiURL(baseURL string, path string) string {
+	return normalizeBaseURL(baseURL) + "/" + strings.TrimLeft(path, "/")
 }
 
 func writePrettyJSON(path string, raw []byte) error {

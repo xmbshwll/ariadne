@@ -255,6 +255,18 @@ func fetchAppleMusicISRCSearch(ctx context.Context, inputs validationInputs, isr
 }
 
 func buildValidationSummary(inputs validationInputs, title, artist, releaseDate, label, upc string, isrcs []string) map[string]any {
+	artifacts := map[string]string{
+		"source_payload_official":  filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-official.json")),
+		"search_metadata_official": filepath.ToSlash(filepath.Join(inputs.outputDir, "search-metadata-official.json")),
+		"official_summary":         filepath.ToSlash(filepath.Join(inputs.outputDir, "official-summary.json")),
+	}
+	if upc != "" {
+		artifacts["search_upc_official"] = filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-official.json"))
+	}
+	if len(isrcs) > 0 {
+		artifacts["search_isrc_official"] = filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-official.json"))
+	}
+
 	return map[string]any{
 		"sample_url":         inputs.rawURL,
 		"album_id":           inputs.parsed.ID,
@@ -268,13 +280,7 @@ func buildValidationSummary(inputs validationInputs, title, artist, releaseDate,
 		"upc":                upc,
 		"track_isrc_samples": isrcs,
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
-		"artifacts": map[string]string{
-			"source_payload_official":  filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-official.json")),
-			"search_metadata_official": filepath.ToSlash(filepath.Join(inputs.outputDir, "search-metadata-official.json")),
-			"search_upc_official":      filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-official.json")),
-			"search_isrc_official":     filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-official.json")),
-			"official_summary":         filepath.ToSlash(filepath.Join(inputs.outputDir, "official-summary.json")),
-		},
+		"artifacts":          artifacts,
 	}
 }
 

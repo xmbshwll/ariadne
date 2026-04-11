@@ -127,9 +127,9 @@ func newVerboseCSVRows(resolution ariadne.Resolution) [][]string {
 				"",
 				"",
 			})
-			continue
+		} else {
+			rows = append(rows, newCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
 		}
-		rows = append(rows, newCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
 		for _, alternate := range result.Alternates {
 			rows = append(rows, newCSVMatchRow(resolution.InputURL, service, "alternate", true, scoreSummary(alternate.Score), alternate))
 		}
@@ -204,9 +204,9 @@ func newVerboseSongCSVRows(resolution ariadne.SongResolution) [][]string {
 				"",
 				"",
 			})
-			continue
+		} else {
+			rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
 		}
-		rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
 		for _, alternate := range result.Alternates {
 			rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "alternate", true, scoreSummary(alternate.Score), alternate))
 		}

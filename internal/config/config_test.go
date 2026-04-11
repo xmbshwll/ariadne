@@ -55,3 +55,14 @@ func TestLoadFromEnvDefaults(t *testing.T) {
 	assert.False(t, cfg.TIDAL.Enabled())
 	assert.Nil(t, cfg.TargetServices)
 }
+
+func TestLoadFromEnvCanonicalizesTargetServiceAliases(t *testing.T) {
+	cfg := LoadFromEnv(func(key string) string {
+		if key == "ARIADNE_TARGET_SERVICES" {
+			return " spotify , ytmusic , amazonMusic , unknown "
+		}
+		return ""
+	})
+
+	assert.Equal(t, []model.ServiceName{model.ServiceSpotify, model.ServiceYouTubeMusic}, cfg.TargetServices)
+}

@@ -39,10 +39,10 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	assert.Equal(t, wantID, candidates[0].CandidateID)
 }
 
-func TestSearchSongByMetadataEmptySongWithoutCredentialsReturnsNil(t *testing.T) {
+func TestSearchSongByMetadataEmptySongWithoutCredentialsReturnsEmptyResults(t *testing.T) {
 	adapter := New(http.DefaultClient)
 
 	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{})
 	require.NoError(t, err)
-	assert.Nil(t, results)
+	assert.Empty(t, results)
 }

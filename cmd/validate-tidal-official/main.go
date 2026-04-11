@@ -268,6 +268,18 @@ func addTIDALISRCArtifact(ctx context.Context, inputs validationInputs, accessTo
 }
 
 func buildValidationSummary(inputs validationInputs, title string, artistNames []string, releaseDate string, upc string, trackTitles []string, trackISRCs []string) map[string]any {
+	artifacts := map[string]string{
+		"source_payload_official": filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-official.json")),
+		"search_albums_official":  filepath.ToSlash(filepath.Join(inputs.outputDir, "search-albums-official.json")),
+		"official_summary":        filepath.ToSlash(filepath.Join(inputs.outputDir, "official-summary.json")),
+	}
+	if upc != "" {
+		artifacts["search_upc_official"] = filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-official.json"))
+	}
+	if len(trackISRCs) > 0 {
+		artifacts["search_isrc_official"] = filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-official.json"))
+	}
+
 	return map[string]any{
 		"sample_url":          inputs.rawURL,
 		"album_id":            inputs.parsed.ID,
@@ -281,13 +293,7 @@ func buildValidationSummary(inputs validationInputs, title string, artistNames [
 		"track_isrc_samples":  trackISRCs,
 		"generated_at":        time.Now().UTC().Format(time.RFC3339),
 		"token_acquired":      true,
-		"artifacts": map[string]string{
-			"source_payload_official": filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-official.json")),
-			"search_albums_official":  filepath.ToSlash(filepath.Join(inputs.outputDir, "search-albums-official.json")),
-			"search_upc_official":     filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-official.json")),
-			"search_isrc_official":    filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-official.json")),
-			"official_summary":        filepath.ToSlash(filepath.Join(inputs.outputDir, "official-summary.json")),
-		},
+		"artifacts":           artifacts,
 	}
 }
 

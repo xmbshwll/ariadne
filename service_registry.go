@@ -21,9 +21,7 @@ type songURLParser func(string) (*model.ParsedAlbumURL, error)
 type serviceCapability struct {
 	name                 ServiceName
 	aliases              []string
-	supportsAlbumSource  bool
 	supportsAlbumTarget  bool
-	supportsSongSource   bool
 	supportsSongTarget   bool
 	runtimeSongURLParser songURLParser
 }
@@ -45,9 +43,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceAppleMusic,
 			aliases:              []string{"applemusic"},
-			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.AppleMusicSongURL,
 		},
@@ -73,9 +69,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceBandcamp,
 			aliases:              []string{"bandcamp"},
-			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.BandcampSongURL,
 		},
@@ -88,9 +82,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceDeezer,
 			aliases:              []string{"deezer"},
-			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.DeezerSongURL,
 		},
@@ -103,9 +95,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceSoundCloud,
 			aliases:              []string{"soundcloud"},
-			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.SoundCloudSongURL,
 		},
@@ -118,9 +108,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceSpotify,
 			aliases:              []string{"spotify"},
-			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.SpotifySongURL,
 		},
@@ -141,9 +129,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceTIDAL,
 			aliases:              []string{"tidal"},
-			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.TIDALSongURL,
 		},
@@ -164,7 +150,6 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                ServiceYouTubeMusic,
 			aliases:             []string{"youtubemusic", "ytmusic"},
-			supportsAlbumSource: true,
 			supportsAlbumTarget: true,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
@@ -184,6 +169,11 @@ var defaultServiceBindings = []serviceBinding{
 	},
 }
 
+// defaultServiceOrder preserves intentional runtime priority differences between
+// album and song flows. Amazon Music appears only in albumSources because song
+// runtime resolution is deferred, YouTube Music is omitted from song lists
+// because it is album-only today, and Spotify/TIDAL stay behind the public-web
+// targets in target ordering because their official APIs are credential-gated.
 var defaultServiceOrder = struct {
 	albumSources []ServiceName
 	albumTargets []ServiceName

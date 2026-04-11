@@ -79,7 +79,12 @@ func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne
 	return pruned, true
 }
 
+// promoteBestSongAlternate assumes alternates contains at least one entry.
 func promoteBestSongAlternate(alternates []ariadne.SongScoredMatch) (ariadne.SongScoredMatch, []ariadne.SongScoredMatch) {
+	if len(alternates) == 0 {
+		return ariadne.SongScoredMatch{}, []ariadne.SongScoredMatch{}
+	}
+
 	bestIndex := 0
 	for i := 1; i < len(alternates); i++ {
 		if alternates[i].Score > alternates[bestIndex].Score {

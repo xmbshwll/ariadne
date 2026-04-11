@@ -144,40 +144,59 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
 	results := make([]model.CandidateAlbum, 0, min(len(albumIDs), searchLimit))
+	var firstErr error
 	for _, albumID := range albumIDs {
 		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errorMessage(albumID), err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s: %w", errorMessage(albumID), err)
+			}
+			continue
 		}
 		results = append(results, toCandidateAlbum(*canonical))
 		if len(results) >= searchLimit {
 			return results, nil
 		}
 	}
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
 	return results, nil
 }
 
 func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
 	results := make([]model.CandidateSong, 0, min(len(songIDs), searchLimit))
+	var firstErr error
 	for _, songID := range songIDs {
 		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", errorMessage(songID), err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s: %w", errorMessage(songID), err)
+			}
+			continue
 		}
 		results = append(results, toCandidateSong(*canonical))
 		if len(results) >= searchLimit {
 			return results, nil
 		}
 	}
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
 	return results, nil
 }
 
 func resourceIDs(resources []apiResource) []string {
 	ids := make([]string, 0, len(resources))
+	seen := make(map[string]struct{}, len(resources))
 	for _, resource := range resources {
 		if resource.ID == "" {
 			continue
 		}
+		if _, ok := seen[resource.ID]; ok {
+			continue
+		}
+		seen[resource.ID] = struct{}{}
 		ids = append(ids, resource.ID)
 	}
 	return ids

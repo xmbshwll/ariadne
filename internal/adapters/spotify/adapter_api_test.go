@@ -16,13 +16,11 @@ import (
 func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
+		requireSpotifyTokenRequest(t, r)
 		_ = json.NewEncoder(w).Encode(tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
 	})
 	mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
 		writeJSON(t, w, apiAlbumResponse{
 			ID:          "album-good",
 			Name:        "Abbey Road (Remastered)",
@@ -39,6 +37,7 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/albums/album-weak", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
 		writeJSON(t, w, apiAlbumResponse{
 			ID:          "album-weak",
 			Name:        "Abbey Road",
@@ -53,15 +52,19 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 		})
 	})
 	mux.HandleFunc("/tracks/track-1", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
 		writeJSON(t, w, apiTrack{ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}})
 	})
 	mux.HandleFunc("/tracks/track-2", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
 		writeJSON(t, w, apiTrack{ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}})
 	})
 	mux.HandleFunc("/tracks/track-weak-1", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
 		writeJSON(t, w, apiTrack{ID: "track-weak-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, ExternalIDs: apiExternalIDs{ISRC: "OTHER0001"}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}, Album: apiTrackAlbum{ID: "album-weak", Name: "Abbey Road", ReleaseDate: "2020-01-01", Images: []apiImage{{URL: "https://i.scdn.co/image/weak", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}}})
 	})
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
 		query := r.URL.Query().Get("q")
 		switch {
 		case strings.Contains(query, "upc:602547670342"):
@@ -127,4 +130,17 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, songMetadataResults, 2)
 	assert.Equal(t, "track-1", songMetadataResults[0].CandidateID)
+}
+
+func requireSpotifyTokenRequest(t *testing.T, r *http.Request) {
+	t.Helper()
+	require.Equal(t, http.MethodPost, r.Method)
+	require.NoError(t, r.ParseForm())
+	assert.Equal(t, "client_credentials", r.Form.Get("grant_type"))
+	assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "Basic "))
+}
+
+func requireSpotifyBearerAuth(t *testing.T, r *http.Request) {
+	t.Helper()
+	assert.Equal(t, "Bearer token-123", r.Header.Get("Authorization"))
 }

@@ -75,7 +75,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 		Artists:                artistNames,
 		NormalizedArtists:      normalize.Artists(artistNames),
 		DurationMS:             parseISODurationMilliseconds(resource.Attributes.Duration),
-		ISRC:                   resource.Attributes.ISRC,
+		ISRC:                   strings.TrimSpace(resource.Attributes.ISRC),
 		Explicit:               resource.Attributes.Explicit,
 		DiscNumber:             firstTrackVolumeNumber(resource.Relationships.Albums.Data),
 		TrackNumber:            firstTrackNumber(resource.Relationships.Albums.Data),
@@ -177,10 +177,16 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 			Title:           resource.Attributes.Title,
 			NormalizedTitle: normalize.Text(resource.Attributes.Title),
 			DurationMS:      parseISODurationMilliseconds(resource.Attributes.Duration),
-			ISRC:            resource.Attributes.ISRC,
+			ISRC:            strings.TrimSpace(resource.Attributes.ISRC),
 			Artists:         trackArtists,
 		})
 	}
+	sort.SliceStable(tracks, func(i, j int) bool {
+		if tracks[i].DiscNumber == tracks[j].DiscNumber {
+			return tracks[i].TrackNumber < tracks[j].TrackNumber
+		}
+		return tracks[i].DiscNumber < tracks[j].DiscNumber
+	})
 	return tracks
 }
 

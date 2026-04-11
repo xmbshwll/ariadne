@@ -71,17 +71,27 @@ func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist,
 	if err != nil {
 		return nil, err
 	}
+	var firstDecodeErr error
 	for _, entry := range entries {
 		if entry.Hydratable != "playlist" {
 			continue
 		}
 		var playlist soundPlaylist
-		if err := json.Unmarshal(entry.Data, &playlist); err != nil || playlist.PermalinkURL == "" {
+		if err := json.Unmarshal(entry.Data, &playlist); err != nil {
+			if firstDecodeErr == nil {
+				firstDecodeErr = fmt.Errorf("decode soundcloud playlist hydration: %w", err)
+			}
+			continue
+		}
+		if playlist.PermalinkURL == "" {
 			continue
 		}
 		if canonicalizeSoundCloudURL(playlist.PermalinkURL) == canonicalURL {
 			return &playlist, nil
 		}
+	}
+	if firstDecodeErr != nil {
+		return nil, firstDecodeErr
 	}
 	return nil, errSoundCloudPlaylistNotFound
 }
@@ -91,17 +101,27 @@ func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error
 	if err != nil {
 		return nil, err
 	}
+	var firstDecodeErr error
 	for _, entry := range entries {
 		if entry.Hydratable != "sound" {
 			continue
 		}
 		var track soundTrack
-		if err := json.Unmarshal(entry.Data, &track); err != nil || track.PermalinkURL == "" {
+		if err := json.Unmarshal(entry.Data, &track); err != nil {
+			if firstDecodeErr == nil {
+				firstDecodeErr = fmt.Errorf("decode soundcloud track hydration: %w", err)
+			}
+			continue
+		}
+		if track.PermalinkURL == "" {
 			continue
 		}
 		if canonicalizeSoundCloudURL(track.PermalinkURL) == canonicalURL {
 			return &track, nil
 		}
+	}
+	if firstDecodeErr != nil {
+		return nil, firstDecodeErr
 	}
 	return nil, errSoundCloudTrackNotFound
 }

@@ -145,10 +145,11 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 		if scriptURL == "" {
 			continue
 		}
-		if strings.HasPrefix(scriptURL, "/") {
-			scriptURL = a.siteBaseURL + scriptURL
+		resolvedURL, err := resolveSoundCloudAssetURL(a.siteBaseURL, scriptURL)
+		if err != nil {
+			continue
 		}
-		assetBody, err := a.fetchPage(ctx, scriptURL)
+		assetBody, err := a.fetchPage(ctx, resolvedURL)
 		if err != nil {
 			continue
 		}
@@ -157,4 +158,20 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 		}
 	}
 	return "", errSoundCloudClientIDNotFound
+}
+
+func resolveSoundCloudAssetURL(baseURL string, assetURL string) (string, error) {
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse soundcloud asset base url: %w", err)
+	}
+	ref, err := url.Parse(assetURL)
+	if err != nil {
+		return "", fmt.Errorf("parse soundcloud asset url: %w", err)
+	}
+	if ref.Host != "" && ref.Scheme == "" {
+		ref.Scheme = base.Scheme
+		return ref.String(), nil
+	}
+	return base.ResolveReference(ref).String(), nil
 }

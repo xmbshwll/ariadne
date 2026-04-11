@@ -9,6 +9,21 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+var targetServiceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
+
+var targetServicesByLookupKey = map[string]model.ServiceName{
+	normalizeTargetServiceLookupKey(string(model.ServiceAppleMusic)):   model.ServiceAppleMusic,
+	normalizeTargetServiceLookupKey("applemusic"):                      model.ServiceAppleMusic,
+	normalizeTargetServiceLookupKey(string(model.ServiceBandcamp)):     model.ServiceBandcamp,
+	normalizeTargetServiceLookupKey(string(model.ServiceDeezer)):       model.ServiceDeezer,
+	normalizeTargetServiceLookupKey(string(model.ServiceSoundCloud)):   model.ServiceSoundCloud,
+	normalizeTargetServiceLookupKey(string(model.ServiceSpotify)):      model.ServiceSpotify,
+	normalizeTargetServiceLookupKey(string(model.ServiceTIDAL)):        model.ServiceTIDAL,
+	normalizeTargetServiceLookupKey(string(model.ServiceYouTubeMusic)): model.ServiceYouTubeMusic,
+	normalizeTargetServiceLookupKey("youtubemusic"):                    model.ServiceYouTubeMusic,
+	normalizeTargetServiceLookupKey("ytmusic"):                         model.ServiceYouTubeMusic,
+}
+
 const defaultAppleMusicStorefront = "us"
 
 type Config struct {
@@ -109,8 +124,8 @@ func normalizedTargetServices(value string) []model.ServiceName {
 	services := make([]model.ServiceName, 0)
 	seen := make(map[model.ServiceName]struct{})
 	for part := range strings.SplitSeq(value, ",") {
-		service := model.ServiceName(strings.TrimSpace(part))
-		if service == "" {
+		service, ok := targetServicesByLookupKey[normalizeTargetServiceLookupKey(part)]
+		if !ok {
 			continue
 		}
 		if _, ok := seen[service]; ok {
@@ -123,4 +138,8 @@ func normalizedTargetServices(value string) []model.ServiceName {
 		return nil
 	}
 	return services
+}
+
+func normalizeTargetServiceLookupKey(value string) string {
+	return targetServiceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(value)))
 }

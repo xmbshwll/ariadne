@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,19 @@ import (
 	"strings"
 	"time"
 )
+
+type spotifyAPIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *spotifyAPIError) Error() string {
+	return fmt.Sprintf("%s %d: %s", errUnexpectedSpotifyAPIStatus.Error(), e.StatusCode, e.Message)
+}
+
+func (e *spotifyAPIError) Is(target error) bool {
+	return target == errUnexpectedSpotifyAPIStatus
+}
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
 	token, err := a.accessToken(ctx)
@@ -36,7 +50,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%w %d: %s", errUnexpectedSpotifyAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
+		return &spotifyAPIError{StatusCode: resp.StatusCode, Message: strings.TrimSpace(string(body))}
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
 		return fmt.Errorf("decode api response: %w", err)
@@ -88,15 +102,21 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		return "", errEmptySpotifyAccessToken
 	}
 
+	ttl := max(token.ExpiresIn-30, 0)
 	a.token = cachedToken{
 		AccessToken: token.AccessToken,
-		ExpiresAt:   time.Now().Add(time.Duration(token.ExpiresIn-30) * time.Second),
+		ExpiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
 	}
 	return a.token.AccessToken, nil
 }
 
 func (a *Adapter) hasCredentials() bool {
 	return strings.TrimSpace(a.clientID) != "" && strings.TrimSpace(a.clientSecret) != ""
+}
+
+func isSpotifyAPIStatus(err error, statusCode int) bool {
+	var apiErr *spotifyAPIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == statusCode
 }
 
 func parseInitialState(body []byte) (*initialState, error) {
