@@ -310,6 +310,9 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 	if closeErr != nil {
 		return nil, fmt.Errorf("close spotify response body: %w", closeErr)
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, errSpotifyAlbumNotFound
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%w: %d", errUnexpectedSpotifyStatus, resp.StatusCode)
 	}
@@ -342,6 +345,9 @@ func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, summaries []apiAlb
 
 		album, err := a.fetchAlbumAPI(ctx, summary.ID)
 		if err != nil {
+			if errors.Is(err, errSpotifyAlbumNotFound) {
+				continue
+			}
 			return nil, fmt.Errorf("hydrate spotify album %s: %w", summary.ID, err)
 		}
 		canonical := toCanonicalAlbumAPI(canonicalAlbumURL(summary.ID), album)

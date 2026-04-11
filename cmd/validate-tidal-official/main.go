@@ -144,13 +144,18 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("load tidal sample url: %w", err)
 	}
+	parsed, err := parse.TIDALAlbumURL(rawURL)
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("parse sample tidal album url: %w", err)
+	}
 	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-tidal-validation-")
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("resolve tidal output dir: %w", err)
 	}
-	parsed, err := parse.TIDALAlbumURL(rawURL)
-	if err != nil {
-		return validationInputs{}, fmt.Errorf("parse sample tidal album url: %w", err)
+
+	countryCode := strings.ToUpper(strings.TrimSpace(opts.countryCode))
+	if countryCode == "" {
+		countryCode = "US"
 	}
 
 	return validationInputs{
@@ -159,7 +164,7 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 		rawURL:      rawURL,
 		outputDir:   outputDir,
 		parsed:      parsed,
-		countryCode: strings.ToUpper(strings.TrimSpace(opts.countryCode)),
+		countryCode: countryCode,
 	}, nil
 }
 
@@ -422,7 +427,7 @@ func collectIncludedNames(included []tidalIncludedResource, typ string) []string
 
 func collectRelationshipNames(relations []tidalRelationshipData, included []tidalIncludedResource) []string {
 	if len(relations) == 0 {
-		return nil
+		return []string{}
 	}
 
 	idToName := make(map[string]string, len(included))

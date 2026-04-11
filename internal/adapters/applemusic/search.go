@@ -27,7 +27,10 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=album&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
 		var payload lookupResponse
 		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
-			return nil, fmt.Errorf("search apple music metadata %q: %w", query, err)
+			if len(results) == 0 {
+				return nil, fmt.Errorf("search apple music metadata %q: %w", query, err)
+			}
+			continue
 		}
 
 		for _, item := range payload.Results {
@@ -74,7 +77,10 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=%s&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), entitySong, searchLimit, url.QueryEscape(storefront))
 		var payload lookupResponse
 		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
-			return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
+			if len(results) == 0 {
+				return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
+			}
+			continue
 		}
 
 		for _, item := range payload.Results {
@@ -136,10 +142,14 @@ func buildMetadataQueries(title string, artists []string) []string {
 		queries = append(queries, query)
 	}
 
-	for _, titleVariant := range normalize.SearchTitleVariants(title) {
-		for _, artistVariant := range normalize.SearchArtistVariants(artists) {
+	titleVariants := normalize.SearchTitleVariants(title)
+	artistVariants := normalize.SearchArtistVariants(artists)
+	for _, titleVariant := range titleVariants {
+		for _, artistVariant := range artistVariants {
 			appendUnique(strings.TrimSpace(strings.Join([]string{titleVariant, artistVariant}, " ")))
 		}
+	}
+	for _, titleVariant := range titleVariants {
 		appendUnique(titleVariant)
 	}
 	return queries

@@ -3,6 +3,7 @@ package tidal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/model"
 )
+
+const maxTIDALTokenResponseBytes = 16 * 1024
+
+var errTIDALTokenResponseTooLarge = errors.New("tidal token response too large")
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
 	token, err := a.accessToken(ctx)
@@ -46,11 +51,14 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 	if !a.hasCredentials() {
 		return "", ErrCredentialsNotConfigured
 	}
+
 	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
 	if a.token.accessToken != "" && time.Now().Before(a.token.expiresAt) {
-		return a.token.accessToken, nil
+		accessToken := a.token.accessToken
+		a.tokenMu.Unlock()
+		return accessToken, nil
 	}
+	a.tokenMu.Unlock()
 
 	form := url.Values{}
 	form.Set("client_id", a.clientID)
@@ -69,9 +77,14 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("execute token request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(resp.Body)
+
+	limitedBody := io.LimitReader(resp.Body, maxTIDALTokenResponseBytes+1)
+	body, err := io.ReadAll(limitedBody)
 	if err != nil {
 		return "", fmt.Errorf("read token response: %w", err)
+	}
+	if len(body) > maxTIDALTokenResponseBytes {
+		return "", fmt.Errorf("read token response: %w (%d bytes max)", errTIDALTokenResponseTooLarge, maxTIDALTokenResponseBytes)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w %d: %s", errUnexpectedTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
@@ -84,10 +97,17 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		return "", errEmptyTIDALAccessToken
 	}
 	ttl := max(token.ExpiresIn-30, 0)
-	a.token = cachedToken{
+	cached := cachedToken{
 		accessToken: token.AccessToken,
 		expiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
 	}
+
+	a.tokenMu.Lock()
+	defer a.tokenMu.Unlock()
+	if a.token.accessToken != "" && time.Now().Before(a.token.expiresAt) {
+		return a.token.accessToken, nil
+	}
+	a.token = cached
 	return a.token.accessToken, nil
 }
 
@@ -190,6 +210,9 @@ func albumIDsFromTrackDocument(document apiDocument) []string {
 	}
 	for _, resource := range resources {
 		for _, relation := range resource.Relationships.Albums.Data {
+			if relation.Type != "albums" {
+				continue
+			}
 			appendUniqueID(relation.ID)
 		}
 	}

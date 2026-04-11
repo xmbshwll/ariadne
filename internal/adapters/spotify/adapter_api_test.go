@@ -132,6 +132,69 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 	assert.Equal(t, "track-1", songMetadataResults[0].CandidateID)
 }
 
+func TestFetchAlbumBootstrapMapsNotFoundStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithWebBaseURL(server.URL))
+	_, err := adapter.fetchAlbumBootstrap(context.Background(), model.ParsedAlbumURL{
+		Service:      model.ServiceSpotify,
+		EntityType:   "album",
+		ID:           "missing",
+		CanonicalURL: "https://open.spotify.com/album/missing",
+	})
+	require.ErrorIs(t, err, errSpotifyAlbumNotFound)
+}
+
+func TestSearchByMetadataSkipsAlbumsThatDisappearDuringHydration(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyTokenRequest(t, r)
+		_ = json.NewEncoder(w).Encode(tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
+	})
+	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
+		writeJSON(t, w, apiAlbumSearchResponse{Albums: apiAlbumSearchPage{Items: []apiAlbumSummary{{ID: "album-good"}, {ID: "album-missing"}}}})
+	})
+	mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
+		writeJSON(t, w, apiAlbumResponse{
+			ID:          "album-good",
+			Name:        "Abbey Road (Remastered)",
+			ReleaseDate: "1969-09-26",
+			TotalTracks: 1,
+			Artists:     []apiArtist{{Name: "The Beatles"}},
+			Tracks: apiTrackPage{Items: []apiTrack{{
+				ID:          "track-1",
+				Name:        "Come Together",
+				TrackNumber: 1,
+				DiscNumber:  1,
+				DurationMS:  258947,
+				Artists:     []apiArtist{{Name: "The Beatles"}},
+			}}},
+		})
+	})
+	mux.HandleFunc("/albums/album-missing", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
+		http.NotFound(w, r)
+	})
+	mux.HandleFunc("/tracks/track-1", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
+		writeJSON(t, w, apiTrack{ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}})
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	adapter := New(server.Client(), WithCredentials("client-id", "client-secret"), WithAPIBaseURL(server.URL), WithAuthBaseURL(server.URL))
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "album-good", results[0].CandidateID)
+}
+
 func requireSpotifyTokenRequest(t *testing.T, r *http.Request) {
 	t.Helper()
 	require.Equal(t, http.MethodPost, r.Method)

@@ -37,6 +37,7 @@ func TestAlbumIDsFromTrackDocumentMergesIncludedAndRelationshipIDs(t *testing.T)
 					"data": []map[string]any{
 						{"id": "included-album", "type": "albums"},
 						{"id": " relationship-album ", "type": "albums"},
+						{"id": "wrong-type", "type": "artists"},
 					},
 				},
 			},

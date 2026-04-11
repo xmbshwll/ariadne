@@ -13,6 +13,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+const maxSoundCloudClientIDProbes = 8
+
 func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
 	return nil, nil
 }
@@ -145,6 +147,9 @@ func (a *Adapter) clientIdentifier(ctx context.Context) (string, error) {
 	}
 	a.clientIDMu.Lock()
 	defer a.clientIDMu.Unlock()
+	if a.clientID != "" {
+		return a.clientID, nil
+	}
 	a.clientID = clientID
 	return a.clientID, nil
 }
@@ -166,7 +171,11 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 		return clientID, nil
 	}
 	scriptMatches := scriptSrcPattern.FindAllSubmatch(body, -1)
+	probes := 0
 	for _, match := range scriptMatches {
+		if probes >= maxSoundCloudClientIDProbes {
+			break
+		}
 		if len(match) != 2 {
 			continue
 		}
@@ -178,6 +187,7 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 		if err != nil {
 			continue
 		}
+		probes++
 		assetBody, err := a.fetchPage(ctx, resolvedURL)
 		if err != nil {
 			continue

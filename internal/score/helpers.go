@@ -7,6 +7,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
+var editionMarkerCandidates = []string{"super deluxe", "deluxe", "remix", "mix", "anniversary", "live", "acoustic"}
+
 type scoreContribution struct {
 	value  int
 	reason string
@@ -159,14 +161,9 @@ func editionMarkers(title string) []string {
 		return nil
 	}
 
-	candidates := []string{"super deluxe", "deluxe", "remix", "mix", "anniversary", "live", "acoustic"}
-	sort.SliceStable(candidates, func(i int, j int) bool {
-		return len(candidates[i]) > len(candidates[j])
-	})
-
-	markers := make([]string, 0, len(candidates))
+	markers := make([]string, 0, len(editionMarkerCandidates))
 	padded := " " + normalized + " "
-	for _, candidate := range candidates {
+	for _, candidate := range editionMarkerCandidates {
 		needle := " " + candidate + " "
 		index := strings.Index(padded, needle)
 		if index == -1 {
