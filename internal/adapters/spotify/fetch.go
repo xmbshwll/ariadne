@@ -36,7 +36,7 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" {
-		return []model.CandidateAlbum{}, nil
+		return nil, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured
@@ -61,7 +61,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		trimmedISRCs = append(trimmedISRCs, isrc)
 	}
 	if len(trimmedISRCs) == 0 {
-		return []model.CandidateAlbum{}, nil
+		return nil, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured
@@ -160,7 +160,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
 	queries := songMetadataQueries(song)
 	if len(queries) == 0 {
-		return []model.CandidateSong{}, nil
+		return nil, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured

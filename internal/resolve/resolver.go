@@ -98,25 +98,19 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		Matches:  make(map[model.ServiceName]MatchResult, len(targets)),
 	}
 
-	group, groupCtx := errgroup.WithContext(ctx)
 	var matchesMu sync.Mutex
+	if err := resolveTargetsConcurrently(ctx, targets, func(groupCtx context.Context, target TargetAdapter) error {
+		candidates, err := r.collectCandidates(groupCtx, target, *sourceAlbum)
+		if err != nil {
+			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
+		}
+		ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
 
-	for _, target := range targets {
-		group.Go(func() error {
-			candidates, err := r.collectCandidates(groupCtx, target, *sourceAlbum)
-			if err != nil {
-				return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
-			}
-			ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
-
-			matchesMu.Lock()
-			resolution.Matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
-			matchesMu.Unlock()
-			return nil
-		})
-	}
-
-	if err := group.Wait(); err != nil {
+		matchesMu.Lock()
+		resolution.Matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
+		matchesMu.Unlock()
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("resolve target searches: %w", err)
 	}
 	return resolution, nil
@@ -144,36 +138,27 @@ func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlb
 }
 
 func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	combined := []model.CandidateAlbum{}
-	seen := map[string]struct{}{}
-
-	if source.UPC != "" {
-		candidates, err := target.SearchByUPC(ctx, source.UPC)
-		if err != nil {
-			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
-			return nil, err
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
-	}
-
 	isrcs := collectISRCs(source)
-	if len(isrcs) > 0 {
-		candidates, err := target.SearchByISRC(ctx, isrcs)
-		if err != nil {
-			//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
-			return nil, err
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
-	}
-
-	metadataCandidates, err := target.SearchByMetadata(ctx, source)
-	if err != nil {
-		//nolint:wrapcheck // Preserve target adapter errors without adding another wrapper layer.
-		return nil, err
-	}
-	combined = appendUniqueByKey(combined, seen, metadataCandidates, albumCandidateKey)
-
-	return combined, nil
+	return collectCandidateLayers(ctx, albumCandidateKey,
+		candidateLayer[model.CandidateAlbum]{
+			enabled: source.UPC != "",
+			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
+				return target.SearchByUPC(ctx, source.UPC)
+			},
+		},
+		candidateLayer[model.CandidateAlbum]{
+			enabled: len(isrcs) > 0,
+			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
+				return target.SearchByISRC(ctx, isrcs)
+			},
+		},
+		candidateLayer[model.CandidateAlbum]{
+			enabled: true,
+			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
+				return target.SearchByMetadata(ctx, source)
+			},
+		},
+	)
 }
 
 type fatalParseFailure interface {
@@ -197,6 +182,38 @@ func parseSourceAdapter[S any, P any](sources []S, inputURL string, parse func(S
 		return source, parsed, nil
 	}
 	return zero, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
+}
+
+type candidateLayer[T any] struct {
+	enabled bool
+	search  func(context.Context) ([]T, error)
+}
+
+func resolveTargetsConcurrently[T interface{ Service() model.ServiceName }](ctx context.Context, targets []T, resolve func(context.Context, T) error) error {
+	group, groupCtx := errgroup.WithContext(ctx)
+	for _, target := range targets {
+		group.Go(func() error {
+			return resolve(groupCtx, target)
+		})
+	}
+	//nolint:wrapcheck // Preserve worker errors without adding another wrapper layer.
+	return group.Wait()
+}
+
+func collectCandidateLayers[T any](ctx context.Context, keyFunc func(T) string, layers ...candidateLayer[T]) ([]T, error) {
+	combined := []T{}
+	seen := map[string]struct{}{}
+	for _, layer := range layers {
+		if !layer.enabled {
+			continue
+		}
+		candidates, err := layer.search(ctx)
+		if err != nil {
+			return nil, err
+		}
+		combined = appendUniqueByKey(combined, seen, candidates, keyFunc)
+	}
+	return combined, nil
 }
 
 func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {
