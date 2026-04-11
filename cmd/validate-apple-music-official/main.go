@@ -71,6 +71,37 @@ type validationArtifacts struct {
 	summary      map[string]any
 }
 
+type appleMusicAlbumDocument struct {
+	Data []appleMusicAlbumResource `json:"data"`
+}
+
+type appleMusicAlbumResource struct {
+	Attributes    appleMusicAlbumAttributes    `json:"attributes"`
+	Relationships appleMusicAlbumRelationships `json:"relationships"`
+}
+
+type appleMusicAlbumAttributes struct {
+	Name        string `json:"name"`
+	ArtistName  string `json:"artistName"`
+	ReleaseDate string `json:"releaseDate"`
+	RecordLabel string `json:"recordLabel"`
+	UPC         string `json:"upc"`
+}
+
+type appleMusicAlbumRelationships struct {
+	Tracks struct {
+		Data []appleMusicSongResource `json:"data"`
+	} `json:"tracks"`
+}
+
+type appleMusicSongResource struct {
+	Attributes appleMusicSongAttributes `json:"attributes"`
+}
+
+type appleMusicSongAttributes struct {
+	ISRC string `json:"isrc"`
+}
+
 func run(args []string) error {
 	inputs, err := loadValidationInputs(args)
 	if err != nil {
@@ -136,17 +167,17 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 }
 
 func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
-	albumBody, albumData, attributes, err := fetchAppleMusicAlbum(ctx, inputs)
+	albumBody, album, err := fetchAppleMusicAlbum(ctx, inputs)
 	if err != nil {
 		return validationArtifacts{}, err
 	}
 
-	title := strings.TrimSpace(asString(attributes["name"]))
-	artist := strings.TrimSpace(asString(attributes["artistName"]))
-	releaseDate := strings.TrimSpace(asString(attributes["releaseDate"]))
-	label := strings.TrimSpace(asString(attributes["recordLabel"]))
-	upc := strings.TrimSpace(asString(attributes["upc"]))
-	isrcs := albumISRCs(albumData)
+	title := strings.TrimSpace(album.Attributes.Name)
+	artist := strings.TrimSpace(album.Attributes.ArtistName)
+	releaseDate := strings.TrimSpace(album.Attributes.ReleaseDate)
+	label := strings.TrimSpace(album.Attributes.RecordLabel)
+	upc := strings.TrimSpace(album.Attributes.UPC)
+	isrcs := albumISRCs(album)
 	metadataQuery := strings.TrimSpace(strings.Join([]string{title, artist}, " "))
 	if metadataQuery == "" {
 		return validationArtifacts{}, errAppleMusicMetadataMissing
@@ -185,22 +216,20 @@ func resolveStorefront(flagValue, parsedRegion, configuredStorefront string) str
 	return "us"
 }
 
-func fetchAppleMusicAlbum(ctx context.Context, inputs validationInputs) ([]byte, map[string]any, map[string]any, error) {
+func fetchAppleMusicAlbum(ctx context.Context, inputs validationInputs) ([]byte, appleMusicAlbumResource, error) {
 	albumBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/catalog/"+inputs.storefront+"/albums/"+inputs.parsed.ID+"?include=tracks", inputs.developerToken)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("fetch official apple music album payload: %w", err)
+		return nil, appleMusicAlbumResource{}, fmt.Errorf("fetch official apple music album payload: %w", err)
 	}
 
-	var albumPayload map[string]any
+	var albumPayload appleMusicAlbumDocument
 	if err := json.Unmarshal(albumBody, &albumPayload); err != nil {
-		return nil, nil, nil, fmt.Errorf("decode official apple music album payload: %w", err)
+		return nil, appleMusicAlbumResource{}, fmt.Errorf("decode official apple music album payload: %w", err)
 	}
-
-	albumData := firstResource(albumPayload)
-	if albumData == nil {
-		return nil, nil, nil, errAppleMusicAlbumPayloadMissing
+	if len(albumPayload.Data) == 0 {
+		return nil, appleMusicAlbumResource{}, errAppleMusicAlbumPayloadMissing
 	}
-	return albumBody, albumData, nestedMap(albumData, "attributes"), nil
+	return albumBody, albumPayload.Data[0], nil
 }
 
 func fetchAppleMusicUPCSearch(ctx context.Context, inputs validationInputs, upc string) ([]byte, error) {
@@ -317,40 +346,11 @@ func getAPI(ctx context.Context, endpoint string, developerToken string) ([]byte
 	return body, nil
 }
 
-func firstResource(payload map[string]any) map[string]any {
-	data, _ := payload["data"].([]any)
-	if len(data) == 0 {
-		return nil
-	}
-	resource, _ := data[0].(map[string]any)
-	return resource
-}
-
-func nestedMap(root map[string]any, keys ...string) map[string]any {
-	var current any = root
-	for _, key := range keys {
-		next, ok := current.(map[string]any)
-		if !ok {
-			return nil
-		}
-		current = next[key]
-	}
-	mapped, _ := current.(map[string]any)
-	return mapped
-}
-
-func albumISRCs(albumData map[string]any) []string {
-	tracks := nestedMap(albumData, "relationships", "tracks")
-	data, _ := tracks["data"].([]any)
+func albumISRCs(album appleMusicAlbumResource) []string {
 	seen := map[string]struct{}{}
-	isrcs := make([]string, 0, len(data))
-	for _, item := range data {
-		track, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		attributes := nestedMap(track, "attributes")
-		isrc := strings.TrimSpace(asString(attributes["isrc"]))
+	isrcs := make([]string, 0, len(album.Relationships.Tracks.Data))
+	for _, track := range album.Relationships.Tracks.Data {
+		isrc := strings.TrimSpace(track.Attributes.ISRC)
 		if isrc == "" {
 			continue
 		}
@@ -376,11 +376,6 @@ func nonEmptyStrings(values ...string) []string {
 		out = append(out, value)
 	}
 	return out
-}
-
-func asString(value any) string {
-	text, _ := value.(string)
-	return text
 }
 
 func writePrettyJSON(path string, raw []byte) error {

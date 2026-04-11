@@ -14,6 +14,18 @@ func fromInternalServiceName(service model.ServiceName) ServiceName {
 	return ServiceName(service)
 }
 
+func fromInternalServiceNames(services []model.ServiceName) []ServiceName {
+	if len(services) == 0 {
+		return nil
+	}
+
+	converted := make([]ServiceName, 0, len(services))
+	for _, service := range services {
+		converted = append(converted, fromInternalServiceName(service))
+	}
+	return converted
+}
+
 func toInternalScoreWeights(weights ScoreWeights) score.Weights {
 	return score.Weights{
 		UPCExact:             weights.UPCExact,

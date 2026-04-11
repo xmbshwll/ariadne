@@ -33,6 +33,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 			return " tidal-secret "
 		case "ARIADNE_HTTP_TIMEOUT":
 			return " 45s "
+		case "ARIADNE_TARGET_SERVICES":
+			return " spotify, appleMusic, spotify "
 		default:
 			return ""
 		}
@@ -47,6 +49,7 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "tidal-client", config.TIDAL.ClientID)
 	assert.Equal(t, "tidal-secret", config.TIDAL.ClientSecret)
 	assert.Equal(t, 45*time.Second, config.HTTPTimeout)
+	assert.Equal(t, []ServiceName{ServiceSpotify, ServiceAppleMusic}, config.TargetServices)
 }
 
 func TestDefaultConfig(t *testing.T) {

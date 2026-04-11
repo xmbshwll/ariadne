@@ -143,21 +143,21 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 	}, nil
 }
 
-func fetchSpotifyAlbum(ctx context.Context, apiBaseURL, albumID, token string) ([]byte, map[string]any, error) {
+func fetchSpotifyAlbum(ctx context.Context, apiBaseURL, albumID, token string) ([]byte, spotifyAlbumPayload, error) {
 	albumBody, err := getAPI(ctx, apiBaseURL+"/albums/"+albumID, token)
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetch spotify album payload: %w", err)
+		return nil, spotifyAlbumPayload{}, fmt.Errorf("fetch spotify album payload: %w", err)
 	}
 
-	var album map[string]any
+	var album spotifyAlbumPayload
 	if err := json.Unmarshal(albumBody, &album); err != nil {
-		return nil, nil, fmt.Errorf("decode album payload: %w", err)
+		return nil, spotifyAlbumPayload{}, fmt.Errorf("decode album payload: %w", err)
 	}
 	return albumBody, album, nil
 }
 
-func validateSpotifyAlbumMetadata(ctx context.Context, apiBaseURL, token string, album map[string]any) (string, []string, string, error) {
-	upc := nestedString(album, "external_ids", "upc")
+func validateSpotifyAlbumMetadata(ctx context.Context, apiBaseURL, token string, album spotifyAlbumPayload) (string, []string, string, error) {
+	upc := strings.TrimSpace(album.ExternalIDs.UPC)
 	if upc == "" {
 		return "", nil, "", errSpotifyUPCMissing
 	}
@@ -177,15 +177,15 @@ func validateSpotifyAlbumMetadata(ctx context.Context, apiBaseURL, token string,
 	return upc, isrcs, metadata, nil
 }
 
-func buildValidationSummary(inputs validationInputs, album map[string]any, upc string, isrcs []string) map[string]any {
+func buildValidationSummary(inputs validationInputs, album spotifyAlbumPayload, upc string, isrcs []string) map[string]any {
 	return map[string]any{
 		"sample_url":         inputs.rawURL,
 		"album_id":           inputs.parsed.ID,
 		"canonical_url":      inputs.parsed.CanonicalURL,
-		"title":              strings.TrimSpace(asString(album["name"])),
+		"title":              strings.TrimSpace(album.Name),
 		"artists":            albumArtists(album),
-		"release_date":       strings.TrimSpace(asString(album["release_date"])),
-		"label":              strings.TrimSpace(asString(album["label"])),
+		"release_date":       strings.TrimSpace(album.ReleaseDate),
+		"label":              strings.TrimSpace(album.Label),
 		"upc":                upc,
 		"track_isrc_samples": isrcs,
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
@@ -240,6 +240,33 @@ type validationArtifacts struct {
 	isrcBody     []byte
 	metadataBody []byte
 	summary      map[string]any
+}
+
+type spotifyAlbumPayload struct {
+	Name        string `json:"name"`
+	ReleaseDate string `json:"release_date"`
+	Label       string `json:"label"`
+	ExternalIDs struct {
+		UPC string `json:"upc"`
+	} `json:"external_ids"`
+	Artists []spotifyArtist `json:"artists"`
+	Tracks  struct {
+		Items []spotifyTrackSummary `json:"items"`
+	} `json:"tracks"`
+}
+
+type spotifyArtist struct {
+	Name string `json:"name"`
+}
+
+type spotifyTrackSummary struct {
+	ID string `json:"id"`
+}
+
+type spotifyTrackPayload struct {
+	ExternalIDs struct {
+		ISRC string `json:"isrc"`
+	} `json:"external_ids"`
 }
 
 func parseFlags(args []string) (options, error) {
@@ -326,8 +353,8 @@ func getAPI(ctx context.Context, endpoint string, token string) ([]byte, error) 
 	return body, nil
 }
 
-func metadataQuery(album map[string]any) string {
-	title := strings.TrimSpace(asString(album["name"]))
+func metadataQuery(album spotifyAlbumPayload) string {
+	title := strings.TrimSpace(album.Name)
 	artists := albumArtists(album)
 	if title == "" || len(artists) == 0 {
 		return ""
@@ -335,15 +362,10 @@ func metadataQuery(album map[string]any) string {
 	return fmt.Sprintf("album:%s artist:%s", title, artists[0])
 }
 
-func albumArtists(album map[string]any) []string {
-	items, _ := album["artists"].([]any)
-	artists := make([]string, 0, len(items))
-	for _, item := range items {
-		artist, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		name := strings.TrimSpace(asString(artist["name"]))
+func albumArtists(album spotifyAlbumPayload) []string {
+	artists := make([]string, 0, len(album.Artists))
+	for _, artist := range album.Artists {
+		name := strings.TrimSpace(artist.Name)
 		if name == "" {
 			continue
 		}
@@ -352,28 +374,27 @@ func albumArtists(album map[string]any) []string {
 	return artists
 }
 
-func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, album map[string]any) ([]string, error) {
-	trackIDs := albumTrackIDs(album)
-	if len(trackIDs) == 0 {
+func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, album spotifyAlbumPayload) ([]string, error) {
+	if len(album.Tracks.Items) == 0 {
 		return nil, nil
 	}
 
 	seen := map[string]struct{}{}
-	isrcs := make([]string, 0, len(trackIDs))
-	for _, trackID := range trackIDs {
+	isrcs := make([]string, 0, len(album.Tracks.Items))
+	for _, track := range album.Tracks.Items {
+		trackID := strings.TrimSpace(track.ID)
+		if trackID == "" {
+			continue
+		}
 		body, err := getAPI(ctx, strings.TrimRight(apiBaseURL, "/")+"/tracks/"+trackID, token)
 		if err != nil {
 			return nil, err
 		}
-		var track map[string]any
-		if err := json.Unmarshal(body, &track); err != nil {
+		var payload spotifyTrackPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
 			return nil, fmt.Errorf("decode spotify track details payload: %w", err)
 		}
-		externalIDs, ok := track["external_ids"].(map[string]any)
-		if !ok {
-			continue
-		}
-		isrc := strings.TrimSpace(asString(externalIDs["isrc"]))
+		isrc := strings.TrimSpace(payload.ExternalIDs.ISRC)
 		if isrc == "" {
 			continue
 		}
@@ -387,44 +408,6 @@ func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, alb
 		}
 	}
 	return isrcs, nil
-}
-
-func albumTrackIDs(album map[string]any) []string {
-	tracks, ok := album["tracks"].(map[string]any)
-	if !ok {
-		return nil
-	}
-	items, _ := tracks["items"].([]any)
-	ids := make([]string, 0, len(items))
-	for _, item := range items {
-		track, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		id := strings.TrimSpace(asString(track["id"]))
-		if id == "" {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-func nestedString(root map[string]any, keys ...string) string {
-	var current any = root
-	for _, key := range keys {
-		next, ok := current.(map[string]any)
-		if !ok {
-			return ""
-		}
-		current = next[key]
-	}
-	return strings.TrimSpace(asString(current))
-}
-
-func asString(value any) string {
-	text, _ := value.(string)
-	return text
 }
 
 func writePrettyJSON(path string, raw []byte) error {

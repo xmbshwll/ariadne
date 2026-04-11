@@ -4,88 +4,32 @@ import (
 	"context"
 	"net/http"
 
-	amazonmusicadapter "github.com/xmbshwll/ariadne/internal/adapters/amazonmusic"
-	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
-	bandcampadapter "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
-	deezeradapter "github.com/xmbshwll/ariadne/internal/adapters/deezer"
-	soundcloudadapter "github.com/xmbshwll/ariadne/internal/adapters/soundcloud"
-	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
-	tidaladapter "github.com/xmbshwll/ariadne/internal/adapters/tidal"
-	youtubemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-type defaultAdapters struct {
-	amazonMusic  *amazonmusicadapter.Adapter
-	appleMusic   *applemusicadapter.Adapter
-	bandcamp     *bandcampadapter.Adapter
-	deezer       *deezeradapter.Adapter
-	soundCloud   *soundcloudadapter.Adapter
-	spotify      *spotifyadapter.Adapter
-	tidal        *tidaladapter.Adapter
-	youTubeMusic *youtubemusicadapter.Adapter
+func defaultSourceAdapters(client *http.Client, config Config) []resolve.SourceAdapter {
+	sets := buildDefaultServiceAdapters(client, config)
+	sources := make([]resolve.SourceAdapter, 0, len(defaultServiceOrder.albumSources))
+	for _, service := range defaultServiceOrder.albumSources {
+		adapter := sets[service].albumSource
+		if adapter == nil {
+			continue
+		}
+		sources = append(sources, adapter)
+	}
+	return sources
 }
 
-func newDefaultAdapters(client *http.Client, config Config) defaultAdapters {
-	return defaultAdapters{
-		amazonMusic: amazonmusicadapter.New(client),
-		appleMusic: applemusicadapter.New(
-			client,
-			applemusicadapter.WithDefaultStorefront(config.AppleMusicStorefront),
-			applemusicadapter.WithDeveloperTokenAuth(
-				config.AppleMusic.KeyID,
-				config.AppleMusic.TeamID,
-				config.AppleMusic.PrivateKeyPath,
-			),
-		),
-		bandcamp:   bandcampadapter.New(client),
-		deezer:     deezeradapter.New(client),
-		soundCloud: soundcloudadapter.New(client),
-		spotify: spotifyadapter.New(
-			client,
-			spotifyadapter.WithCredentials(
-				config.Spotify.ClientID,
-				config.Spotify.ClientSecret,
-			),
-		),
-		tidal: tidaladapter.New(
-			client,
-			tidaladapter.WithCredentials(
-				config.TIDAL.ClientID,
-				config.TIDAL.ClientSecret,
-			),
-		),
-		youTubeMusic: youtubemusicadapter.New(client),
-	}
-}
-
-func defaultSourceAdapters(adapters defaultAdapters) []resolve.SourceAdapter {
-	return []resolve.SourceAdapter{
-		adapters.appleMusic,
-		adapters.deezer,
-		adapters.spotify,
-		adapters.tidal,
-		adapters.soundCloud,
-		adapters.youTubeMusic,
-		adapters.amazonMusic,
-		adapters.bandcamp,
-	}
-}
-
-func defaultTargetAdapters(adapters defaultAdapters, config Config) []resolve.TargetAdapter {
-	targets := []resolve.TargetAdapter{
-		adapters.appleMusic,
-		adapters.bandcamp,
-		adapters.deezer,
-		adapters.soundCloud,
-		adapters.youTubeMusic,
-	}
-	if config.SpotifyEnabled() {
-		targets = append(targets, adapters.spotify)
-	}
-	if config.TIDALEnabled() {
-		targets = append(targets, adapters.tidal)
+func defaultTargetAdapters(client *http.Client, config Config) []resolve.TargetAdapter {
+	sets := buildDefaultServiceAdapters(client, config)
+	targets := make([]resolve.TargetAdapter, 0, len(defaultServiceOrder.albumTargets))
+	for _, service := range defaultServiceOrder.albumTargets {
+		adapter := sets[service].albumTarget
+		if adapter == nil {
+			continue
+		}
+		targets = append(targets, adapter)
 	}
 	return filterAdaptersByServiceName(targets, config.TargetServices)
 }
@@ -102,29 +46,28 @@ func allowedTargetServices(services []ServiceName) map[ServiceName]struct{} {
 	return allowed
 }
 
-func defaultSongSourceAdapters(adapters defaultAdapters) []resolve.SongSourceAdapter {
-	return []resolve.SongSourceAdapter{
-		adapters.appleMusic,
-		adapters.bandcamp,
-		adapters.deezer,
-		adapters.soundCloud,
-		adapters.spotify,
-		adapters.tidal,
+func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.SongSourceAdapter {
+	sets := buildDefaultServiceAdapters(client, config)
+	sources := make([]resolve.SongSourceAdapter, 0, len(defaultServiceOrder.songSources))
+	for _, service := range defaultServiceOrder.songSources {
+		adapter := sets[service].songSource
+		if adapter == nil {
+			continue
+		}
+		sources = append(sources, adapter)
 	}
+	return sources
 }
 
-func defaultSongTargetAdapters(adapters defaultAdapters, config Config) []resolve.SongTargetAdapter {
-	targets := []resolve.SongTargetAdapter{
-		adapters.appleMusic,
-		adapters.bandcamp,
-		adapters.deezer,
-		adapters.soundCloud,
-	}
-	if config.SpotifyEnabled() {
-		targets = append(targets, adapters.spotify)
-	}
-	if config.TIDALEnabled() {
-		targets = append(targets, adapters.tidal)
+func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.SongTargetAdapter {
+	sets := buildDefaultServiceAdapters(client, config)
+	targets := make([]resolve.SongTargetAdapter, 0, len(defaultServiceOrder.songTargets))
+	for _, service := range defaultServiceOrder.songTargets {
+		adapter := sets[service].songTarget
+		if adapter == nil {
+			continue
+		}
+		targets = append(targets, adapter)
 	}
 	return filterAdaptersByServiceName(targets, config.TargetServices)
 }

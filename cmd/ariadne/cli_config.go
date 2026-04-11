@@ -99,14 +99,6 @@ func loadCLIConfig(configPath string) (ariadne.Config, error) {
 		return strings.TrimSpace(v.GetString(key))
 	}
 
-	cfg.Spotify.ClientID = trimmedValue("SPOTIFY_CLIENT_ID")
-	cfg.Spotify.ClientSecret = trimmedValue("SPOTIFY_CLIENT_SECRET")
-	cfg.AppleMusic.KeyID = trimmedValue("APPLE_MUSIC_KEY_ID")
-	cfg.AppleMusic.TeamID = trimmedValue("APPLE_MUSIC_TEAM_ID")
-	cfg.AppleMusic.PrivateKeyPath = trimmedValue("APPLE_MUSIC_PRIVATE_KEY_PATH")
-	cfg.TIDAL.ClientID = trimmedValue("TIDAL_CLIENT_ID")
-	cfg.TIDAL.ClientSecret = trimmedValue("TIDAL_CLIENT_SECRET")
-
 	httpTimeout := trimmedValue("ARIADNE_HTTP_TIMEOUT")
 	if httpTimeout != "" {
 		parsedTimeout, err := time.ParseDuration(httpTimeout)
@@ -116,12 +108,9 @@ func loadCLIConfig(configPath string) (ariadne.Config, error) {
 		cfg.HTTPTimeout = parsedTimeout
 	}
 
-	storefront := strings.ToLower(trimmedValue("APPLE_MUSIC_STOREFRONT"))
-	if storefront != "" {
-		cfg.AppleMusicStorefront = storefront
-	}
-
-	return cfg, nil
+	loaded := ariadne.LoadConfigFromEnv(trimmedValue)
+	loaded.HTTPTimeout = cfg.HTTPTimeout
+	return loaded, nil
 }
 
 func looksLikeEnvFile(path string) bool {
@@ -236,7 +225,7 @@ func resolveModeFromConfig(config resolveConfig) resolveMode {
 
 func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.ServiceName, error) {
 	if strings.TrimSpace(raw) == "" {
-		return nil, nil
+		return append([]ariadne.ServiceName(nil), appConfig.TargetServices...), nil
 	}
 
 	services := make([]ariadne.ServiceName, 0)

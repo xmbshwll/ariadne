@@ -40,16 +40,15 @@ func NewWithClient(client *http.Client, config Config) *Resolver {
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
-	adapters := newDefaultAdapters(client, config)
 	return &Resolver{
 		inner: resolve.New(
-			defaultSourceAdapters(adapters),
-			defaultTargetAdapters(adapters, config),
+			defaultSourceAdapters(client, config),
+			defaultTargetAdapters(client, config),
 			toInternalScoreWeights(config.ScoreWeights),
 		),
 		songInner: resolve.NewSongs(
-			defaultSongSourceAdapters(adapters),
-			defaultSongTargetAdapters(adapters, config),
+			defaultSongSourceAdapters(client, config),
+			defaultSongTargetAdapters(client, config),
 			toInternalSongScoreWeights(config.SongScoreWeights),
 		),
 	}

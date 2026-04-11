@@ -916,6 +916,7 @@ func TestLoadCLIConfigFromDotEnv(t *testing.T) {
 		"TIDAL_CLIENT_ID=tidal-client",
 		"TIDAL_CLIENT_SECRET=tidal-secret",
 		"ARIADNE_HTTP_TIMEOUT=45s",
+		"ARIADNE_TARGET_SERVICES=spotify,appleMusic,spotify",
 	}, "\n")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
@@ -930,6 +931,7 @@ func TestLoadCLIConfigFromDotEnv(t *testing.T) {
 	assert.Equal(t, "tidal-client", cfg.TIDAL.ClientID)
 	assert.Equal(t, "tidal-secret", cfg.TIDAL.ClientSecret)
 	assert.Equal(t, 45*time.Second, cfg.HTTPTimeout)
+	assert.Equal(t, []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic}, cfg.TargetServices)
 }
 
 func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
@@ -945,6 +947,15 @@ func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
 	assert.Equal(t, "de", cfg.AppleMusicStorefront)
 	assert.Equal(t, "env-client", cfg.Spotify.ClientID)
 	assert.Equal(t, 30*time.Second, cfg.HTTPTimeout)
+}
+
+func TestParseResolveArgsPreservesConfiguredTargetServices(t *testing.T) {
+	resolveConfig, err := parseResolveArgs(
+		[]string{"https://www.deezer.com/album/12047952"},
+		ariadne.Config{TargetServices: []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic}},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic}, resolveConfig.resolverConfig.TargetServices)
 }
 
 func TestParseResolveArgs(t *testing.T) {
