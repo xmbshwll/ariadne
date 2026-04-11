@@ -319,8 +319,10 @@ func TestVerboseCSVRowsIncludeAlternatesWithoutBest(t *testing.T) {
 		},
 	})
 	assert.Len(t, albumRows, 3)
-	assert.Equal(t, "alternate", albumRows[2][2])
-	assert.Equal(t, "https://open.spotify.com/album/alt", albumRows[2][3])
+	albumAlternate := findCSVRow(t, albumRows, func(row []string) bool {
+		return len(row) > 3 && row[2] == "alternate"
+	})
+	assert.Equal(t, "https://open.spotify.com/album/alt", albumAlternate[3])
 
 	songRows := newVerboseSongCSVRows(ariadne.SongResolution{
 		InputURL: "https://fixture.test/song",
@@ -336,8 +338,10 @@ func TestVerboseCSVRowsIncludeAlternatesWithoutBest(t *testing.T) {
 		},
 	})
 	assert.Len(t, songRows, 3)
-	assert.Equal(t, "alternate", songRows[2][2])
-	assert.Equal(t, "https://music.apple.com/us/album/alt?i=1", songRows[2][3])
+	songAlternate := findCSVRow(t, songRows, func(row []string) bool {
+		return len(row) > 3 && row[2] == "alternate"
+	})
+	assert.Equal(t, "https://music.apple.com/us/album/alt?i=1", songAlternate[3])
 }
 
 func TestFilterSongResolutionByStrengthPrunesAlternates(t *testing.T) {
@@ -386,9 +390,13 @@ func TestScoreSummary(t *testing.T) {
 		want  string
 	}{
 		{name: "strong", score: 100, want: "strong"},
+		{name: "just below strong", score: 99, want: "probable"},
 		{name: "probable", score: 70, want: "probable"},
+		{name: "just below probable", score: 69, want: "weak"},
 		{name: "weak", score: 50, want: "weak"},
+		{name: "just below weak", score: 49, want: "very_weak"},
 		{name: "very weak", score: 49, want: "very_weak"},
+		{name: "just below zero threshold", score: 48, want: "very_weak"},
 	}
 
 	for _, tt := range tests {
@@ -396,4 +404,15 @@ func TestScoreSummary(t *testing.T) {
 			assert.Equal(t, tt.want, scoreSummary(tt.score))
 		})
 	}
+}
+
+func findCSVRow(t *testing.T, rows [][]string, match func([]string) bool) []string {
+	t.Helper()
+	for _, row := range rows {
+		if match(row) {
+			return row
+		}
+	}
+	t.Fatalf("matching CSV row not found")
+	return nil
 }

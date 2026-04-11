@@ -83,8 +83,38 @@ func TestParseResolveArgsValidatesConfiguredTargetServices(t *testing.T) {
 	require.ErrorIs(t, err, errSpotifyTargetCredentials)
 }
 
+func TestLoadCLIConfigRejectsNonPositiveHTTPTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		timeout     string
+		wantMessage string
+	}{
+		{name: "zero", timeout: "0s", wantMessage: "invalid ARIADNE_HTTP_TIMEOUT \"0s\": ARIADNE_HTTP_TIMEOUT must be positive"},
+		{name: "negative", timeout: "-5s", wantMessage: "invalid ARIADNE_HTTP_TIMEOUT \"-5s\": ARIADNE_HTTP_TIMEOUT must be positive"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, ".env")
+			require.NoError(t, os.WriteFile(configPath, []byte("ARIADNE_HTTP_TIMEOUT="+tt.timeout+"\n"), 0o644))
+
+			_, err := loadCLIConfig(configPath)
+			require.Error(t, err)
+			assert.EqualError(t, err, tt.wantMessage)
+		})
+	}
+}
+
 func TestParseResolveArgs(t *testing.T) {
-	t.Setenv("APPLE_MUSIC_STOREFRONT", "de")
+	baseConfig := ariadne.LoadConfigFromEnv(func(key string) string {
+		switch key {
+		case "APPLE_MUSIC_STOREFRONT":
+			return "de"
+		default:
+			return ""
+		}
+	})
 
 	tests := []struct {
 		name                  string
@@ -102,7 +132,7 @@ func TestParseResolveArgs(t *testing.T) {
 		wantErrContains       string
 	}{
 		{
-			name:            "uses env default storefront",
+			name:            "uses base config storefront",
 			args:            []string{"https://www.deezer.com/album/12047952"},
 			wantURL:         "https://www.deezer.com/album/12047952",
 			wantStorefront:  "de",
@@ -226,7 +256,7 @@ func TestParseResolveArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resolveConfig, err := parseResolveArgs(tt.args, ariadne.LoadConfig())
+			resolveConfig, err := parseResolveArgs(tt.args, baseConfig)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrContains)

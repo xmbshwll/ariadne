@@ -112,23 +112,20 @@ func normalizeCountryCode(value string) string {
 }
 
 func metadataQuery(album model.CanonicalAlbum) string {
-	parts := make([]string, 0, 2)
-	if album.Title != "" {
-		parts = append(parts, album.Title)
-	}
-	if len(album.Artists) > 0 {
-		parts = append(parts, album.Artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	return buildTitleArtistQuery(album.Title, album.Artists)
 }
 
 func songMetadataQuery(song model.CanonicalSong) string {
+	return buildTitleArtistQuery(song.Title, song.Artists)
+}
+
+func buildTitleArtistQuery(title string, artists []string) string {
 	parts := make([]string, 0, 2)
-	if song.Title != "" {
-		parts = append(parts, song.Title)
+	if title != "" {
+		parts = append(parts, title)
 	}
-	if len(song.Artists) > 0 {
-		parts = append(parts, song.Artists[0])
+	if len(artists) > 0 {
+		parts = append(parts, artists[0])
 	}
 	return strings.TrimSpace(strings.Join(parts, " "))
 }
@@ -173,32 +170,27 @@ func albumIDsFromTrackDocument(document apiDocument) []string {
 	resources := documentData(document)
 	seen := make(map[string]struct{})
 	ids := make([]string, 0, len(resources))
+	appendUniqueID := func(id string) {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
 	for _, included := range document.Included {
 		if included.Type != "albums" {
 			continue
 		}
-		if included.ID == "" {
-			continue
-		}
-		if _, ok := seen[included.ID]; ok {
-			continue
-		}
-		seen[included.ID] = struct{}{}
-		ids = append(ids, included.ID)
-	}
-	if len(ids) > 0 {
-		return ids
+		appendUniqueID(included.ID)
 	}
 	for _, resource := range resources {
 		for _, relation := range resource.Relationships.Albums.Data {
-			if relation.ID == "" {
-				continue
-			}
-			if _, ok := seen[relation.ID]; ok {
-				continue
-			}
-			seen[relation.ID] = struct{}{}
-			ids = append(ids, relation.ID)
+			appendUniqueID(relation.ID)
 		}
 	}
 	return ids

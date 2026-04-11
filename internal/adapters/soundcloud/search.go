@@ -3,6 +3,7 @@ package soundcloud
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,13 +26,8 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	if query == "" {
 		return nil, nil
 	}
-	clientID, err := a.clientIdentifier(ctx)
-	if err != nil {
-		return nil, err
-	}
-	endpoint := fmt.Sprintf("%s/search/playlists?q=%s&client_id=%s&limit=%d", a.apiBaseURL, url.QueryEscape(query), url.QueryEscape(clientID), searchLimit)
 	var payload searchResponse
-	if err := a.getJSON(ctx, endpoint, &payload); err != nil {
+	if err := a.getSearchJSON(ctx, "/search/playlists", query, &payload); err != nil {
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
 	results := make([]model.CandidateAlbum, 0, min(len(payload.Collection), searchLimit))
@@ -57,13 +53,8 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	if query == "" {
 		return nil, nil
 	}
-	clientID, err := a.clientIdentifier(ctx)
-	if err != nil {
-		return nil, err
-	}
-	endpoint := fmt.Sprintf("%s/search/tracks?q=%s&client_id=%s&limit=%d", a.apiBaseURL, url.QueryEscape(query), url.QueryEscape(clientID), searchLimit)
 	var payload trackSearchResponse
-	if err := a.getJSON(ctx, endpoint, &payload); err != nil {
+	if err := a.getSearchJSON(ctx, "/search/tracks", query, &payload); err != nil {
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
 	results := make([]model.CandidateSong, 0, min(len(payload.Collection), searchLimit))
@@ -75,6 +66,44 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		}
 	}
 	return results, nil
+}
+
+func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, target any) error {
+	clientID, err := a.clientIdentifier(ctx)
+	if err != nil {
+		return err
+	}
+	requestURL := a.searchURL(path, query, clientID)
+	if err := a.getJSON(ctx, requestURL, target); err == nil {
+		return nil
+	} else if !isSoundCloudClientIDError(err) {
+		return err
+	}
+
+	clientID, err = a.refreshClientIdentifier(ctx)
+	if err != nil {
+		return err
+	}
+	return a.getJSON(ctx, a.searchURL(path, query, clientID), target)
+}
+
+func (a *Adapter) searchURL(path string, query string, clientID string) string {
+	return fmt.Sprintf("%s%s?q=%s&client_id=%s&limit=%d", a.apiBaseURL, path, url.QueryEscape(query), url.QueryEscape(clientID), searchLimit)
+}
+
+func (a *Adapter) refreshClientIdentifier(ctx context.Context) (string, error) {
+	a.clientIDMu.Lock()
+	a.clientID = ""
+	a.clientIDMu.Unlock()
+	return a.clientIdentifier(ctx)
+}
+
+func isSoundCloudClientIDError(err error) bool {
+	if !errors.Is(err, errUnexpectedSoundCloudAPIStatus) {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, " 401:") || strings.Contains(message, " 403:") || strings.Contains(message, "client_id") || strings.Contains(message, "client id")
 }
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {

@@ -3,6 +3,8 @@ package soundcloud
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,4 +70,48 @@ func TestIdentifierAlbumSearchIsUnsupported(t *testing.T) {
 	isrcResults, err := fixture.adapter.SearchByISRC(context.Background(), []string{soundCloudTrackISRC})
 	require.NoError(t, err)
 	assert.Empty(t, isrcResults)
+}
+
+func TestSearchAlbumByMetadataRefreshesRejectedClientID(t *testing.T) {
+	searchPayload := mustReadSoundCloudFixture(t, "testdata/search-results.json")
+	const staleClientID = "11111111111111111111111111111111"
+	const freshClientID = "22222222222222222222222222222222"
+
+	assetRequests := 0
+	searchRequests := 0
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = fmt.Fprintf(w, `<html><body><script src="%s/assets/app.js"></script></body></html>`, server.URL)
+		case "/assets/app.js":
+			assetRequests++
+			clientID := staleClientID
+			if assetRequests > 1 {
+				clientID = freshClientID
+			}
+			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
+		case "/search/playlists":
+			searchRequests++
+			if r.URL.Query().Get("client_id") != freshClientID {
+				http.Error(w, "invalid client_id", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write(searchPayload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+		Title:   soundCloudCatsAndDogs,
+		Artists: []string{"Evidence"},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, results)
+	assert.Equal(t, 2, assetRequests)
+	assert.Equal(t, 2, searchRequests)
 }

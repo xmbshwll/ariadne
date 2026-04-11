@@ -16,6 +16,8 @@ import (
 )
 
 var (
+	errNonPositiveCLIHTTPTimeout = errors.New("ARIADNE_HTTP_TIMEOUT must be positive")
+
 	matchStrengthByName = map[string]ariadne.MatchStrength{
 		"veryweak":  ariadne.MatchStrengthVeryWeak,
 		"very_weak": ariadne.MatchStrengthVeryWeak,
@@ -104,6 +106,9 @@ func loadCLIConfig(configPath string) (ariadne.Config, error) {
 		parsedTimeout, err := time.ParseDuration(httpTimeout)
 		if err != nil {
 			return ariadne.Config{}, fmt.Errorf("parse ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, err)
+		}
+		if parsedTimeout <= 0 {
+			return ariadne.Config{}, fmt.Errorf("invalid ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, errNonPositiveCLIHTTPTimeout)
 		}
 		cfg.HTTPTimeout = parsedTimeout
 	}

@@ -427,11 +427,12 @@ func collectRelationshipNames(relations []tidalRelationshipData, included []tida
 
 	idToName := make(map[string]string, len(included))
 	for _, resource := range included {
+		resourceID := strings.TrimSpace(resource.ID)
 		name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
-		if strings.TrimSpace(resource.ID) == "" || name == "" {
+		if resourceID == "" || name == "" {
 			continue
 		}
-		idToName[resource.ID] = name
+		idToName[resourceID] = name
 	}
 
 	results := make([]string, 0, len(relations))

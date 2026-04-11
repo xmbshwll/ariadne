@@ -26,3 +26,23 @@ func TestIncludedResourceLookupsUseTypeAndID(t *testing.T) {
 	artworkURL := artworkURLFromIncluded(resourceByID, []relationshipData{{ID: "shared", Type: "artworks"}})
 	assert.Equal(t, "https://resources.tidal.test/shared.jpg", artworkURL)
 }
+
+func TestAlbumIDsFromTrackDocumentMergesIncludedAndRelationshipIDs(t *testing.T) {
+	document := apiDocument{
+		Data: []any{map[string]any{
+			"id":   "track-1",
+			"type": "tracks",
+			"relationships": map[string]any{
+				"albums": map[string]any{
+					"data": []map[string]any{
+						{"id": "included-album", "type": "albums"},
+						{"id": " relationship-album ", "type": "albums"},
+					},
+				},
+			},
+		}},
+		Included: []apiResource{{ID: "included-album", Type: "albums"}},
+	}
+
+	assert.Equal(t, []string{"included-album", "relationship-album"}, albumIDsFromTrackDocument(document))
+}

@@ -34,14 +34,39 @@ func normalizedOrDerived(raw string, normalized string) string {
 
 func coreTitle(raw string, normalized string) string {
 	base := normalizedOrDerived(raw, normalized)
-	base = strings.ReplaceAll(base, "(", " ")
-	base = strings.ReplaceAll(base, ")", " ")
-	base = strings.ReplaceAll(base, "[", " ")
-	base = strings.ReplaceAll(base, "]", " ")
-	for _, marker := range editionMarkers(raw) {
-		base = strings.ReplaceAll(base, marker, " ")
+	tokens := strings.Fields(base)
+	if len(tokens) == 0 {
+		return ""
 	}
-	return strings.Join(strings.Fields(base), " ")
+
+	markers := editionMarkers(base)
+	if len(markers) == 0 {
+		return strings.Join(tokens, " ")
+	}
+
+	markerTokenSpans := make([][]string, 0, len(markers))
+	for _, marker := range markers {
+		markerTokens := strings.Fields(marker)
+		if len(markerTokens) == 0 {
+			continue
+		}
+		markerTokenSpans = append(markerTokenSpans, markerTokens)
+	}
+	if len(markerTokenSpans) == 0 {
+		return strings.Join(tokens, " ")
+	}
+
+	cleaned := make([]string, 0, len(tokens))
+	for i := 0; i < len(tokens); {
+		markerLength := matchedMarkerLength(tokens[i:], markerTokenSpans)
+		if markerLength > 0 {
+			i += markerLength
+			continue
+		}
+		cleaned = append(cleaned, tokens[i])
+		i++
+	}
+	return strings.Join(cleaned, " ")
 }
 
 func normalizeArtistNames(values []string) []string {
@@ -130,15 +155,46 @@ func editionMarkerPenalty(sourceTitle string, candidateTitle string, markerPenal
 
 func editionMarkers(title string) []string {
 	normalized := normalize.Text(title)
+	if normalized == "" {
+		return nil
+	}
+
 	candidates := []string{"super deluxe", "deluxe", "remix", "mix", "anniversary", "live", "acoustic"}
+	sort.SliceStable(candidates, func(i int, j int) bool {
+		return len(candidates[i]) > len(candidates[j])
+	})
+
 	markers := make([]string, 0, len(candidates))
 	padded := " " + normalized + " "
 	for _, candidate := range candidates {
-		if strings.Contains(padded, " "+candidate+" ") {
-			markers = append(markers, candidate)
+		needle := " " + candidate + " "
+		index := strings.Index(padded, needle)
+		if index == -1 {
+			continue
 		}
+		markers = append(markers, candidate)
+		padded = padded[:index] + strings.Repeat(" ", len(needle)) + padded[index+len(needle):]
 	}
 	return markers
+}
+
+func matchedMarkerLength(tokens []string, markers [][]string) int {
+	for _, marker := range markers {
+		if len(tokens) < len(marker) {
+			continue
+		}
+		matched := true
+		for i := range marker {
+			if tokens[i] != marker[i] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return len(marker)
+		}
+	}
+	return 0
 }
 
 func symmetricMarkerDifference(left []string, right []string) []string {

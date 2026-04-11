@@ -31,7 +31,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		}
 
 		for _, item := range payload.Results {
-			if item.WrapperType != "collection" || item.CollectionType != "Album" {
+			if item.WrapperType != "collection" || item.CollectionType != "Album" || item.CollectionID == 0 {
 				continue
 			}
 			if _, ok := seen[item.CollectionID]; ok {
@@ -106,39 +106,15 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 }
 
 func metadataQueries(album model.CanonicalAlbum) []string {
-	if strings.TrimSpace(album.Title) == "" {
-		return nil
-	}
-
-	queries := make([]string, 0, 8)
-	seen := make(map[string]struct{}, 8)
-	appendUnique := func(query string) {
-		query = strings.TrimSpace(query)
-		if query == "" {
-			return
-		}
-		key := normalize.Text(query)
-		if key == "" {
-			return
-		}
-		if _, ok := seen[key]; ok {
-			return
-		}
-		seen[key] = struct{}{}
-		queries = append(queries, query)
-	}
-
-	for _, title := range normalize.SearchTitleVariants(album.Title) {
-		for _, artist := range normalize.SearchArtistVariants(album.Artists) {
-			appendUnique(strings.TrimSpace(strings.Join([]string{title, artist}, " ")))
-		}
-		appendUnique(title)
-	}
-	return queries
+	return buildMetadataQueries(album.Title, album.Artists)
 }
 
 func songMetadataQueries(song model.CanonicalSong) []string {
-	if strings.TrimSpace(song.Title) == "" {
+	return buildMetadataQueries(song.Title, song.Artists)
+}
+
+func buildMetadataQueries(title string, artists []string) []string {
+	if strings.TrimSpace(title) == "" {
 		return nil
 	}
 
@@ -160,11 +136,11 @@ func songMetadataQueries(song model.CanonicalSong) []string {
 		queries = append(queries, query)
 	}
 
-	for _, title := range normalize.SearchTitleVariants(song.Title) {
-		for _, artist := range normalize.SearchArtistVariants(song.Artists) {
-			appendUnique(strings.TrimSpace(strings.Join([]string{title, artist}, " ")))
+	for _, titleVariant := range normalize.SearchTitleVariants(title) {
+		for _, artistVariant := range normalize.SearchArtistVariants(artists) {
+			appendUnique(strings.TrimSpace(strings.Join([]string{titleVariant, artistVariant}, " ")))
 		}
-		appendUnique(title)
+		appendUnique(titleVariant)
 	}
 	return queries
 }

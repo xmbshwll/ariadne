@@ -94,13 +94,12 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 
 // SearchByMetadata searches Spotify albums by title and artist metadata.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	if !a.hasCredentials() {
-		return nil, ErrCredentialsNotConfigured
-	}
-
 	queries := metadataQueries(album)
 	if len(queries) == 0 {
 		return nil, nil
+	}
+	if !a.hasCredentials() {
+		return nil, ErrCredentialsNotConfigured
 	}
 
 	items := make([]apiAlbumSummary, 0, searchLimit)
