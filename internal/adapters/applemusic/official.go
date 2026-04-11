@@ -40,6 +40,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	storefront := a.defaultStorefront
 	seenAlbumIDs := make(map[string]struct{}, len(isrcs))
 	albumIDs := make([]string, 0, len(isrcs))
+	var firstErr error
 	for _, isrc := range isrcs {
 		isrc = strings.TrimSpace(isrc)
 		if isrc == "" {
@@ -48,8 +49,8 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/catalog/%s/songs?filter[isrc]=%s", a.apiBaseURL, url.PathEscape(storefront), url.QueryEscape(isrc))
 		var payload map[string]any
 		if err := a.getOfficialJSON(ctx, endpoint, &payload); err != nil {
-			if len(albumIDs) == 0 {
-				return nil, fmt.Errorf("search apple music by isrc: %w", err)
+			if firstErr == nil {
+				firstErr = err
 			}
 			continue
 		}
@@ -57,6 +58,9 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		if len(albumIDs) >= searchLimit {
 			return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
 		}
+	}
+	if len(albumIDs) == 0 && firstErr != nil {
+		return nil, fmt.Errorf("search apple music by isrc: %w", firstErr)
 	}
 	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
