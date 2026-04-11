@@ -247,7 +247,11 @@ var defaultServiceOrder = struct {
 func buildDefaultServiceAdapters(client *http.Client, config Config) map[ServiceName]serviceAdapterSet {
 	sets := make(map[ServiceName]serviceAdapterSet, len(defaultServiceBindings))
 	for _, binding := range defaultServiceBindings {
-		sets[binding.capability.name] = binding.build(client, config)
+		service := binding.capability.name
+		if _, exists := sets[service]; exists {
+			panic("duplicate default service binding: " + string(service))
+		}
+		sets[service] = binding.build(client, config)
 	}
 	return sets
 }

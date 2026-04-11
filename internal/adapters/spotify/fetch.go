@@ -124,7 +124,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 }
 
 // FetchSong loads a Spotify track via the Web API.
-func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceSpotify {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedSpotifyService, parsed.Service)
 	}
@@ -285,20 +285,36 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		return nil, nil
 	}
 
-	tracks := make([]apiTrack, 0, len(trackIDs))
+	ids := make([]string, 0, len(trackIDs))
 	for _, trackID := range trackIDs {
+		trackID = strings.TrimSpace(trackID)
 		if trackID == "" {
 			continue
 		}
-		endpoint := a.apiBaseURL + "/tracks/" + trackID
-		var track apiTrack
-		if err := a.getAPIJSON(ctx, endpoint, &track); err != nil {
-			if isSpotifyAPIStatus(err, http.StatusNotFound) {
-				return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
+		ids = append(ids, trackID)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	tracks := make([]apiTrack, 0, len(ids))
+	for start := 0; start < len(ids); start += 50 {
+		end := min(start+50, len(ids))
+		chunk := ids[start:end]
+		endpoint := a.apiBaseURL + "/tracks?ids=" + strings.Join(chunk, ",")
+		var response apiTrackBatchResponse
+		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
+			if isSpotifyAPIStatus(err, http.StatusNotFound) && len(chunk) == 1 {
+				return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, chunk[0])
 			}
 			return nil, err
 		}
-		tracks = append(tracks, track)
+		for _, track := range response.Tracks {
+			if track == nil || strings.TrimSpace(track.ID) == "" {
+				continue
+			}
+			tracks = append(tracks, *track)
+		}
 	}
 	return tracks, nil
 }

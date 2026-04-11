@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +38,26 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	t.Helper()
 	require.Len(t, candidates, 1)
 	assert.Equal(t, wantID, candidates[0].CandidateID)
+}
+
+func writeSpotifyTrackBatchJSON(t *testing.T, w http.ResponseWriter, r *http.Request, tracksByID map[string]apiTrack) {
+	t.Helper()
+	ids := strings.Split(r.URL.Query().Get("ids"), ",")
+	tracks := make([]*apiTrack, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		track, ok := tracksByID[id]
+		if !ok {
+			tracks = append(tracks, nil)
+			continue
+		}
+		trackCopy := track
+		tracks = append(tracks, &trackCopy)
+	}
+	writeJSON(t, w, apiTrackBatchResponse{Tracks: tracks})
 }
 
 func TestSearchAlbumByMetadataEmptyAlbumWithoutCredentialsReturnsEmptyResults(t *testing.T) {

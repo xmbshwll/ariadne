@@ -51,17 +51,13 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 			}},
 		})
 	})
-	mux.HandleFunc("/tracks/track-1", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
 		requireSpotifyBearerAuth(t, r)
-		writeJSON(t, w, apiTrack{ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}})
-	})
-	mux.HandleFunc("/tracks/track-2", func(w http.ResponseWriter, r *http.Request) {
-		requireSpotifyBearerAuth(t, r)
-		writeJSON(t, w, apiTrack{ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}})
-	})
-	mux.HandleFunc("/tracks/track-weak-1", func(w http.ResponseWriter, r *http.Request) {
-		requireSpotifyBearerAuth(t, r)
-		writeJSON(t, w, apiTrack{ID: "track-weak-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, ExternalIDs: apiExternalIDs{ISRC: "OTHER0001"}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}, Album: apiTrackAlbum{ID: "album-weak", Name: "Abbey Road", ReleaseDate: "2020-01-01", Images: []apiImage{{URL: "https://i.scdn.co/image/weak", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}}})
+		writeSpotifyTrackBatchJSON(t, w, r, map[string]apiTrack{
+			"track-1":      {ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}},
+			"track-2":      {ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Images: []apiImage{{URL: "https://i.scdn.co/image/best", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles"}}}},
+			"track-weak-1": {ID: "track-weak-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, ExternalIDs: apiExternalIDs{ISRC: "OTHER0001"}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}, Album: apiTrackAlbum{ID: "album-weak", Name: "Abbey Road", ReleaseDate: "2020-01-01", Images: []apiImage{{URL: "https://i.scdn.co/image/weak", Width: 640}}, Artists: []apiArtist{{Name: "The Beatles Complete On Ukulele"}}}},
+		})
 	})
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		requireSpotifyBearerAuth(t, r)
@@ -114,7 +110,7 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 	require.Len(t, metadataResults, 2)
 	assert.Equal(t, "album-good", metadataResults[0].CandidateID)
 
-	song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: "https://open.spotify.com/track/track-1"})
+	song, err := adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: "https://open.spotify.com/track/track-1"})
 	require.NoError(t, err)
 	require.NotNil(t, song)
 	require.NotEmpty(t, song.ISRC)
@@ -134,8 +130,8 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 
 func requireSpotifyTokenRequest(t *testing.T, r *http.Request) {
 	t.Helper()
-	require.Equal(t, http.MethodPost, r.Method)
-	require.NoError(t, r.ParseForm())
+	assert.Equal(t, http.MethodPost, r.Method)
+	assert.NoError(t, r.ParseForm())
 	assert.Equal(t, "client_credentials", r.Form.Get("grant_type"))
 	assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "Basic "))
 }

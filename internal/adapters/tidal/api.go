@@ -15,12 +15,15 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-const maxTIDALTokenResponseBytes = 16 * 1024
+const (
+	maxTIDALTokenResponseBytes = 16 * 1024
+	tidalTokenRefreshTimeout   = 30 * time.Second
+)
 
 var errTIDALTokenResponseTooLarge = errors.New("tidal token response too large")
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
-	token, err := a.accessToken(ctx)
+	token, err := a.accessToken()
 	if err != nil {
 		return err
 	}
@@ -48,7 +51,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 	return nil
 }
 
-func (a *Adapter) accessToken(ctx context.Context) (string, error) {
+func (a *Adapter) accessToken() (string, error) {
 	if !a.hasCredentials() {
 		return "", ErrCredentialsNotConfigured
 	}
@@ -61,7 +64,9 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		if accessToken, ok := a.cachedAccessToken(); ok {
 			return accessToken, nil
 		}
-		return a.refreshAccessToken(ctx)
+		refreshCtx, cancel := context.WithTimeout(context.Background(), tidalTokenRefreshTimeout)
+		defer cancel()
+		return a.refreshAccessToken(refreshCtx)
 	})
 	if err != nil {
 		//nolint:wrapcheck // Preserve refresh errors from the shared token fetch path.
@@ -139,7 +144,7 @@ func (a *Adapter) hasCredentials() bool {
 func (a *Adapter) countryCodeFor(regionHint string) string {
 	countryCode := normalizeCountryCode(regionHint)
 	if countryCode == "" {
-		return a.defaultCountryCode
+		return normalizeCountryCode(a.defaultCountryCode)
 	}
 	return countryCode
 }

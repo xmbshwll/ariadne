@@ -48,8 +48,8 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/catalog/%s/songs?filter[isrc]=%s", a.apiBaseURL, url.PathEscape(storefront), url.QueryEscape(isrc))
 		var payload map[string]any
 		if err := a.getOfficialJSON(ctx, endpoint, &payload); err != nil {
-			if err := continueAppleMusicOfficialSearchAfterQueryError(albumIDs, err); err != nil {
-				return nil, err
+			if len(albumIDs) == 0 {
+				return nil, fmt.Errorf("search apple music by isrc: %w", err)
 			}
 			continue
 		}
@@ -59,13 +59,6 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		}
 	}
 	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
-}
-
-func continueAppleMusicOfficialSearchAfterQueryError(albumIDs []string, err error) error {
-	if len(albumIDs) == 0 {
-		return fmt.Errorf("search apple music by isrc: %w", err)
-	}
-	return nil
 }
 
 func appendUniqueOfficialAlbumIDs(dst []string, seen map[string]struct{}, ids []string) []string {
