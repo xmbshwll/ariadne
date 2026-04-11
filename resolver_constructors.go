@@ -115,6 +115,8 @@ func newResolver(
 //     requires app credentials
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
+//   - ErrSourceAdapterReturnedNilParsedURL or ErrSourceAdapterReturnedNilAlbum
+//     when a caller-provided custom source adapter violates the adapter contract
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
 	resolver, err := r.albumResolver()
 	if err != nil {
@@ -146,6 +148,8 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 //     requires app credentials
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
+//   - ErrSourceAdapterReturnedNilParsedURL or ErrSourceAdapterReturnedNilSong
+//     when a caller-provided custom song source adapter violates the adapter contract
 func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
 	resolver, err := r.songResolver()
 	if err != nil {

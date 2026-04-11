@@ -10,7 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var errUnsupportedLibrarySource = errors.New("unsupported")
+const testLibrarySourceURL = "https://fixture.test/source"
+
+var (
+	errUnsupportedLibrarySource = errors.New("unsupported")
+	errLibraryTargetBoom        = errors.New("target boom")
+)
 
 func TestLoadConfigFromEnv(t *testing.T) {
 	config := LoadConfigFromEnv(func(key string) string {
@@ -152,7 +157,7 @@ func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 		[]TargetAdapter{libraryTargetAdapter{}},
 	)
 
-	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
 	assert.Equal(t, ServiceDeezer, resolution.Source.Service)
 	match := resolution.Matches[ServiceSpotify]
@@ -174,7 +179,7 @@ func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
 func TestResolverResolveDispatchesByEntityType(t *testing.T) {
 	resolver := newTestEntityResolver()
 
-	albumEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/source")
+	albumEntity, err := resolver.Resolve(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
 	require.NotNil(t, albumEntity.Album)
 	assert.Nil(t, albumEntity.Song)
@@ -190,7 +195,7 @@ func TestResolverResolveDispatchesByEntityType(t *testing.T) {
 func TestResolveAlbumReturnsErrorForNilResolver(t *testing.T) {
 	var resolver *Resolver
 
-	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.Error(t, err)
 	assert.Nil(t, resolution)
 	assert.ErrorIs(t, err, ErrResolverNotInitialized)
@@ -205,6 +210,42 @@ func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
 	assert.ErrorIs(t, err, ErrResolverNotInitialized)
 }
 
+func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilParsedURL(t *testing.T) {
+	resolver := NewWithAdapters([]SourceAdapter{nilParsedSourceAdapter{}}, []TargetAdapter{libraryTargetAdapter{}})
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilParsedURL)
+}
+
+func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilAlbum(t *testing.T) {
+	resolver := NewWithAdapters([]SourceAdapter{nilAlbumSourceAdapter{}}, []TargetAdapter{libraryTargetAdapter{}})
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilAlbum)
+}
+
+func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testing.T) {
+	resolver := NewWithEntityAdapters(nil, nil, []SongSourceAdapter{nilSongSourceAdapter{}}, []SongTargetAdapter{librarySongTargetAdapter{}})
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
+}
+
+func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
+	resolver := NewWithAdapters([]SourceAdapter{librarySourceAdapter{}}, []TargetAdapter{failingLibraryTargetAdapter{}})
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, errLibraryTargetBoom)
+}
+
 func newTestEntityResolver() *Resolver {
 	return NewWithEntityAdapters(
 		[]SourceAdapter{librarySourceAdapter{}},
@@ -214,6 +255,61 @@ func newTestEntityResolver() *Resolver {
 	)
 }
 
+type nilParsedSourceAdapter struct{}
+
+func (nilParsedSourceAdapter) Service() ServiceName {
+	return ServiceDeezer
+}
+
+func (nilParsedSourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
+	if raw != testLibrarySourceURL {
+		return nil, errUnsupportedLibrarySource
+	}
+	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
+	return nil, nil
+}
+
+func (nilParsedSourceAdapter) FetchAlbum(_ context.Context, _ ParsedAlbumURL) (*CanonicalAlbum, error) {
+	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
+	return nil, nil
+}
+
+type nilAlbumSourceAdapter struct{}
+
+func (nilAlbumSourceAdapter) Service() ServiceName {
+	return ServiceDeezer
+}
+
+func (nilAlbumSourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
+	if raw != testLibrarySourceURL {
+		return nil, errUnsupportedLibrarySource
+	}
+	return &ParsedAlbumURL{Service: ServiceDeezer, EntityType: "album", ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
+}
+
+func (nilAlbumSourceAdapter) FetchAlbum(_ context.Context, _ ParsedAlbumURL) (*CanonicalAlbum, error) {
+	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
+	return nil, nil
+}
+
+type nilSongSourceAdapter struct{}
+
+func (nilSongSourceAdapter) Service() ServiceName {
+	return ServiceSpotify
+}
+
+func (nilSongSourceAdapter) ParseSongURL(raw string) (*ParsedAlbumURL, error) {
+	if raw != "https://fixture.test/songs/1" {
+		return nil, errUnsupportedLibrarySource
+	}
+	return &ParsedAlbumURL{Service: ServiceSpotify, EntityType: "song", ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
+}
+
+func (nilSongSourceAdapter) FetchSong(_ context.Context, _ ParsedAlbumURL) (*CanonicalSong, error) {
+	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
+	return nil, nil
+}
+
 type librarySourceAdapter struct{}
 
 func (librarySourceAdapter) Service() ServiceName {
@@ -221,7 +317,7 @@ func (librarySourceAdapter) Service() ServiceName {
 }
 
 func (librarySourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
-	if raw != "https://fixture.test/source" {
+	if raw != testLibrarySourceURL {
 		return nil, errUnsupportedLibrarySource
 	}
 	return &ParsedAlbumURL{
@@ -246,6 +342,24 @@ func (librarySourceAdapter) FetchAlbum(_ context.Context, parsed ParsedAlbumURL)
 		TrackCount:        2,
 		Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
 	}, nil
+}
+
+type failingLibraryTargetAdapter struct{}
+
+func (failingLibraryTargetAdapter) Service() ServiceName {
+	return ServiceSpotify
+}
+
+func (failingLibraryTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (failingLibraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (failingLibraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
+	return nil, errLibraryTargetBoom
 }
 
 type libraryTargetAdapter struct{}

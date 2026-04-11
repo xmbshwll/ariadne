@@ -6,6 +6,18 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+type fatalAdapterParseError struct {
+	error
+}
+
+func (fatalAdapterParseError) FatalParseFailure() bool {
+	return true
+}
+
+func (e fatalAdapterParseError) Unwrap() error {
+	return e.error
+}
+
 type sourceAdapterBridge struct {
 	source SourceAdapter
 }
@@ -21,7 +33,7 @@ func (b sourceAdapterBridge) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, e
 		return nil, err
 	}
 	if parsed == nil {
-		return nil, errSourceAdapterReturnedNilParsed
+		return nil, fatalAdapterParseError{ErrSourceAdapterReturnedNilParsedURL}
 	}
 	internal := toInternalParsedAlbumURL(*parsed)
 	return &internal, nil
@@ -34,7 +46,7 @@ func (b sourceAdapterBridge) FetchAlbum(ctx context.Context, parsed model.Parsed
 		return nil, err
 	}
 	if album == nil {
-		return nil, errSourceAdapterReturnedNilAlbum
+		return nil, ErrSourceAdapterReturnedNilAlbum
 	}
 	internal := toInternalCanonicalAlbum(*album)
 	return &internal, nil
@@ -55,7 +67,7 @@ func (b songSourceAdapterBridge) ParseSongURL(raw string) (*model.ParsedAlbumURL
 		return nil, err
 	}
 	if parsed == nil {
-		return nil, errSourceAdapterReturnedNilParsed
+		return nil, fatalAdapterParseError{ErrSourceAdapterReturnedNilParsedURL}
 	}
 	internal := toInternalParsedAlbumURL(*parsed)
 	return &internal, nil
@@ -68,7 +80,7 @@ func (b songSourceAdapterBridge) FetchSong(ctx context.Context, parsed model.Par
 		return nil, err
 	}
 	if song == nil {
-		return nil, errSourceAdapterReturnedNilSong
+		return nil, ErrSourceAdapterReturnedNilSong
 	}
 	internal := toInternalCanonicalSong(*song)
 	return &internal, nil

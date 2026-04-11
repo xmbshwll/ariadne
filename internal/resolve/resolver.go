@@ -176,11 +176,22 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 	return combined, nil
 }
 
+type fatalParseFailure interface {
+	FatalParseFailure() bool
+}
+
 func parseSourceAdapter[S any, P any](sources []S, inputURL string, parse func(S, string) (*P, error)) (S, *P, error) {
 	var zero S
 	for _, source := range sources {
 		parsed, err := parse(source, inputURL)
-		if err != nil || parsed == nil {
+		if err != nil {
+			var fatal fatalParseFailure
+			if errors.As(err, &fatal) && fatal.FatalParseFailure() {
+				return zero, nil, err
+			}
+			continue
+		}
+		if parsed == nil {
 			continue
 		}
 		return source, parsed, nil
