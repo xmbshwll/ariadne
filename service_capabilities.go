@@ -8,18 +8,13 @@ var (
 	serviceCapabilitiesByName = buildServiceCapabilitiesByName(defaultServiceBindings)
 	serviceNamesByLookupKey   = buildServiceNamesByLookupKey(defaultServiceBindings)
 	supportedTargetServices   = collectSupportedServicesInOrder(defaultServiceOrder.albumTargets, serviceCapabilitiesByName, func(capability serviceCapability) bool {
-		return capability.supportsAnyTarget()
+		return capability.supportsAlbumTarget || capability.supportsSongTarget
 	})
 	supportedSongTargetServices = collectSupportedServicesInOrder(defaultServiceOrder.songTargets, serviceCapabilitiesByName, func(capability serviceCapability) bool {
 		return capability.supportsSongTarget
 	})
 	runtimeSongURLParsers = collectRuntimeSongURLParsers(defaultServiceBindings)
 )
-
-func serviceCapabilityByName(service ServiceName) (serviceCapability, bool) {
-	capability, ok := serviceCapabilitiesByName[service]
-	return capability, ok
-}
 
 // LookupServiceName normalizes a service name or alias into the canonical public service name.
 func LookupServiceName(raw string) (ServiceName, bool) {
@@ -33,7 +28,7 @@ func normalizeServiceLookupKey(raw string) string {
 
 // DescribeService reports Ariadne's built-in runtime capabilities for one service.
 func DescribeService(service ServiceName) (ServiceCapabilities, bool) {
-	capability, ok := serviceCapabilityByName(service)
+	capability, ok := serviceCapabilitiesByName[service]
 	if !ok {
 		return ServiceCapabilities{}, false
 	}
@@ -42,14 +37,14 @@ func DescribeService(service ServiceName) (ServiceCapabilities, bool) {
 
 // SupportsSongTarget reports whether the service currently participates in built-in song target search.
 func SupportsSongTarget(service ServiceName) bool {
-	capability, ok := serviceCapabilityByName(service)
+	capability, ok := serviceCapabilitiesByName[service]
 	return ok && capability.supportsSongTarget
 }
 
 // SupportsTarget reports whether the service currently participates in any built-in target search.
 func SupportsTarget(service ServiceName) bool {
-	capability, ok := serviceCapabilityByName(service)
-	return ok && capability.supportsAnyTarget()
+	capability, ok := serviceCapabilitiesByName[service]
+	return ok && (capability.supportsAlbumTarget || capability.supportsSongTarget)
 }
 
 // SupportedSongTargetServices returns the canonical service names that currently support built-in song target search.

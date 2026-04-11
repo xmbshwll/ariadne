@@ -58,10 +58,8 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
-			if err := continueTIDALSearchAfterQueryError(results, func() error {
-				return fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
-			}); err != nil {
-				return nil, err
+			if len(results) == 0 {
+				return nil, fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
 			}
 			continue
 		}
@@ -148,13 +146,6 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	return a.hydrateSongCandidates(ctx, resourceIDs(resources), song.RegionHint, func(songID string) string {
 		return fmt.Sprintf("hydrate tidal song %s from metadata", songID)
 	})
-}
-
-func continueTIDALSearchAfterQueryError[T any](results []T, makeErr func() error) error {
-	if len(results) == 0 {
-		return makeErr()
-	}
-	return nil
 }
 
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {

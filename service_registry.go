@@ -28,10 +28,6 @@ type serviceCapability struct {
 	runtimeSongURLParser songURLParser
 }
 
-func (c serviceCapability) supportsAnyTarget() bool {
-	return c.supportsAlbumTarget || c.supportsSongTarget
-}
-
 func (c serviceCapability) describe() ServiceCapabilities {
 	return ServiceCapabilities{
 		Aliases:                     append([]string(nil), c.aliases...),
