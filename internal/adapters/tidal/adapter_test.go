@@ -157,7 +157,7 @@ func TestAdapterRuntimeOperations(t *testing.T) {
 	require.NoError(t, err)
 	assertSingleAlbum(t, metadataResults, "156205493")
 
-	song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
+	song, err := adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
 	require.NoError(t, err)
 	assert.Equal(t, tidalTrackISRC, song.ISRC)
 	assert.Equal(t, "Shadows among trees", song.AlbumTitle)
@@ -172,7 +172,7 @@ func TestAdapterRuntimeOperations(t *testing.T) {
 	require.Len(t, songMetadataResults, 2)
 	assert.Equal(t, "156205494", songMetadataResults[0].CandidateID)
 
-	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "missing", CanonicalURL: "https://tidal.com/track/missing"})
+	_, err = adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "missing", CanonicalURL: "https://tidal.com/track/missing"})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errTIDALTrackNotFound)
 }

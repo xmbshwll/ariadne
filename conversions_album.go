@@ -115,7 +115,7 @@ func fromInternalResolution(resolution resolve.Resolution) Resolution {
 	}
 	return Resolution{
 		InputURL: resolution.InputURL,
-		Parsed:   fromInternalParsedAlbumURL(resolution.Parsed),
+		Parsed:   fromInternalParsedURL(resolution.Parsed),
 		Source:   fromInternalCanonicalAlbum(resolution.Source),
 		Matches:  matches,
 	}

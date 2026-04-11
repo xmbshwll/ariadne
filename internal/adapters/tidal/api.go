@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 const maxTIDALTokenResponseBytes = 16 * 1024
@@ -132,22 +133,11 @@ func normalizeCountryCode(value string) string {
 }
 
 func metadataQuery(album model.CanonicalAlbum) string {
-	return buildTitleArtistQuery(album.Title, album.Artists)
+	return normalize.SearchPrimaryQuery(album.Title, album.Artists)
 }
 
 func songMetadataQuery(song model.CanonicalSong) string {
-	return buildTitleArtistQuery(song.Title, song.Artists)
-}
-
-func buildTitleArtistQuery(title string, artists []string) string {
-	parts := make([]string, 0, 2)
-	if title != "" {
-		parts = append(parts, title)
-	}
-	if len(artists) > 0 {
-		parts = append(parts, artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	return normalize.SearchPrimaryQuery(song.Title, song.Artists)
 }
 
 func firstDataResource(document apiDocument) *apiResource {

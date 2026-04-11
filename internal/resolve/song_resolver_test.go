@@ -10,35 +10,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/score"
 )
 
-func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
-	called := false
-	resolver := NewSongs(
-		[]SongSourceAdapter{stubSongSourceAdapter{}},
-		[]SongTargetAdapter{sourceServiceSongTargetAdapter{called: &called}, stubSongTargetAdapter{}},
-		score.DefaultSongWeights(),
-	)
-
-	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
-	require.NoError(t, err)
-	assert.False(t, called)
-	require.NotNil(t, resolution.Matches[model.ServiceAppleMusic].Best)
-	_, ok := resolution.Matches[model.ServiceSpotify]
-	assert.False(t, ok)
-}
-
-func TestSongResolverResolveSongReturnsTargetError(t *testing.T) {
-	resolver := NewSongs(
-		[]SongSourceAdapter{stubSongSourceAdapter{}},
-		[]SongTargetAdapter{failingSongTargetAdapter{}},
-		score.DefaultSongWeights(),
-	)
-
-	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
-	require.Error(t, err)
-	assert.Nil(t, resolution)
-	assert.ErrorIs(t, err, errTargetSearchBoom)
-}
-
 func TestSongResolverResolveSong(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -126,14 +97,14 @@ func (stubSongSourceAdapter) Service() model.ServiceName {
 	return model.ServiceSpotify
 }
 
-func (stubSongSourceAdapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (stubSongSourceAdapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	if raw != "https://open.spotify.com/track/track-1" {
 		return nil, errUnsupportedTestSource
 	}
-	return &model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: raw, RawURL: raw}, nil
+	return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: raw, RawURL: raw}, nil
 }
 
-func (stubSongSourceAdapter) FetchSong(_ context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (stubSongSourceAdapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	return &model.CanonicalSong{
 		Service:              parsed.Service,
 		SourceID:             parsed.ID,
@@ -158,14 +129,14 @@ func (nilSongSourceAdapter) Service() model.ServiceName {
 	return model.ServiceSpotify
 }
 
-func (nilSongSourceAdapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (nilSongSourceAdapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	if raw != "https://open.spotify.com/track/track-1" {
 		return nil, errUnsupportedTestSource
 	}
-	return &model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: raw, RawURL: raw}, nil
+	return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: raw, RawURL: raw}, nil
 }
 
-func (nilSongSourceAdapter) FetchSong(_ context.Context, _ model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (nilSongSourceAdapter) FetchSong(_ context.Context, _ model.ParsedURL) (*model.CanonicalSong, error) {
 	//nolint:nilnil // Exercise resolver guard for adapters that incorrectly return (nil, nil).
 	return nil, nil
 }

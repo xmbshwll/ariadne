@@ -16,14 +16,31 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-type songURLParser func(string) (*model.ParsedAlbumURL, error)
+type songURLParser func(string) (*model.ParsedURL, error)
 
 type serviceCapability struct {
 	name                 ServiceName
 	aliases              []string
+	supportsAlbumSource  bool
 	supportsAlbumTarget  bool
+	supportsSongSource   bool
 	supportsSongTarget   bool
 	runtimeSongURLParser songURLParser
+}
+
+func (c serviceCapability) supportsAnyTarget() bool {
+	return c.supportsAlbumTarget || c.supportsSongTarget
+}
+
+func (c serviceCapability) describe() ServiceCapabilities {
+	return ServiceCapabilities{
+		Aliases:                     append([]string(nil), c.aliases...),
+		SupportsAlbumSource:         c.supportsAlbumSource,
+		SupportsAlbumTarget:         c.supportsAlbumTarget,
+		SupportsSongSource:          c.supportsSongSource,
+		SupportsSongTarget:          c.supportsSongTarget,
+		SupportsRuntimeSongInputURL: c.runtimeSongURLParser != nil,
+	}
 }
 
 type serviceAdapterSet struct {
@@ -43,7 +60,9 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceAppleMusic,
 			aliases:              []string{"applemusic"},
+			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.AppleMusicSongURL,
 		},
@@ -69,7 +88,9 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceBandcamp,
 			aliases:              []string{"bandcamp"},
+			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.BandcampSongURL,
 		},
@@ -82,7 +103,9 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceDeezer,
 			aliases:              []string{"deezer"},
+			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.DeezerSongURL,
 		},
@@ -95,7 +118,9 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceSoundCloud,
 			aliases:              []string{"soundcloud"},
+			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.SoundCloudSongURL,
 		},
@@ -108,7 +133,9 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceSpotify,
 			aliases:              []string{"spotify"},
+			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.SpotifySongURL,
 		},
@@ -129,7 +156,9 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                 ServiceTIDAL,
 			aliases:              []string{"tidal"},
+			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
 			supportsSongTarget:   true,
 			runtimeSongURLParser: parse.TIDALSongURL,
 		},
@@ -150,6 +179,7 @@ var defaultServiceBindings = []serviceBinding{
 		capability: serviceCapability{
 			name:                ServiceYouTubeMusic,
 			aliases:             []string{"youtubemusic", "ytmusic"},
+			supportsAlbumSource: true,
 			supportsAlbumTarget: true,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
@@ -159,8 +189,9 @@ var defaultServiceBindings = []serviceBinding{
 	},
 	{
 		capability: serviceCapability{
-			name:    ServiceAmazonMusic,
-			aliases: []string{"amazonmusic", "amazon"},
+			name:                ServiceAmazonMusic,
+			aliases:             []string{"amazonmusic", "amazon"},
+			supportsAlbumSource: true,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := amazonmusicadapter.New(client)

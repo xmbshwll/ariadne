@@ -115,7 +115,7 @@ func fromInternalSongResolution(resolution resolve.SongResolution) SongResolutio
 	}
 	return SongResolution{
 		InputURL: resolution.InputURL,
-		Parsed:   fromInternalParsedAlbumURL(resolution.Parsed),
+		Parsed:   fromInternalParsedURL(resolution.Parsed),
 		Source:   fromInternalCanonicalSong(resolution.Source),
 		Matches:  matches,
 	}

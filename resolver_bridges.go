@@ -35,12 +35,12 @@ func (b sourceAdapterBridge) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, e
 	if parsed == nil {
 		return nil, fatalAdapterParseError{ErrSourceAdapterReturnedNilParsedURL}
 	}
-	internal := toInternalParsedAlbumURL(*parsed)
+	internal := toInternalParsedURL(*parsed)
 	return &internal, nil
 }
 
 func (b sourceAdapterBridge) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-	album, err := b.source.FetchAlbum(ctx, fromInternalParsedAlbumURL(parsed))
+	album, err := b.source.FetchAlbum(ctx, fromInternalParsedURL(parsed))
 	if err != nil {
 		//nolint:wrapcheck // Preserve adapter fetch errors without adding another wrapper layer.
 		return nil, err
@@ -60,7 +60,7 @@ func (b songSourceAdapterBridge) Service() model.ServiceName {
 	return toInternalServiceName(b.source.Service())
 }
 
-func (b songSourceAdapterBridge) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (b songSourceAdapterBridge) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := b.source.ParseSongURL(raw)
 	if err != nil {
 		//nolint:wrapcheck // Preserve adapter parse errors without adding another wrapper layer.
@@ -69,12 +69,12 @@ func (b songSourceAdapterBridge) ParseSongURL(raw string) (*model.ParsedAlbumURL
 	if parsed == nil {
 		return nil, fatalAdapterParseError{ErrSourceAdapterReturnedNilParsedURL}
 	}
-	internal := toInternalParsedAlbumURL(*parsed)
+	internal := toInternalParsedURL(*parsed)
 	return &internal, nil
 }
 
-func (b songSourceAdapterBridge) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
-	song, err := b.source.FetchSong(ctx, fromInternalParsedAlbumURL(parsed))
+func (b songSourceAdapterBridge) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
+	song, err := b.source.FetchSong(ctx, fromInternalParsedURL(parsed))
 	if err != nil {
 		//nolint:wrapcheck // Preserve adapter fetch errors without adding another wrapper layer.
 		return nil, err

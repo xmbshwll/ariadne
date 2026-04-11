@@ -109,8 +109,8 @@ func fromInternalSongScoreWeights(weights score.SongWeights) SongScoreWeights {
 	}
 }
 
-func toInternalParsedAlbumURL(parsed ParsedAlbumURL) model.ParsedAlbumURL {
-	return model.ParsedAlbumURL{
+func toInternalParsedURL(parsed ParsedURL) model.ParsedURL {
+	return model.ParsedURL{
 		Service:      toInternalServiceName(parsed.Service),
 		EntityType:   parsed.EntityType,
 		ID:           parsed.ID,
@@ -120,8 +120,8 @@ func toInternalParsedAlbumURL(parsed ParsedAlbumURL) model.ParsedAlbumURL {
 	}
 }
 
-func fromInternalParsedAlbumURL(parsed model.ParsedAlbumURL) ParsedAlbumURL {
-	return ParsedAlbumURL{
+func fromInternalParsedURL(parsed model.ParsedURL) ParsedURL {
+	return ParsedURL{
 		Service:      fromInternalServiceName(parsed.Service),
 		EntityType:   parsed.EntityType,
 		ID:           parsed.ID,

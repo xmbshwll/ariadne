@@ -24,8 +24,7 @@ type ParsedURL struct {
 	RawURL       string
 }
 
-// ParsedAlbumURL is kept as an alias while the public and internal APIs expand
-// beyond album-only resolution.
+// ParsedAlbumURL keeps album-specific APIs readable while sharing the common parsed URL shape.
 type ParsedAlbumURL = ParsedURL
 
 // CanonicalTrack is the normalized track representation shared across services.

@@ -100,25 +100,11 @@ func toCanonicalSong(track soundTrack) *model.CanonicalSong {
 }
 
 func metadataQuery(album model.CanonicalAlbum) string {
-	parts := make([]string, 0, 2)
-	if album.Title != "" {
-		parts = append(parts, album.Title)
-	}
-	if len(album.Artists) > 0 {
-		parts = append(parts, album.Artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	return normalize.SearchPrimaryQuery(album.Title, album.Artists)
 }
 
 func songMetadataQuery(song model.CanonicalSong) string {
-	parts := make([]string, 0, 2)
-	if song.Title != "" {
-		parts = append(parts, song.Title)
-	}
-	if len(song.Artists) > 0 {
-		parts = append(parts, song.Artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
+	return normalize.SearchPrimaryQuery(song.Title, song.Artists)
 }
 
 func canonicalizeSoundCloudURL(raw string) string {

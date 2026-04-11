@@ -63,8 +63,11 @@ type ParsedURL struct {
 	RawURL string
 }
 
-// ParsedAlbumURL is kept as an alias while the public API expands beyond album-only resolution.
+// ParsedAlbumURL keeps album-specific APIs readable while sharing the common parsed URL shape.
 type ParsedAlbumURL = ParsedURL
+
+// ParsedSongURL keeps song-specific APIs readable while sharing the common parsed URL shape.
+type ParsedSongURL = ParsedURL
 
 // CanonicalTrack is the normalized track representation shared across services.
 type CanonicalTrack struct {
@@ -199,6 +202,22 @@ type ScoredMatch struct {
 }
 
 // SongScoredMatch is one ranked song candidate returned by the song resolver.
+// ServiceCapabilities describes Ariadne's built-in runtime support for one service.
+type ServiceCapabilities struct {
+	// Aliases are additional names accepted by LookupServiceName.
+	Aliases []string
+	// SupportsAlbumSource reports whether the service can parse and fetch album source URLs at runtime.
+	SupportsAlbumSource bool
+	// SupportsAlbumTarget reports whether the service has a built-in album target adapter.
+	SupportsAlbumTarget bool
+	// SupportsSongSource reports whether the service can parse and fetch song source URLs at runtime.
+	SupportsSongSource bool
+	// SupportsSongTarget reports whether the service has a built-in song target adapter.
+	SupportsSongTarget bool
+	// SupportsRuntimeSongInputURL reports whether the built-in runtime song pipeline can parse song URLs for this service.
+	SupportsRuntimeSongInputURL bool
+}
+
 type SongScoredMatch struct {
 	// URL is the best presentation URL for the candidate.
 	URL string
@@ -247,7 +266,7 @@ type SongResolution struct {
 	// InputURL is the original URL passed to ResolveSong.
 	InputURL string
 	// Parsed is the normalized parsed form of the source URL.
-	Parsed ParsedURL
+	Parsed ParsedSongURL
 	// Source is the canonical song fetched from the source service.
 	Source CanonicalSong
 	// Matches contains ranked target-service matches keyed by service name.
@@ -282,8 +301,8 @@ type SourceAdapter interface {
 // error violates the adapter contract and is normalized to an exported ErrSourceAdapterReturnedNil* sentinel.
 type SongSourceAdapter interface {
 	Service() ServiceName
-	ParseSongURL(raw string) (*ParsedURL, error)
-	FetchSong(ctx context.Context, parsed ParsedURL) (*CanonicalSong, error)
+	ParseSongURL(raw string) (*ParsedSongURL, error)
+	FetchSong(ctx context.Context, parsed ParsedSongURL) (*CanonicalSong, error)
 }
 
 // TargetAdapter searches a target service for matching albums.

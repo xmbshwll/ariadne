@@ -5,11 +5,15 @@ import "strings"
 var serviceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
 
 var (
-	serviceCapabilitiesByName     = buildServiceCapabilitiesByName(defaultServiceBindings)
-	serviceNamesByLookupKey       = buildServiceNamesByLookupKey(defaultServiceBindings)
-	supportedTargetServiceSet     = collectSupportedServices(defaultServiceBindings, supportsAnyTarget)
-	supportedSongTargetServiceSet = collectSupportedServices(defaultServiceBindings, supportsSongTargetOnly)
-	runtimeSongURLParsers         = collectRuntimeSongURLParsers(defaultServiceBindings)
+	serviceCapabilitiesByName = buildServiceCapabilitiesByName(defaultServiceBindings)
+	serviceNamesByLookupKey   = buildServiceNamesByLookupKey(defaultServiceBindings)
+	supportedTargetServices   = collectSupportedServices(defaultServiceBindings, func(capability serviceCapability) bool {
+		return capability.supportsAnyTarget()
+	})
+	supportedSongTargetServices = collectSupportedServices(defaultServiceBindings, func(capability serviceCapability) bool {
+		return capability.supportsSongTarget
+	})
+	runtimeSongURLParsers = collectRuntimeSongURLParsers(defaultServiceBindings)
 )
 
 func serviceCapabilityByName(service ServiceName) (serviceCapability, bool) {
@@ -27,26 +31,35 @@ func normalizeServiceLookupKey(raw string) string {
 	return serviceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(raw)))
 }
 
-// SupportsSongTarget reports whether the service currently participates in runtime song target search.
+// DescribeService reports Ariadne's built-in runtime capabilities for one service.
+func DescribeService(service ServiceName) (ServiceCapabilities, bool) {
+	capability, ok := serviceCapabilityByName(service)
+	if !ok {
+		return ServiceCapabilities{}, false
+	}
+	return capability.describe(), true
+}
+
+// SupportsSongTarget reports whether the service currently participates in built-in song target search.
 func SupportsSongTarget(service ServiceName) bool {
 	capability, ok := serviceCapabilityByName(service)
 	return ok && capability.supportsSongTarget
 }
 
-// SupportsTarget reports whether the service currently participates in any runtime target search.
+// SupportsTarget reports whether the service currently participates in any built-in target search.
 func SupportsTarget(service ServiceName) bool {
 	capability, ok := serviceCapabilityByName(service)
-	return ok && supportsAnyTarget(capability)
+	return ok && capability.supportsAnyTarget()
 }
 
-// SupportedSongTargetServices returns the canonical service names that currently support runtime song target search.
+// SupportedSongTargetServices returns the canonical service names that currently support built-in song target search.
 func SupportedSongTargetServices() []ServiceName {
-	return append([]ServiceName(nil), supportedSongTargetServiceSet...)
+	return append([]ServiceName(nil), supportedSongTargetServices...)
 }
 
-// SupportedTargetServices returns the canonical service names that currently support runtime target search.
+// SupportedTargetServices returns the canonical service names that currently support any built-in target search.
 func SupportedTargetServices() []ServiceName {
-	return append([]ServiceName(nil), supportedTargetServiceSet...)
+	return append([]ServiceName(nil), supportedTargetServices...)
 }
 
 // SupportsRuntimeSongInputURL reports whether Ariadne can resolve the input URL through the runtime song pipeline.
@@ -100,12 +113,4 @@ func collectRuntimeSongURLParsers(bindings []serviceBinding) []songURLParser {
 		parsers = append(parsers, binding.capability.runtimeSongURLParser)
 	}
 	return parsers
-}
-
-func supportsAnyTarget(capability serviceCapability) bool {
-	return capability.supportsAlbumTarget || capability.supportsSongTarget
-}
-
-func supportsSongTargetOnly(capability serviceCapability) bool {
-	return capability.supportsSongTarget
 }

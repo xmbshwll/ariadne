@@ -130,6 +130,30 @@ func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestDescribeService(t *testing.T) {
+	spotify, ok := DescribeService(ServiceSpotify)
+	require.True(t, ok)
+	assert.Equal(t, []string{"spotify"}, spotify.Aliases)
+	assert.True(t, spotify.SupportsAlbumSource)
+	assert.True(t, spotify.SupportsAlbumTarget)
+	assert.True(t, spotify.SupportsSongSource)
+	assert.True(t, spotify.SupportsSongTarget)
+	assert.True(t, spotify.SupportsRuntimeSongInputURL)
+
+	amazon, ok := DescribeService(ServiceAmazonMusic)
+	require.True(t, ok)
+	assert.True(t, amazon.SupportsAlbumSource)
+	assert.False(t, amazon.SupportsAlbumTarget)
+	assert.False(t, amazon.SupportsSongSource)
+	assert.False(t, amazon.SupportsSongTarget)
+	assert.False(t, amazon.SupportsRuntimeSongInputURL)
+}
+
+func TestSupportedServiceLists(t *testing.T) {
+	assert.Contains(t, SupportedTargetServices(), ServiceYouTubeMusic)
+	assert.NotContains(t, SupportedSongTargetServices(), ServiceYouTubeMusic)
+}
+
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
 	config := normalizedConfig(Config{})
 	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
@@ -298,14 +322,14 @@ func (nilSongSourceAdapter) Service() ServiceName {
 	return ServiceSpotify
 }
 
-func (nilSongSourceAdapter) ParseSongURL(raw string) (*ParsedAlbumURL, error) {
+func (nilSongSourceAdapter) ParseSongURL(raw string) (*ParsedSongURL, error) {
 	if raw != "https://fixture.test/songs/1" {
 		return nil, errUnsupportedLibrarySource
 	}
-	return &ParsedAlbumURL{Service: ServiceSpotify, EntityType: "song", ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
+	return &ParsedSongURL{Service: ServiceSpotify, EntityType: "song", ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
 }
 
-func (nilSongSourceAdapter) FetchSong(_ context.Context, _ ParsedAlbumURL) (*CanonicalSong, error) {
+func (nilSongSourceAdapter) FetchSong(_ context.Context, _ ParsedSongURL) (*CanonicalSong, error) {
 	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
 	return nil, nil
 }
@@ -404,11 +428,11 @@ func (librarySongSourceAdapter) Service() ServiceName {
 	return ServiceSpotify
 }
 
-func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedURL, error) {
+func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedSongURL, error) {
 	if raw != "https://fixture.test/songs/1" {
 		return nil, errUnsupportedLibrarySource
 	}
-	return &ParsedURL{
+	return &ParsedSongURL{
 		Service:      ServiceSpotify,
 		EntityType:   "song",
 		ID:           "song-1",
@@ -417,7 +441,7 @@ func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedURL, error) {
 	}, nil
 }
 
-func (librarySongSourceAdapter) FetchSong(_ context.Context, parsed ParsedURL) (*CanonicalSong, error) {
+func (librarySongSourceAdapter) FetchSong(_ context.Context, parsed ParsedSongURL) (*CanonicalSong, error) {
 	return &CanonicalSong{
 		Service:              parsed.Service,
 		SourceID:             parsed.ID,
