@@ -11,18 +11,15 @@ import (
 
 var targetServiceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
 
-var targetServicesByLookupKey = map[string]model.ServiceName{
-	normalizeTargetServiceLookupKey(string(model.ServiceAppleMusic)):   model.ServiceAppleMusic,
-	normalizeTargetServiceLookupKey("applemusic"):                      model.ServiceAppleMusic,
-	normalizeTargetServiceLookupKey(string(model.ServiceBandcamp)):     model.ServiceBandcamp,
-	normalizeTargetServiceLookupKey(string(model.ServiceDeezer)):       model.ServiceDeezer,
-	normalizeTargetServiceLookupKey(string(model.ServiceSoundCloud)):   model.ServiceSoundCloud,
-	normalizeTargetServiceLookupKey(string(model.ServiceSpotify)):      model.ServiceSpotify,
-	normalizeTargetServiceLookupKey(string(model.ServiceTIDAL)):        model.ServiceTIDAL,
-	normalizeTargetServiceLookupKey(string(model.ServiceYouTubeMusic)): model.ServiceYouTubeMusic,
-	normalizeTargetServiceLookupKey("youtubemusic"):                    model.ServiceYouTubeMusic,
-	normalizeTargetServiceLookupKey("ytmusic"):                         model.ServiceYouTubeMusic,
-}
+var targetServicesByLookupKey = buildTargetServiceLookupMap(
+	targetServiceLookup(model.ServiceAppleMusic, "applemusic"),
+	targetServiceLookup(model.ServiceBandcamp),
+	targetServiceLookup(model.ServiceDeezer),
+	targetServiceLookup(model.ServiceSoundCloud),
+	targetServiceLookup(model.ServiceSpotify),
+	targetServiceLookup(model.ServiceTIDAL),
+	targetServiceLookup(model.ServiceYouTubeMusic, "youtubemusic", "ytmusic"),
+)
 
 const defaultAppleMusicStorefront = "us"
 
@@ -76,23 +73,27 @@ func LoadFromLookup(lookup func(string) string) Config {
 		lookup = func(string) string { return "" }
 	}
 
+	trimmed := func(key string) string {
+		return strings.TrimSpace(lookup(key))
+	}
+
 	return Config{
 		Spotify: Spotify{
-			ClientID:     strings.TrimSpace(lookup("SPOTIFY_CLIENT_ID")),
-			ClientSecret: strings.TrimSpace(lookup("SPOTIFY_CLIENT_SECRET")),
+			ClientID:     trimmed("SPOTIFY_CLIENT_ID"),
+			ClientSecret: trimmed("SPOTIFY_CLIENT_SECRET"),
 		},
 		AppleMusic: AppleMusic{
-			Storefront:     normalizedStorefront(lookup("APPLE_MUSIC_STOREFRONT")),
-			KeyID:          strings.TrimSpace(lookup("APPLE_MUSIC_KEY_ID")),
-			TeamID:         strings.TrimSpace(lookup("APPLE_MUSIC_TEAM_ID")),
-			PrivateKeyPath: strings.TrimSpace(lookup("APPLE_MUSIC_PRIVATE_KEY_PATH")),
+			Storefront:     normalizedStorefront(trimmed("APPLE_MUSIC_STOREFRONT")),
+			KeyID:          trimmed("APPLE_MUSIC_KEY_ID"),
+			TeamID:         trimmed("APPLE_MUSIC_TEAM_ID"),
+			PrivateKeyPath: trimmed("APPLE_MUSIC_PRIVATE_KEY_PATH"),
 		},
 		TIDAL: TIDAL{
-			ClientID:     strings.TrimSpace(lookup("TIDAL_CLIENT_ID")),
-			ClientSecret: strings.TrimSpace(lookup("TIDAL_CLIENT_SECRET")),
+			ClientID:     trimmed("TIDAL_CLIENT_ID"),
+			ClientSecret: trimmed("TIDAL_CLIENT_SECRET"),
 		},
-		HTTPTimeout:    normalizedHTTPTimeout(lookup("ARIADNE_HTTP_TIMEOUT")),
-		TargetServices: normalizedTargetServices(lookup("ARIADNE_TARGET_SERVICES")),
+		HTTPTimeout:    normalizedHTTPTimeout(trimmed("ARIADNE_HTTP_TIMEOUT")),
+		TargetServices: normalizedTargetServices(trimmed("ARIADNE_TARGET_SERVICES")),
 	}
 }
 
@@ -124,7 +125,7 @@ func normalizedTargetServices(value string) []model.ServiceName {
 	services := make([]model.ServiceName, 0)
 	seen := make(map[model.ServiceName]struct{})
 	for part := range strings.SplitSeq(value, ",") {
-		service, ok := targetServicesByLookupKey[normalizeTargetServiceLookupKey(part)]
+		service, ok := lookupTargetService(part)
 		if !ok {
 			continue
 		}
@@ -140,6 +141,31 @@ func normalizedTargetServices(value string) []model.ServiceName {
 	return services
 }
 
+func lookupTargetService(value string) (model.ServiceName, bool) {
+	service, ok := targetServicesByLookupKey[normalizeTargetServiceLookupKey(value)]
+	return service, ok
+}
+
 func normalizeTargetServiceLookupKey(value string) string {
 	return targetServiceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(value)))
+}
+
+type targetServiceAliases struct {
+	service model.ServiceName
+	aliases []string
+}
+
+func targetServiceLookup(service model.ServiceName, aliases ...string) targetServiceAliases {
+	return targetServiceAliases{service: service, aliases: aliases}
+}
+
+func buildTargetServiceLookupMap(entries ...targetServiceAliases) map[string]model.ServiceName {
+	lookup := make(map[string]model.ServiceName, len(entries)*2)
+	for _, entry := range entries {
+		lookup[normalizeTargetServiceLookupKey(string(entry.service))] = entry.service
+		for _, alias := range entry.aliases {
+			lookup[normalizeTargetServiceLookupKey(alias)] = entry.service
+		}
+	}
+	return lookup
 }
