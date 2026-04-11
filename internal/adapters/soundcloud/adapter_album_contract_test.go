@@ -35,6 +35,10 @@ func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {
 		case soundCloudAssetPath:
 			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
 		case soundCloudAlbumSearch:
+			if r.URL.Query().Get("client_id") != clientID {
+				http.Error(w, "invalid client_id", http.StatusBadRequest)
+				return
+			}
 			_, _ = w.Write([]byte(`{"collection":[{"kind":"playlist","title":"Broken Playlist","permalink_url":"","user":{"username":"Artist"}},{"kind":"playlist","title":"Good Playlist","permalink_url":"` + server.URL + `/artist/sets/good-playlist","user":{"username":"Artist"}}]}`))
 		default:
 			http.NotFound(w, r)

@@ -70,6 +70,9 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 			return fmt.Sprintf("hydrate tidal album %s from isrc %s", albumID, isrc)
 		})
 		if err != nil {
+			if len(results) > 0 {
+				continue
+			}
 			return nil, err
 		}
 		results = append(results, hydrated...)

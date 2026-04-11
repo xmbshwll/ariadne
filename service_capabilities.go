@@ -7,10 +7,10 @@ var serviceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
 var (
 	serviceCapabilitiesByName = buildServiceCapabilitiesByName(defaultServiceBindings)
 	serviceNamesByLookupKey   = buildServiceNamesByLookupKey(defaultServiceBindings)
-	supportedTargetServices   = collectSupportedServices(defaultServiceBindings, func(capability serviceCapability) bool {
+	supportedTargetServices   = collectSupportedServicesInOrder(defaultServiceOrder.albumTargets, serviceCapabilitiesByName, func(capability serviceCapability) bool {
 		return capability.supportsAnyTarget()
 	})
-	supportedSongTargetServices = collectSupportedServices(defaultServiceBindings, func(capability serviceCapability) bool {
+	supportedSongTargetServices = collectSupportedServicesInOrder(defaultServiceOrder.songTargets, serviceCapabilitiesByName, func(capability serviceCapability) bool {
 		return capability.supportsSongTarget
 	})
 	runtimeSongURLParsers = collectRuntimeSongURLParsers(defaultServiceBindings)
@@ -93,13 +93,14 @@ func buildServiceNamesByLookupKey(bindings []serviceBinding) map[string]ServiceN
 	return services
 }
 
-func collectSupportedServices(bindings []serviceBinding, supported func(serviceCapability) bool) []ServiceName {
-	services := make([]ServiceName, 0, len(bindings))
-	for _, binding := range bindings {
-		if !supported(binding.capability) {
+func collectSupportedServicesInOrder(order []ServiceName, capabilities map[ServiceName]serviceCapability, supported func(serviceCapability) bool) []ServiceName {
+	services := make([]ServiceName, 0, len(order))
+	for _, service := range order {
+		capability, ok := capabilities[service]
+		if !ok || !supported(capability) {
 			continue
 		}
-		services = append(services, binding.capability.name)
+		services = append(services, service)
 	}
 	return services
 }

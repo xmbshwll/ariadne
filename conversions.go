@@ -14,7 +14,7 @@ func fromInternalServiceName(service model.ServiceName) ServiceName {
 }
 
 func fromInternalServiceNames(services []model.ServiceName) []ServiceName {
-	if len(services) == 0 {
+	if services == nil {
 		return nil
 	}
 

@@ -53,14 +53,34 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		return "", ErrCredentialsNotConfigured
 	}
 
-	a.tokenMu.Lock()
-	if a.token.accessToken != "" && time.Now().Before(a.token.expiresAt) {
-		accessToken := a.token.accessToken
-		a.tokenMu.Unlock()
+	if accessToken, ok := a.cachedAccessToken(); ok {
 		return accessToken, nil
 	}
-	a.tokenMu.Unlock()
 
+	result, err, _ := a.tokenGroup.Do("tidal-token", func() (any, error) {
+		if accessToken, ok := a.cachedAccessToken(); ok {
+			return accessToken, nil
+		}
+		return a.refreshAccessToken(ctx)
+	})
+	if err != nil {
+		//nolint:wrapcheck // Preserve refresh errors from the shared token fetch path.
+		return "", err
+	}
+	accessToken, _ := result.(string)
+	return accessToken, nil
+}
+
+func (a *Adapter) cachedAccessToken() (string, bool) {
+	a.tokenMu.Lock()
+	defer a.tokenMu.Unlock()
+	if a.token.accessToken == "" || !time.Now().Before(a.token.expiresAt) {
+		return "", false
+	}
+	return a.token.accessToken, true
+}
+
+func (a *Adapter) refreshAccessToken(ctx context.Context) (string, error) {
 	form := url.Values{}
 	form.Set("client_id", a.clientID)
 	form.Set("client_secret", a.clientSecret)

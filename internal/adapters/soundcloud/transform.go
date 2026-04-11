@@ -57,7 +57,7 @@ func toCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
 		UPC:               upc,
 		TrackCount:        len(tracks),
 		TotalDurationMS:   totalDurationMS,
-		ArtworkURL:        playlist.ArtworkURL,
+		ArtworkURL:        strings.TrimSpace(playlist.ArtworkURL),
 		Explicit:          explicit,
 		EditionHints:      normalize.EditionHints(playlist.Title),
 		Tracks:            tracks,
@@ -163,10 +163,11 @@ func trackPLine(tracks []soundTrack) string {
 }
 
 func dateOnly(value string) string {
-	if len(value) >= 10 {
-		return value[:10]
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) >= 10 {
+		return trimmed[:10]
 	}
-	return strings.TrimSpace(value)
+	return trimmed
 }
 
 func nonEmptyArtistList(artist string) []string {

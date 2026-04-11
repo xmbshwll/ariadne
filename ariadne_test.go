@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 const testLibrarySourceURL = "https://fixture.test/source"
@@ -130,6 +131,11 @@ func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestFromInternalServiceNamesPreservesNilVsEmpty(t *testing.T) {
+	assert.Nil(t, fromInternalServiceNames(nil))
+	assert.Equal(t, []ServiceName{}, fromInternalServiceNames([]model.ServiceName{}))
+}
+
 func TestDescribeService(t *testing.T) {
 	spotify, ok := DescribeService(ServiceSpotify)
 	require.True(t, ok)
@@ -150,8 +156,23 @@ func TestDescribeService(t *testing.T) {
 }
 
 func TestSupportedServiceLists(t *testing.T) {
-	assert.Contains(t, SupportedTargetServices(), ServiceYouTubeMusic)
-	assert.NotContains(t, SupportedSongTargetServices(), ServiceYouTubeMusic)
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceYouTubeMusic,
+		ServiceSpotify,
+		ServiceTIDAL,
+	}, SupportedTargetServices())
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceSpotify,
+		ServiceTIDAL,
+	}, SupportedSongTargetServices())
 }
 
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {

@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
@@ -65,8 +67,9 @@ type Adapter struct {
 	authBaseURL        string
 	defaultCountryCode string
 
-	tokenMu sync.Mutex
-	token   cachedToken
+	tokenMu    sync.Mutex
+	token      cachedToken
+	tokenGroup singleflight.Group
 }
 
 type cachedToken struct {

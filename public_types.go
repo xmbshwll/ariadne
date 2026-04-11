@@ -201,7 +201,6 @@ type ScoredMatch struct {
 	Candidate CandidateAlbum
 }
 
-// SongScoredMatch is one ranked song candidate returned by the song resolver.
 // ServiceCapabilities describes Ariadne's built-in runtime support for one service.
 type ServiceCapabilities struct {
 	// Aliases are additional names accepted by LookupServiceName.
@@ -218,6 +217,7 @@ type ServiceCapabilities struct {
 	SupportsRuntimeSongInputURL bool
 }
 
+// SongScoredMatch is one ranked song candidate returned by the song resolver.
 type SongScoredMatch struct {
 	// URL is the best presentation URL for the candidate.
 	URL string
