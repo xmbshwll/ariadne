@@ -46,6 +46,7 @@ For the service-by-service runtime behavior, including first-wave song support, 
 | `TIDAL_CLIENT_ID` | no | empty | TIDAL client ID used for runtime API access and validation. |
 | `TIDAL_CLIENT_SECRET` | no | empty | TIDAL client secret used in the token exchange. |
 | `ARIADNE_HTTP_TIMEOUT` | no | `15s` | Per-request timeout for Ariadne's default HTTP client. Uses Go duration syntax such as `5s`, `15s`, `30s`, or `1m`. |
+| `ARIADNE_TARGET_SERVICES` | no | empty | Comma-separated target services to search for both album and song resolution. Example: `spotify,appleMusic,tidal`. When unset, Ariadne searches all configured/default targets. |
 
 ## What changes when credentials are present
 
@@ -83,6 +84,8 @@ You can also set `cfg.HTTPTimeout` directly in code to control the default clien
 
 `cfg.TargetServices` applies to both album and song target selection.
 
+If you prefer environment-only configuration, set `ARIADNE_TARGET_SERVICES` to a comma-separated list such as `spotify,appleMusic`.
+
 ### CLI
 
 The CLI loads configuration with this precedence:
@@ -93,6 +96,7 @@ The CLI loads configuration with this precedence:
 4. built-in defaults
 
 Use `--http-timeout=30s` to override the per-request timeout from the command line.
+Use `--services=spotify,appleMusic` to override `ARIADNE_TARGET_SERVICES` for one invocation.
 Use `--song` or `--album` on `ariadne resolve <url>` when you want to force the entity type instead of relying on library auto-detection. Those two flags are mutually exclusive.
 
 That means the CLI can work with plain environment variables, a `.env` file, or another config file supported by Viper.
@@ -117,6 +121,7 @@ export APPLE_MUSIC_PRIVATE_KEY_PATH=$HOME/keys/AuthKey_XXXXXXXXXX.p8
 export TIDAL_CLIENT_ID=your-tidal-client-id
 export TIDAL_CLIENT_SECRET=your-tidal-client-secret
 export ARIADNE_HTTP_TIMEOUT=30s
+export ARIADNE_TARGET_SERVICES=spotify,appleMusic
 ```
 
 Or let the CLI load `.env` directly, which is the default behavior:
@@ -124,6 +129,7 @@ Or let the CLI load `.env` directly, which is the default behavior:
 ```bash
 ariadne resolve https://www.deezer.com/album/12047952
 ariadne resolve --song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
+ariadne resolve --services=spotify,appleMusic https://www.deezer.com/album/12047952
 ariadne resolve --config=.env https://www.deezer.com/album/12047952
 ariadne resolve --config=./config/ariadne.yaml https://www.deezer.com/album/12047952
 ```

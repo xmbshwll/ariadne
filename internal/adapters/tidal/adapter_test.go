@@ -1,7 +1,6 @@
 package tidal
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -13,7 +12,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-func TestAdapter(t *testing.T) {
+func TestAdapterRuntimeOperations(t *testing.T) {
 	const tidalTrackISRC = "QZMHK2043414"
 
 	mux := http.NewServeMux()
@@ -176,107 +175,4 @@ func TestAdapter(t *testing.T) {
 	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, EntityType: "song", ID: "missing", CanonicalURL: "https://tidal.com/track/missing"})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errTIDALTrackNotFound)
-}
-
-func TestIncludedResourceLookupsUseTypeAndID(t *testing.T) {
-	included := []apiResource{
-		{ID: "shared", Type: "albums", Attributes: resourceAttributes{Title: "Album Resource"}},
-		{ID: "shared", Type: "artists", Attributes: resourceAttributes{Name: "Artist Resource"}},
-		{ID: "shared", Type: "artworks", Attributes: resourceAttributes{Files: []resourceFile{{Href: "https://resources.tidal.test/shared.jpg", Meta: fileMeta{Width: 1280, Height: 1280}}}}},
-	}
-
-	artistNames := includedArtistNames(includedResourceIndex(included), []relationshipData{{ID: "shared", Type: "artists"}})
-	assert.Equal(t, []string{"Artist Resource"}, artistNames)
-
-	resourceByID := includedResourceIndex(included)
-
-	album := firstRelatedResource(resourceByID, []relationshipData{{ID: "shared", Type: "albums"}}, "albums")
-	require.NotNil(t, album)
-	assert.Equal(t, "Album Resource", album.Attributes.Title)
-
-	artworkURL := artworkURLFromIncluded(resourceByID, []relationshipData{{ID: "shared", Type: "artworks"}})
-	assert.Equal(t, "https://resources.tidal.test/shared.jpg", artworkURL)
-}
-
-func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
-	adapter := New(nil)
-
-	_, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-	_, err = adapter.SearchByISRC(context.Background(), []string{"QZMHK2043414"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-	_, err = adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-	_, err = adapter.SearchSongByISRC(context.Background(), "QZMHK2043414")
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-	_, err = adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Song"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-}
-
-func TestAdapterSkipsCredentialChecksForEmptySearches(t *testing.T) {
-	adapter := New(nil)
-
-	tests := []struct {
-		name string
-		fn   func() (any, error)
-	}{
-		{
-			name: "album isrc search",
-			fn: func() (any, error) {
-				return adapter.SearchByISRC(context.Background(), []string{"", " "})
-			},
-		},
-		{
-			name: "album metadata search",
-			fn: func() (any, error) {
-				return adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{})
-			},
-		},
-		{
-			name: "song isrc search",
-			fn: func() (any, error) {
-				return adapter.SearchSongByISRC(context.Background(), " ")
-			},
-		},
-		{
-			name: "song metadata search",
-			fn: func() (any, error) {
-				return adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{})
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			results, err := tt.fn()
-			require.NoError(t, err)
-			assert.Nil(t, results)
-		})
-	}
-}
-
-func assertSingleAlbum(t *testing.T, candidates []model.CandidateAlbum, wantID string) {
-	t.Helper()
-	require.Len(t, candidates, 1)
-	assert.Equal(t, wantID, candidates[0].CandidateID)
-	assert.Contains(t, candidates[0].MatchURL, wantID)
-}
-
-func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID string) {
-	t.Helper()
-	require.Len(t, candidates, 1)
-	assert.Equal(t, wantID, candidates[0].CandidateID)
-	assert.Contains(t, candidates[0].MatchURL, wantID)
-}
-
-func writeJSON(w http.ResponseWriter, payload any) {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(payload); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(buf.Bytes())
 }
