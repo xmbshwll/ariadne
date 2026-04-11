@@ -3,6 +3,7 @@ package applemusic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/applemusicauth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -38,14 +40,11 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	}
 
 	storefront := a.defaultStorefront
+	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
 	seenAlbumIDs := make(map[string]struct{}, len(isrcs))
 	albumIDs := make([]string, 0, len(isrcs))
 	var firstErr error
 	for _, isrc := range isrcs {
-		isrc = strings.TrimSpace(isrc)
-		if isrc == "" {
-			continue
-		}
 		endpoint := fmt.Sprintf("%s/catalog/%s/songs?filter[isrc]=%s", a.apiBaseURL, url.PathEscape(storefront), url.QueryEscape(isrc))
 		var payload map[string]any
 		if err := a.getOfficialJSON(ctx, endpoint, &payload); err != nil {
@@ -147,7 +146,7 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 		return fmt.Errorf("%w %d: %s", errUnexpectedAppleMusicOfficialStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode apple music official response: %w", err)
+		return fmt.Errorf("decode apple music official response: %w", errors.Join(errMalformedAppleMusicOfficialResponse, err))
 	}
 	return nil
 }
@@ -155,6 +154,7 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
 	return hydrateAppleMusicOfficialCandidates(
 		albumIDs,
+		func(albumID string) string { return albumID },
 		func(albumID string) (model.CandidateAlbum, error) {
 			album, err := a.fetchOfficialAlbumByID(ctx, albumID, storefront)
 			if err != nil {
@@ -168,6 +168,7 @@ func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, 
 func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
 	return hydrateAppleMusicOfficialCandidates(
 		songIDs,
+		func(songID string) string { return songID },
 		func(songID string) (model.CandidateSong, error) {
 			song, err := a.fetchSongByID(ctx, songID, "", storefront)
 			if err != nil {
@@ -178,35 +179,9 @@ func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront
 	)
 }
 
-func hydrateAppleMusicOfficialCandidates[T any](ids []string, fetch func(string) (T, error)) ([]T, error) {
-	results := make([]T, 0, len(ids))
-	seen := make(map[string]struct{}, len(ids))
-	var firstErr error
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		candidate, err := fetch(id)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		results = append(results, candidate)
-		if len(results) >= searchLimit {
-			return results, nil
-		}
-	}
-	if len(results) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return results, nil
+func hydrateAppleMusicOfficialCandidates[Input any, Candidate any](items []Input, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
+	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
 }
 
 func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, storefront string) (*model.CanonicalAlbum, error) {

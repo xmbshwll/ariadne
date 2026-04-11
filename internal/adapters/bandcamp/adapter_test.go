@@ -189,7 +189,7 @@ func TestSongAdapter(t *testing.T) {
 	defer server.Close()
 
 	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
-	parsed := model.ParsedAlbumURL{
+	parsed := model.ParsedURL{
 		Service:      model.ServiceBandcamp,
 		EntityType:   "song",
 		ID:           "come-together",

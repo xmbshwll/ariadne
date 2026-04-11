@@ -13,10 +13,10 @@ import (
 func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
 	called := false
 	resolver := New(
-		[]SourceAdapter{stubSourceAdapter{}},
+		[]SourceAdapter{newStubSourceAdapter()},
 		[]TargetAdapter{
-			sourceServiceTargetAdapter{called: &called},
-			stubTargetAdapter{},
+			newSourceServiceTargetAdapter(&called),
+			newStubTargetAdapter(),
 		},
 		score.DefaultWeights(),
 	)
@@ -31,8 +31,8 @@ func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
 
 func TestResolverResolveAlbumReturnsTargetError(t *testing.T) {
 	resolver := New(
-		[]SourceAdapter{stubSourceAdapter{}},
-		[]TargetAdapter{failingTargetAdapter{}},
+		[]SourceAdapter{newStubSourceAdapter()},
+		[]TargetAdapter{newFailingTargetAdapter()},
 		score.DefaultWeights(),
 	)
 

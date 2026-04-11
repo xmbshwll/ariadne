@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -37,24 +38,17 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 }
 
 func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	trimmedISRCs := make([]string, 0, len(isrcs))
-	for _, isrc := range isrcs {
-		isrc = strings.TrimSpace(isrc)
-		if isrc == "" {
-			continue
-		}
-		trimmedISRCs = append(trimmedISRCs, isrc)
-	}
-	if len(trimmedISRCs) == 0 {
+	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	if len(isrcs) == 0 {
 		return nil, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	results := make([]model.CandidateAlbum, 0, len(trimmedISRCs))
-	seen := make(map[string]struct{}, len(trimmedISRCs))
-	for _, isrc := range trimmedISRCs {
+	results := make([]model.CandidateAlbum, 0, len(isrcs))
+	seen := make(map[string]struct{}, len(isrcs))
+	for _, isrc := range isrcs {
 		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
@@ -101,7 +95,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	})
 }
 
-func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceTIDAL {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedTIDALService, parsed.Service)
 	}
@@ -149,7 +143,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 }
 
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
-	return hydrateTIDALCandidates(albumIDs, func(albumID string) (model.CandidateAlbum, error) {
+	return hydrateTIDALCandidates(albumIDs, func(albumID string) string { return albumID }, func(albumID string) (model.CandidateAlbum, error) {
 		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
 			return model.CandidateAlbum{}, fmt.Errorf("%s: %w", errorMessage(albumID), err)
@@ -159,7 +153,7 @@ func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string,
 }
 
 func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
-	return hydrateTIDALCandidates(songIDs, func(songID string) (model.CandidateSong, error) {
+	return hydrateTIDALCandidates(songIDs, func(songID string) string { return songID }, func(songID string) (model.CandidateSong, error) {
 		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
 		if err != nil {
 			return model.CandidateSong{}, fmt.Errorf("%s: %w", errorMessage(songID), err)
@@ -168,26 +162,9 @@ func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, r
 	})
 }
 
-func hydrateTIDALCandidates[T any](ids []string, fetch func(string) (T, error)) ([]T, error) {
-	results := make([]T, 0, min(len(ids), searchLimit))
-	var firstErr error
-	for _, id := range ids {
-		candidate, err := fetch(id)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		results = append(results, candidate)
-		if len(results) >= searchLimit {
-			return results, nil
-		}
-	}
-	if len(results) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return results, nil
+func hydrateTIDALCandidates[Input any, Candidate any](items []Input, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
+	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
 }
 
 func resourceIDs(resources []apiResource) []string {

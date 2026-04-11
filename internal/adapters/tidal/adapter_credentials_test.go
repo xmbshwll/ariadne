@@ -14,7 +14,7 @@ func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 
 	_, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"})
 	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
-	_, err = adapter.FetchSong(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
+	_, err = adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
 	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
 	_, err = adapter.SearchByISRC(context.Background(), []string{"QZMHK2043414"})
 	require.ErrorIs(t, err, ErrCredentialsNotConfigured)

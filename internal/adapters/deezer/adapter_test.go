@@ -84,7 +84,7 @@ func TestAdapter(t *testing.T) {
 		})
 
 		t.Run("song source and search", func(t *testing.T) {
-			song, err := adapter.FetchSong(ctx, model.ParsedAlbumURL{Service: model.ServiceDeezer, EntityType: "song", ID: "116348128", CanonicalURL: "https://www.deezer.com/track/116348128"})
+			song, err := adapter.FetchSong(ctx, model.ParsedURL{Service: model.ServiceDeezer, EntityType: "song", ID: "116348128", CanonicalURL: "https://www.deezer.com/track/116348128"})
 			require.NoError(t, err)
 			assert.Equal(t, deezerComeTogetherISRC, song.ISRC)
 			assert.Equal(t, "Abbey Road (Remastered)", song.AlbumTitle)

@@ -28,7 +28,7 @@ func TestFetchAlbum(t *testing.T) {
 func TestFetchSong(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
 		EntityType:   entitySong,
 		ID:           "1441164430",
@@ -45,7 +45,7 @@ func TestFetchSong(t *testing.T) {
 func TestFetchSongRejectsNonSongLookupPayload(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
 		EntityType:   entitySong,
 		ID:           "123456789",

@@ -22,14 +22,16 @@ const (
 var (
 	initialStatePattern = regexp.MustCompile(`<script id="initialState" type="text/plain">([^<]+)</script>`)
 
-	errUnexpectedSpotifyService     = errors.New("unexpected spotify service")
-	errUnexpectedSpotifyStatus      = errors.New("unexpected spotify status")
-	errSpotifyAlbumNotFound         = errors.New("spotify album not found")
-	errSpotifyTrackNotFound         = errors.New("spotify track not found")
-	errUnexpectedSpotifyAPIStatus   = errors.New("unexpected spotify api status")
-	errUnexpectedSpotifyTokenStatus = errors.New("unexpected spotify token status")
-	errEmptySpotifyAccessToken      = errors.New("empty spotify access token")
-	errInitialStateScriptNotFound   = errors.New("initial state script not found")
+	errUnexpectedSpotifyService       = errors.New("unexpected spotify service")
+	errUnexpectedSpotifyStatus        = errors.New("unexpected spotify status")
+	errSpotifyAlbumNotFound           = errors.New("spotify album not found")
+	errSpotifyTrackNotFound           = errors.New("spotify track not found")
+	errUnexpectedSpotifyAPIStatus     = errors.New("unexpected spotify api status")
+	errUnexpectedSpotifyTokenStatus   = errors.New("unexpected spotify token status")
+	errMalformedSpotifyAPIResponse    = errors.New("malformed spotify api response")
+	errMalformedSpotifyBootstrapState = errors.New("malformed spotify bootstrap state")
+	errEmptySpotifyAccessToken        = errors.New("empty spotify access token")
+	errInitialStateScriptNotFound     = errors.New("initial state script not found")
 
 	// ErrCredentialsNotConfigured indicates that a Web API operation requires Spotify credentials.
 	ErrCredentialsNotConfigured = errors.New("spotify credentials not configured")
@@ -112,7 +114,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 }
 
 // ParseSongURL parses a Spotify track URL.
-func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parse.SpotifySongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse spotify song url: %w", err)

@@ -61,7 +61,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 }
 
 // ParseSongURL parses a Deezer track URL.
-func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parse.DeezerSongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse deezer song url: %w", err)
@@ -160,7 +160,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 }
 
 // FetchSong loads a Deezer track and converts it into the canonical song model.
-func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceDeezer {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedDeezerService, parsed.Service)
 	}

@@ -35,7 +35,7 @@ func TestRunResolveFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:           ariadne.ServiceDeezer,
 					SourceID:          "src-1",
@@ -49,9 +49,9 @@ func TestRunResolveFixtureOutput(t *testing.T) {
 					TrackCount:        2,
 					Tracks:            []ariadne.CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
 				},
-			}}},
+			})},
 			[]ariadne.TargetAdapter{
-				fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify, upcResults: []ariadne.CandidateAlbum{{
+				newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, []ariadne.CandidateAlbum{{
 					CanonicalAlbum: ariadne.CanonicalAlbum{
 						Service:           ariadne.ServiceSpotify,
 						SourceID:          "spotify-1",
@@ -67,8 +67,8 @@ func TestRunResolveFixtureOutput(t *testing.T) {
 					},
 					CandidateID: "spotify-1",
 					MatchURL:    "https://open.spotify.com/album/spotify-1",
-				}}},
-				fixtureTargetAdapterForCLI{service: ariadne.ServiceYouTubeMusic},
+				}}, nil),
+				newFixtureTargetAdapterForCLI(ariadne.ServiceYouTubeMusic, nil, nil),
 			},
 		)
 	}
@@ -90,16 +90,16 @@ func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithEntityAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:   ariadne.ServiceDeezer,
 					SourceID:  "src-1",
 					SourceURL: "https://fixture.test/source",
 					Title:     "Fixture Album",
 				},
-			}}},
-			[]ariadne.TargetAdapter{fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify}},
-			[]ariadne.SongSourceAdapter{fixtureSongSourceAdapterForCLI{songByURL: map[string]ariadne.CanonicalSong{
+			})},
+			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, nil, nil)},
+			[]ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
 				"https://fixture.test/songs/1": {
 					Service:     ariadne.ServiceSpotify,
 					SourceID:    "song-1",
@@ -111,8 +111,8 @@ func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
 					AlbumTitle:  "Fixture Album",
 					TrackNumber: 1,
 				},
-			}}},
-			[]ariadne.SongTargetAdapter{fixtureSongTargetAdapterForCLI{service: ariadne.ServiceAppleMusic, isrcResults: []ariadne.CandidateSong{{
+			})},
+			[]ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
 				CanonicalSong: ariadne.CanonicalSong{
 					Service:     ariadne.ServiceAppleMusic,
 					SourceID:    "apple-song-1",
@@ -126,7 +126,7 @@ func TestRunResolveAutoDispatchesSongFixtureOutput(t *testing.T) {
 				},
 				CandidateID: "apple-song-1",
 				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
-			}}}},
+			}}, nil)},
 		)
 	}
 	defer func() { resolverFactory = originalFactory }()
@@ -147,7 +147,7 @@ func TestRunResolveForcedSongFixtureOutput(t *testing.T) {
 		return ariadne.NewWithEntityAdapters(
 			nil,
 			nil,
-			[]ariadne.SongSourceAdapter{fixtureSongSourceAdapterForCLI{songByURL: map[string]ariadne.CanonicalSong{
+			[]ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
 				"https://fixture.test/songs/1": {
 					Service:     ariadne.ServiceSpotify,
 					SourceID:    "song-1",
@@ -160,8 +160,8 @@ func TestRunResolveForcedSongFixtureOutput(t *testing.T) {
 					AlbumTitle:  "Fixture Album",
 					TrackNumber: 1,
 				},
-			}}},
-			[]ariadne.SongTargetAdapter{fixtureSongTargetAdapterForCLI{service: ariadne.ServiceAppleMusic, isrcResults: []ariadne.CandidateSong{{
+			})},
+			[]ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
 				CanonicalSong: ariadne.CanonicalSong{
 					Service:     ariadne.ServiceAppleMusic,
 					SourceID:    "apple-song-1",
@@ -176,7 +176,7 @@ func TestRunResolveForcedSongFixtureOutput(t *testing.T) {
 				},
 				CandidateID: "apple-song-1",
 				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
-			}}}},
+			}}, nil)},
 		)
 	}
 	defer func() { resolverFactory = originalFactory }()
@@ -201,7 +201,7 @@ func TestRunResolveServiceFilter(t *testing.T) {
 			if service != ariadne.ServiceDeezer {
 				continue
 			}
-			targets = append(targets, fixtureTargetAdapterForCLI{service: ariadne.ServiceDeezer, upcResults: []ariadne.CandidateAlbum{{
+			targets = append(targets, newFixtureTargetAdapterForCLI(ariadne.ServiceDeezer, []ariadne.CandidateAlbum{{
 				CanonicalAlbum: ariadne.CanonicalAlbum{
 					Service:           ariadne.ServiceDeezer,
 					SourceID:          "deezer-1",
@@ -215,10 +215,10 @@ func TestRunResolveServiceFilter(t *testing.T) {
 				},
 				CandidateID: "deezer-1",
 				MatchURL:    "https://www.deezer.com/album/deezer-1",
-			}}})
+			}}, nil))
 		}
 		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:           ariadne.ServiceAppleMusic,
 					SourceID:          "src-1",
@@ -230,7 +230,7 @@ func TestRunResolveServiceFilter(t *testing.T) {
 					ReleaseDate:       "2024-02-03",
 					UPC:               "123456789012",
 				},
-			}}},
+			})},
 			targets,
 		)
 	}
@@ -252,7 +252,7 @@ func TestRunResolveYAMLFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:           ariadne.ServiceDeezer,
 					SourceID:          "src-1",
@@ -264,8 +264,8 @@ func TestRunResolveYAMLFixtureOutput(t *testing.T) {
 					ReleaseDate:       "2024-02-03",
 					UPC:               "123456789012",
 				},
-			}}},
-			[]ariadne.TargetAdapter{fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify, upcResults: []ariadne.CandidateAlbum{{
+			})},
+			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, []ariadne.CandidateAlbum{{
 				CanonicalAlbum: ariadne.CanonicalAlbum{
 					Service:           ariadne.ServiceSpotify,
 					SourceID:          "spotify-1",
@@ -279,7 +279,7 @@ func TestRunResolveYAMLFixtureOutput(t *testing.T) {
 				},
 				CandidateID: "spotify-1",
 				MatchURL:    "https://open.spotify.com/album/spotify-1",
-			}}}},
+			}}, nil)},
 		)
 	}
 	defer func() { resolverFactory = originalFactory }()
@@ -295,7 +295,7 @@ func TestRunResolveCSVFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:           ariadne.ServiceDeezer,
 					SourceID:          "src-1",
@@ -307,8 +307,8 @@ func TestRunResolveCSVFixtureOutput(t *testing.T) {
 					ReleaseDate:       "2024-02-03",
 					UPC:               "123456789012",
 				},
-			}}},
-			[]ariadne.TargetAdapter{fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify, upcResults: []ariadne.CandidateAlbum{{
+			})},
+			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, []ariadne.CandidateAlbum{{
 				CanonicalAlbum: ariadne.CanonicalAlbum{
 					Service:           ariadne.ServiceSpotify,
 					SourceID:          "spotify-1",
@@ -322,7 +322,7 @@ func TestRunResolveCSVFixtureOutput(t *testing.T) {
 				},
 				CandidateID: "spotify-1",
 				MatchURL:    "https://open.spotify.com/album/spotify-1",
-			}}}},
+			}}, nil)},
 		)
 	}
 	defer func() { resolverFactory = originalFactory }()
@@ -339,7 +339,7 @@ func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:           ariadne.ServiceDeezer,
 					SourceID:          "src-1",
@@ -351,8 +351,8 @@ func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
 					ReleaseDate:       "2024-02-03",
 					UPC:               "123456789012",
 				},
-			}}},
-			[]ariadne.TargetAdapter{fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify, upcResults: []ariadne.CandidateAlbum{{
+			})},
+			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, []ariadne.CandidateAlbum{{
 				CanonicalAlbum: ariadne.CanonicalAlbum{
 					Service:           ariadne.ServiceSpotify,
 					SourceID:          "spotify-1",
@@ -366,7 +366,7 @@ func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
 				},
 				CandidateID: "spotify-1",
 				MatchURL:    "https://open.spotify.com/album/spotify-1",
-			}}}},
+			}}, nil)},
 		)
 	}
 	defer func() { resolverFactory = originalFactory }()
@@ -383,15 +383,15 @@ func TestRunResolvePropagatesResolverErrors(t *testing.T) {
 	originalFactory := resolverFactory
 	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{fixtureSourceAdapterForCLI{albumByURL: map[string]ariadne.CanonicalAlbum{
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:   ariadne.ServiceDeezer,
 					SourceID:  "src-1",
 					SourceURL: "https://fixture.test/source",
 					Title:     "Fixture Album",
 				},
-			}}},
-			[]ariadne.TargetAdapter{fixtureTargetAdapterForCLI{service: ariadne.ServiceSpotify, metadataErr: errCLIResolveBoom}},
+			})},
+			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, nil, errCLIResolveBoom)},
 		)
 	}
 	defer func() { resolverFactory = originalFactory }()

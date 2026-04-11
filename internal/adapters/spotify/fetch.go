@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -52,24 +53,17 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 
 // SearchByISRC searches Spotify track results by ISRC, then hydrates the owning albums.
 func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	trimmedISRCs := make([]string, 0, len(isrcs))
-	for _, isrc := range isrcs {
-		isrc = strings.TrimSpace(isrc)
-		if isrc == "" {
-			continue
-		}
-		trimmedISRCs = append(trimmedISRCs, isrc)
-	}
-	if len(trimmedISRCs) == 0 {
+	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	if len(isrcs) == 0 {
 		return nil, nil
 	}
 	if !a.hasCredentials() {
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	albumIDs := make([]string, 0, len(trimmedISRCs))
-	seen := make(map[string]struct{}, len(trimmedISRCs))
-	for _, isrc := range trimmedISRCs {
+	albumIDs := make([]string, 0, len(isrcs))
+	seen := make(map[string]struct{}, len(isrcs))
+	for _, isrc := range isrcs {
 		endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape("isrc:"+isrc), 1)
 		var response apiTrackSearchResponse
 		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
@@ -366,67 +360,44 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 }
 
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, summaries []apiAlbumSummary) ([]model.CandidateAlbum, error) {
-	results := make([]model.CandidateAlbum, 0, len(summaries))
-	seen := make(map[string]struct{}, len(summaries))
-	var firstErr error
-	for _, summary := range summaries {
-		if summary.ID == "" {
-			continue
-		}
-		if _, ok := seen[summary.ID]; ok {
-			continue
-		}
-		seen[summary.ID] = struct{}{}
-
-		album, err := a.fetchAlbumAPI(ctx, summary.ID)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("hydrate spotify album %s: %w", summary.ID, err)
+	return hydrateSpotifyCandidates(
+		summaries,
+		func(summary apiAlbumSummary) string { return summary.ID },
+		func(summary apiAlbumSummary) (model.CandidateAlbum, error) {
+			album, err := a.fetchAlbumAPI(ctx, summary.ID)
+			if err != nil {
+				return model.CandidateAlbum{}, fmt.Errorf("hydrate spotify album %s: %w", summary.ID, err)
 			}
-			continue
-		}
-		canonical := toCanonicalAlbumAPI(canonicalAlbumURL(summary.ID), album)
-		results = append(results, model.CandidateAlbum{
-			CanonicalAlbum: *canonical,
-			CandidateID:    canonical.SourceID,
-			MatchURL:       canonical.SourceURL,
-		})
-	}
-	if len(results) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return results, nil
+			canonical := toCanonicalAlbumAPI(canonicalAlbumURL(summary.ID), album)
+			return model.CandidateAlbum{
+				CanonicalAlbum: *canonical,
+				CandidateID:    canonical.SourceID,
+				MatchURL:       canonical.SourceURL,
+			}, nil
+		},
+	)
 }
 
 func (a *Adapter) hydrateSongCandidates(ctx context.Context, items []apiTrackSearchItem) ([]model.CandidateSong, error) {
-	results := make([]model.CandidateSong, 0, len(items))
-	seen := make(map[string]struct{}, len(items))
-	var firstErr error
-	for _, item := range items {
-		if item.ID == "" {
-			continue
-		}
-		if _, ok := seen[item.ID]; ok {
-			continue
-		}
-		seen[item.ID] = struct{}{}
-
-		track, err := a.fetchTrackAPI(ctx, item.ID)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("hydrate spotify track %s: %w", item.ID, err)
+	return hydrateSpotifyCandidates(
+		items,
+		func(item apiTrackSearchItem) string { return item.ID },
+		func(item apiTrackSearchItem) (model.CandidateSong, error) {
+			track, err := a.fetchTrackAPI(ctx, item.ID)
+			if err != nil {
+				return model.CandidateSong{}, fmt.Errorf("hydrate spotify track %s: %w", item.ID, err)
 			}
-			continue
-		}
-		canonical := toCanonicalSongAPI(canonicalTrackURL(item.ID), track)
-		results = append(results, model.CandidateSong{
-			CanonicalSong: *canonical,
-			CandidateID:   canonical.SourceID,
-			MatchURL:      canonical.SourceURL,
-		})
-	}
-	if len(results) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return results, nil
+			canonical := toCanonicalSongAPI(canonicalTrackURL(item.ID), track)
+			return model.CandidateSong{
+				CanonicalSong: *canonical,
+				CandidateID:   canonical.SourceID,
+				MatchURL:      canonical.SourceURL,
+			}, nil
+		},
+	)
+}
+
+func hydrateSpotifyCandidates[Input any, Candidate any](items []Input, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
+	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
 }

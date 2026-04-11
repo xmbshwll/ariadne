@@ -29,6 +29,7 @@ var (
 	errTIDALTrackNotFound         = errors.New("tidal track not found")
 	errUnexpectedTIDALAPIStatus   = errors.New("unexpected tidal api status")
 	errUnexpectedTIDALTokenStatus = errors.New("unexpected tidal token status")
+	errMalformedTIDALAPIResponse  = errors.New("malformed tidal api response")
 	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
 )
 
@@ -105,7 +106,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parsed, nil
 }
 
-func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parse.TIDALSongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse tidal song url: %w", err)

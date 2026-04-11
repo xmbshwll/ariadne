@@ -76,7 +76,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 }
 
 // ParseSongURL parses a Bandcamp track URL.
-func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parse.BandcampSongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse bandcamp song url: %w", err)
@@ -147,7 +147,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 }
 
 // FetchSong loads a Bandcamp track page and extracts canonical metadata from schema.org JSON-LD.
-func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceBandcamp {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedBandcampService, parsed.Service)
 	}
@@ -327,7 +327,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 	}
 }
 
-func toCanonicalSong(parsed model.ParsedAlbumURL, track *schemaAlbum) *model.CanonicalSong {
+func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.CanonicalSong {
 	artists := nonEmptyArtistList(track.ByArtist.Name)
 	albumID := ""
 	if parsedAlbum, err := parse.BandcampAlbumURL(track.InAlbum.ID); err == nil {

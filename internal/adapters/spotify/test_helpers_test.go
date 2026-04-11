@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,37 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	t.Helper()
 	require.Len(t, candidates, 1)
 	assert.Equal(t, wantID, candidates[0].CandidateID)
+}
+
+func newSpotifyAPIAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *Adapter {
+	t.Helper()
+	mux := http.NewServeMux()
+	registerSpotifyTokenEndpoint(t, mux)
+	registerHandlers(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return New(server.Client(), WithCredentials("client-id", "client-secret"), WithAPIBaseURL(server.URL), WithAuthBaseURL(server.URL))
+}
+
+func registerSpotifyTokenEndpoint(t *testing.T, mux *http.ServeMux) {
+	t.Helper()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyTokenRequest(t, r)
+		_ = json.NewEncoder(w).Encode(tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
+	})
+}
+
+func requireSpotifyTokenRequest(t *testing.T, r *http.Request) {
+	t.Helper()
+	assert.Equal(t, http.MethodPost, r.Method)
+	assert.NoError(t, r.ParseForm())
+	assert.Equal(t, "client_credentials", r.Form.Get("grant_type"))
+	assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "Basic "))
+}
+
+func requireSpotifyBearerAuth(t *testing.T, r *http.Request) {
+	t.Helper()
+	assert.Equal(t, "Bearer token-123", r.Header.Get("Authorization"))
 }
 
 func writeSpotifyTrackBatchJSON(t *testing.T, w http.ResponseWriter, r *http.Request, tracksByID map[string]apiTrack) {

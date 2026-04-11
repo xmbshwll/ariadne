@@ -35,9 +35,24 @@ func DescribeService(service ServiceName) (ServiceCapabilities, bool) {
 	return capability.describe(), true
 }
 
+// DescribeEnabledService reports the runtime-enabled capabilities for one service under config.
+func DescribeEnabledService(config Config, service ServiceName) (ServiceCapabilities, bool) {
+	capability, ok := enabledServiceCapability(config, service)
+	if !ok {
+		return ServiceCapabilities{}, false
+	}
+	return capability.describe(), true
+}
+
 // SupportsSongTarget reports whether the service currently participates in built-in song target search.
 func SupportsSongTarget(service ServiceName) bool {
 	capability, ok := serviceCapabilitiesByName[service]
+	return ok && capability.supportsSongTarget
+}
+
+// SupportsEnabledSongTarget reports whether the service currently participates in runtime song target search under config.
+func SupportsEnabledSongTarget(config Config, service ServiceName) bool {
+	capability, ok := enabledServiceCapability(config, service)
 	return ok && capability.supportsSongTarget
 }
 
@@ -47,14 +62,34 @@ func SupportsTarget(service ServiceName) bool {
 	return ok && (capability.supportsAlbumTarget || capability.supportsSongTarget)
 }
 
+// SupportsEnabledTarget reports whether the service currently participates in runtime target search under config.
+func SupportsEnabledTarget(config Config, service ServiceName) bool {
+	capability, ok := enabledServiceCapability(config, service)
+	return ok && (capability.supportsAlbumTarget || capability.supportsSongTarget)
+}
+
 // SupportedSongTargetServices returns the canonical service names that currently support built-in song target search.
 func SupportedSongTargetServices() []ServiceName {
 	return append([]ServiceName(nil), supportedSongTargetServices...)
 }
 
+// EnabledSongTargetServices returns the canonical service names enabled for runtime song target search under config.
+func EnabledSongTargetServices(config Config) []ServiceName {
+	return collectEnabledServicesInOrder(config, defaultServiceOrder.songTargets, func(capability serviceCapability) bool {
+		return capability.supportsSongTarget
+	})
+}
+
 // SupportedTargetServices returns the canonical service names that currently support any built-in target search.
 func SupportedTargetServices() []ServiceName {
 	return append([]ServiceName(nil), supportedTargetServices...)
+}
+
+// EnabledTargetServices returns the canonical service names enabled for runtime target search under config.
+func EnabledTargetServices(config Config) []ServiceName {
+	return collectEnabledServicesInOrder(config, defaultServiceOrder.albumTargets, func(capability serviceCapability) bool {
+		return capability.supportsAlbumTarget || capability.supportsSongTarget
+	})
 }
 
 // SupportsRuntimeSongInputURL reports whether Ariadne can resolve the input URL through the runtime song pipeline.
@@ -66,6 +101,28 @@ func SupportsRuntimeSongInputURL(raw string) bool {
 		}
 	}
 	return false
+}
+
+func enabledServiceCapability(config Config, service ServiceName) (serviceCapability, bool) {
+	capability, ok := serviceCapabilitiesByName[service]
+	if !ok {
+		return serviceCapability{}, false
+	}
+
+	config = normalizedConfig(config)
+	switch service {
+	case ServiceSpotify:
+		if !config.SpotifyEnabled() {
+			capability.supportsAlbumTarget = false
+			capability.supportsSongTarget = false
+		}
+	case ServiceTIDAL:
+		if !config.TIDALEnabled() {
+			capability.supportsAlbumTarget = false
+			capability.supportsSongTarget = false
+		}
+	}
+	return capability, true
 }
 
 func buildServiceCapabilitiesByName(bindings []serviceBinding) map[ServiceName]serviceCapability {
@@ -92,6 +149,18 @@ func collectSupportedServicesInOrder(order []ServiceName, capabilities map[Servi
 	services := make([]ServiceName, 0, len(order))
 	for _, service := range order {
 		capability, ok := capabilities[service]
+		if !ok || !supported(capability) {
+			continue
+		}
+		services = append(services, service)
+	}
+	return services
+}
+
+func collectEnabledServicesInOrder(config Config, order []ServiceName, supported func(serviceCapability) bool) []ServiceName {
+	services := make([]ServiceName, 0, len(order))
+	for _, service := range order {
+		capability, ok := enabledServiceCapability(config, service)
 		if !ok || !supported(capability) {
 			continue
 		}

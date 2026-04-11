@@ -155,6 +155,23 @@ func TestDescribeService(t *testing.T) {
 	assert.False(t, amazon.SupportsRuntimeSongInputURL)
 }
 
+func TestDescribeEnabledService(t *testing.T) {
+	spotify, ok := DescribeEnabledService(Config{}, ServiceSpotify)
+	require.True(t, ok)
+	assert.False(t, spotify.SupportsAlbumTarget)
+	assert.False(t, spotify.SupportsSongTarget)
+
+	spotify, ok = DescribeEnabledService(Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, ServiceSpotify)
+	require.True(t, ok)
+	assert.True(t, spotify.SupportsAlbumTarget)
+	assert.True(t, spotify.SupportsSongTarget)
+
+	tidal, ok := DescribeEnabledService(Config{}, ServiceTIDAL)
+	require.True(t, ok)
+	assert.False(t, tidal.SupportsAlbumTarget)
+	assert.False(t, tidal.SupportsSongTarget)
+}
+
 func TestSupportedServiceLists(t *testing.T) {
 	assert.Equal(t, []ServiceName{
 		ServiceAppleMusic,
@@ -173,6 +190,33 @@ func TestSupportedServiceLists(t *testing.T) {
 		ServiceSpotify,
 		ServiceTIDAL,
 	}, SupportedSongTargetServices())
+}
+
+func TestEnabledServiceLists(t *testing.T) {
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceYouTubeMusic,
+	}, EnabledTargetServices(Config{}))
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+	}, EnabledSongTargetServices(Config{}))
+
+	config := Config{
+		Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"},
+		TIDAL:   TIDALConfig{ClientID: "tidal-id", ClientSecret: "tidal-secret"},
+	}
+	assert.Equal(t, SupportedTargetServices(), EnabledTargetServices(config))
+	assert.Equal(t, SupportedSongTargetServices(), EnabledSongTargetServices(config))
+	assert.True(t, SupportsEnabledTarget(config, ServiceSpotify))
+	assert.True(t, SupportsEnabledSongTarget(config, ServiceTIDAL))
+	assert.False(t, SupportsEnabledTarget(Config{}, ServiceSpotify))
+	assert.False(t, SupportsEnabledSongTarget(Config{}, ServiceTIDAL))
 }
 
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
@@ -198,8 +242,8 @@ func TestMatchStrengthForScore(t *testing.T) {
 
 func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 	resolver := NewWithAdapters(
-		[]SourceAdapter{librarySourceAdapter{}},
-		[]TargetAdapter{libraryTargetAdapter{}},
+		[]SourceAdapter{newLibrarySourceAdapter()},
+		[]TargetAdapter{newLibraryTargetAdapter()},
 	)
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
@@ -256,7 +300,7 @@ func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
 }
 
 func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilParsedURL(t *testing.T) {
-	resolver := NewWithAdapters([]SourceAdapter{nilParsedSourceAdapter{}}, []TargetAdapter{libraryTargetAdapter{}})
+	resolver := NewWithAdapters([]SourceAdapter{newNilParsedSourceAdapter()}, []TargetAdapter{newLibraryTargetAdapter()})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.Error(t, err)
@@ -265,7 +309,7 @@ func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilParsedURL(t 
 }
 
 func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilAlbum(t *testing.T) {
-	resolver := NewWithAdapters([]SourceAdapter{nilAlbumSourceAdapter{}}, []TargetAdapter{libraryTargetAdapter{}})
+	resolver := NewWithAdapters([]SourceAdapter{newNilAlbumSourceAdapter()}, []TargetAdapter{newLibraryTargetAdapter()})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.Error(t, err)
@@ -274,7 +318,7 @@ func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilAlbum(t *tes
 }
 
 func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testing.T) {
-	resolver := NewWithEntityAdapters(nil, nil, []SongSourceAdapter{nilSongSourceAdapter{}}, []SongTargetAdapter{librarySongTargetAdapter{}})
+	resolver := NewWithEntityAdapters(nil, nil, []SongSourceAdapter{newNilSongSourceAdapter()}, []SongTargetAdapter{newLibrarySongTargetAdapter()})
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 	require.Error(t, err)
@@ -283,7 +327,7 @@ func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testi
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
-	resolver := NewWithAdapters([]SourceAdapter{librarySourceAdapter{}}, []TargetAdapter{failingLibraryTargetAdapter{}})
+	resolver := NewWithAdapters([]SourceAdapter{newLibrarySourceAdapter()}, []TargetAdapter{newFailingLibraryTargetAdapter()})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.Error(t, err)
@@ -293,222 +337,9 @@ func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
 
 func newTestEntityResolver() *Resolver {
 	return NewWithEntityAdapters(
-		[]SourceAdapter{librarySourceAdapter{}},
-		[]TargetAdapter{libraryTargetAdapter{}},
-		[]SongSourceAdapter{librarySongSourceAdapter{}},
-		[]SongTargetAdapter{librarySongTargetAdapter{}},
+		[]SourceAdapter{newLibrarySourceAdapter()},
+		[]TargetAdapter{newLibraryTargetAdapter()},
+		[]SongSourceAdapter{newLibrarySongSourceAdapter()},
+		[]SongTargetAdapter{newLibrarySongTargetAdapter()},
 	)
-}
-
-type nilParsedSourceAdapter struct{}
-
-func (nilParsedSourceAdapter) Service() ServiceName {
-	return ServiceDeezer
-}
-
-func (nilParsedSourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
-	if raw != testLibrarySourceURL {
-		return nil, errUnsupportedLibrarySource
-	}
-	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
-	return nil, nil
-}
-
-func (nilParsedSourceAdapter) FetchAlbum(_ context.Context, _ ParsedAlbumURL) (*CanonicalAlbum, error) {
-	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
-	return nil, nil
-}
-
-type nilAlbumSourceAdapter struct{}
-
-func (nilAlbumSourceAdapter) Service() ServiceName {
-	return ServiceDeezer
-}
-
-func (nilAlbumSourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
-	if raw != testLibrarySourceURL {
-		return nil, errUnsupportedLibrarySource
-	}
-	return &ParsedAlbumURL{Service: ServiceDeezer, EntityType: "album", ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
-}
-
-func (nilAlbumSourceAdapter) FetchAlbum(_ context.Context, _ ParsedAlbumURL) (*CanonicalAlbum, error) {
-	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
-	return nil, nil
-}
-
-type nilSongSourceAdapter struct{}
-
-func (nilSongSourceAdapter) Service() ServiceName {
-	return ServiceSpotify
-}
-
-func (nilSongSourceAdapter) ParseSongURL(raw string) (*ParsedSongURL, error) {
-	if raw != "https://fixture.test/songs/1" {
-		return nil, errUnsupportedLibrarySource
-	}
-	return &ParsedSongURL{Service: ServiceSpotify, EntityType: "song", ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
-}
-
-func (nilSongSourceAdapter) FetchSong(_ context.Context, _ ParsedSongURL) (*CanonicalSong, error) {
-	//nolint:nilnil // Explicitly exercises Ariadne's custom-source contract guard.
-	return nil, nil
-}
-
-type librarySourceAdapter struct{}
-
-func (librarySourceAdapter) Service() ServiceName {
-	return ServiceDeezer
-}
-
-func (librarySourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
-	if raw != testLibrarySourceURL {
-		return nil, errUnsupportedLibrarySource
-	}
-	return &ParsedAlbumURL{
-		Service:      ServiceDeezer,
-		EntityType:   "album",
-		ID:           "src-1",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (librarySourceAdapter) FetchAlbum(_ context.Context, parsed ParsedAlbumURL) (*CanonicalAlbum, error) {
-	return &CanonicalAlbum{
-		Service:           parsed.Service,
-		SourceID:          parsed.ID,
-		SourceURL:         parsed.CanonicalURL,
-		Title:             "Fixture Album",
-		NormalizedTitle:   "fixture album",
-		Artists:           []string{"Fixture Artist"},
-		NormalizedArtists: []string{"fixture artist"},
-		UPC:               "123456789012",
-		TrackCount:        2,
-		Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
-	}, nil
-}
-
-type failingLibraryTargetAdapter struct{}
-
-func (failingLibraryTargetAdapter) Service() ServiceName {
-	return ServiceSpotify
-}
-
-func (failingLibraryTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (failingLibraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (failingLibraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
-	return nil, errLibraryTargetBoom
-}
-
-type libraryTargetAdapter struct{}
-
-func (libraryTargetAdapter) Service() ServiceName {
-	return ServiceSpotify
-}
-
-func (libraryTargetAdapter) SearchByUPC(_ context.Context, upc string) ([]CandidateAlbum, error) {
-	if upc == "" {
-		return nil, nil
-	}
-	return []CandidateAlbum{{
-		CanonicalAlbum: CanonicalAlbum{
-			Service:           ServiceSpotify,
-			SourceID:          "spotify-1",
-			SourceURL:         "https://open.spotify.com/album/spotify-1",
-			Title:             "Fixture Album",
-			NormalizedTitle:   "fixture album",
-			Artists:           []string{"Fixture Artist"},
-			NormalizedArtists: []string{"fixture artist"},
-			UPC:               upc,
-			TrackCount:        2,
-			Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
-		},
-		CandidateID: "spotify-1",
-		MatchURL:    "https://open.spotify.com/album/spotify-1",
-	}}, nil
-}
-
-func (libraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (libraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
-	return nil, nil
-}
-
-type librarySongSourceAdapter struct{}
-
-func (librarySongSourceAdapter) Service() ServiceName {
-	return ServiceSpotify
-}
-
-func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedSongURL, error) {
-	if raw != "https://fixture.test/songs/1" {
-		return nil, errUnsupportedLibrarySource
-	}
-	return &ParsedSongURL{
-		Service:      ServiceSpotify,
-		EntityType:   "song",
-		ID:           "song-1",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (librarySongSourceAdapter) FetchSong(_ context.Context, parsed ParsedSongURL) (*CanonicalSong, error) {
-	return &CanonicalSong{
-		Service:              parsed.Service,
-		SourceID:             parsed.ID,
-		SourceURL:            parsed.CanonicalURL,
-		Title:                "Fixture Song",
-		NormalizedTitle:      "fixture song",
-		Artists:              []string{"Fixture Artist"},
-		NormalizedArtists:    []string{"fixture artist"},
-		DurationMS:           180000,
-		ISRC:                 "ISRCSONG001",
-		TrackNumber:          1,
-		AlbumTitle:           "Fixture Album",
-		AlbumNormalizedTitle: "fixture album",
-	}, nil
-}
-
-type librarySongTargetAdapter struct{}
-
-func (librarySongTargetAdapter) Service() ServiceName {
-	return ServiceAppleMusic
-}
-
-func (librarySongTargetAdapter) SearchSongByISRC(_ context.Context, isrc string) ([]CandidateSong, error) {
-	if isrc == "" {
-		return nil, nil
-	}
-	return []CandidateSong{{
-		CanonicalSong: CanonicalSong{
-			Service:              ServiceAppleMusic,
-			SourceID:             "apple-song-1",
-			SourceURL:            "https://music.apple.com/us/song/apple-song-1",
-			Title:                "Fixture Song",
-			NormalizedTitle:      "fixture song",
-			Artists:              []string{"Fixture Artist"},
-			NormalizedArtists:    []string{"fixture artist"},
-			DurationMS:           180100,
-			ISRC:                 isrc,
-			TrackNumber:          1,
-			AlbumTitle:           "Fixture Album",
-			AlbumNormalizedTitle: "fixture album",
-		},
-		CandidateID: "apple-song-1",
-		MatchURL:    "https://music.apple.com/us/song/apple-song-1",
-	}}, nil
-}
-
-func (librarySongTargetAdapter) SearchSongByMetadata(_ context.Context, _ CanonicalSong) ([]CandidateSong, error) {
-	return nil, nil
 }

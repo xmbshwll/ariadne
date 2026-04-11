@@ -197,10 +197,10 @@ func validateResolveConfig(config resolveConfig) error {
 	}
 
 	for _, service := range config.resolverConfig.TargetServices {
-		if ariadne.SupportsSongTarget(service) {
+		if ariadne.SupportsEnabledSongTarget(config.resolverConfig, service) {
 			continue
 		}
-		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, supportedSongTargetServicesUsage)
+		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, supportedSongTargetServicesUsage(config.resolverConfig))
 	}
 	return nil
 }
@@ -216,7 +216,9 @@ func requiresSongTargetValidation(config resolveConfig) bool {
 	}
 }
 
-var supportedSongTargetServicesUsage = "supported for songs: " + strings.Join(serviceNames(ariadne.SupportedSongTargetServices()), ", ")
+func supportedSongTargetServicesUsage(config ariadne.Config) string {
+	return "supported for songs: " + strings.Join(serviceNames(ariadne.EnabledSongTargetServices(config)), ", ")
+}
 
 func resolveModeFromConfig(config resolveConfig) resolveMode {
 	if config.forceSong {

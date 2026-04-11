@@ -266,6 +266,21 @@ func newTestFixture(t *testing.T, payloads testPayloads) testFixture {
 	}
 }
 
+func newOfficialTestAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *Adapter {
+	t.Helper()
+	keyPath := writeTestPrivateKey(t)
+	mux := http.NewServeMux()
+	registerHandlers(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return New(
+		server.Client(),
+		WithAPIBaseURL(server.URL),
+		WithDefaultStorefront("gb"),
+		WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
+	)
+}
+
 func newTestServer(payloads testPayloads) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/lookup", lookupHandler(payloads))
@@ -319,8 +334,7 @@ func searchHandler(payloads testPayloads) http.HandlerFunc {
 
 func officialAlbumsHandler(payloads testPayloads) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "" {
-			http.Error(w, "missing auth", http.StatusUnauthorized)
+		if !requireOfficialAuth(w, r) {
 			return
 		}
 		if r.URL.Query().Get("filter[upc]") != "00602567713449" {
@@ -333,8 +347,7 @@ func officialAlbumsHandler(payloads testPayloads) http.HandlerFunc {
 
 func officialSongsHandler(payloads testPayloads) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "" {
-			http.Error(w, "missing auth", http.StatusUnauthorized)
+		if !requireOfficialAuth(w, r) {
 			return
 		}
 		if r.URL.Query().Get("filter[isrc]") != comeTogetherISRC {
@@ -347,12 +360,19 @@ func officialSongsHandler(payloads testPayloads) http.HandlerFunc {
 
 func officialAlbumHandler(payloads testPayloads) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "" {
-			http.Error(w, "missing auth", http.StatusUnauthorized)
+		if !requireOfficialAuth(w, r) {
 			return
 		}
 		_, _ = w.Write(payloads.officialAlbum)
 	}
+}
+
+func requireOfficialAuth(w http.ResponseWriter, r *http.Request) bool {
+	if r.Header.Get("Authorization") == "" {
+		http.Error(w, "missing auth", http.StatusUnauthorized)
+		return false
+	}
+	return true
 }
 
 func mustReadTestFile(t *testing.T, relativePath string) []byte {

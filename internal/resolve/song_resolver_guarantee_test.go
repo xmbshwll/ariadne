@@ -13,8 +13,8 @@ import (
 func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
 	called := false
 	resolver := NewSongs(
-		[]SongSourceAdapter{stubSongSourceAdapter{}},
-		[]SongTargetAdapter{sourceServiceSongTargetAdapter{called: &called}, stubSongTargetAdapter{}},
+		[]SongSourceAdapter{newStubSongSourceAdapter()},
+		[]SongTargetAdapter{newSourceServiceSongTargetAdapter(&called), newStubSongTargetAdapter()},
 		score.DefaultSongWeights(),
 	)
 
@@ -28,8 +28,8 @@ func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
 
 func TestSongResolverResolveSongReturnsTargetError(t *testing.T) {
 	resolver := NewSongs(
-		[]SongSourceAdapter{stubSongSourceAdapter{}},
-		[]SongTargetAdapter{failingSongTargetAdapter{}},
+		[]SongSourceAdapter{newStubSongSourceAdapter()},
+		[]SongTargetAdapter{newFailingSongTargetAdapter()},
 		score.DefaultSongWeights(),
 	)
 

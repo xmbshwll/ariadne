@@ -16,6 +16,10 @@ type fixtureSourceAdapterForCLI struct {
 	albumByURL map[string]ariadne.CanonicalAlbum
 }
 
+func newFixtureSourceAdapterForCLI(albumByURL map[string]ariadne.CanonicalAlbum) ariadne.SourceAdapter {
+	return fixtureSourceAdapterForCLI{albumByURL: albumByURL}
+}
+
 func (a fixtureSourceAdapterForCLI) Service() ariadne.ServiceName {
 	return "fixture"
 }
@@ -45,6 +49,14 @@ type fixtureTargetAdapterForCLI struct {
 	metadataErr error
 }
 
+func newFixtureTargetAdapterForCLI(service ariadne.ServiceName, upcResults []ariadne.CandidateAlbum, metadataErr error) ariadne.TargetAdapter {
+	return fixtureTargetAdapterForCLI{
+		service:     service,
+		upcResults:  upcResults,
+		metadataErr: metadataErr,
+	}
+}
+
 func (a fixtureTargetAdapterForCLI) Service() ariadne.ServiceName {
 	return a.service
 }
@@ -66,6 +78,10 @@ func (a fixtureTargetAdapterForCLI) SearchByMetadata(_ context.Context, _ ariadn
 
 type fixtureSongSourceAdapterForCLI struct {
 	songByURL map[string]ariadne.CanonicalSong
+}
+
+func newFixtureSongSourceAdapterForCLI(songByURL map[string]ariadne.CanonicalSong) ariadne.SongSourceAdapter {
+	return fixtureSongSourceAdapterForCLI{songByURL: songByURL}
 }
 
 func (a fixtureSongSourceAdapterForCLI) Service() ariadne.ServiceName {
@@ -94,6 +110,14 @@ type fixtureSongTargetAdapterForCLI struct {
 	isrcResults []ariadne.CandidateSong
 	metaResults []ariadne.CandidateSong
 	metadataErr error
+}
+
+func newFixtureSongTargetAdapterForCLI(service ariadne.ServiceName, isrcResults []ariadne.CandidateSong, metadataErr error) ariadne.SongTargetAdapter {
+	return fixtureSongTargetAdapterForCLI{
+		service:     service,
+		isrcResults: isrcResults,
+		metadataErr: metadataErr,
+	}
 }
 
 func (a fixtureSongTargetAdapterForCLI) Service() ariadne.ServiceName {

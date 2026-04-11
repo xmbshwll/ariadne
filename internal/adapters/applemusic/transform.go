@@ -66,7 +66,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	}
 }
 
-func toCanonicalSong(parsed model.ParsedAlbumURL, track lookupItem) *model.CanonicalSong {
+func toCanonicalSong(parsed model.ParsedURL, track lookupItem) *model.CanonicalSong {
 	const explicitTrack = "explicit"
 
 	artists := []string{track.ArtistName}

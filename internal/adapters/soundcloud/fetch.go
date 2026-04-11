@@ -27,7 +27,7 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	return toCanonicalAlbum(*playlist), nil
 }
 
-func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceSoundCloud {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedSoundCloudService, parsed.Service)
 	}

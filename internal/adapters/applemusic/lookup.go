@@ -21,7 +21,7 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 }
 
 // FetchSong loads Apple Music song metadata from the lookup API and maps it into the canonical model.
-func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalSong, error) {
+func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceAppleMusic {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedAppleMusicService, parsed.Service)
 	}
@@ -62,7 +62,7 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 		return nil, fmt.Errorf("%w: %s", errAppleMusicSongNotFound, songID)
 	}
 
-	parsed := model.ParsedAlbumURL{
+	parsed := model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
 		EntityType:   entitySong,
 		ID:           songID,

@@ -46,7 +46,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 		return fmt.Errorf("%w %d: %s", errUnexpectedTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode api response: %w", err)
+		return fmt.Errorf("decode api response: %w", errors.Join(errMalformedTIDALAPIResponse, err))
 	}
 	return nil
 }

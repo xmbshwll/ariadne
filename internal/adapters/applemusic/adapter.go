@@ -26,8 +26,9 @@ var (
 	errAppleMusicSongNotFound      = errors.New("apple music song not found")
 	errUnexpectedAppleMusicStatus  = errors.New("unexpected apple music status")
 
-	errUnexpectedAppleMusicOfficialStatus = errors.New("unexpected apple music official status")
-	errAppleMusicOfficialAlbumNotFound    = errors.New("apple music official album not found")
+	errUnexpectedAppleMusicOfficialStatus  = errors.New("unexpected apple music official status")
+	errMalformedAppleMusicOfficialResponse = errors.New("malformed apple music official response")
+	errAppleMusicOfficialAlbumNotFound     = errors.New("apple music official album not found")
 
 	// ErrCredentialsNotConfigured indicates that an Apple Music official API operation requires developer token credentials.
 	ErrCredentialsNotConfigured = errors.New("apple music credentials not configured")
@@ -114,7 +115,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 }
 
 // ParseSongURL parses an Apple Music song URL.
-func (a *Adapter) ParseSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parse.AppleMusicSongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse apple music song url: %w", err)

@@ -53,7 +53,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 		return &spotifyAPIError{StatusCode: resp.StatusCode, Message: strings.TrimSpace(string(body))}
 	}
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode api response: %w", err)
+		return fmt.Errorf("decode api response: %w", errors.Join(errMalformedSpotifyAPIResponse, err))
 	}
 	return nil
 }
@@ -127,12 +127,12 @@ func parseInitialState(body []byte) (*initialState, error) {
 
 	decoded, err := base64.StdEncoding.DecodeString(string(matches[1]))
 	if err != nil {
-		return nil, fmt.Errorf("decode initial state: %w", err)
+		return nil, fmt.Errorf("decode initial state: %w", errors.Join(errMalformedSpotifyBootstrapState, err))
 	}
 
 	var state initialState
 	if err := json.Unmarshal(decoded, &state); err != nil {
-		return nil, fmt.Errorf("unmarshal initial state: %w", err)
+		return nil, fmt.Errorf("unmarshal initial state: %w", errors.Join(errMalformedSpotifyBootstrapState, err))
 	}
 	return &state, nil
 }
