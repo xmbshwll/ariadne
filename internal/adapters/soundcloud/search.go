@@ -33,12 +33,15 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
 	results := make([]model.CandidateAlbum, 0, min(len(payload.Collection), searchLimit))
+	seen := make(map[string]struct{}, searchLimit)
 	for _, playlist := range payload.Collection {
-		if playlist.Kind != "playlist" {
+		if !validSoundCloudPlaylistSearchHit(playlist) {
 			continue
 		}
 		canonical := toCanonicalAlbum(playlist)
-		results = append(results, toCandidateAlbum(*canonical))
+		if !appendSoundCloudAlbumCandidate(&results, seen, canonical) {
+			continue
+		}
 		if len(results) >= searchLimit {
 			break
 		}
@@ -60,14 +63,52 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
 	results := make([]model.CandidateSong, 0, min(len(payload.Collection), searchLimit))
+	seen := make(map[string]struct{}, searchLimit)
 	for _, track := range payload.Collection {
+		if !validSoundCloudTrackSearchHit(track) {
+			continue
+		}
 		canonical := toCanonicalSong(track)
-		results = append(results, toCandidateSong(*canonical))
+		if !appendSoundCloudSongCandidate(&results, seen, canonical) {
+			continue
+		}
 		if len(results) >= searchLimit {
 			break
 		}
 	}
 	return results, nil
+}
+
+func validSoundCloudPlaylistSearchHit(playlist soundPlaylist) bool {
+	return playlist.Kind == "playlist" && strings.TrimSpace(playlist.PermalinkURL) != "" && strings.TrimSpace(playlist.Title) != ""
+}
+
+func validSoundCloudTrackSearchHit(track soundTrack) bool {
+	return strings.TrimSpace(track.PermalinkURL) != "" && strings.TrimSpace(track.Title) != ""
+}
+
+func appendSoundCloudAlbumCandidate(results *[]model.CandidateAlbum, seen map[string]struct{}, canonical *model.CanonicalAlbum) bool {
+	if canonical == nil || strings.TrimSpace(canonical.SourceID) == "" || strings.TrimSpace(canonical.SourceURL) == "" {
+		return false
+	}
+	if _, ok := seen[canonical.SourceID]; ok {
+		return false
+	}
+	seen[canonical.SourceID] = struct{}{}
+	*results = append(*results, toCandidateAlbum(*canonical))
+	return true
+}
+
+func appendSoundCloudSongCandidate(results *[]model.CandidateSong, seen map[string]struct{}, canonical *model.CanonicalSong) bool {
+	if canonical == nil || strings.TrimSpace(canonical.SourceID) == "" || strings.TrimSpace(canonical.SourceURL) == "" {
+		return false
+	}
+	if _, ok := seen[canonical.SourceID]; ok {
+		return false
+	}
+	seen[canonical.SourceID] = struct{}{}
+	*results = append(*results, toCandidateSong(*canonical))
+	return true
 }
 
 func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, target any) error {

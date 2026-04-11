@@ -34,10 +34,10 @@ func TestMetadataQueries(t *testing.T) {
 			},
 			want: []string{
 				"album:ΘΕΛΗΜΑ (Thelema) artist:DECIPHER",
-				"album:ΘΕΛΗΜΑ (Thelema)",
 				"album:Thelema artist:DECIPHER",
-				"album:Thelema",
 				"album:ΘΕΛΗΜΑ artist:DECIPHER",
+				"album:ΘΕΛΗΜΑ (Thelema)",
+				"album:Thelema",
 				"album:ΘΕΛΗΜΑ",
 			},
 		},
@@ -58,10 +58,10 @@ func TestSongMetadataQueries(t *testing.T) {
 
 	want := []string{
 		"track:ΘΕΛΗΜΑ (Thelema) artist:DECIPHER",
-		"track:ΘΕΛΗΜΑ (Thelema)",
 		"track:Thelema artist:DECIPHER",
-		"track:Thelema",
 		"track:ΘΕΛΗΜΑ artist:DECIPHER",
+		"track:ΘΕΛΗΜΑ (Thelema)",
+		"track:Thelema",
 		"track:ΘΕΛΗΜΑ",
 	}
 	assert.Equal(t, want, songMetadataQueries(song))

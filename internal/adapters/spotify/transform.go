@@ -199,39 +199,15 @@ func spotifyArtworkURLAPI(images []apiImage) string {
 }
 
 func metadataQueries(album model.CanonicalAlbum) []string {
-	if strings.TrimSpace(album.Title) == "" {
-		return nil
-	}
-
-	queries := make([]string, 0, 8)
-	seen := make(map[string]struct{}, 8)
-	appendUnique := func(query string) {
-		query = strings.TrimSpace(query)
-		if query == "" {
-			return
-		}
-		key := normalize.Text(query)
-		if key == "" {
-			return
-		}
-		if _, ok := seen[key]; ok {
-			return
-		}
-		seen[key] = struct{}{}
-		queries = append(queries, query)
-	}
-
-	for _, title := range normalize.SearchTitleVariants(album.Title) {
-		for _, artist := range normalize.SearchArtistVariants(album.Artists) {
-			appendUnique(strings.Join([]string{"album:" + title, "artist:" + artist}, " "))
-		}
-		appendUnique("album:" + title)
-	}
-	return queries
+	return buildMetadataQueries("album", album.Title, album.Artists)
 }
 
 func songMetadataQueries(song model.CanonicalSong) []string {
-	if strings.TrimSpace(song.Title) == "" {
+	return buildMetadataQueries("track", song.Title, song.Artists)
+}
+
+func buildMetadataQueries(prefix string, title string, artists []string) []string {
+	if strings.TrimSpace(title) == "" {
 		return nil
 	}
 
@@ -253,11 +229,15 @@ func songMetadataQueries(song model.CanonicalSong) []string {
 		queries = append(queries, query)
 	}
 
-	for _, title := range normalize.SearchTitleVariants(song.Title) {
-		for _, artist := range normalize.SearchArtistVariants(song.Artists) {
-			appendUnique(strings.Join([]string{"track:" + title, "artist:" + artist}, " "))
+	titleVariants := normalize.SearchTitleVariants(title)
+	artistVariants := normalize.SearchArtistVariants(artists)
+	for _, titleVariant := range titleVariants {
+		for _, artistVariant := range artistVariants {
+			appendUnique(strings.Join([]string{prefix + ":" + titleVariant, "artist:" + artistVariant}, " "))
 		}
-		appendUnique("track:" + title)
+	}
+	for _, titleVariant := range titleVariants {
+		appendUnique(prefix + ":" + titleVariant)
 	}
 	return queries
 }

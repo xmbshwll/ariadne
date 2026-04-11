@@ -58,7 +58,10 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
-			return nil, fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
+			if len(results) == 0 {
+				return nil, fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
+			}
+			continue
 		}
 		albumIDs := uniqueStrings(albumIDsFromTrackDocument(document), seen)
 		hydrated, err := a.hydrateAlbumCandidates(ctx, albumIDs, "", func(albumID string) string {

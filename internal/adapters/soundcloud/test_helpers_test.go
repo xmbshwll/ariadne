@@ -15,6 +15,9 @@ import (
 const (
 	soundCloudCatsAndDogs = "Cats & Dogs"
 	soundCloudTrackISRC   = "USBWK1100093"
+	soundCloudAssetPath   = "/assets/app.js"
+	soundCloudAlbumSearch = "/search/playlists"
+	soundCloudSongSearch  = "/search/tracks"
 )
 
 type testFixture struct {
@@ -38,19 +41,19 @@ func newTestFixture(t *testing.T) testFixture {
 		switch r.URL.Path {
 		case "/":
 			_, _ = fmt.Fprintf(w, `<html><body><script src="%s/assets/app.js"></script></body></html>`, server.URL)
-		case "/assets/app.js":
+		case soundCloudAssetPath:
 			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
 		case "/album":
 			_, _ = fmt.Fprintf(w, `<html><body><script>window.__sc_hydration = [{"hydratable":"playlist","data":%s}];</script></body></html>`, sourcePayload)
 		case "/track":
 			_, _ = fmt.Fprintf(w, `<html><body><script>window.__sc_hydration = [{"hydratable":"sound","data":%s}];</script></body></html>`, trackPayload)
-		case "/search/playlists":
+		case soundCloudAlbumSearch:
 			if r.URL.Query().Get("client_id") != clientID {
 				http.Error(w, "missing client id", http.StatusUnauthorized)
 				return
 			}
 			_, _ = w.Write(searchPayload)
-		case "/search/tracks":
+		case soundCloudSongSearch:
 			if r.URL.Query().Get("client_id") != clientID {
 				http.Error(w, "missing client id", http.StatusUnauthorized)
 				return

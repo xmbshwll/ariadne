@@ -72,6 +72,31 @@ func TestIdentifierAlbumSearchIsUnsupported(t *testing.T) {
 	assert.Empty(t, isrcResults)
 }
 
+func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {
+	const clientID = "22222222222222222222222222222222"
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = fmt.Fprintf(w, `<html><body><script src="%s%s"></script></body></html>`, server.URL, soundCloudAssetPath)
+		case soundCloudAssetPath:
+			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
+		case soundCloudAlbumSearch:
+			_, _ = w.Write([]byte(`{"collection":[{"kind":"playlist","title":"Broken Playlist","permalink_url":"","user":{"username":"Artist"}},{"kind":"playlist","title":"Good Playlist","permalink_url":"` + server.URL + `/artist/sets/good-playlist","user":{"username":"Artist"}}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Good Playlist", Artists: []string{"Artist"}})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, server.URL+"/artist/sets/good-playlist", results[0].MatchURL)
+}
+
 func TestSearchAlbumByMetadataRefreshesRejectedClientID(t *testing.T) {
 	searchPayload := mustReadSoundCloudFixture(t, "testdata/search-results.json")
 	const staleClientID = "11111111111111111111111111111111"
@@ -84,15 +109,15 @@ func TestSearchAlbumByMetadataRefreshesRejectedClientID(t *testing.T) {
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
-			_, _ = fmt.Fprintf(w, `<html><body><script src="%s/assets/app.js"></script></body></html>`, server.URL)
-		case "/assets/app.js":
+			_, _ = fmt.Fprintf(w, `<html><body><script src="%s%s"></script></body></html>`, server.URL, soundCloudAssetPath)
+		case soundCloudAssetPath:
 			assetRequests++
 			clientID := staleClientID
 			if assetRequests > 1 {
 				clientID = freshClientID
 			}
 			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
-		case "/search/playlists":
+		case soundCloudAlbumSearch:
 			searchRequests++
 			if r.URL.Query().Get("client_id") != freshClientID {
 				http.Error(w, "invalid client_id", http.StatusUnauthorized)

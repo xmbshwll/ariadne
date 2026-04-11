@@ -48,7 +48,10 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/catalog/%s/songs?filter[isrc]=%s", a.apiBaseURL, url.PathEscape(storefront), url.QueryEscape(isrc))
 		var payload map[string]any
 		if err := a.getOfficialJSON(ctx, endpoint, &payload); err != nil {
-			return nil, fmt.Errorf("search apple music by isrc: %w", err)
+			if len(albumIDs) == 0 {
+				return nil, fmt.Errorf("search apple music by isrc: %w", err)
+			}
+			continue
 		}
 		for _, albumID := range officialAlbumIDsFromSongs(payload) {
 			if _, ok := seenAlbumIDs[albumID]; ok {
@@ -141,49 +144,58 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 }
 
 func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
-	results := make([]model.CandidateAlbum, 0, len(albumIDs))
-	seen := make(map[string]struct{}, len(albumIDs))
-	for _, albumID := range albumIDs {
-		albumID = strings.TrimSpace(albumID)
-		if albumID == "" {
-			continue
-		}
-		if _, ok := seen[albumID]; ok {
-			continue
-		}
-		seen[albumID] = struct{}{}
-		album, err := a.fetchOfficialAlbumByID(ctx, albumID, storefront)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, toCandidateAlbum(*album))
-		if len(results) >= searchLimit {
-			break
-		}
-	}
-	return results, nil
+	return hydrateAppleMusicOfficialCandidates(
+		albumIDs,
+		func(albumID string) (model.CandidateAlbum, error) {
+			album, err := a.fetchOfficialAlbumByID(ctx, albumID, storefront)
+			if err != nil {
+				return model.CandidateAlbum{}, err
+			}
+			return toCandidateAlbum(*album), nil
+		},
+	)
 }
 
 func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
-	results := make([]model.CandidateSong, 0, len(songIDs))
-	seen := make(map[string]struct{}, len(songIDs))
-	for _, songID := range songIDs {
-		songID = strings.TrimSpace(songID)
-		if songID == "" {
+	return hydrateAppleMusicOfficialCandidates(
+		songIDs,
+		func(songID string) (model.CandidateSong, error) {
+			song, err := a.fetchSongByID(ctx, songID, "", storefront)
+			if err != nil {
+				return model.CandidateSong{}, err
+			}
+			return toCandidateSong(*song), nil
+		},
+	)
+}
+
+func hydrateAppleMusicOfficialCandidates[T any](ids []string, fetch func(string) (T, error)) ([]T, error) {
+	results := make([]T, 0, len(ids))
+	seen := make(map[string]struct{}, len(ids))
+	var firstErr error
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
 			continue
 		}
-		if _, ok := seen[songID]; ok {
+		if _, ok := seen[id]; ok {
 			continue
 		}
-		seen[songID] = struct{}{}
-		song, err := a.fetchSongByID(ctx, songID, "", storefront)
+		seen[id] = struct{}{}
+		candidate, err := fetch(id)
 		if err != nil {
-			return nil, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
-		results = append(results, toCandidateSong(*song))
+		results = append(results, candidate)
 		if len(results) >= searchLimit {
-			break
+			return results, nil
 		}
+	}
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
 	}
 	return results, nil
 }
