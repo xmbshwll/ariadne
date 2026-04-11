@@ -58,8 +58,10 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
-			if len(results) == 0 {
-				return nil, fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
+			if err := continueTIDALSearchAfterQueryError(results, func() error {
+				return fmt.Errorf("tidal search by isrc %s: %w", isrc, err)
+			}); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -145,40 +147,45 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	})
 }
 
+func continueTIDALSearchAfterQueryError[T any](results []T, makeErr func() error) error {
+	if len(results) == 0 {
+		return makeErr()
+	}
+	return nil
+}
+
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
-	results := make([]model.CandidateAlbum, 0, min(len(albumIDs), searchLimit))
-	var firstErr error
-	for _, albumID := range albumIDs {
+	return hydrateTIDALCandidates(albumIDs, func(albumID string) (model.CandidateAlbum, error) {
 		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %w", errorMessage(albumID), err)
-			}
-			continue
+			return model.CandidateAlbum{}, fmt.Errorf("%s: %w", errorMessage(albumID), err)
 		}
-		results = append(results, toCandidateAlbum(*canonical))
-		if len(results) >= searchLimit {
-			return results, nil
-		}
-	}
-	if len(results) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return results, nil
+		return toCandidateAlbum(*canonical), nil
+	})
 }
 
 func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
-	results := make([]model.CandidateSong, 0, min(len(songIDs), searchLimit))
-	var firstErr error
-	for _, songID := range songIDs {
+	return hydrateTIDALCandidates(songIDs, func(songID string) (model.CandidateSong, error) {
 		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
 		if err != nil {
+			return model.CandidateSong{}, fmt.Errorf("%s: %w", errorMessage(songID), err)
+		}
+		return toCandidateSong(*canonical), nil
+	})
+}
+
+func hydrateTIDALCandidates[T any](ids []string, fetch func(string) (T, error)) ([]T, error) {
+	results := make([]T, 0, min(len(ids), searchLimit))
+	var firstErr error
+	for _, id := range ids {
+		candidate, err := fetch(id)
+		if err != nil {
 			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %w", errorMessage(songID), err)
+				firstErr = err
 			}
 			continue
 		}
-		results = append(results, toCandidateSong(*canonical))
+		results = append(results, candidate)
 		if len(results) >= searchLimit {
 			return results, nil
 		}

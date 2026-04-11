@@ -27,8 +27,10 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=album&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), searchLimit, url.QueryEscape(storefront))
 		var payload lookupResponse
 		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
-			if len(results) == 0 {
-				return nil, fmt.Errorf("search apple music metadata %q: %w", query, err)
+			if err := continueAppleMusicSearchAfterQueryError(results, func() error {
+				return fmt.Errorf("search apple music metadata %q: %w", query, err)
+			}); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -44,9 +46,9 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 
 			canonical, err := a.fetchAlbumByID(ctx, strconv.FormatInt(item.CollectionID, 10), canonicalCollectionURL(item.CollectionViewURL, ""), storefront)
 			if err != nil {
-				if firstHydrationErr == nil {
-					firstHydrationErr = fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
-				}
+				recordFirstAppleMusicHydrationError(&firstHydrationErr, func() error {
+					return fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
+				})
 				continue
 			}
 			results = append(results, toCandidateAlbum(*canonical))
@@ -55,10 +57,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 			}
 		}
 	}
-	if len(results) == 0 && firstHydrationErr != nil {
-		return nil, firstHydrationErr
-	}
-	return results, nil
+	return finishAppleMusicMetadataSearch(results, firstHydrationErr)
 }
 
 // SearchSongByMetadata searches Apple Music songs by title and artist metadata via the public search API.
@@ -77,8 +76,10 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		searchURL := fmt.Sprintf("%s/search?term=%s&entity=%s&limit=%d&country=%s", a.lookupBaseURL, url.QueryEscape(query), entitySong, searchLimit, url.QueryEscape(storefront))
 		var payload lookupResponse
 		if err := a.getJSON(ctx, searchURL, &payload); err != nil {
-			if len(results) == 0 {
-				return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
+			if err := continueAppleMusicSearchAfterQueryError(results, func() error {
+				return fmt.Errorf("search apple music song metadata %q: %w", query, err)
+			}); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -94,9 +95,9 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 
 			canonical, err := a.fetchSongByID(ctx, strconv.FormatInt(item.TrackID, 10), canonicalTrackURL(item.CollectionViewURL, item.TrackID), storefront)
 			if err != nil {
-				if firstHydrationErr == nil {
-					firstHydrationErr = fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
-				}
+				recordFirstAppleMusicHydrationError(&firstHydrationErr, func() error {
+					return fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
+				})
 				continue
 			}
 			results = append(results, toCandidateSong(*canonical))
@@ -105,8 +106,26 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 			}
 		}
 	}
-	if len(results) == 0 && firstHydrationErr != nil {
-		return nil, firstHydrationErr
+	return finishAppleMusicMetadataSearch(results, firstHydrationErr)
+}
+
+func continueAppleMusicSearchAfterQueryError[T any](results []T, makeErr func() error) error {
+	if len(results) == 0 {
+		return makeErr()
+	}
+	return nil
+}
+
+func recordFirstAppleMusicHydrationError(firstErr *error, makeErr func() error) {
+	if *firstErr != nil {
+		return
+	}
+	*firstErr = makeErr()
+}
+
+func finishAppleMusicMetadataSearch[T any](results []T, firstErr error) ([]T, error) {
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
 	}
 	return results, nil
 }

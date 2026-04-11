@@ -16,6 +16,7 @@ import (
 var (
 	errUnsupportedTestSource = errors.New("unsupported")
 	errTestSourceNotFound    = errors.New("not found")
+	errTargetSearchBoom      = errors.New("target search boom")
 )
 
 func TestResolverResolveAlbum(t *testing.T) {
@@ -94,6 +95,66 @@ func TestResolverResolveAlbum(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
+	called := false
+	resolver := New(
+		[]SourceAdapter{stubSourceAdapter{}},
+		[]TargetAdapter{
+			sourceServiceTargetAdapter{called: &called},
+			stubTargetAdapter{},
+		},
+		score.DefaultWeights(),
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
+	require.NoError(t, err)
+	assert.False(t, called)
+	require.NotNil(t, resolution.Matches[model.ServiceSpotify].Best)
+	_, ok := resolution.Matches[model.ServiceDeezer]
+	assert.False(t, ok)
+}
+
+func TestResolverResolveAlbumReturnsTargetError(t *testing.T) {
+	resolver := New(
+		[]SourceAdapter{stubSourceAdapter{}},
+		[]TargetAdapter{failingTargetAdapter{}},
+		score.DefaultWeights(),
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, errTargetSearchBoom)
+}
+
+func TestCollectCandidateLayersPreservesFirstSeenOrdering(t *testing.T) {
+	candidates, err := collectCandidateLayers(context.Background(), albumCandidateKey,
+		candidateLayer[model.CandidateAlbum]{
+			enabled: true,
+			search: func(context.Context) ([]model.CandidateAlbum, error) {
+				return []model.CandidateAlbum{
+					{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+					{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+				}, nil
+			},
+		},
+		candidateLayer[model.CandidateAlbum]{
+			enabled: true,
+			search: func(context.Context) ([]model.CandidateAlbum, error) {
+				return []model.CandidateAlbum{
+					{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+					{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+				}, nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.Len(t, candidates, 3)
+	assert.Equal(t, "album-1", candidates[0].CandidateID)
+	assert.Equal(t, "album-2", candidates[1].CandidateID)
+	assert.Equal(t, "album-3", candidates[2].CandidateID)
 }
 
 func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
@@ -185,6 +246,12 @@ type blockingTargetAdapter struct {
 	release <-chan struct{}
 }
 
+type sourceServiceTargetAdapter struct {
+	called *bool
+}
+
+type failingTargetAdapter struct{}
+
 func (a blockingTargetAdapter) Service() model.ServiceName {
 	return a.service
 }
@@ -232,6 +299,41 @@ func (a blockingTargetAdapter) SearchByMetadata(_ context.Context, _ model.Canon
 	}
 	<-a.release
 	return nil, nil
+}
+
+func (a sourceServiceTargetAdapter) Service() model.ServiceName {
+	return model.ServiceDeezer
+}
+
+func (a sourceServiceTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
+	*a.called = true
+	return nil, nil
+}
+
+func (a sourceServiceTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
+	*a.called = true
+	return nil, nil
+}
+
+func (a sourceServiceTargetAdapter) SearchByMetadata(_ context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	*a.called = true
+	return nil, nil
+}
+
+func (failingTargetAdapter) Service() model.ServiceName {
+	return model.ServiceSpotify
+}
+
+func (failingTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (failingTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
+	return nil, nil
+}
+
+func (failingTargetAdapter) SearchByMetadata(_ context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	return nil, errTargetSearchBoom
 }
 
 func TestResolverCrossServiceFixtures(t *testing.T) {

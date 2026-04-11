@@ -48,23 +48,35 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		endpoint := fmt.Sprintf("%s/catalog/%s/songs?filter[isrc]=%s", a.apiBaseURL, url.PathEscape(storefront), url.QueryEscape(isrc))
 		var payload map[string]any
 		if err := a.getOfficialJSON(ctx, endpoint, &payload); err != nil {
-			if len(albumIDs) == 0 {
-				return nil, fmt.Errorf("search apple music by isrc: %w", err)
+			if err := continueAppleMusicOfficialSearchAfterQueryError(albumIDs, err); err != nil {
+				return nil, err
 			}
 			continue
 		}
-		for _, albumID := range officialAlbumIDsFromSongs(payload) {
-			if _, ok := seenAlbumIDs[albumID]; ok {
-				continue
-			}
-			seenAlbumIDs[albumID] = struct{}{}
-			albumIDs = append(albumIDs, albumID)
-			if len(albumIDs) >= searchLimit {
-				return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
-			}
+		albumIDs = appendUniqueOfficialAlbumIDs(albumIDs, seenAlbumIDs, officialAlbumIDsFromSongs(payload))
+		if len(albumIDs) >= searchLimit {
+			return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
 		}
 	}
 	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+}
+
+func continueAppleMusicOfficialSearchAfterQueryError(albumIDs []string, err error) error {
+	if len(albumIDs) == 0 {
+		return fmt.Errorf("search apple music by isrc: %w", err)
+	}
+	return nil
+}
+
+func appendUniqueOfficialAlbumIDs(dst []string, seen map[string]struct{}, ids []string) []string {
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		dst = append(dst, id)
+	}
+	return dst
 }
 
 // SearchSongByISRC uses the official Apple Music catalog API when MusicKit auth is configured.

@@ -10,6 +10,35 @@ import (
 	"github.com/xmbshwll/ariadne/internal/score"
 )
 
+func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
+	called := false
+	resolver := NewSongs(
+		[]SongSourceAdapter{stubSongSourceAdapter{}},
+		[]SongTargetAdapter{sourceServiceSongTargetAdapter{called: &called}, stubSongTargetAdapter{}},
+		score.DefaultSongWeights(),
+	)
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
+	require.NoError(t, err)
+	assert.False(t, called)
+	require.NotNil(t, resolution.Matches[model.ServiceAppleMusic].Best)
+	_, ok := resolution.Matches[model.ServiceSpotify]
+	assert.False(t, ok)
+}
+
+func TestSongResolverResolveSongReturnsTargetError(t *testing.T) {
+	resolver := NewSongs(
+		[]SongSourceAdapter{stubSongSourceAdapter{}},
+		[]SongTargetAdapter{failingSongTargetAdapter{}},
+		score.DefaultSongWeights(),
+	)
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, errTargetSearchBoom)
+}
+
 func TestSongResolverResolveSong(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -141,6 +170,12 @@ func (nilSongSourceAdapter) FetchSong(_ context.Context, _ model.ParsedAlbumURL)
 	return nil, nil
 }
 
+type sourceServiceSongTargetAdapter struct {
+	called *bool
+}
+
+type failingSongTargetAdapter struct{}
+
 type stubSongTargetAdapter struct{}
 
 func (stubSongTargetAdapter) Service() model.ServiceName {
@@ -164,4 +199,30 @@ func (stubSongTargetAdapter) SearchSongByMetadata(_ context.Context, song model.
 		{CandidateID: "song-1", MatchURL: "https://music.apple.com/us/song/1", CanonicalSong: model.CanonicalSong{Service: model.ServiceAppleMusic, SourceID: "song-1", SourceURL: "https://music.apple.com/us/song/1", Title: "Come Together", NormalizedTitle: "come together", Artists: []string{"The Beatles"}, NormalizedArtists: []string{"the beatles"}, DurationMS: 258947, ISRC: "GBAYE0601690", TrackNumber: 1, AlbumTitle: "Abbey Road (Remastered)", AlbumNormalizedTitle: "abbey road remastered", ReleaseDate: "1969-09-26", EditionHints: []string{"remastered"}}},
 		{CandidateID: "song-2", MatchURL: "https://music.apple.com/us/song/2", CanonicalSong: model.CanonicalSong{Service: model.ServiceAppleMusic, SourceID: "song-2", SourceURL: "https://music.apple.com/us/song/2", Title: "Come Together - Live", NormalizedTitle: "come together live", Artists: []string{"Tribute Band"}, NormalizedArtists: []string{"tribute band"}, DurationMS: 310000, ISRC: "OTHER0001", TrackNumber: 8, AlbumTitle: "Abbey Road Live", AlbumNormalizedTitle: "abbey road live", ReleaseDate: "2020-01-01", EditionHints: []string{"live"}}},
 	}, nil
+}
+
+func (a sourceServiceSongTargetAdapter) Service() model.ServiceName {
+	return model.ServiceSpotify
+}
+
+func (a sourceServiceSongTargetAdapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
+	*a.called = true
+	return nil, nil
+}
+
+func (a sourceServiceSongTargetAdapter) SearchSongByMetadata(_ context.Context, _ model.CanonicalSong) ([]model.CandidateSong, error) {
+	*a.called = true
+	return nil, nil
+}
+
+func (failingSongTargetAdapter) Service() model.ServiceName {
+	return model.ServiceAppleMusic
+}
+
+func (failingSongTargetAdapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
+	return nil, nil
+}
+
+func (failingSongTargetAdapter) SearchSongByMetadata(_ context.Context, _ model.CanonicalSong) ([]model.CandidateSong, error) {
+	return nil, errTargetSearchBoom
 }
