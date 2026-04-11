@@ -227,15 +227,6 @@ var defaultServiceOrder = struct {
 	},
 }
 
-func serviceBindingByName(service ServiceName) (serviceBinding, bool) {
-	for _, binding := range defaultServiceBindings {
-		if binding.capability.name == service {
-			return binding, true
-		}
-	}
-	return serviceBinding{}, false
-}
-
 func buildDefaultServiceAdapters(client *http.Client, config Config) map[ServiceName]serviceAdapterSet {
 	sets := make(map[ServiceName]serviceAdapterSet, len(defaultServiceBindings))
 	for _, binding := range defaultServiceBindings {
