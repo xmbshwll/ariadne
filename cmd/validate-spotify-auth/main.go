@@ -19,6 +19,7 @@ import (
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	"github.com/xmbshwll/ariadne/internal/config"
+	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
@@ -51,82 +52,136 @@ func main() {
 }
 
 func run(args []string) error {
-	opts, err := parseFlags(args)
+	inputs, err := loadValidationInputs(args)
 	if err != nil {
 		return err
-	}
-
-	appConfig := config.Load()
-	if !appConfig.Spotify.Enabled() {
-		return errSpotifyCredentialsRequired
-	}
-
-	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "spotify", errSpotifySampleURLRequired, errSpotifySampleURLEmpty)
-	if err != nil {
-		return fmt.Errorf("load spotify sample url: %w", err)
-	}
-	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-spotify-validation-")
-	if err != nil {
-		return fmt.Errorf("resolve spotify output dir: %w", err)
-	}
-	parsed, err := parse.SpotifyAlbumURL(rawURL)
-	if err != nil {
-		return fmt.Errorf("parse sample spotify album url: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	token, err := fetchToken(ctx, opts.authBaseURL, appConfig.Spotify.ClientID, appConfig.Spotify.ClientSecret)
+	artifacts, err := collectValidationArtifacts(ctx, inputs)
 	if err != nil {
 		return err
 	}
+	if err := writeValidationArtifacts(inputs.outputDir, artifacts); err != nil {
+		return err
+	}
 
-	albumPath := "/albums/" + parsed.ID
-	albumBody, err := getAPI(ctx, opts.apiBaseURL+albumPath, token)
+	fmt.Printf("wrote Spotify authenticated artifacts to %s\n", inputs.outputDir)
+	return nil
+}
+
+func loadValidationInputs(args []string) (validationInputs, error) {
+	opts, err := parseFlags(args)
 	if err != nil {
-		return fmt.Errorf("fetch spotify album payload: %w", err)
+		return validationInputs{}, err
+	}
+
+	appConfig := config.Load()
+	if !appConfig.Spotify.Enabled() {
+		return validationInputs{}, errSpotifyCredentialsRequired
+	}
+
+	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "spotify", errSpotifySampleURLRequired, errSpotifySampleURLEmpty)
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("load spotify sample url: %w", err)
+	}
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-spotify-validation-")
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("resolve spotify output dir: %w", err)
+	}
+	parsed, err := parse.SpotifyAlbumURL(rawURL)
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("parse sample spotify album url: %w", err)
+	}
+
+	return validationInputs{
+		opts:      opts,
+		appConfig: appConfig,
+		rawURL:    rawURL,
+		outputDir: outputDir,
+		parsed:    parsed,
+	}, nil
+}
+
+func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
+	token, err := fetchToken(ctx, inputs.opts.authBaseURL, inputs.appConfig.Spotify.ClientID, inputs.appConfig.Spotify.ClientSecret)
+	if err != nil {
+		return validationArtifacts{}, err
+	}
+
+	albumBody, album, err := fetchSpotifyAlbum(ctx, inputs.opts.apiBaseURL, inputs.parsed.ID, token)
+	if err != nil {
+		return validationArtifacts{}, err
+	}
+
+	upc, isrcs, metadata, err := validateSpotifyAlbumMetadata(ctx, inputs.opts.apiBaseURL, token, album)
+	if err != nil {
+		return validationArtifacts{}, err
+	}
+
+	upcBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
+	if err != nil {
+		return validationArtifacts{}, fmt.Errorf("search spotify by upc: %w", err)
+	}
+	isrcBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+strconv.Itoa(searchLimit), token)
+	if err != nil {
+		return validationArtifacts{}, fmt.Errorf("search spotify by isrc: %w", err)
+	}
+	metadataBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/search?q="+url.QueryEscape(metadata)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
+	if err != nil {
+		return validationArtifacts{}, fmt.Errorf("search spotify by metadata: %w", err)
+	}
+
+	return validationArtifacts{
+		albumBody:    albumBody,
+		upcBody:      upcBody,
+		isrcBody:     isrcBody,
+		metadataBody: metadataBody,
+		summary:      buildValidationSummary(inputs, album, upc, isrcs),
+	}, nil
+}
+
+func fetchSpotifyAlbum(ctx context.Context, apiBaseURL, albumID, token string) ([]byte, map[string]any, error) {
+	albumBody, err := getAPI(ctx, apiBaseURL+"/albums/"+albumID, token)
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetch spotify album payload: %w", err)
 	}
 
 	var album map[string]any
 	if err := json.Unmarshal(albumBody, &album); err != nil {
-		return fmt.Errorf("decode album payload: %w", err)
+		return nil, nil, fmt.Errorf("decode album payload: %w", err)
 	}
+	return albumBody, album, nil
+}
 
+func validateSpotifyAlbumMetadata(ctx context.Context, apiBaseURL, token string, album map[string]any) (string, []string, string, error) {
 	upc := nestedString(album, "external_ids", "upc")
 	if upc == "" {
-		return errSpotifyUPCMissing
+		return "", nil, "", errSpotifyUPCMissing
 	}
-	isrcs, err := collectTrackISRCs(ctx, opts.apiBaseURL, token, album)
+
+	isrcs, err := collectTrackISRCs(ctx, apiBaseURL, token, album)
 	if err != nil {
-		return fmt.Errorf("collect spotify track isrcs: %w", err)
+		return "", nil, "", fmt.Errorf("collect spotify track isrcs: %w", err)
 	}
 	if len(isrcs) == 0 {
-		return errSpotifyISRCMissing
+		return "", nil, "", errSpotifyISRCMissing
 	}
 
-	metadataQuery := metadataQuery(album)
-	if metadataQuery == "" {
-		return errSpotifyMetadataMissing
+	metadata := metadataQuery(album)
+	if metadata == "" {
+		return "", nil, "", errSpotifyMetadataMissing
 	}
+	return upc, isrcs, metadata, nil
+}
 
-	upcBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
-	if err != nil {
-		return fmt.Errorf("search spotify by upc: %w", err)
-	}
-	isrcBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+strconv.Itoa(searchLimit), token)
-	if err != nil {
-		return fmt.Errorf("search spotify by isrc: %w", err)
-	}
-	metadataBody, err := getAPI(ctx, opts.apiBaseURL+"/search?q="+url.QueryEscape(metadataQuery)+"&type=album&limit="+strconv.Itoa(searchLimit), token)
-	if err != nil {
-		return fmt.Errorf("search spotify by metadata: %w", err)
-	}
-
-	summary := map[string]any{
-		"sample_url":         rawURL,
-		"album_id":           parsed.ID,
-		"canonical_url":      parsed.CanonicalURL,
+func buildValidationSummary(inputs validationInputs, album map[string]any, upc string, isrcs []string) map[string]any {
+	return map[string]any{
+		"sample_url":         inputs.rawURL,
+		"album_id":           inputs.parsed.ID,
+		"canonical_url":      inputs.parsed.CanonicalURL,
 		"title":              strings.TrimSpace(asString(album["name"])),
 		"artists":            albumArtists(album),
 		"release_date":       strings.TrimSpace(asString(album["release_date"])),
@@ -135,31 +190,31 @@ func run(args []string) error {
 		"track_isrc_samples": isrcs,
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
 		"artifacts": map[string]string{
-			"source_payload_api":    filepath.ToSlash(filepath.Join(outputDir, "source-payload-api.json")),
-			"search_upc_results":    filepath.ToSlash(filepath.Join(outputDir, "search-upc-results.json")),
-			"search_isrc_results":   filepath.ToSlash(filepath.Join(outputDir, "search-isrc-results.json")),
-			"search_metadata":       filepath.ToSlash(filepath.Join(outputDir, "search-metadata-results.json")),
-			"authenticated_summary": filepath.ToSlash(filepath.Join(outputDir, "authenticated-summary.json")),
+			"source_payload_api":    filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-api.json")),
+			"search_upc_results":    filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-results.json")),
+			"search_isrc_results":   filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-results.json")),
+			"search_metadata":       filepath.ToSlash(filepath.Join(inputs.outputDir, "search-metadata-results.json")),
+			"authenticated_summary": filepath.ToSlash(filepath.Join(inputs.outputDir, "authenticated-summary.json")),
 		},
 	}
+}
 
-	if err := writePrettyJSON(filepath.Join(outputDir, "source-payload-api.json"), albumBody); err != nil {
+func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
+	if err := writePrettyJSON(filepath.Join(outputDir, "source-payload-api.json"), artifacts.albumBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-upc-results.json"), upcBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-upc-results.json"), artifacts.upcBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-isrc-results.json"), isrcBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-isrc-results.json"), artifacts.isrcBody); err != nil {
 		return err
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-metadata-results.json"), metadataBody); err != nil {
+	if err := writePrettyJSON(filepath.Join(outputDir, "search-metadata-results.json"), artifacts.metadataBody); err != nil {
 		return err
 	}
-	if err := writeJSON(filepath.Join(outputDir, "authenticated-summary.json"), summary); err != nil {
+	if err := writeJSON(filepath.Join(outputDir, "authenticated-summary.json"), artifacts.summary); err != nil {
 		return err
 	}
-
-	fmt.Printf("wrote Spotify authenticated artifacts to %s\n", outputDir)
 	return nil
 }
 
@@ -169,6 +224,22 @@ type options struct {
 	outputDir     string
 	apiBaseURL    string
 	authBaseURL   string
+}
+
+type validationInputs struct {
+	opts      options
+	appConfig config.Config
+	rawURL    string
+	outputDir string
+	parsed    *model.ParsedAlbumURL
+}
+
+type validationArtifacts struct {
+	albumBody    []byte
+	upcBody      []byte
+	isrcBody     []byte
+	metadataBody []byte
+	summary      map[string]any
 }
 
 func parseFlags(args []string) (options, error) {

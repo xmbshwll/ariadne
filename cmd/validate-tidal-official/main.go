@@ -16,6 +16,7 @@ import (
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	"github.com/xmbshwll/ariadne/internal/config"
+	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
@@ -48,6 +49,20 @@ type options struct {
 	countryCode   string
 }
 
+type validationInputs struct {
+	opts        options
+	appConfig   config.Config
+	rawURL      string
+	outputDir   string
+	parsed      *model.ParsedAlbumURL
+	countryCode string
+}
+
+type validationArtifacts struct {
+	targets map[string][]byte
+	summary map[string]any
+}
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -56,57 +71,72 @@ func main() {
 }
 
 func run(args []string) error {
-	opts, err := parseFlags(args)
+	inputs, err := loadValidationInputs(args)
 	if err != nil {
 		return err
-	}
-
-	appConfig := config.Load()
-	if !appConfig.TIDAL.Enabled() {
-		return errTIDALCredentialsRequired
-	}
-
-	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "tidal", errTIDALSampleURLRequired, errTIDALSampleURLEmpty)
-	if err != nil {
-		return fmt.Errorf("load tidal sample url: %w", err)
-	}
-	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-tidal-validation-")
-	if err != nil {
-		return fmt.Errorf("resolve tidal output dir: %w", err)
-	}
-	parsed, err := parse.TIDALAlbumURL(rawURL)
-	if err != nil {
-		return fmt.Errorf("parse sample tidal album url: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	accessToken, err := fetchAccessToken(ctx, opts.authBaseURL, appConfig.TIDAL.ClientID, appConfig.TIDAL.ClientSecret)
+	artifacts, err := collectValidationArtifacts(ctx, inputs)
 	if err != nil {
-		return fmt.Errorf("fetch tidal access token: %w", err)
+		return err
+	}
+	if err := writeValidationArtifacts(inputs.outputDir, artifacts); err != nil {
+		return err
 	}
 
-	albumURL := fmt.Sprintf("%s/albums/%s?countryCode=%s&include=%s", strings.TrimRight(opts.apiBaseURL, "/"), url.PathEscape(parsed.ID), url.QueryEscape(opts.countryCode), url.QueryEscape("artists,items,coverArt"))
-	albumBody, err := getAPI(ctx, albumURL, accessToken)
+	fmt.Printf("wrote TIDAL official artifacts to %s\n", inputs.outputDir)
+	return nil
+}
+
+func loadValidationInputs(args []string) (validationInputs, error) {
+	opts, err := parseFlags(args)
 	if err != nil {
-		return fmt.Errorf("fetch tidal album payload: %w", err)
+		return validationInputs{}, err
 	}
 
-	var albumPayload map[string]any
-	if err := json.Unmarshal(albumBody, &albumPayload); err != nil {
-		return fmt.Errorf("decode tidal album payload: %w", err)
+	appConfig := config.Load()
+	if !appConfig.TIDAL.Enabled() {
+		return validationInputs{}, errTIDALCredentialsRequired
 	}
 
-	data := firstObjectFromDocument(albumPayload)
-	if data == nil {
-		return errTIDALAlbumPayloadMissing
+	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "tidal", errTIDALSampleURLRequired, errTIDALSampleURLEmpty)
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("load tidal sample url: %w", err)
 	}
-	attributes := nestedMap(data, "attributes")
-	title := firstNonEmpty(
-		stringValue(attributes, "title"),
-		stringValue(attributes, "name"),
-	)
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-tidal-validation-")
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("resolve tidal output dir: %w", err)
+	}
+	parsed, err := parse.TIDALAlbumURL(rawURL)
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("parse sample tidal album url: %w", err)
+	}
+
+	return validationInputs{
+		opts:        opts,
+		appConfig:   appConfig,
+		rawURL:      rawURL,
+		outputDir:   outputDir,
+		parsed:      parsed,
+		countryCode: strings.ToUpper(strings.TrimSpace(opts.countryCode)),
+	}, nil
+}
+
+func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
+	accessToken, err := fetchAccessToken(ctx, inputs.opts.authBaseURL, inputs.appConfig.TIDAL.ClientID, inputs.appConfig.TIDAL.ClientSecret)
+	if err != nil {
+		return validationArtifacts{}, fmt.Errorf("fetch tidal access token: %w", err)
+	}
+
+	albumBody, albumPayload, data, attributes, err := fetchTIDALAlbum(ctx, inputs, accessToken)
+	if err != nil {
+		return validationArtifacts{}, err
+	}
+
+	title := firstNonEmpty(stringValue(attributes, "title"), stringValue(attributes, "name"))
 	artistNames := collectIncludedNames(albumPayload, "artists")
 	if len(artistNames) == 0 {
 		artistNames = collectRelationshipNames(data, albumPayload, "artists")
@@ -115,43 +145,98 @@ func run(args []string) error {
 	trackISRCs := collectIncludedISRCs(albumPayload, defaultSearchLimit)
 	upc := firstNonEmpty(stringValue(attributes, "barcodeId"), stringValue(attributes, "upc"))
 	releaseDate := stringValue(attributes, "releaseDate")
-	query := strings.TrimSpace(strings.Join([]string{title, firstArtist(artistNames)}, " "))
-	if query == "" {
-		query = parsed.ID
-	}
+	query := buildTIDALQuery(title, artistNames, inputs.parsed.ID)
 
-	searchURL := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", strings.TrimRight(opts.apiBaseURL, "/"), url.PathEscape(query), url.QueryEscape(opts.countryCode))
-	searchBody, err := getAPI(ctx, searchURL, accessToken)
+	searchBody, err := fetchTIDALAlbumSearch(ctx, inputs, accessToken, query)
 	if err != nil {
-		return fmt.Errorf("search tidal albums: %w", err)
+		return validationArtifacts{}, err
 	}
 
 	targets := map[string][]byte{
 		"source-payload-official.json": albumBody,
 		"search-albums-official.json":  searchBody,
 	}
-	if upc != "" {
-		upcSearchURL := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", strings.TrimRight(opts.apiBaseURL, "/"), url.QueryEscape(opts.countryCode), url.QueryEscape(upc))
-		upcSearchBody, err := getAPI(ctx, upcSearchURL, accessToken)
-		if err != nil {
-			return fmt.Errorf("search tidal albums by upc: %w", err)
-		}
-		targets["search-upc-official.json"] = upcSearchBody
+	if err := addTIDALUPCArtifact(ctx, inputs, accessToken, targets, upc); err != nil {
+		return validationArtifacts{}, err
 	}
-	if len(trackISRCs) > 0 {
-		isrcSearchURL := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", strings.TrimRight(opts.apiBaseURL, "/"), url.QueryEscape(opts.countryCode), url.QueryEscape(trackISRCs[0]))
-		isrcSearchBody, err := getAPI(ctx, isrcSearchURL, accessToken)
-		if err != nil {
-			return fmt.Errorf("search tidal tracks by isrc: %w", err)
-		}
-		targets["search-isrc-official.json"] = isrcSearchBody
+	if err := addTIDALISRCArtifact(ctx, inputs, accessToken, targets, trackISRCs); err != nil {
+		return validationArtifacts{}, err
 	}
 
-	summary := map[string]any{
-		"sample_url":          rawURL,
-		"album_id":            parsed.ID,
-		"canonical_url":       parsed.CanonicalURL,
-		"country_code":        strings.ToUpper(strings.TrimSpace(opts.countryCode)),
+	return validationArtifacts{
+		targets: targets,
+		summary: buildValidationSummary(inputs, title, artistNames, releaseDate, upc, trackTitles, trackISRCs),
+	}, nil
+}
+
+func fetchTIDALAlbum(ctx context.Context, inputs validationInputs, accessToken string) ([]byte, map[string]any, map[string]any, map[string]any, error) {
+	albumURL := fmt.Sprintf("%s/albums/%s?countryCode=%s&include=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(inputs.parsed.ID), url.QueryEscape(inputs.countryCode), url.QueryEscape("artists,items,coverArt"))
+	albumBody, err := getAPI(ctx, albumURL, accessToken)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("fetch tidal album payload: %w", err)
+	}
+
+	var albumPayload map[string]any
+	if err := json.Unmarshal(albumBody, &albumPayload); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("decode tidal album payload: %w", err)
+	}
+
+	data := firstObjectFromDocument(albumPayload)
+	if data == nil {
+		return nil, nil, nil, nil, errTIDALAlbumPayloadMissing
+	}
+	return albumBody, albumPayload, data, nestedMap(data, "attributes"), nil
+}
+
+func buildTIDALQuery(title string, artistNames []string, albumID string) string {
+	query := strings.TrimSpace(strings.Join([]string{title, firstArtist(artistNames)}, " "))
+	if query != "" {
+		return query
+	}
+	return albumID
+}
+
+func fetchTIDALAlbumSearch(ctx context.Context, inputs validationInputs, accessToken, query string) ([]byte, error) {
+	searchURL := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(query), url.QueryEscape(inputs.countryCode))
+	searchBody, err := getAPI(ctx, searchURL, accessToken)
+	if err != nil {
+		return nil, fmt.Errorf("search tidal albums: %w", err)
+	}
+	return searchBody, nil
+}
+
+func addTIDALUPCArtifact(ctx context.Context, inputs validationInputs, accessToken string, targets map[string][]byte, upc string) error {
+	if upc == "" {
+		return nil
+	}
+	upcSearchURL := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(upc))
+	upcSearchBody, err := getAPI(ctx, upcSearchURL, accessToken)
+	if err != nil {
+		return fmt.Errorf("search tidal albums by upc: %w", err)
+	}
+	targets["search-upc-official.json"] = upcSearchBody
+	return nil
+}
+
+func addTIDALISRCArtifact(ctx context.Context, inputs validationInputs, accessToken string, targets map[string][]byte, trackISRCs []string) error {
+	if len(trackISRCs) == 0 {
+		return nil
+	}
+	isrcSearchURL := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(trackISRCs[0]))
+	isrcSearchBody, err := getAPI(ctx, isrcSearchURL, accessToken)
+	if err != nil {
+		return fmt.Errorf("search tidal tracks by isrc: %w", err)
+	}
+	targets["search-isrc-official.json"] = isrcSearchBody
+	return nil
+}
+
+func buildValidationSummary(inputs validationInputs, title string, artistNames []string, releaseDate string, upc string, trackTitles []string, trackISRCs []string) map[string]any {
+	return map[string]any{
+		"sample_url":          inputs.rawURL,
+		"album_id":            inputs.parsed.ID,
+		"canonical_url":       inputs.parsed.CanonicalURL,
+		"country_code":        inputs.countryCode,
 		"title":               title,
 		"artists":             artistNames,
 		"release_date":        releaseDate,
@@ -161,24 +246,24 @@ func run(args []string) error {
 		"generated_at":        time.Now().UTC().Format(time.RFC3339),
 		"token_acquired":      true,
 		"artifacts": map[string]string{
-			"source_payload_official": filepath.ToSlash(filepath.Join(outputDir, "source-payload-official.json")),
-			"search_albums_official":  filepath.ToSlash(filepath.Join(outputDir, "search-albums-official.json")),
-			"search_upc_official":     filepath.ToSlash(filepath.Join(outputDir, "search-upc-official.json")),
-			"search_isrc_official":    filepath.ToSlash(filepath.Join(outputDir, "search-isrc-official.json")),
-			"official_summary":        filepath.ToSlash(filepath.Join(outputDir, "official-summary.json")),
+			"source_payload_official": filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-official.json")),
+			"search_albums_official":  filepath.ToSlash(filepath.Join(inputs.outputDir, "search-albums-official.json")),
+			"search_upc_official":     filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-official.json")),
+			"search_isrc_official":    filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-official.json")),
+			"official_summary":        filepath.ToSlash(filepath.Join(inputs.outputDir, "official-summary.json")),
 		},
 	}
+}
 
-	for name, raw := range targets {
+func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
+	for name, raw := range artifacts.targets {
 		if err := writePrettyJSON(filepath.Join(outputDir, name), raw); err != nil {
 			return err
 		}
 	}
-	if err := writeJSON(filepath.Join(outputDir, "official-summary.json"), summary); err != nil {
+	if err := writeJSON(filepath.Join(outputDir, "official-summary.json"), artifacts.summary); err != nil {
 		return err
 	}
-
-	fmt.Printf("wrote TIDAL official artifacts to %s\n", outputDir)
 	return nil
 }
 

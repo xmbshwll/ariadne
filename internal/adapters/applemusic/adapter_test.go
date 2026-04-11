@@ -19,13 +19,34 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-func TestAdapter(t *testing.T) {
-	const (
-		abbeyRoadRemastered = "Abbey Road (Remastered)"
-		comeTogetherTitle   = "Come Together"
-		comeTogetherISRC    = "GBAYE0601690"
-	)
+const (
+	abbeyRoadRemastered = "Abbey Road (Remastered)"
+	comeTogetherTitle   = "Come Together"
+	comeTogetherISRC    = "GBAYE0601690"
+)
 
+type testPayloads struct {
+	lookup         []byte
+	lookup2019Mix  []byte
+	officialAlbum  []byte
+	officialUPC    []byte
+	officialISRC   []byte
+	lookupSong     []byte
+	searchAlbum    []byte
+	searchSong     []byte
+	lookupWeakSong []byte
+	lookupNonSong  []byte
+}
+
+type testFixture struct {
+	httpClient  *http.Client
+	serverURL   string
+	adapter     *Adapter
+	authAdapter *Adapter
+	parsed      model.ParsedAlbumURL
+}
+
+func TestAdapter(t *testing.T) {
 	lookupPayload := mustReadTestFile(t, "testdata/source-payload.json")
 	searchPayload := `{
 		"resultCount": 2,
@@ -199,91 +220,21 @@ func TestAdapter(t *testing.T) {
 	}`,
 		comeTogetherISRC,
 	)
-	keyPath := writeTestPrivateKey(t)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/lookup":
-			if got := r.URL.Query().Get("country"); got != "us" && got != "gb" {
-				http.Error(w, "missing country", http.StatusBadRequest)
-				return
-			}
-			switch r.URL.Query().Get("id") {
-			case "1441164426":
-				_, _ = w.Write(lookupPayload)
-			case "1474815798":
-				_, _ = w.Write([]byte(lookup2019MixPayload))
-			case "1441164430":
-				_, _ = w.Write([]byte(lookupSongPayload))
-			case "999999":
-				_, _ = w.Write([]byte(`{"resultCount":1,"results":[{"wrapperType":"track","kind":"song","artistId":999,"collectionId":555,"trackId":999999,"artistName":"Tribute Band","collectionName":"Abbey Road Live","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-live/555?uo=4","trackName":"Come Together (Live)","discNumber":1,"trackNumber":8,"trackTimeMillis":300000,"trackIsrc":"LIVE0000001","releaseDate":"2021-01-01T07:00:00Z","artworkUrl100":"https://image.test/weak.jpg","trackExplicitness":"notExplicit"}]}`))
-			case "123456789":
-				_, _ = w.Write([]byte(`{"resultCount":1,"results":[{"wrapperType":"collection","collectionType":"Album","artistId":136975,"collectionId":1441164426,"artistName":"The Beatles","collectionName":"Abbey Road (Remastered)","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4"}]}`))
-			default:
-				http.NotFound(w, r)
-			}
-		case "/search":
-			if got := r.URL.Query().Get("country"); got != "gb" {
-				http.Error(w, "expected gb storefront", http.StatusBadRequest)
-				return
-			}
-			if r.URL.Query().Get("entity") == entitySong {
-				_, _ = w.Write([]byte(searchSongPayload))
-				return
-			}
-			_, _ = w.Write([]byte(searchPayload))
-		case "/catalog/gb/albums":
-			if r.Header.Get("Authorization") == "" {
-				http.Error(w, "missing auth", http.StatusUnauthorized)
-				return
-			}
-			if r.URL.Query().Get("filter[upc]") != "00602567713449" {
-				http.NotFound(w, r)
-				return
-			}
-			_, _ = w.Write([]byte(officialUPCSearchPayload))
-		case "/catalog/gb/songs":
-			if r.Header.Get("Authorization") == "" {
-				http.Error(w, "missing auth", http.StatusUnauthorized)
-				return
-			}
-			if r.URL.Query().Get("filter[isrc]") != comeTogetherISRC {
-				http.NotFound(w, r)
-				return
-			}
-			_, _ = w.Write([]byte(officialISRCSearchPayload))
-		case "/catalog/gb/albums/1441164426":
-			if r.Header.Get("Authorization") == "" {
-				http.Error(w, "missing auth", http.StatusUnauthorized)
-				return
-			}
-			_, _ = w.Write([]byte(officialAlbumPayload))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	adapter := New(server.Client(), WithLookupBaseURL(server.URL))
-	authAdapter := New(
-		server.Client(),
-		WithLookupBaseURL(server.URL),
-		WithAPIBaseURL(server.URL),
-		WithDefaultStorefront("gb"),
-		WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
-	)
-
-	parsed := model.ParsedAlbumURL{
-		Service:      model.ServiceAppleMusic,
-		EntityType:   "album",
-		ID:           "1441164426",
-		CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426",
-		RegionHint:   "us",
-		RawURL:       "https://music.apple.com/us/album/abbey-road-remastered/1441164426",
-	}
+	fixture := newTestFixture(t, testPayloads{
+		lookup:         lookupPayload,
+		lookup2019Mix:  []byte(lookup2019MixPayload),
+		officialAlbum:  []byte(officialAlbumPayload),
+		officialUPC:    []byte(officialUPCSearchPayload),
+		officialISRC:   []byte(officialISRCSearchPayload),
+		lookupSong:     []byte(lookupSongPayload),
+		searchAlbum:    []byte(searchPayload),
+		searchSong:     []byte(searchSongPayload),
+		lookupWeakSong: []byte(`{"resultCount":1,"results":[{"wrapperType":"track","kind":"song","artistId":999,"collectionId":555,"trackId":999999,"artistName":"Tribute Band","collectionName":"Abbey Road Live","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-live/555?uo=4","trackName":"Come Together (Live)","discNumber":1,"trackNumber":8,"trackTimeMillis":300000,"trackIsrc":"LIVE0000001","releaseDate":"2021-01-01T07:00:00Z","artworkUrl100":"https://image.test/weak.jpg","trackExplicitness":"notExplicit"}]}`),
+		lookupNonSong:  []byte(`{"resultCount":1,"results":[{"wrapperType":"collection","collectionType":"Album","artistId":136975,"collectionId":1441164426,"artistName":"The Beatles","collectionName":"Abbey Road (Remastered)","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4"}]}`),
+	})
 
 	t.Run("fetch album", func(t *testing.T) {
-		album, err := adapter.FetchAlbum(context.Background(), parsed)
+		album, err := fixture.adapter.FetchAlbum(context.Background(), fixture.parsed)
 		require.NoError(t, err)
 		assert.Equal(t, abbeyRoadRemastered, album.Title)
 		assert.Equal(t, "1441164426", album.SourceID)
@@ -297,7 +248,7 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("search by metadata", func(t *testing.T) {
-		results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+		results, err := fixture.adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
 			Title:      abbeyRoadRemastered,
 			Artists:    []string{"The Beatles"},
 			RegionHint: "gb",
@@ -311,7 +262,7 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("search by metadata uses adapter default storefront", func(t *testing.T) {
-		defaultStorefrontAdapter := New(server.Client(), WithLookupBaseURL(server.URL), WithDefaultStorefront("gb"))
+		defaultStorefrontAdapter := New(fixture.httpClient, WithLookupBaseURL(fixture.serverURL), WithDefaultStorefront("gb"))
 		results, err := defaultStorefrontAdapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
 			Title:   "Abbey Road (Remastered)",
 			Artists: []string{"The Beatles"},
@@ -322,19 +273,19 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("search by upc without auth returns no results", func(t *testing.T) {
-		results, err := adapter.SearchByUPC(context.Background(), "123")
+		results, err := fixture.adapter.SearchByUPC(context.Background(), "123")
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
 
 	t.Run("search by isrc without auth returns no results", func(t *testing.T) {
-		results, err := adapter.SearchByISRC(context.Background(), []string{"ABC"})
+		results, err := fixture.adapter.SearchByISRC(context.Background(), []string{"ABC"})
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
 
 	t.Run("search by upc with official auth", func(t *testing.T) {
-		results, err := authAdapter.SearchByUPC(context.Background(), "00602567713449")
+		results, err := fixture.authAdapter.SearchByUPC(context.Background(), "00602567713449")
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, "1441164426", results[0].CandidateID)
@@ -344,7 +295,7 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("search by isrc with official auth", func(t *testing.T) {
-		results, err := authAdapter.SearchByISRC(context.Background(), []string{"GBAYE0601690"})
+		results, err := fixture.authAdapter.SearchByISRC(context.Background(), []string{"GBAYE0601690"})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, "1441164426", results[0].CandidateID)
@@ -353,7 +304,7 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("fetch song", func(t *testing.T) {
-		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+		song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
 			Service:      model.ServiceAppleMusic,
 			EntityType:   entitySong,
 			ID:           "1441164430",
@@ -368,7 +319,7 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("fetch song rejects non-song lookup payloads", func(t *testing.T) {
-		song, err := adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
+		song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedAlbumURL{
 			Service:      model.ServiceAppleMusic,
 			EntityType:   entitySong,
 			ID:           "123456789",
@@ -381,7 +332,7 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("search song by metadata", func(t *testing.T) {
-		results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
+		results, err := fixture.adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{
 			Title:      comeTogetherTitle,
 			Artists:    []string{"The Beatles"},
 			RegionHint: "gb",
@@ -394,12 +345,134 @@ func TestAdapter(t *testing.T) {
 	})
 
 	t.Run("search song by isrc with official auth", func(t *testing.T) {
-		results, err := authAdapter.SearchSongByISRC(context.Background(), comeTogetherISRC)
+		results, err := fixture.authAdapter.SearchSongByISRC(context.Background(), comeTogetherISRC)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, "1441164430", results[0].CandidateID)
 		assert.Equal(t, comeTogetherTitle, results[0].Title)
 	})
+}
+
+func newTestFixture(t *testing.T, payloads testPayloads) testFixture {
+	t.Helper()
+
+	keyPath := writeTestPrivateKey(t)
+	server := newTestServer(t, payloads)
+	client := server.Client()
+	serverURL := server.URL
+	t.Cleanup(server.Close)
+
+	return testFixture{
+		httpClient: client,
+		serverURL:  serverURL,
+		adapter:    New(client, WithLookupBaseURL(serverURL)),
+		authAdapter: New(
+			client,
+			WithLookupBaseURL(serverURL),
+			WithAPIBaseURL(serverURL),
+			WithDefaultStorefront("gb"),
+			WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
+		),
+		parsed: model.ParsedAlbumURL{
+			Service:      model.ServiceAppleMusic,
+			EntityType:   "album",
+			ID:           "1441164426",
+			CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426",
+			RegionHint:   "us",
+			RawURL:       "https://music.apple.com/us/album/abbey-road-remastered/1441164426",
+		},
+	}
+}
+
+func newTestServer(t *testing.T, payloads testPayloads) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/lookup", lookupHandler(payloads))
+	mux.HandleFunc("/search", searchHandler(payloads))
+	mux.HandleFunc("/catalog/gb/albums", officialAlbumsHandler(payloads))
+	mux.HandleFunc("/catalog/gb/songs", officialSongsHandler(payloads))
+	mux.HandleFunc("/catalog/gb/albums/1441164426", officialAlbumHandler(payloads))
+	return httptest.NewServer(mux)
+}
+
+func lookupHandler(payloads testPayloads) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("country"); got != "us" && got != "gb" {
+			http.Error(w, "missing country", http.StatusBadRequest)
+			return
+		}
+
+		var payload []byte
+		switch r.URL.Query().Get("id") {
+		case "1441164426":
+			payload = payloads.lookup
+		case "1474815798":
+			payload = payloads.lookup2019Mix
+		case "1441164430":
+			payload = payloads.lookupSong
+		case "999999":
+			payload = payloads.lookupWeakSong
+		case "123456789":
+			payload = payloads.lookupNonSong
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(payload)
+	}
+}
+
+func searchHandler(payloads testPayloads) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("country"); got != "gb" {
+			http.Error(w, "expected gb storefront", http.StatusBadRequest)
+			return
+		}
+		if r.URL.Query().Get("entity") == entitySong {
+			_, _ = w.Write(payloads.searchSong)
+			return
+		}
+		_, _ = w.Write(payloads.searchAlbum)
+	}
+}
+
+func officialAlbumsHandler(payloads testPayloads) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Query().Get("filter[upc]") != "00602567713449" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(payloads.officialUPC)
+	}
+}
+
+func officialSongsHandler(payloads testPayloads) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Query().Get("filter[isrc]") != comeTogetherISRC {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(payloads.officialISRC)
+	}
+}
+
+func officialAlbumHandler(payloads testPayloads) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		_, _ = w.Write(payloads.officialAlbum)
+	}
 }
 
 func mustReadTestFile(t *testing.T, relativePath string) []byte {
