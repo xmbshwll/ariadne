@@ -24,35 +24,25 @@ const (
 	deezerSomethingTrackPayload    = `{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`
 )
 
+type jsonRoute struct {
+	status int
+	body   []byte
+}
+
 func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *httptest.Server {
 	t.Helper()
 
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case deezerAlbumPath:
-			_, _ = w.Write(albumBytes)
-		case "/album/upc:602547670342":
-			_, _ = w.Write(albumBytes)
-		case deezerAlbumTracksPath:
-			_, _ = w.Write(trackBytes)
-		case deezerAlbumSearchPath:
-			_, _ = w.Write(searchBytes)
-		case deezerTrackSearchPath:
-			_, _ = w.Write([]byte(deezerTrackSearchPayload))
-		case "/track/116348128":
-			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
-		case "/track/999999":
-			_, _ = w.Write([]byte(deezerLiveTrackPayload))
-		case "/track/isrc:" + deezerComeTogetherISRC:
-			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
-		case "/track/isrc:GBAYE0601691":
-			_, _ = w.Write([]byte(deezerSomethingTrackPayload))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
+	return newJSONRouteServer(map[string]jsonRoute{
+		deezerAlbumPath:                         jsonOK(albumBytes),
+		"/album/upc:602547670342":               jsonOK(albumBytes),
+		deezerAlbumTracksPath:                   jsonOK(trackBytes),
+		deezerAlbumSearchPath:                   jsonOK(searchBytes),
+		deezerTrackSearchPath:                   jsonOK([]byte(deezerTrackSearchPayload)),
+		"/track/116348128":                      jsonOK([]byte(deezerComeTogetherTrackPayload)),
+		"/track/999999":                         jsonOK([]byte(deezerLiveTrackPayload)),
+		"/track/isrc:" + deezerComeTogetherISRC: jsonOK([]byte(deezerComeTogetherTrackPayload)),
+		"/track/isrc:GBAYE0601691":              jsonOK([]byte(deezerSomethingTrackPayload)),
+	})
 }
 
 func newJSONTestServer(handler http.HandlerFunc) *httptest.Server {
@@ -60,6 +50,29 @@ func newJSONTestServer(handler http.HandlerFunc) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		handler(w, r)
 	}))
+}
+
+func newJSONRouteServer(routes map[string]jsonRoute) *httptest.Server {
+	return newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
+		route, ok := routes[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if route.status != 0 && route.status != http.StatusOK {
+			http.Error(w, string(route.body), route.status)
+			return
+		}
+		_, _ = w.Write(route.body)
+	})
+}
+
+func jsonOK(body []byte) jsonRoute {
+	return jsonRoute{status: http.StatusOK, body: body}
+}
+
+func jsonError(status int, body string) jsonRoute {
+	return jsonRoute{status: status, body: []byte(body)}
 }
 
 func newTestAdapter(server *httptest.Server) *Adapter {

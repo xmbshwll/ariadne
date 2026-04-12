@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	bandcampSearchPath          = "/search"
-	bandcampSourceFixture       = "testdata/source-page.html"
-	bandcampBrokenSchemaFixture = "testdata/broken-schema-page.html"
-	lonAbatyAbbeyRoad           = "Lôn Abaty / Abbey Road"
-	bandcampBaseURLPlaceholder  = "{{BASE_URL}}"
+	bandcampSearchPath              = "/search"
+	bandcampSourceFixturePath       = "testdata/source-page.html"
+	bandcampBrokenSchemaFixturePath = "testdata/broken-schema-page.html"
+	lonAbatyAbbeyRoad               = "Lôn Abaty / Abbey Road"
+	bandcampBaseURLPlaceholder      = "{{BASE_URL}}"
 )
 
 func newBandcampTestServer(buildRoutes func(baseURL string) map[string][]byte) *httptest.Server {
@@ -135,22 +135,22 @@ func mustBandcampSchemaPage(t *testing.T, payload map[string]any) []byte {
 
 func mustReadBandcampSourcePage(t *testing.T) []byte {
 	t.Helper()
-	return mustReadTestFile(t, bandcampSourceFixture)
+	return mustReadBandcampFixture(t, bandcampSourceFixturePath)
 }
 
 func mustRenderBandcampFixture(t *testing.T, relativePath, baseURL string) []byte {
 	t.Helper()
-	content := string(mustReadTestFile(t, relativePath))
+	content := string(mustReadBandcampFixture(t, relativePath))
 	content = strings.ReplaceAll(content, bandcampBaseURLPlaceholder, baseURL)
 	return []byte(content)
 }
 
 func brokenBandcampSchemaBody(t *testing.T) []byte {
 	t.Helper()
-	return mustReadTestFile(t, bandcampBrokenSchemaFixture)
+	return mustReadBandcampFixture(t, bandcampBrokenSchemaFixturePath)
 }
 
-func mustReadTestFile(t *testing.T, relativePath string) []byte {
+func mustReadBandcampFixture(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)

@@ -42,7 +42,7 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body := mustReadTestFile(t, tt.fixture)
+			body := mustReadBandcampFixture(t, tt.fixture)
 			candidates := extractSearchCandidates(body)
 			require.Len(t, candidates, tt.wantCount)
 
@@ -56,14 +56,14 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 }
 
 func TestExtractSearchCandidatesDeduplicatesURLs(t *testing.T) {
-	body := mustReadTestFile(t, "testdata/search-fixture-url-dedup.html")
+	body := mustReadBandcampFixture(t, "testdata/search-fixture-url-dedup.html")
 	candidates := extractSearchCandidates(body)
 	require.Len(t, candidates, 1)
 	assert.Equal(t, "https://artist.bandcamp.com/album/example-album", candidates[0].URL)
 }
 
 func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.T) {
-	body := mustReadTestFile(t, "testdata/search-fixture-track.html")
+	body := mustReadBandcampFixture(t, "testdata/search-fixture-track.html")
 	candidates := extractSongSearchCandidates(body)
 	require.Len(t, candidates, 2)
 

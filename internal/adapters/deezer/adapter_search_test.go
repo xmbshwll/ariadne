@@ -12,12 +12,8 @@ import (
 )
 
 func TestSearchByUPCReturnsMissWithoutError(t *testing.T) {
-	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/album/upc:602547670342" {
-			_, _ = w.Write([]byte(`{"id":0}`))
-			return
-		}
-		http.NotFound(w, r)
+	server := newJSONRouteServer(map[string]jsonRoute{
+		"/album/upc:602547670342": jsonOK([]byte(`{"id":0}`)),
 	})
 	defer server.Close()
 
@@ -30,7 +26,7 @@ func TestSearchByUPCReturnsMissWithoutError(t *testing.T) {
 func TestAlbumSearches(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
-	searchBytes := []byte(`{"data":[{"id":12047952,"title":"Abbey Road (Remastered)"}]}`)
+	searchBytes := mustReadTestFile(t, "testdata/search-album-single.json")
 
 	server := newTestServer(t, albumBytes, trackBytes, searchBytes)
 	defer server.Close()
@@ -63,7 +59,7 @@ func TestAlbumSearches(t *testing.T) {
 func TestSongSearches(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
-	searchBytes := []byte(`{"data":[{"id":12047952,"title":"Abbey Road (Remastered)"}]}`)
+	searchBytes := mustReadTestFile(t, "testdata/search-album-single.json")
 
 	server := newTestServer(t, albumBytes, trackBytes, searchBytes)
 	defer server.Close()
@@ -85,24 +81,15 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
 
-	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/track/isrc:" + deezerComeTogetherISRC:
-			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
-		case "/track/isrc:BADISRC":
-			http.Error(w, "temporary failure", http.StatusBadGateway)
-		case deezerAlbumPath:
-			_, _ = w.Write(albumBytes)
-		case deezerAlbumTracksPath:
-			_, _ = w.Write(trackBytes)
-		default:
-			http.NotFound(w, r)
-		}
+	server := newJSONRouteServer(map[string]jsonRoute{
+		"/track/isrc:" + deezerComeTogetherISRC: jsonOK([]byte(deezerComeTogetherTrackPayload)),
+		"/track/isrc:BADISRC":                   jsonError(http.StatusBadGateway, "temporary failure"),
+		deezerAlbumPath:                         jsonOK(albumBytes),
+		deezerAlbumTracksPath:                   jsonOK(trackBytes),
 	})
 	defer server.Close()
 
 	adapter := newTestAdapter(server)
-
 	results, err := adapter.SearchByISRC(context.Background(), []string{deezerComeTogetherISRC, "BADISRC"})
 	require.NoError(t, err)
 	assertSingleCandidate(t, results)
@@ -132,20 +119,14 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 	defer server.Close()
 
 	adapter := newTestAdapter(server)
-
 	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
 	require.NoError(t, err)
 	assertSingleCandidate(t, results)
 }
 
 func TestSearchByISRCSkipsTracksWithoutAlbumIDs(t *testing.T) {
-	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/track/isrc:" + deezerComeTogetherISRC:
-			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together","album":{"id":0}}`))
-		default:
-			http.NotFound(w, r)
-		}
+	server := newJSONRouteServer(map[string]jsonRoute{
+		"/track/isrc:" + deezerComeTogetherISRC: jsonOK(mustReadTestFile(t, "testdata/track-without-album-id.json")),
 	})
 	defer server.Close()
 
@@ -156,12 +137,8 @@ func TestSearchByISRCSkipsTracksWithoutAlbumIDs(t *testing.T) {
 }
 
 func TestSearchByMetadataSkipsNonPositiveAlbumIDs(t *testing.T) {
-	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == deezerAlbumSearchPath {
-			_, _ = w.Write([]byte(`{"data":[{"id":0,"title":"Broken Album"}]}`))
-			return
-		}
-		http.NotFound(w, r)
+	server := newJSONRouteServer(map[string]jsonRoute{
+		deezerAlbumSearchPath: jsonOK(mustReadTestFile(t, "testdata/search-album-non-positive-id.json")),
 	})
 	defer server.Close()
 
@@ -172,12 +149,8 @@ func TestSearchByMetadataSkipsNonPositiveAlbumIDs(t *testing.T) {
 }
 
 func TestSearchSongByMetadataSkipsNonPositiveTrackIDs(t *testing.T) {
-	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == deezerTrackSearchPath {
-			_, _ = w.Write([]byte(`{"data":[{"id":0,"title":"Broken Song"}]}`))
-			return
-		}
-		http.NotFound(w, r)
+	server := newJSONRouteServer(map[string]jsonRoute{
+		deezerTrackSearchPath: jsonOK(mustReadTestFile(t, "testdata/search-track-non-positive-id.json")),
 	})
 	defer server.Close()
 
@@ -188,17 +161,12 @@ func TestSearchSongByMetadataSkipsNonPositiveTrackIDs(t *testing.T) {
 }
 
 func TestSearchSongByMetadataReturnsMalformedResponseError(t *testing.T) {
-	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == deezerTrackSearchPath {
-			_, _ = w.Write([]byte("{"))
-			return
-		}
-		http.NotFound(w, r)
+	server := newJSONRouteServer(map[string]jsonRoute{
+		deezerTrackSearchPath: jsonOK([]byte("{")),
 	})
 	defer server.Close()
 
 	adapter := newTestAdapter(server)
-
 	_, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errMalformedDeezerResponse)
