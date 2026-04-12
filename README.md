@@ -158,6 +158,41 @@ resolver := ariadne.NewWithAdapters(albumSourceAdapters, albumTargetAdapters)
 resolver := ariadne.NewWithEntityAdapters(albumSourceAdapters, albumTargetAdapters, songSourceAdapters, songTargetAdapters)
 ```
 
+## Error handling
+
+The public resolver API uses wrapped errors, so callers should branch with `errors.Is` instead of matching error strings.
+
+Stable exported sentinels include:
+
+- `ariadne.ErrUnsupportedURL`
+- `ariadne.ErrNoSourceAdapters`
+- `ariadne.ErrResolverNotInitialized`
+- `ariadne.ErrAmazonMusicDeferred`
+- `ariadne.ErrAppleMusicCredentialsNotConfigured`
+- `ariadne.ErrSpotifyCredentialsNotConfigured`
+- `ariadne.ErrTIDALCredentialsNotConfigured`
+- `ariadne.ErrSourceAdapterReturnedNilParsedURL`
+- `ariadne.ErrSourceAdapterReturnedNilAlbum`
+- `ariadne.ErrSourceAdapterReturnedNilSong`
+
+For example:
+
+```go
+resolution, err := resolver.ResolveAlbum(ctx, inputURL)
+if err != nil {
+	if errors.Is(err, ariadne.ErrUnsupportedURL) {
+		// input was not recognized by any source adapter
+	}
+	if errors.Is(err, ariadne.ErrSpotifyCredentialsNotConfigured) {
+		// a Spotify-backed source or target operation needed credentials
+	}
+	log.Fatal(err)
+}
+_ = resolution
+```
+
+If you supply custom adapters through `NewWithAdapters` or `NewWithEntityAdapters`, Ariadne preserves your adapter errors under the resolver's context wrappers. If a custom source adapter violates the adapter contract by returning a nil parsed URL, nil album, or nil song without an error, Ariadne normalizes that into the exported `ErrSourceAdapterReturnedNil*` sentinels above.
+
 ## How matching works
 
 Ariadne uses the same high-level pipeline for every supported service, but it keeps album and song matching separate internally.

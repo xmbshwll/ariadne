@@ -82,6 +82,15 @@ func TestRankAlbums(t *testing.T) {
 	assert.NotEmpty(t, ranking.Best.Reasons)
 }
 
+func TestCoreTitleRemovesEditionMarkersOnTokenBoundaries(t *testing.T) {
+	assert.Equal(t, "abbey road", coreTitle("Abbey Road (Live)", ""))
+	assert.Equal(t, "livewire", coreTitle("Livewire", ""))
+}
+
+func TestEditionMarkersPreferLongestMatches(t *testing.T) {
+	assert.Equal(t, []string{"super deluxe", "live"}, editionMarkers("Album (Super Deluxe Live)"))
+}
+
 func TestRankAlbumsAppleMusicAlternates(t *testing.T) {
 	source := model.CanonicalAlbum{
 		Service:           model.ServiceDeezer,

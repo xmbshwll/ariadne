@@ -14,8 +14,9 @@ type schemaAlbum struct {
 }
 
 type schemaAlbumRelation struct {
-	ID   string `json:"@id"`
-	Name string `json:"name"`
+	ID       string           `json:"@id"`
+	Name     string           `json:"name"`
+	ByArtist schemaMusicGroup `json:"byArtist"`
 }
 
 type schemaMusicGroup struct {

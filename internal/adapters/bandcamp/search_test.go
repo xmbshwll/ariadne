@@ -1,8 +1,6 @@
 package bandcamp
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,10 +74,18 @@ func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.
 	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
 }
 
-func mustReadBandcampFixture(t *testing.T, relativePath string) []byte {
-	t.Helper()
-	path := filepath.Clean(relativePath)
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-	return content
+func TestTopRankedCandidatesPreservesNilForEmptyInput(t *testing.T) {
+	var ranked []int
+	ordered := topRankedCandidates(ranked, func(candidate int) int {
+		return candidate
+	})
+	assert.Nil(t, ordered)
+}
+
+func TestTopRankedCandidatesLimitsNonEmptyResults(t *testing.T) {
+	ranked := []int{1, 2, 3, 4, 5, 6, 7}
+	ordered := topRankedCandidates(ranked, func(candidate int) int {
+		return candidate * 10
+	})
+	assert.Equal(t, []int{10, 20, 30, 40, 50}, ordered)
 }

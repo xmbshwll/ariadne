@@ -16,6 +16,7 @@ import (
 var (
 	errUnsupportedTestSource = errors.New("unsupported")
 	errTestSourceNotFound    = errors.New("not found")
+	errTargetSearchBoom      = errors.New("target search boom")
 )
 
 func TestResolverResolveAlbum(t *testing.T) {
@@ -39,7 +40,7 @@ func TestResolverResolveAlbum(t *testing.T) {
 		{
 			name: "unsupported url",
 			resolver: New(
-				[]SourceAdapter{stubSourceAdapter{}},
+				[]SourceAdapter{newStubSourceAdapter()},
 				nil,
 				score.DefaultWeights(),
 			),
@@ -49,8 +50,8 @@ func TestResolverResolveAlbum(t *testing.T) {
 		{
 			name: "collect layered candidates and dedupe",
 			resolver: New(
-				[]SourceAdapter{stubSourceAdapter{}},
-				[]TargetAdapter{stubTargetAdapter{}},
+				[]SourceAdapter{newStubSourceAdapter()},
+				[]TargetAdapter{newStubTargetAdapter()},
 				score.DefaultWeights(),
 			),
 			inputURL:          "https://www.deezer.com/album/12047952",
@@ -102,10 +103,10 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 	appleMusicStarted := make(chan struct{}, 1)
 
 	resolver := New(
-		[]SourceAdapter{stubSourceAdapter{}},
+		[]SourceAdapter{newStubSourceAdapter()},
 		[]TargetAdapter{
-			blockingTargetAdapter{service: model.ServiceSpotify, started: spotifyStarted, release: release},
-			blockingTargetAdapter{service: model.ServiceAppleMusic, started: appleMusicStarted, release: release},
+			newBlockingTargetAdapter(model.ServiceSpotify, spotifyStarted, release),
+			newBlockingTargetAdapter(model.ServiceAppleMusic, appleMusicStarted, release),
 		},
 		score.DefaultWeights(),
 	)
@@ -135,103 +136,6 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		require.FailNow(t, "timed out waiting for ResolveAlbum to return")
 	}
-}
-
-type stubSourceAdapter struct{}
-
-func (stubSourceAdapter) Service() model.ServiceName {
-	return model.ServiceDeezer
-}
-
-func (stubSourceAdapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	if raw != "https://www.deezer.com/album/12047952" {
-		return nil, errUnsupportedTestSource
-	}
-	return &model.ParsedAlbumURL{
-		Service:      model.ServiceDeezer,
-		EntityType:   "album",
-		ID:           "12047952",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (stubSourceAdapter) FetchAlbum(_ context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-	return &model.CanonicalAlbum{
-		Service:         parsed.Service,
-		SourceID:        parsed.ID,
-		SourceURL:       parsed.CanonicalURL,
-		Title:           "Abbey Road (Remastered)",
-		UPC:             "602547670342",
-		TrackCount:      17,
-		NormalizedTitle: "abbey road remastered",
-		Artists:         []string{"The Beatles"},
-		Tracks: []model.CanonicalTrack{
-			{ISRC: "GBAYE0601690", Title: "Come Together"},
-			{ISRC: "GBAYE0601691", Title: "Something"},
-		},
-	}, nil
-}
-
-type stubTargetAdapter struct{}
-
-func (stubTargetAdapter) Service() model.ServiceName {
-	return model.ServiceSpotify
-}
-
-type blockingTargetAdapter struct {
-	service model.ServiceName
-	started chan<- struct{}
-	release <-chan struct{}
-}
-
-func (a blockingTargetAdapter) Service() model.ServiceName {
-	return a.service
-}
-
-func (stubTargetAdapter) SearchByUPC(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
-	if upc == "" {
-		return nil, nil
-	}
-	return []model.CandidateAlbum{
-		{CandidateID: "album-1", MatchURL: "https://open.spotify.com/album/1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify, SourceID: "album-1", SourceURL: "https://open.spotify.com/album/1", Title: "Abbey Road (Remastered)", NormalizedTitle: "abbey road remastered", Artists: []string{"The Beatles"}, NormalizedArtists: []string{"the beatles"}, UPC: upc, TrackCount: 17, ReleaseDate: "2015-12-24", Tracks: []model.CanonicalTrack{{ISRC: "GBAYE0601690"}, {ISRC: "GBAYE0601691"}}}},
-	}, nil
-}
-
-func (stubTargetAdapter) SearchByISRC(_ context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	if len(isrcs) == 0 {
-		return nil, nil
-	}
-	return []model.CandidateAlbum{
-		{CandidateID: "album-1", MatchURL: "https://open.spotify.com/album/1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify, SourceID: "album-1", SourceURL: "https://open.spotify.com/album/1", Title: "Abbey Road (Remastered)", NormalizedTitle: "abbey road remastered", Artists: []string{"The Beatles"}, NormalizedArtists: []string{"the beatles"}, UPC: "602547670342", TrackCount: 17, ReleaseDate: "2015-12-24", Tracks: []model.CanonicalTrack{{ISRC: "GBAYE0601690"}, {ISRC: "GBAYE0601691"}}}},
-		{CandidateID: "album-2", MatchURL: "https://open.spotify.com/album/2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify, SourceID: "album-2", SourceURL: "https://open.spotify.com/album/2", Title: "Abbey Road", NormalizedTitle: "abbey road", Artists: []string{"The Beatles Complete On Ukulele"}, NormalizedArtists: []string{"the beatles complete on ukulele"}, TrackCount: 17, ReleaseDate: "2020-01-01", Tracks: []model.CanonicalTrack{{ISRC: "OTHER0001"}}}},
-	}, nil
-}
-
-func (stubTargetAdapter) SearchByMetadata(_ context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	if album.Title == "" {
-		return nil, nil
-	}
-	return []model.CandidateAlbum{
-		{CandidateID: "album-2", MatchURL: "https://open.spotify.com/album/2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify, SourceID: "album-2", SourceURL: "https://open.spotify.com/album/2", Title: "Abbey Road", NormalizedTitle: "abbey road", Artists: []string{"The Beatles Complete On Ukulele"}, NormalizedArtists: []string{"the beatles complete on ukulele"}, TrackCount: 17, ReleaseDate: "2020-01-01", Tracks: []model.CanonicalTrack{{ISRC: "OTHER0001"}}}},
-	}, nil
-}
-
-func (a blockingTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a blockingTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a blockingTargetAdapter) SearchByMetadata(_ context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	select {
-	case a.started <- struct{}{}:
-	default:
-	}
-	<-a.release
-	return nil, nil
 }
 
 func TestResolverCrossServiceFixtures(t *testing.T) {
@@ -470,22 +374,28 @@ func TestResolverCrossServiceFixtures(t *testing.T) {
 		},
 	}
 
-	sourceAdapter := fixtureSourceAdapter{albumsByURL: make(map[string]model.CanonicalAlbum, len(fixtures))}
+	sourceAlbumsByURL := make(map[string]model.CanonicalAlbum, len(fixtures))
 	targetCandidates := make(map[model.ServiceName]map[string][]model.CandidateAlbum)
 	for _, fixture := range fixtures {
-		sourceAdapter.albumsByURL[fixture.inputURL] = fixture.source
+		if _, exists := sourceAlbumsByURL[fixture.inputURL]; exists {
+			t.Fatalf("duplicate source fixture input URL %q for %s", fixture.inputURL, fixture.name)
+		}
+		sourceAlbumsByURL[fixture.inputURL] = fixture.source
 		if _, ok := targetCandidates[fixture.targetService]; !ok {
 			targetCandidates[fixture.targetService] = make(map[string][]model.CandidateAlbum)
+		}
+		if _, exists := targetCandidates[fixture.targetService][fixture.source.SourceID]; exists {
+			t.Fatalf("duplicate target fixture for service %q and source %q in %s", fixture.targetService, fixture.source.SourceID, fixture.name)
 		}
 		targetCandidates[fixture.targetService][fixture.source.SourceID] = fixture.candidates
 	}
 
 	targets := make([]TargetAdapter, 0, len(targetCandidates))
 	for service, candidatesBySourceID := range targetCandidates {
-		targets = append(targets, fixtureTargetAdapter{service: service, candidatesBySourceID: candidatesBySourceID})
+		targets = append(targets, newFixtureTargetAdapter(service, candidatesBySourceID))
 	}
 
-	resolver := New([]SourceAdapter{sourceAdapter}, targets, score.DefaultWeights())
+	resolver := New([]SourceAdapter{newFixtureSourceAdapter(sourceAlbumsByURL)}, targets, score.DefaultWeights())
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			resolution, err := resolver.ResolveAlbum(context.Background(), fixture.inputURL)
@@ -544,51 +454,4 @@ func normalizeArtists(values []string) []string {
 		out = append(out, normalizeTitle(value))
 	}
 	return out
-}
-
-type fixtureSourceAdapter struct {
-	albumsByURL map[string]model.CanonicalAlbum
-}
-
-func (a fixtureSourceAdapter) Service() model.ServiceName {
-	return "fixture"
-}
-
-func (a fixtureSourceAdapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	album, ok := a.albumsByURL[raw]
-	if !ok {
-		return nil, errUnsupportedTestSource
-	}
-	return &model.ParsedAlbumURL{Service: album.Service, EntityType: "album", ID: album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
-}
-
-func (a fixtureSourceAdapter) FetchAlbum(_ context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-	for rawURL, album := range a.albumsByURL {
-		if rawURL == parsed.RawURL {
-			albumCopy := album
-			return &albumCopy, nil
-		}
-	}
-	return nil, errTestSourceNotFound
-}
-
-type fixtureTargetAdapter struct {
-	service              model.ServiceName
-	candidatesBySourceID map[string][]model.CandidateAlbum
-}
-
-func (a fixtureTargetAdapter) Service() model.ServiceName {
-	return a.service
-}
-
-func (a fixtureTargetAdapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a fixtureTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a fixtureTargetAdapter) SearchByMetadata(_ context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	return append([]model.CandidateAlbum(nil), a.candidatesBySourceID[album.SourceID]...), nil
 }

@@ -18,6 +18,29 @@ Song resolution prefers song `ISRC`, then song metadata.
 
 Not every service supports every search step. The sections below describe the current runtime path for each service.
 
+## Resolver concurrency and failure model
+
+Ariadne searches target providers in parallel. Each provider gets its own goroutine, while the search layers inside one provider still run in sequence.
+
+That means the runtime shape is:
+
+1. parse the source URL
+2. fetch the source entity
+3. search all target providers concurrently
+4. within each provider, run identifier-first search layers in order
+5. score the candidates returned by that provider
+
+At the public API boundary, resolver methods return wrapped errors. Callers should use `errors.Is` with Ariadne's exported sentinels rather than comparing strings.
+
+For the core maintained runtime adapters — Spotify, Apple Music, TIDAL, and SoundCloud — the current search contract is:
+
+- skip malformed search hits before scoring
+- keep already collected candidates when a later search layer fails
+- keep already hydrated candidates when a later hydration fails
+- only return the recorded search or hydration error when no usable candidates were recovered
+
+This policy makes provider behavior more uniform without hiding service-specific credential or parse errors.
+
 ## Summary
 
 | Service | Album source | Album target | Song source | Song target | Identifier support | Status |

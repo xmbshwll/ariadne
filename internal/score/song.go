@@ -115,11 +115,11 @@ func scoreSongTitle(source model.CanonicalSong, candidate model.CanonicalSong, w
 func scoreSongArtists(source model.CanonicalSong, candidate model.CanonicalSong, weights SongWeights) scoreContribution {
 	sourceArtists := source.NormalizedArtists
 	if len(sourceArtists) == 0 {
-		sourceArtists = normalizeArtists(source.Artists)
+		sourceArtists = normalizeArtistNames(source.Artists)
 	}
 	candidateArtists := candidate.NormalizedArtists
 	if len(candidateArtists) == 0 {
-		candidateArtists = normalizeArtists(candidate.Artists)
+		candidateArtists = normalizeArtistNames(candidate.Artists)
 	}
 	if len(sourceArtists) == 0 || len(candidateArtists) == 0 {
 		return scoreContribution{}
@@ -198,47 +198,9 @@ func scoreSongEditionHints(source model.CanonicalSong, candidate model.Canonical
 }
 
 func scoreSongEditionMarkers(source model.CanonicalSong, candidate model.CanonicalSong, weights SongWeights) scoreContribution {
-	penalty, markers := editionMarkerMismatchPenaltySongs(source, candidate, weights)
+	penalty, markers := editionMarkerPenalty(source.Title, candidate.Title, weights.EditionMarkerPenalty, weights.EditionMismatch)
 	if penalty == 0 {
 		return scoreContribution{}
 	}
 	return scoreContribution{value: penalty, reason: "edition marker mismatch: " + strings.Join(markers, ", ")}
-}
-
-func normalizeArtists(values []string) []string {
-	items := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		normalized := normalizedOrDerived(value, "")
-		if normalized == "" {
-			continue
-		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		items = append(items, normalized)
-	}
-	return items
-}
-
-func editionMarkerMismatchPenaltySongs(source model.CanonicalSong, candidate model.CanonicalSong, weights SongWeights) (int, []string) {
-	sourceMarkers := editionMarkers(source.Title)
-	candidateMarkers := editionMarkers(candidate.Title)
-	if len(sourceMarkers) == 0 && len(candidateMarkers) == 0 {
-		return 0, nil
-	}
-
-	differences := symmetricMarkerDifference(sourceMarkers, candidateMarkers)
-	if len(differences) == 0 {
-		return 0, nil
-	}
-	penalty := len(differences) * weights.EditionMarkerPenalty
-	if weights.EditionMarkerPenalty < 0 && penalty < weights.EditionMismatch {
-		penalty = weights.EditionMismatch
-	}
-	if weights.EditionMarkerPenalty > 0 && penalty > weights.EditionMismatch {
-		penalty = weights.EditionMismatch
-	}
-	return penalty, differences
 }

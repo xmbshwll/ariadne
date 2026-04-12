@@ -1,176 +1,190 @@
+// Package ariadne exposes two service-capability views: Supported* helpers report
+// built-in, config-independent support baked into Ariadne, while Enabled* helpers
+// report the services actually active for a specific Config after credential
+// gating is applied.
 package ariadne
 
-import (
-	"slices"
-	"strings"
-
-	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
-)
-
-type songURLParser func(string) (*model.ParsedAlbumURL, error)
+import "strings"
 
 var serviceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
 
-type serviceCapability struct {
-	name                 ServiceName
-	aliases              []string
-	supportsAlbumSource  bool
-	supportsAlbumTarget  bool
-	supportsSongSource   bool
-	supportsSongTarget   bool
-	runtimeSongURLParser songURLParser
-}
-
-var serviceCapabilities = []serviceCapability{
-	{
-		name:                 ServiceAppleMusic,
-		aliases:              []string{"applemusic"},
-		supportsAlbumSource:  true,
-		supportsAlbumTarget:  true,
-		supportsSongSource:   true,
-		supportsSongTarget:   true,
-		runtimeSongURLParser: parse.AppleMusicSongURL,
-	},
-	{
-		name:                 ServiceBandcamp,
-		aliases:              []string{"bandcamp"},
-		supportsAlbumSource:  true,
-		supportsAlbumTarget:  true,
-		supportsSongSource:   true,
-		supportsSongTarget:   true,
-		runtimeSongURLParser: parse.BandcampSongURL,
-	},
-	{
-		name:                 ServiceDeezer,
-		aliases:              []string{"deezer"},
-		supportsAlbumSource:  true,
-		supportsAlbumTarget:  true,
-		supportsSongSource:   true,
-		supportsSongTarget:   true,
-		runtimeSongURLParser: parse.DeezerSongURL,
-	},
-	{
-		name:                 ServiceSoundCloud,
-		aliases:              []string{"soundcloud"},
-		supportsAlbumSource:  true,
-		supportsAlbumTarget:  true,
-		supportsSongSource:   true,
-		supportsSongTarget:   true,
-		runtimeSongURLParser: parse.SoundCloudSongURL,
-	},
-	{
-		name:                 ServiceSpotify,
-		aliases:              []string{"spotify"},
-		supportsAlbumSource:  true,
-		supportsAlbumTarget:  true,
-		supportsSongSource:   true,
-		supportsSongTarget:   true,
-		runtimeSongURLParser: parse.SpotifySongURL,
-	},
-	{
-		name:                 ServiceTIDAL,
-		aliases:              []string{"tidal"},
-		supportsAlbumSource:  true,
-		supportsAlbumTarget:  true,
-		supportsSongSource:   true,
-		supportsSongTarget:   true,
-		runtimeSongURLParser: parse.TIDALSongURL,
-	},
-	{
-		name:                ServiceYouTubeMusic,
-		aliases:             []string{"youtubemusic", "ytmusic"},
-		supportsAlbumSource: true,
-		supportsAlbumTarget: true,
-	},
-	{
-		name:    ServiceAmazonMusic,
-		aliases: []string{"amazonmusic", "amazon"},
-	},
-}
-
-func serviceCapabilityByName(service ServiceName) (serviceCapability, bool) {
-	for _, capability := range serviceCapabilities {
-		if capability.name == service {
-			return capability, true
-		}
-	}
-	return serviceCapability{}, false
-}
+var (
+	supportedCapabilitiesByService = buildServiceCapabilitiesByName(defaultServiceBindings)
+	serviceNameByLookupKey         = buildServiceNamesByLookupKey(defaultServiceBindings)
+	supportedTargetServices        = collectSupportedServicesInOrder(defaultServiceOrder.albumTargets, supportedCapabilitiesByService, supportsAnyTarget)
+	supportedSongTargetServices    = collectSupportedServicesInOrder(defaultServiceOrder.songTargets, supportedCapabilitiesByService, func(capability serviceCapability) bool {
+		return capability.supportsSongTarget
+	})
+	supportedRuntimeSongURLParsers = collectRuntimeSongURLParsers(defaultServiceBindings)
+)
 
 // LookupServiceName normalizes a service name or alias into the canonical public service name.
 func LookupServiceName(raw string) (ServiceName, bool) {
-	normalized := normalizeServiceLookupKey(raw)
-	if normalized == "" {
-		return "", false
-	}
-
-	for _, capability := range serviceCapabilities {
-		if normalized == normalizeServiceLookupKey(string(capability.name)) || slices.Contains(capability.aliases, normalized) {
-			return capability.name, true
-		}
-	}
-	return "", false
+	service, ok := serviceNameByLookupKey[normalizeServiceLookupKey(raw)]
+	return service, ok
 }
 
 func normalizeServiceLookupKey(raw string) string {
 	return serviceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(raw)))
 }
 
-// SupportsSongTarget reports whether the service currently participates in runtime song target search.
+// DescribeService reports Ariadne's built-in service support, independent of config.
+func DescribeService(service ServiceName) (ServiceCapabilities, bool) {
+	capability, ok := supportedServiceCapability(service)
+	if !ok {
+		return ServiceCapabilities{}, false
+	}
+	return capability.describe(), true
+}
+
+// DescribeEnabledService reports the service support currently enabled under config.
+func DescribeEnabledService(config Config, service ServiceName) (ServiceCapabilities, bool) {
+	capability, ok := enabledServiceCapability(config, service)
+	if !ok {
+		return ServiceCapabilities{}, false
+	}
+	return capability.describe(), true
+}
+
+// SupportsSongTarget reports whether the service has built-in song target support.
 func SupportsSongTarget(service ServiceName) bool {
-	capability, ok := serviceCapabilityByName(service)
+	capability, ok := supportedServiceCapability(service)
 	return ok && capability.supportsSongTarget
 }
 
-// SupportsTarget reports whether the service currently participates in any runtime target search.
+// SupportsEnabledSongTarget reports whether the service is enabled for song target search under config.
+func SupportsEnabledSongTarget(config Config, service ServiceName) bool {
+	capability, ok := enabledServiceCapability(config, service)
+	return ok && capability.supportsSongTarget
+}
+
+// SupportsTarget reports whether the service has any built-in target support.
 func SupportsTarget(service ServiceName) bool {
-	capability, ok := serviceCapabilityByName(service)
-	return ok && (capability.supportsAlbumTarget || capability.supportsSongTarget)
+	capability, ok := supportedServiceCapability(service)
+	return ok && supportsAnyTarget(capability)
 }
 
-// SupportedSongTargetServices returns the canonical service names that currently support runtime song target search.
+// SupportsEnabledTarget reports whether the service is enabled for any target search under config.
+func SupportsEnabledTarget(config Config, service ServiceName) bool {
+	capability, ok := enabledServiceCapability(config, service)
+	return ok && supportsAnyTarget(capability)
+}
+
+// SupportedSongTargetServices returns the canonical service names with built-in song target support.
 func SupportedSongTargetServices() []ServiceName {
-	services := []ServiceName{}
-	for _, capability := range serviceCapabilities {
-		if !capability.supportsSongTarget {
-			continue
-		}
-		services = append(services, capability.name)
-	}
-	return services
+	return append([]ServiceName(nil), supportedSongTargetServices...)
 }
 
-// SupportedTargetServices returns the canonical service names that currently support runtime target search.
+// EnabledSongTargetServices returns the canonical service names enabled for runtime song target search under config.
+func EnabledSongTargetServices(config Config) []ServiceName {
+	return collectEnabledServicesInOrder(config, defaultServiceOrder.songTargets, func(capability serviceCapability) bool {
+		return capability.supportsSongTarget
+	})
+}
+
+// SupportedTargetServices returns the canonical service names with any built-in target support.
 func SupportedTargetServices() []ServiceName {
-	services := []ServiceName{}
-	for _, capability := range serviceCapabilities {
-		if !SupportsTarget(capability.name) {
-			continue
-		}
-		services = append(services, capability.name)
-	}
-	return services
+	return append([]ServiceName(nil), supportedTargetServices...)
 }
 
-func registeredRuntimeSongURLParsers() []songURLParser {
-	parsers := []songURLParser{}
-	for _, capability := range serviceCapabilities {
-		if capability.runtimeSongURLParser == nil {
-			continue
-		}
-		parsers = append(parsers, capability.runtimeSongURLParser)
-	}
-	return parsers
+// EnabledTargetServices returns the canonical service names enabled for runtime target search under config.
+func EnabledTargetServices(config Config) []ServiceName {
+	return collectEnabledServicesInOrder(config, defaultServiceOrder.albumTargets, supportsAnyTarget)
 }
 
 // SupportsRuntimeSongInputURL reports whether Ariadne can resolve the input URL through the runtime song pipeline.
 func SupportsRuntimeSongInputURL(raw string) bool {
-	for _, parseSongURL := range registeredRuntimeSongURLParsers() {
+	for _, parseSongURL := range supportedRuntimeSongURLParsers {
 		parsed, err := parseSongURL(raw)
 		if err == nil && parsed != nil {
 			return true
 		}
 	}
 	return false
+}
+
+func supportedServiceCapability(service ServiceName) (serviceCapability, bool) {
+	capability, ok := supportedCapabilitiesByService[service]
+	return capability, ok
+}
+
+func enabledServiceCapability(config Config, service ServiceName) (serviceCapability, bool) {
+	capability, ok := supportedServiceCapability(service)
+	if !ok {
+		return serviceCapability{}, false
+	}
+
+	config = normalizedConfig(config)
+	switch service {
+	case ServiceSpotify:
+		if !config.SpotifyEnabled() {
+			capability.supportsAlbumTarget = false
+			capability.supportsSongTarget = false
+		}
+	case ServiceTIDAL:
+		if !config.TIDALEnabled() {
+			capability.supportsAlbumTarget = false
+			capability.supportsSongTarget = false
+		}
+	}
+	return capability, true
+}
+
+func supportsAnyTarget(capability serviceCapability) bool {
+	return capability.supportsAlbumTarget || capability.supportsSongTarget
+}
+
+func buildServiceCapabilitiesByName(bindings []serviceBinding) map[ServiceName]serviceCapability {
+	capabilities := make(map[ServiceName]serviceCapability, len(bindings))
+	for _, binding := range bindings {
+		capabilities[binding.capability.name] = binding.capability
+	}
+	return capabilities
+}
+
+func buildServiceNamesByLookupKey(bindings []serviceBinding) map[string]ServiceName {
+	services := make(map[string]ServiceName, len(bindings)*2)
+	for _, binding := range bindings {
+		capability := binding.capability
+		services[normalizeServiceLookupKey(string(capability.name))] = capability.name
+		for _, alias := range capability.aliases {
+			services[normalizeServiceLookupKey(alias)] = capability.name
+		}
+	}
+	return services
+}
+
+func collectSupportedServicesInOrder(order []ServiceName, capabilities map[ServiceName]serviceCapability, supported func(serviceCapability) bool) []ServiceName {
+	services := make([]ServiceName, 0, len(order))
+	for _, service := range order {
+		capability, ok := capabilities[service]
+		if !ok || !supported(capability) {
+			continue
+		}
+		services = append(services, service)
+	}
+	return services
+}
+
+func collectEnabledServicesInOrder(config Config, order []ServiceName, supported func(serviceCapability) bool) []ServiceName {
+	services := make([]ServiceName, 0, len(order))
+	for _, service := range order {
+		capability, ok := enabledServiceCapability(config, service)
+		if !ok || !supported(capability) {
+			continue
+		}
+		services = append(services, service)
+	}
+	return services
+}
+
+func collectRuntimeSongURLParsers(bindings []serviceBinding) []songURLParser {
+	parsers := make([]songURLParser, 0, len(bindings))
+	for _, binding := range bindings {
+		if binding.capability.runtimeSongURLParser == nil {
+			continue
+		}
+		parsers = append(parsers, binding.capability.runtimeSongURLParser)
+	}
+	return parsers
 }

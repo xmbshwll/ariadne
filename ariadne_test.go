@@ -8,9 +8,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-var errUnsupportedLibrarySource = errors.New("unsupported")
+const testLibrarySourceURL = "https://fixture.test/source"
+
+var (
+	errUnsupportedLibrarySource = errors.New("unsupported")
+	errLibraryTargetBoom        = errors.New("target boom")
+)
 
 func TestLoadConfigFromEnv(t *testing.T) {
 	config := LoadConfigFromEnv(func(key string) string {
@@ -33,6 +39,8 @@ func TestLoadConfigFromEnv(t *testing.T) {
 			return " tidal-secret "
 		case "ARIADNE_HTTP_TIMEOUT":
 			return " 45s "
+		case "ARIADNE_TARGET_SERVICES":
+			return " spotify, appleMusic, spotify "
 		default:
 			return ""
 		}
@@ -47,6 +55,7 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "tidal-client", config.TIDAL.ClientID)
 	assert.Equal(t, "tidal-secret", config.TIDAL.ClientSecret)
 	assert.Equal(t, 45*time.Second, config.HTTPTimeout)
+	assert.Equal(t, []ServiceName{ServiceSpotify, ServiceAppleMusic}, config.TargetServices)
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -122,6 +131,94 @@ func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
 	}
 }
 
+func TestFromInternalServiceNamesPreservesNilVsEmpty(t *testing.T) {
+	assert.Nil(t, fromInternalServiceNames(nil))
+	assert.Equal(t, []ServiceName{}, fromInternalServiceNames([]model.ServiceName{}))
+}
+
+func TestDescribeService(t *testing.T) {
+	spotify, ok := DescribeService(ServiceSpotify)
+	require.True(t, ok)
+	assert.Equal(t, []string{"spotify"}, spotify.Aliases)
+	assert.True(t, spotify.SupportsAlbumSource)
+	assert.True(t, spotify.SupportsAlbumTarget)
+	assert.True(t, spotify.SupportsSongSource)
+	assert.True(t, spotify.SupportsSongTarget)
+	assert.True(t, spotify.SupportsRuntimeSongInputURL)
+
+	amazon, ok := DescribeService(ServiceAmazonMusic)
+	require.True(t, ok)
+	assert.True(t, amazon.SupportsAlbumSource)
+	assert.False(t, amazon.SupportsAlbumTarget)
+	assert.False(t, amazon.SupportsSongSource)
+	assert.False(t, amazon.SupportsSongTarget)
+	assert.False(t, amazon.SupportsRuntimeSongInputURL)
+}
+
+func TestDescribeEnabledService(t *testing.T) {
+	spotify, ok := DescribeEnabledService(Config{}, ServiceSpotify)
+	require.True(t, ok)
+	assert.False(t, spotify.SupportsAlbumTarget)
+	assert.False(t, spotify.SupportsSongTarget)
+
+	spotify, ok = DescribeEnabledService(Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, ServiceSpotify)
+	require.True(t, ok)
+	assert.True(t, spotify.SupportsAlbumTarget)
+	assert.True(t, spotify.SupportsSongTarget)
+
+	tidal, ok := DescribeEnabledService(Config{}, ServiceTIDAL)
+	require.True(t, ok)
+	assert.False(t, tidal.SupportsAlbumTarget)
+	assert.False(t, tidal.SupportsSongTarget)
+}
+
+func TestSupportedServiceLists(t *testing.T) {
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceYouTubeMusic,
+		ServiceSpotify,
+		ServiceTIDAL,
+	}, SupportedTargetServices())
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceSpotify,
+		ServiceTIDAL,
+	}, SupportedSongTargetServices())
+}
+
+func TestEnabledServiceLists(t *testing.T) {
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceYouTubeMusic,
+	}, EnabledTargetServices(Config{}))
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+	}, EnabledSongTargetServices(Config{}))
+
+	config := Config{
+		Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"},
+		TIDAL:   TIDALConfig{ClientID: "tidal-id", ClientSecret: "tidal-secret"},
+	}
+	assert.Equal(t, SupportedTargetServices(), EnabledTargetServices(config))
+	assert.Equal(t, SupportedSongTargetServices(), EnabledSongTargetServices(config))
+	assert.True(t, SupportsEnabledTarget(config, ServiceSpotify))
+	assert.True(t, SupportsEnabledSongTarget(config, ServiceTIDAL))
+	assert.False(t, SupportsEnabledTarget(Config{}, ServiceSpotify))
+	assert.False(t, SupportsEnabledSongTarget(Config{}, ServiceTIDAL))
+}
+
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
 	config := normalizedConfig(Config{})
 	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
@@ -145,11 +242,11 @@ func TestMatchStrengthForScore(t *testing.T) {
 
 func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 	resolver := NewWithAdapters(
-		[]SourceAdapter{librarySourceAdapter{}},
-		[]TargetAdapter{libraryTargetAdapter{}},
+		[]SourceAdapter{newLibrarySourceAdapter()},
+		[]TargetAdapter{newLibraryTargetAdapter()},
 	)
 
-	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
 	assert.Equal(t, ServiceDeezer, resolution.Source.Service)
 	match := resolution.Matches[ServiceSpotify]
@@ -171,7 +268,7 @@ func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
 func TestResolverResolveDispatchesByEntityType(t *testing.T) {
 	resolver := newTestEntityResolver()
 
-	albumEntity, err := resolver.Resolve(context.Background(), "https://fixture.test/source")
+	albumEntity, err := resolver.Resolve(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
 	require.NotNil(t, albumEntity.Album)
 	assert.Nil(t, albumEntity.Song)
@@ -187,7 +284,7 @@ func TestResolverResolveDispatchesByEntityType(t *testing.T) {
 func TestResolveAlbumReturnsErrorForNilResolver(t *testing.T) {
 	var resolver *Resolver
 
-	resolution, err := resolver.ResolveAlbum(context.Background(), "https://fixture.test/source")
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.Error(t, err)
 	assert.Nil(t, resolution)
 	assert.ErrorIs(t, err, ErrResolverNotInitialized)
@@ -202,151 +299,47 @@ func TestResolveSongReturnsErrorForMissingSongResolver(t *testing.T) {
 	assert.ErrorIs(t, err, ErrResolverNotInitialized)
 }
 
+func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilParsedURL(t *testing.T) {
+	resolver := NewWithAdapters([]SourceAdapter{newNilParsedSourceAdapter()}, []TargetAdapter{newLibraryTargetAdapter()})
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilParsedURL)
+}
+
+func TestResolveAlbumReturnsPublicSentinelWhenCustomSourceReturnsNilAlbum(t *testing.T) {
+	resolver := NewWithAdapters([]SourceAdapter{newNilAlbumSourceAdapter()}, []TargetAdapter{newLibraryTargetAdapter()})
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilAlbum)
+}
+
+func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testing.T) {
+	resolver := NewWithEntityAdapters(nil, nil, []SongSourceAdapter{newNilSongSourceAdapter()}, []SongTargetAdapter{newLibrarySongTargetAdapter()})
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
+}
+
+func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
+	resolver := NewWithAdapters([]SourceAdapter{newLibrarySourceAdapter()}, []TargetAdapter{newFailingLibraryTargetAdapter()})
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, errLibraryTargetBoom)
+}
+
 func newTestEntityResolver() *Resolver {
 	return NewWithEntityAdapters(
-		[]SourceAdapter{librarySourceAdapter{}},
-		[]TargetAdapter{libraryTargetAdapter{}},
-		[]SongSourceAdapter{librarySongSourceAdapter{}},
-		[]SongTargetAdapter{librarySongTargetAdapter{}},
+		[]SourceAdapter{newLibrarySourceAdapter()},
+		[]TargetAdapter{newLibraryTargetAdapter()},
+		[]SongSourceAdapter{newLibrarySongSourceAdapter()},
+		[]SongTargetAdapter{newLibrarySongTargetAdapter()},
 	)
-}
-
-type librarySourceAdapter struct{}
-
-func (librarySourceAdapter) Service() ServiceName {
-	return ServiceDeezer
-}
-
-func (librarySourceAdapter) ParseAlbumURL(raw string) (*ParsedAlbumURL, error) {
-	if raw != "https://fixture.test/source" {
-		return nil, errUnsupportedLibrarySource
-	}
-	return &ParsedAlbumURL{
-		Service:      ServiceDeezer,
-		EntityType:   "album",
-		ID:           "src-1",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (librarySourceAdapter) FetchAlbum(_ context.Context, parsed ParsedAlbumURL) (*CanonicalAlbum, error) {
-	return &CanonicalAlbum{
-		Service:           parsed.Service,
-		SourceID:          parsed.ID,
-		SourceURL:         parsed.CanonicalURL,
-		Title:             "Fixture Album",
-		NormalizedTitle:   "fixture album",
-		Artists:           []string{"Fixture Artist"},
-		NormalizedArtists: []string{"fixture artist"},
-		UPC:               "123456789012",
-		TrackCount:        2,
-		Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
-	}, nil
-}
-
-type libraryTargetAdapter struct{}
-
-func (libraryTargetAdapter) Service() ServiceName {
-	return ServiceSpotify
-}
-
-func (libraryTargetAdapter) SearchByUPC(_ context.Context, upc string) ([]CandidateAlbum, error) {
-	if upc == "" {
-		return nil, nil
-	}
-	return []CandidateAlbum{{
-		CanonicalAlbum: CanonicalAlbum{
-			Service:           ServiceSpotify,
-			SourceID:          "spotify-1",
-			SourceURL:         "https://open.spotify.com/album/spotify-1",
-			Title:             "Fixture Album",
-			NormalizedTitle:   "fixture album",
-			Artists:           []string{"Fixture Artist"},
-			NormalizedArtists: []string{"fixture artist"},
-			UPC:               upc,
-			TrackCount:        2,
-			Tracks:            []CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
-		},
-		CandidateID: "spotify-1",
-		MatchURL:    "https://open.spotify.com/album/spotify-1",
-	}}, nil
-}
-
-func (libraryTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (libraryTargetAdapter) SearchByMetadata(_ context.Context, _ CanonicalAlbum) ([]CandidateAlbum, error) {
-	return nil, nil
-}
-
-type librarySongSourceAdapter struct{}
-
-func (librarySongSourceAdapter) Service() ServiceName {
-	return ServiceSpotify
-}
-
-func (librarySongSourceAdapter) ParseSongURL(raw string) (*ParsedURL, error) {
-	if raw != "https://fixture.test/songs/1" {
-		return nil, errUnsupportedLibrarySource
-	}
-	return &ParsedURL{
-		Service:      ServiceSpotify,
-		EntityType:   "song",
-		ID:           "song-1",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (librarySongSourceAdapter) FetchSong(_ context.Context, parsed ParsedURL) (*CanonicalSong, error) {
-	return &CanonicalSong{
-		Service:              parsed.Service,
-		SourceID:             parsed.ID,
-		SourceURL:            parsed.CanonicalURL,
-		Title:                "Fixture Song",
-		NormalizedTitle:      "fixture song",
-		Artists:              []string{"Fixture Artist"},
-		NormalizedArtists:    []string{"fixture artist"},
-		DurationMS:           180000,
-		ISRC:                 "ISRCSONG001",
-		TrackNumber:          1,
-		AlbumTitle:           "Fixture Album",
-		AlbumNormalizedTitle: "fixture album",
-	}, nil
-}
-
-type librarySongTargetAdapter struct{}
-
-func (librarySongTargetAdapter) Service() ServiceName {
-	return ServiceAppleMusic
-}
-
-func (librarySongTargetAdapter) SearchSongByISRC(_ context.Context, isrc string) ([]CandidateSong, error) {
-	if isrc == "" {
-		return nil, nil
-	}
-	return []CandidateSong{{
-		CanonicalSong: CanonicalSong{
-			Service:              ServiceAppleMusic,
-			SourceID:             "apple-song-1",
-			SourceURL:            "https://music.apple.com/us/song/apple-song-1",
-			Title:                "Fixture Song",
-			NormalizedTitle:      "fixture song",
-			Artists:              []string{"Fixture Artist"},
-			NormalizedArtists:    []string{"fixture artist"},
-			DurationMS:           180100,
-			ISRC:                 isrc,
-			TrackNumber:          1,
-			AlbumTitle:           "Fixture Album",
-			AlbumNormalizedTitle: "fixture album",
-		},
-		CandidateID: "apple-song-1",
-		MatchURL:    "https://music.apple.com/us/song/apple-song-1",
-	}}, nil
-}
-
-func (librarySongTargetAdapter) SearchSongByMetadata(_ context.Context, _ CanonicalSong) ([]CandidateSong, error) {
-	return nil, nil
 }

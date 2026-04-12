@@ -7,6 +7,7 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/resolve"
+	"github.com/xmbshwll/ariadne/internal/score"
 )
 
 // Resolver wraps the internal resolvers with a public library-facing API.
@@ -40,19 +41,14 @@ func NewWithClient(client *http.Client, config Config) *Resolver {
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
-	adapters := newDefaultAdapters(client, config)
-	return &Resolver{
-		inner: resolve.New(
-			defaultSourceAdapters(adapters),
-			defaultTargetAdapters(adapters, config),
-			toInternalScoreWeights(config.ScoreWeights),
-		),
-		songInner: resolve.NewSongs(
-			defaultSongSourceAdapters(adapters),
-			defaultSongTargetAdapters(adapters, config),
-			toInternalSongScoreWeights(config.SongScoreWeights),
-		),
-	}
+	return newResolver(
+		defaultSourceAdapters(client, config),
+		defaultTargetAdapters(client, config),
+		defaultSongSourceAdapters(client, config),
+		defaultSongTargetAdapters(client, config),
+		toInternalScoreWeights(config.ScoreWeights),
+		toInternalSongScoreWeights(config.SongScoreWeights),
+	)
 }
 
 // NewWithAdapters builds a Resolver from caller-provided album source and target adapters using the default ranking weights.
@@ -79,17 +75,27 @@ func NewWithEntityAdapters(albumSources []SourceAdapter, albumTargets []TargetAd
 
 // NewWithEntityAdaptersAndWeights builds a Resolver from caller-provided album and song adapters and explicit ranking weights.
 func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter, albumWeights ScoreWeights, songWeights SongScoreWeights) *Resolver {
+	return newResolver(
+		wrapSourceAdapters(albumSources),
+		wrapTargetAdapters(albumTargets),
+		wrapSongSourceAdapters(songSources),
+		wrapSongTargetAdapters(songTargets),
+		toInternalScoreWeights(albumWeights),
+		toInternalSongScoreWeights(songWeights),
+	)
+}
+
+func newResolver(
+	albumSources []resolve.SourceAdapter,
+	albumTargets []resolve.TargetAdapter,
+	songSources []resolve.SongSourceAdapter,
+	songTargets []resolve.SongTargetAdapter,
+	albumWeights score.Weights,
+	songWeights score.SongWeights,
+) *Resolver {
 	return &Resolver{
-		inner: resolve.New(
-			wrapSourceAdapters(albumSources),
-			wrapTargetAdapters(albumTargets),
-			toInternalScoreWeights(albumWeights),
-		),
-		songInner: resolve.NewSongs(
-			wrapSongSourceAdapters(songSources),
-			wrapSongTargetAdapters(songTargets),
-			toInternalSongScoreWeights(songWeights),
-		),
+		inner:     resolve.New(albumSources, albumTargets, albumWeights),
+		songInner: resolve.NewSongs(songSources, songTargets, songWeights),
 	}
 }
 
@@ -109,6 +115,8 @@ func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets 
 //     requires app credentials
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
+//   - ErrSourceAdapterReturnedNilParsedURL or ErrSourceAdapterReturnedNilAlbum
+//     when a caller-provided custom source adapter violates the adapter contract
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
 	resolver, err := r.albumResolver()
 	if err != nil {
@@ -140,6 +148,8 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 //     requires app credentials
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
+//   - ErrSourceAdapterReturnedNilParsedURL or ErrSourceAdapterReturnedNilSong
+//     when a caller-provided custom song source adapter violates the adapter contract
 func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
 	resolver, err := r.songResolver()
 	if err != nil {

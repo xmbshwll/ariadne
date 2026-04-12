@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestLoadFromEnv(t *testing.T) {
@@ -25,6 +26,8 @@ func TestLoadFromEnv(t *testing.T) {
 			return " tidal-client "
 		case "TIDAL_CLIENT_SECRET":
 			return " tidal-secret "
+		case "ARIADNE_TARGET_SERVICES":
+			return " spotify, appleMusic , spotify "
 		default:
 			return ""
 		}
@@ -41,6 +44,7 @@ func TestLoadFromEnv(t *testing.T) {
 	assert.Equal(t, "tidal-client", cfg.TIDAL.ClientID)
 	assert.Equal(t, "tidal-secret", cfg.TIDAL.ClientSecret)
 	assert.True(t, cfg.TIDAL.Enabled())
+	assert.Equal(t, []model.ServiceName{model.ServiceSpotify, model.ServiceAppleMusic}, cfg.TargetServices)
 }
 
 func TestLoadFromEnvDefaults(t *testing.T) {
@@ -49,4 +53,16 @@ func TestLoadFromEnvDefaults(t *testing.T) {
 	assert.Equal(t, "us", cfg.AppleMusic.Storefront)
 	assert.False(t, cfg.AppleMusic.AuthEnabled())
 	assert.False(t, cfg.TIDAL.Enabled())
+	assert.Nil(t, cfg.TargetServices)
+}
+
+func TestLoadFromEnvCanonicalizesTargetServiceAliases(t *testing.T) {
+	cfg := LoadFromEnv(func(key string) string {
+		if key == "ARIADNE_TARGET_SERVICES" {
+			return " spotify , ytmusic , amazonMusic , unknown "
+		}
+		return ""
+	})
+
+	assert.Equal(t, []model.ServiceName{model.ServiceSpotify, model.ServiceYouTubeMusic}, cfg.TargetServices)
 }

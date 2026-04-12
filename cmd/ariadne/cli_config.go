@@ -16,6 +16,8 @@ import (
 )
 
 var (
+	errNonPositiveCLIHTTPTimeout = errors.New("ARIADNE_HTTP_TIMEOUT must be positive")
+
 	matchStrengthByName = map[string]ariadne.MatchStrength{
 		"veryweak":  ariadne.MatchStrengthVeryWeak,
 		"very_weak": ariadne.MatchStrengthVeryWeak,
@@ -99,29 +101,21 @@ func loadCLIConfig(configPath string) (ariadne.Config, error) {
 		return strings.TrimSpace(v.GetString(key))
 	}
 
-	cfg.Spotify.ClientID = trimmedValue("SPOTIFY_CLIENT_ID")
-	cfg.Spotify.ClientSecret = trimmedValue("SPOTIFY_CLIENT_SECRET")
-	cfg.AppleMusic.KeyID = trimmedValue("APPLE_MUSIC_KEY_ID")
-	cfg.AppleMusic.TeamID = trimmedValue("APPLE_MUSIC_TEAM_ID")
-	cfg.AppleMusic.PrivateKeyPath = trimmedValue("APPLE_MUSIC_PRIVATE_KEY_PATH")
-	cfg.TIDAL.ClientID = trimmedValue("TIDAL_CLIENT_ID")
-	cfg.TIDAL.ClientSecret = trimmedValue("TIDAL_CLIENT_SECRET")
-
 	httpTimeout := trimmedValue("ARIADNE_HTTP_TIMEOUT")
 	if httpTimeout != "" {
 		parsedTimeout, err := time.ParseDuration(httpTimeout)
 		if err != nil {
 			return ariadne.Config{}, fmt.Errorf("parse ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, err)
 		}
+		if parsedTimeout <= 0 {
+			return ariadne.Config{}, fmt.Errorf("invalid ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, errNonPositiveCLIHTTPTimeout)
+		}
 		cfg.HTTPTimeout = parsedTimeout
 	}
 
-	storefront := strings.ToLower(trimmedValue("APPLE_MUSIC_STOREFRONT"))
-	if storefront != "" {
-		cfg.AppleMusicStorefront = storefront
-	}
-
-	return cfg, nil
+	loaded := ariadne.LoadConfigFromEnv(trimmedValue)
+	loaded.HTTPTimeout = cfg.HTTPTimeout
+	return loaded, nil
 }
 
 func looksLikeEnvFile(path string) bool {
@@ -203,10 +197,10 @@ func validateResolveConfig(config resolveConfig) error {
 	}
 
 	for _, service := range config.resolverConfig.TargetServices {
-		if ariadne.SupportsSongTarget(service) {
+		if ariadne.SupportsEnabledSongTarget(config.resolverConfig, service) {
 			continue
 		}
-		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, supportedSongTargetServicesUsage)
+		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, enabledSongTargetServicesUsage(config.resolverConfig))
 	}
 	return nil
 }
@@ -222,7 +216,13 @@ func requiresSongTargetValidation(config resolveConfig) bool {
 	}
 }
 
-var supportedSongTargetServicesUsage = "supported for songs: " + strings.Join(serviceNames(ariadne.SupportedSongTargetServices()), ", ")
+func enabledSongTargetServicesUsage(config ariadne.Config) string {
+	names := serviceNames(ariadne.EnabledSongTargetServices(config))
+	if len(names) == 0 {
+		return "enabled for songs: none"
+	}
+	return "enabled for songs: " + strings.Join(names, ", ")
+}
 
 func resolveModeFromConfig(config resolveConfig) resolveMode {
 	if config.forceSong {
@@ -236,7 +236,13 @@ func resolveModeFromConfig(config resolveConfig) resolveMode {
 
 func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.ServiceName, error) {
 	if strings.TrimSpace(raw) == "" {
-		return nil, nil
+		services := append([]ariadne.ServiceName(nil), appConfig.TargetServices...)
+		for _, service := range services {
+			if err := validateRequestedService(service, appConfig); err != nil {
+				return nil, err
+			}
+		}
+		return services, nil
 	}
 
 	services := make([]ariadne.ServiceName, 0)
@@ -271,7 +277,7 @@ func normalizeRequestedService(raw string) (ariadne.ServiceName, error) {
 	}
 	service, ok := ariadne.LookupServiceName(normalized)
 	if !ok || !ariadne.SupportsTarget(service) {
-		return "", fmt.Errorf("%w %q (expected one of %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
+		return "", fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
 	}
 	return service, nil
 }

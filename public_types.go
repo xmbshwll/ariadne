@@ -63,8 +63,11 @@ type ParsedURL struct {
 	RawURL string
 }
 
-// ParsedAlbumURL is kept as an alias while the public API expands beyond album-only resolution.
+// ParsedAlbumURL keeps album-specific APIs readable while sharing the common parsed URL shape.
 type ParsedAlbumURL = ParsedURL
+
+// ParsedSongURL keeps song-specific APIs readable while sharing the common parsed URL shape.
+type ParsedSongURL = ParsedURL
 
 // CanonicalTrack is the normalized track representation shared across services.
 type CanonicalTrack struct {
@@ -198,6 +201,22 @@ type ScoredMatch struct {
 	Candidate CandidateAlbum
 }
 
+// ServiceCapabilities describes Ariadne's built-in runtime support for one service.
+type ServiceCapabilities struct {
+	// Aliases are additional names accepted by LookupServiceName.
+	Aliases []string
+	// SupportsAlbumSource reports whether the service can parse and fetch album source URLs at runtime.
+	SupportsAlbumSource bool
+	// SupportsAlbumTarget reports whether the service has a built-in album target adapter.
+	SupportsAlbumTarget bool
+	// SupportsSongSource reports whether the service can parse and fetch song source URLs at runtime.
+	SupportsSongSource bool
+	// SupportsSongTarget reports whether the service has a built-in song target adapter.
+	SupportsSongTarget bool
+	// SupportsRuntimeSongInputURL reports whether the built-in runtime song pipeline can parse song URLs for this service.
+	SupportsRuntimeSongInputURL bool
+}
+
 // SongScoredMatch is one ranked song candidate returned by the song resolver.
 type SongScoredMatch struct {
 	// URL is the best presentation URL for the candidate.
@@ -247,7 +266,7 @@ type SongResolution struct {
 	// InputURL is the original URL passed to ResolveSong.
 	InputURL string
 	// Parsed is the normalized parsed form of the source URL.
-	Parsed ParsedURL
+	Parsed ParsedSongURL
 	// Source is the canonical song fetched from the source service.
 	Source CanonicalSong
 	// Matches contains ranked target-service matches keyed by service name.
@@ -265,6 +284,10 @@ type EntityResolution struct {
 }
 
 // SourceAdapter fetches canonical album metadata from a parsed source URL.
+//
+// Implementations must either return a parsed value or a non-nil error from ParseAlbumURL,
+// and either a canonical album or a non-nil error from FetchAlbum. Returning nil with a nil
+// error violates the adapter contract and is normalized to an exported ErrSourceAdapterReturnedNil* sentinel.
 type SourceAdapter interface {
 	Service() ServiceName
 	ParseAlbumURL(raw string) (*ParsedAlbumURL, error)
@@ -272,13 +295,20 @@ type SourceAdapter interface {
 }
 
 // SongSourceAdapter fetches canonical song metadata from a parsed source URL.
+//
+// Implementations must either return a parsed value or a non-nil error from ParseSongURL,
+// and either a canonical song or a non-nil error from FetchSong. Returning nil with a nil
+// error violates the adapter contract and is normalized to an exported ErrSourceAdapterReturnedNil* sentinel.
 type SongSourceAdapter interface {
 	Service() ServiceName
-	ParseSongURL(raw string) (*ParsedURL, error)
-	FetchSong(ctx context.Context, parsed ParsedURL) (*CanonicalSong, error)
+	ParseSongURL(raw string) (*ParsedSongURL, error)
+	FetchSong(ctx context.Context, parsed ParsedSongURL) (*CanonicalSong, error)
 }
 
 // TargetAdapter searches a target service for matching albums.
+//
+// Ariadne preserves adapter-returned errors under the resolver's context wrappers, so callers
+// can still use errors.Is against adapter-defined sentinels.
 type TargetAdapter interface {
 	Service() ServiceName
 	SearchByUPC(ctx context.Context, upc string) ([]CandidateAlbum, error)
@@ -287,6 +317,9 @@ type TargetAdapter interface {
 }
 
 // SongTargetAdapter searches a target service for matching songs.
+//
+// Ariadne preserves adapter-returned errors under the resolver's context wrappers, so callers
+// can still use errors.Is against adapter-defined sentinels.
 type SongTargetAdapter interface {
 	Service() ServiceName
 	SearchSongByISRC(ctx context.Context, isrc string) ([]CandidateSong, error)
@@ -308,8 +341,10 @@ var (
 	ErrSpotifyCredentialsNotConfigured = spotifyadapter.ErrCredentialsNotConfigured
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
-
-	errSourceAdapterReturnedNilParsed = errors.New("source adapter returned nil parsed url")
-	errSourceAdapterReturnedNilAlbum  = errors.New("source adapter returned nil album")
-	errSourceAdapterReturnedNilSong   = errors.New("source adapter returned nil song")
+	// ErrSourceAdapterReturnedNilParsedURL indicates that a caller-provided source adapter returned a nil parsed URL instead of either a parsed value or an error.
+	ErrSourceAdapterReturnedNilParsedURL = errors.New("source adapter returned nil parsed url")
+	// ErrSourceAdapterReturnedNilAlbum indicates that a caller-provided album source adapter returned a nil album without an error.
+	ErrSourceAdapterReturnedNilAlbum = errors.New("source adapter returned nil album")
+	// ErrSourceAdapterReturnedNilSong indicates that a caller-provided song source adapter returned a nil song without an error.
+	ErrSourceAdapterReturnedNilSong = errors.New("source adapter returned nil song")
 )

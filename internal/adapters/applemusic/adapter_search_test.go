@@ -34,10 +34,10 @@ func TestMetadataQueries(t *testing.T) {
 			},
 			want: []string{
 				"ΘΕΛΗΜΑ (Thelema) DECIPHER",
-				"ΘΕΛΗΜΑ (Thelema)",
 				"Thelema DECIPHER",
-				"Thelema",
 				"ΘΕΛΗΜΑ DECIPHER",
+				"ΘΕΛΗΜΑ (Thelema)",
+				"Thelema",
 				"ΘΕΛΗΜΑ",
 			},
 		},
