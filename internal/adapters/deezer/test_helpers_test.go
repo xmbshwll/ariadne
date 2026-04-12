@@ -32,7 +32,7 @@ type jsonRoute struct {
 func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *httptest.Server {
 	t.Helper()
 
-	return newJSONRouteServer(map[string]jsonRoute{
+	srv := newJSONRouteServer(map[string]jsonRoute{
 		deezerAlbumPath:                         jsonOK(albumBytes),
 		"/album/upc:602547670342":               jsonOK(albumBytes),
 		deezerAlbumTracksPath:                   jsonOK(trackBytes),
@@ -43,6 +43,8 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 		"/track/isrc:" + deezerComeTogetherISRC: jsonOK([]byte(deezerComeTogetherTrackPayload)),
 		"/track/isrc:GBAYE0601691":              jsonOK([]byte(deezerSomethingTrackPayload)),
 	})
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 func newJSONTestServer(handler http.HandlerFunc) *httptest.Server {
@@ -60,8 +62,7 @@ func newJSONRouteServer(routes map[string]jsonRoute) *httptest.Server {
 			return
 		}
 		if route.status != 0 && route.status != http.StatusOK {
-			http.Error(w, string(route.body), route.status)
-			return
+			w.WriteHeader(route.status)
 		}
 		_, _ = w.Write(route.body)
 	})
@@ -76,9 +77,17 @@ func jsonError(status int, body string) jsonRoute {
 }
 
 func newTestAdapter(server *httptest.Server) *Adapter {
-	adapter := New(server.Client())
-	adapter.baseURL = server.URL
-	return adapter
+	return newAdapter(server.Client(), server.URL)
+}
+
+func mustReadDeezerAlbumFixtures(t *testing.T) ([]byte, []byte) {
+	t.Helper()
+	return mustReadTestFile(t, "testdata/source-payload.json"), mustReadTestFile(t, "testdata/tracks.json")
+}
+
+func mustReadDeezerAlbumSearchFixture(t *testing.T) []byte {
+	t.Helper()
+	return mustReadTestFile(t, "testdata/search-album-single.json")
 }
 
 func assertSingleCandidate(t *testing.T, results []model.CandidateAlbum) {

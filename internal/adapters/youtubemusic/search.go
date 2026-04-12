@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := metadataQuery(album)
+	query := adapterutil.TitleAndFirstArtistQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
@@ -45,16 +44,8 @@ func (a *Adapter) hydrateYouTubeMusicAlbumSearchCandidate(ctx context.Context, c
 	if err != nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, err)
 	}
+	if canonical == nil {
+		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, errNilYouTubeMusicCanonicalAlbum)
+	}
 	return toCandidateAlbum(*canonical), nil
-}
-
-func metadataQuery(album model.CanonicalAlbum) string {
-	parts := make([]string, 0, 2)
-	if album.Title != "" {
-		parts = append(parts, album.Title)
-	}
-	if len(album.Artists) > 0 {
-		parts = append(parts, album.Artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
 }

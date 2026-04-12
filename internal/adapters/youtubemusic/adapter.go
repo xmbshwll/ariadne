@@ -28,6 +28,7 @@ var (
 	errUnexpectedYouTubeMusicStatus   = errors.New("unexpected youtube music status")
 	errMalformedYouTubeMusicPage      = errors.New("malformed youtube music page")
 	errYouTubeMusicAlbumTitleNotFound = errors.New("youtube music album title not found")
+	errNilYouTubeMusicCanonicalAlbum  = errors.New("youtube music adapter returned nil canonical album")
 )
 
 type Option func(*Adapter)

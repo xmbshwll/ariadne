@@ -26,6 +26,7 @@ func extractSchema(body []byte) (*schemaAlbum, error) {
 }
 
 func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.CanonicalAlbum {
+	artists := nonEmptyArtistList(album.ByArtist.Name)
 	tracks := make([]model.CanonicalTrack, 0, len(album.Track.ItemListElement))
 	totalDurationMS := 0
 	for _, item := range album.Track.ItemListElement {
@@ -36,11 +37,10 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 			Title:           item.Item.Name,
 			NormalizedTitle: normalize.Text(item.Item.Name),
 			DurationMS:      durationMS,
-			Artists:         []string{album.ByArtist.Name},
+			Artists:         artists,
 		})
 	}
 
-	artists := []string{album.ByArtist.Name}
 	return &model.CanonicalAlbum{
 		Service:           model.ServiceBandcamp,
 		SourceID:          parsed.ID,
@@ -105,8 +105,7 @@ func parseISODurationMilliseconds(value string) int {
 	}
 	value = strings.TrimPrefix(value, "P")
 	value = strings.TrimPrefix(value, "T")
-	var hours, minutes int
-	var seconds float64
+	var totalSeconds float64
 	for len(value) > 0 {
 		index := strings.IndexAny(value, "HMS")
 		if index <= 0 {
@@ -115,21 +114,26 @@ func parseISODurationMilliseconds(value string) int {
 		number := value[:index]
 		unit := value[index]
 		value = value[index+1:]
+
+		suffix := ""
 		switch unit {
 		case 'H':
-			parsed, _ := time.ParseDuration(number + "h")
-			hours = int(parsed.Hours())
+			suffix = "h"
 		case 'M':
-			parsed, _ := time.ParseDuration(number + "m")
-			minutes = int(parsed.Minutes()) % 60
+			suffix = "m"
 		case 'S':
-			parsed, err := time.ParseDuration(number + "s")
-			if err == nil {
-				seconds = parsed.Seconds()
-			}
+			suffix = "s"
+		default:
+			continue
 		}
+
+		parsed, err := time.ParseDuration(number + suffix)
+		if err != nil {
+			continue
+		}
+		totalSeconds += parsed.Seconds()
 	}
-	return int((float64(hours*3600+minutes*60) + seconds) * 1000)
+	return int(totalSeconds * 1000)
 }
 
 func dateOnly(value string) string {

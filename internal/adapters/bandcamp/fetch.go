@@ -2,6 +2,7 @@ package bandcamp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,10 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
+
+const maxBandcampResponseBytes = 10 << 20
+
+var errBandcampResponseTooLarge = errors.New("bandcamp response too large")
 
 // FetchAlbum loads a Bandcamp album page and extracts canonical metadata from schema.org JSON-LD.
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
@@ -28,22 +33,26 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "album", parse.BandcampAlbumURL, toCanonicalAlbum)
+	return fetchCanonicalPage(a, ctx, rawURL, "album", parse.BandcampAlbumURL, func(parsed model.ParsedAlbumURL) string {
+		return parsed.CanonicalURL
+	}, toCanonicalAlbum)
 }
 
 func (a *Adapter) fetchSongPage(ctx context.Context, rawURL string) (*model.CanonicalSong, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "song", parse.BandcampSongURL, toCanonicalSong)
+	return fetchCanonicalPage(a, ctx, rawURL, "song", parse.BandcampSongURL, func(parsed model.ParsedURL) string {
+		return parsed.CanonicalURL
+	}, toCanonicalSong)
 }
 
-func fetchCanonicalPage[Parsed any, Canonical any](adapter *Adapter, ctx context.Context, rawURL, entity string, parseURL func(string) (*Parsed, error), toCanonical func(Parsed, *schemaAlbum) *Canonical) (*Canonical, error) {
-	body, err := adapter.fetchPage(ctx, rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetch bandcamp %s page: %w", entity, err)
-	}
-
+func fetchCanonicalPage[Parsed any, Canonical any](adapter *Adapter, ctx context.Context, rawURL, entity string, parseURL func(string) (*Parsed, error), canonicalURL func(Parsed) string, toCanonical func(Parsed, *schemaAlbum) *Canonical) (*Canonical, error) {
 	parsed, err := parseURL(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse bandcamp %s url: %w", entity, err)
+	}
+
+	body, err := adapter.fetchPage(ctx, canonicalURL(*parsed))
+	if err != nil {
+		return nil, fmt.Errorf("fetch bandcamp %s page: %w", entity, err)
 	}
 
 	schema, err := extractSchema(body)
@@ -71,9 +80,12 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 		return nil, fmt.Errorf("%w %d: %s", errUnexpectedBandcampStatus, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBandcampResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read bandcamp response: %w", err)
+	}
+	if len(body) > maxBandcampResponseBytes {
+		return nil, fmt.Errorf("%w: exceeded %d bytes", errBandcampResponseTooLarge, maxBandcampResponseBytes)
 	}
 	return body, nil
 }

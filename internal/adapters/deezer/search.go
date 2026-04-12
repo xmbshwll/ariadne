@@ -82,7 +82,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 
 // SearchByMetadata searches Deezer albums using album title and artist metadata.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := metadataQuery(album)
+	query := adapterutil.TitleAndFirstArtistQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
@@ -125,7 +125,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 
 // SearchSongByMetadata searches Deezer tracks using song title and artist metadata.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	query := songMetadataQuery(song)
+	query := adapterutil.TitleAndFirstArtistQuery(song.Title, song.Artists)
 	if query == "" {
 		return nil, nil
 	}

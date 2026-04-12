@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
@@ -32,11 +31,15 @@ type Adapter struct {
 
 // New creates a Deezer adapter.
 func New(client *http.Client) *Adapter {
+	return newAdapter(client, defaultBaseURL)
+}
+
+func newAdapter(client *http.Client, baseURL string) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}
 	return &Adapter{
-		baseURL: defaultBaseURL,
+		baseURL: baseURL,
 		client:  client,
 	}
 }
@@ -62,23 +65,4 @@ func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 		return nil, fmt.Errorf("parse deezer song url: %w", err)
 	}
 	return parsed, nil
-}
-
-func metadataQuery(album model.CanonicalAlbum) string {
-	return searchMetadataQuery(album.Title, album.Artists)
-}
-
-func songMetadataQuery(song model.CanonicalSong) string {
-	return searchMetadataQuery(song.Title, song.Artists)
-}
-
-func searchMetadataQuery(title string, artists []string) string {
-	parts := make([]string, 0, 2)
-	if title != "" {
-		parts = append(parts, title)
-	}
-	if len(artists) > 0 {
-		parts = append(parts, artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
 }

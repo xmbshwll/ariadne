@@ -24,12 +24,10 @@ func TestSearchByUPCReturnsMissWithoutError(t *testing.T) {
 }
 
 func TestAlbumSearches(t *testing.T) {
-	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
-	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
-	searchBytes := mustReadTestFile(t, "testdata/search-album-single.json")
+	albumBytes, trackBytes := mustReadDeezerAlbumFixtures(t)
+	searchBytes := mustReadDeezerAlbumSearchFixture(t)
 
 	server := newTestServer(t, albumBytes, trackBytes, searchBytes)
-	defer server.Close()
 
 	adapter := newTestAdapter(server)
 	ctx := context.Background()
@@ -57,12 +55,10 @@ func TestAlbumSearches(t *testing.T) {
 }
 
 func TestSongSearches(t *testing.T) {
-	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
-	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
-	searchBytes := mustReadTestFile(t, "testdata/search-album-single.json")
+	albumBytes, trackBytes := mustReadDeezerAlbumFixtures(t)
+	searchBytes := mustReadDeezerAlbumSearchFixture(t)
 
 	server := newTestServer(t, albumBytes, trackBytes, searchBytes)
-	defer server.Close()
 
 	adapter := newTestAdapter(server)
 	ctx := context.Background()
@@ -75,11 +71,15 @@ func TestSongSearches(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, metadataResults, 2)
 	assert.Equal(t, "116348128", metadataResults[0].CandidateID)
+	assert.Equal(t, "Come Together (Remastered 2009)", metadataResults[0].Title)
+	assert.Equal(t, []string{"The Beatles"}, metadataResults[0].Artists)
+	assert.Equal(t, "999999", metadataResults[1].CandidateID)
+	assert.Equal(t, "Come Together", metadataResults[1].Title)
+	assert.Equal(t, []string{"Tribute Band"}, metadataResults[1].Artists)
 }
 
 func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
-	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
-	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
+	albumBytes, trackBytes := mustReadDeezerAlbumFixtures(t)
 
 	server := newJSONRouteServer(map[string]jsonRoute{
 		"/track/isrc:" + deezerComeTogetherISRC: jsonOK([]byte(deezerComeTogetherTrackPayload)),
@@ -96,8 +96,7 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 }
 
 func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T) {
-	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
-	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
+	albumBytes, trackBytes := mustReadDeezerAlbumFixtures(t)
 
 	var server *httptest.Server
 	server = newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {

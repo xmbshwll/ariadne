@@ -10,12 +10,10 @@ import (
 )
 
 func TestFetchSong(t *testing.T) {
-	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
-	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
-	searchBytes := []byte(`{"data":[{"id":12047952,"title":"Abbey Road (Remastered)"}]}`)
+	albumBytes, trackBytes := mustReadDeezerAlbumFixtures(t)
+	searchBytes := mustReadDeezerAlbumSearchFixture(t)
 
 	server := newTestServer(t, albumBytes, trackBytes, searchBytes)
-	defer server.Close()
 
 	adapter := newTestAdapter(server)
 

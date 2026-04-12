@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -21,7 +20,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	results, err := searchBandcampCandidates(
 		ctx,
 		a,
-		metadataQuery(album),
+		adapterutil.TitleAndFirstArtistQuery(album.Title, album.Artists),
 		func(body []byte) []searchCandidate {
 			return rankSearchCandidates(album, extractSearchCandidates(body))
 		},
@@ -43,7 +42,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	results, err := searchBandcampCandidates(
 		ctx,
 		a,
-		songMetadataQuery(song),
+		adapterutil.TitleAndFirstArtistQuery(song.Title, song.Artists),
 		func(body []byte) []searchCandidate {
 			return rankSongSearchCandidates(song, extractSongSearchCandidates(body))
 		},
@@ -115,39 +114,13 @@ func searchBandcampCandidates[Candidate any](ctx context.Context, adapter *Adapt
 	return results, nil
 }
 
-func metadataQuery(album model.CanonicalAlbum) string {
-	return searchMetadataQuery(album.Title, album.Artists)
-}
-
-func songMetadataQuery(song model.CanonicalSong) string {
-	return searchMetadataQuery(song.Title, song.Artists)
-}
-
-func searchMetadataQuery(title string, artists []string) string {
-	parts := make([]string, 0, 2)
-	if title != "" {
-		parts = append(parts, title)
-	}
-	if len(artists) > 0 {
-		parts = append(parts, artists[0])
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
-}
-
 func topRankedCandidates[Ranked any, Candidate any](ranked []Ranked, candidate func(Ranked) Candidate) []Candidate {
-	ordered := make([]Candidate, 0, minInt(len(ranked), searchLimit))
-	for i, rankedCandidate := range ranked {
-		if i >= searchLimit {
-			break
-		}
+	if len(ranked) > searchLimit {
+		ranked = ranked[:searchLimit]
+	}
+	ordered := make([]Candidate, 0, len(ranked))
+	for _, rankedCandidate := range ranked {
 		ordered = append(ordered, candidate(rankedCandidate))
 	}
 	return ordered
-}
-
-func minInt(left int, right int) int {
-	if left < right {
-		return left
-	}
-	return right
 }
