@@ -45,6 +45,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 		Service:           model.ServiceBandcamp,
 		SourceID:          parsed.ID,
 		SourceURL:         parsed.CanonicalURL,
+		RegionHint:        parsed.RegionHint,
 		Title:             album.Name,
 		NormalizedTitle:   normalize.Text(album.Name),
 		Artists:           artists,
@@ -61,6 +62,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 
 func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.CanonicalSong {
 	artists := nonEmptyArtistList(track.ByArtist.Name)
+	albumArtists := nonEmptyArtistList(track.InAlbum.ByArtist.Name)
 	albumID := ""
 	if parsedAlbum, err := parse.BandcampAlbumURL(track.InAlbum.ID); err == nil {
 		albumID = parsedAlbum.ID
@@ -69,6 +71,7 @@ func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.Canonica
 		Service:                model.ServiceBandcamp,
 		SourceID:               parsed.ID,
 		SourceURL:              parsed.CanonicalURL,
+		RegionHint:             parsed.RegionHint,
 		Title:                  track.Name,
 		NormalizedTitle:        normalize.Text(track.Name),
 		Artists:                artists,
@@ -77,8 +80,8 @@ func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.Canonica
 		AlbumID:                albumID,
 		AlbumTitle:             track.InAlbum.Name,
 		AlbumNormalizedTitle:   normalize.Text(track.InAlbum.Name),
-		AlbumArtists:           artists,
-		AlbumNormalizedArtists: normalize.Artists(artists),
+		AlbumArtists:           albumArtists,
+		AlbumNormalizedArtists: normalize.Artists(albumArtists),
 		ReleaseDate:            dateOnly(track.DatePublished),
 		ArtworkURL:             schemaImageURL(track.Image),
 		EditionHints:           normalize.EditionHints(track.Name),
@@ -148,7 +151,11 @@ func dateOnly(value string) string {
 	if err == nil {
 		return parsed.Format("2006-01-02")
 	}
-	return value[:10]
+	prefix := value[:10]
+	if _, err := time.Parse("2006-01-02", prefix); err == nil {
+		return prefix
+	}
+	return value
 }
 
 func nonEmptyArtistList(artist string) []string {
