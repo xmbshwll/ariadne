@@ -12,14 +12,13 @@ import (
 )
 
 func TestSearchByUPCReturnsMissWithoutError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/album/upc:602547670342" {
 			_, _ = w.Write([]byte(`{"id":0}`))
 			return
 		}
 		http.NotFound(w, r)
-	}))
+	})
 	defer server.Close()
 
 	adapter := newTestAdapter(server)
@@ -86,8 +85,7 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/track/isrc:" + deezerComeTogetherISRC:
 			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
@@ -100,7 +98,7 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 		default:
 			http.NotFound(w, r)
 		}
-	}))
+	})
 	defer server.Close()
 
 	adapter := newTestAdapter(server)
@@ -115,10 +113,9 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
 
 	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	server = newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search/album":
+		case deezerAlbumSearchPath:
 			_, _ = w.Write([]byte(`{"data":[{"id":12047952,"title":"Abbey Road (Remastered)"},{"id":555,"title":"Broken Album"}]}`))
 		case deezerAlbumPath:
 			_, _ = w.Write(albumBytes)
@@ -131,7 +128,7 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 		default:
 			http.NotFound(w, r)
 		}
-	}))
+	})
 	defer server.Close()
 
 	adapter := newTestAdapter(server)
@@ -141,15 +138,63 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 	assertSingleCandidate(t, results)
 }
 
+func TestSearchByISRCSkipsTracksWithoutAlbumIDs(t *testing.T) {
+	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/track/isrc:" + deezerComeTogetherISRC:
+			_, _ = w.Write([]byte(`{"id":116348128,"title":"Come Together","album":{"id":0}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer server.Close()
+
+	adapter := newTestAdapter(server)
+	results, err := adapter.SearchByISRC(context.Background(), []string{deezerComeTogetherISRC})
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestSearchByMetadataSkipsNonPositiveAlbumIDs(t *testing.T) {
+	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == deezerAlbumSearchPath {
+			_, _ = w.Write([]byte(`{"data":[{"id":0,"title":"Broken Album"}]}`))
+			return
+		}
+		http.NotFound(w, r)
+	})
+	defer server.Close()
+
+	adapter := newTestAdapter(server)
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestSearchSongByMetadataSkipsNonPositiveTrackIDs(t *testing.T) {
+	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == deezerTrackSearchPath {
+			_, _ = w.Write([]byte(`{"data":[{"id":0,"title":"Broken Song"}]}`))
+			return
+		}
+		http.NotFound(w, r)
+	})
+	defer server.Close()
+
+	adapter := newTestAdapter(server)
+	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
 func TestSearchSongByMetadataReturnsMalformedResponseError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/search/track" {
+	server := newJSONTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == deezerTrackSearchPath {
 			_, _ = w.Write([]byte("{"))
 			return
 		}
 		http.NotFound(w, r)
-	}))
+	})
 	defer server.Close()
 
 	adapter := newTestAdapter(server)

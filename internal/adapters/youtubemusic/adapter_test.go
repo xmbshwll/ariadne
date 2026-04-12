@@ -2,16 +2,14 @@ package youtubemusic
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestFetchAlbum(t *testing.T) {
-	sourcePage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "source-page.html"))
+	sourcePage := mustReadYouTubeMusicSourcePage(t)
 
 	server := newYouTubeMusicTestServer(map[string][]byte{
 		youtubeMusicBrowsePath: sourcePage,
@@ -19,12 +17,7 @@ func TestFetchAlbum(t *testing.T) {
 	defer server.Close()
 
 	adapter := newYouTubeMusicTestAdapter(server)
-	album, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{
-		Service:      model.ServiceYouTubeMusic,
-		EntityType:   "album",
-		ID:           "MPREb_tQfaWH32ovE",
-		CanonicalURL: server.URL + youtubeMusicBrowsePath,
-	})
+	album, err := adapter.FetchAlbum(context.Background(), newYouTubeMusicAlbumSource(server.URL))
 	require.NoError(t, err)
 	require.NotNil(t, album)
 	assert.Equal(t, "Abbey Road (Super Deluxe Edition)", album.Title)

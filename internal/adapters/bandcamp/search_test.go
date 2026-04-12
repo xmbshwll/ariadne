@@ -1,8 +1,6 @@
 package bandcamp
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +42,7 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body := mustReadBandcampFixture(t, tt.fixture)
+			body := mustReadTestFile(t, tt.fixture)
 			candidates := extractSearchCandidates(body)
 			require.Len(t, candidates, tt.wantCount)
 
@@ -58,14 +56,14 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 }
 
 func TestExtractSearchCandidatesDeduplicatesURLs(t *testing.T) {
-	body := mustReadBandcampFixture(t, "testdata/search-fixture-url-dedup.html")
+	body := mustReadTestFile(t, "testdata/search-fixture-url-dedup.html")
 	candidates := extractSearchCandidates(body)
 	require.Len(t, candidates, 1)
 	assert.Equal(t, "https://artist.bandcamp.com/album/example-album", candidates[0].URL)
 }
 
 func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.T) {
-	body := mustReadBandcampFixture(t, "testdata/search-fixture-track.html")
+	body := mustReadTestFile(t, "testdata/search-fixture-track.html")
 	candidates := extractSongSearchCandidates(body)
 	require.Len(t, candidates, 2)
 
@@ -74,12 +72,4 @@ func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.
 
 	assert.Equal(t, "Something", candidates[1].Title)
 	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
-}
-
-func mustReadBandcampFixture(t *testing.T, relativePath string) []byte {
-	t.Helper()
-	path := filepath.Clean(relativePath)
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-	return content
 }

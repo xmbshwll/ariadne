@@ -15,6 +15,8 @@ import (
 const (
 	deezerAlbumPath                = "/album/12047952"
 	deezerAlbumTracksPath          = "/album/12047952/tracks"
+	deezerAlbumSearchPath          = "/search/album"
+	deezerTrackSearchPath          = "/search/track"
 	deezerComeTogetherISRC         = "GBAYE0601690"
 	deezerTrackSearchPayload       = `{"data":[{"id":116348128,"title":"Come Together (Remastered 2009)"},{"id":999999,"title":"Come Together"}]}`
 	deezerComeTogetherTrackPayload = `{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`
@@ -35,9 +37,9 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 			_, _ = w.Write(albumBytes)
 		case deezerAlbumTracksPath:
 			_, _ = w.Write(trackBytes)
-		case "/search/album":
+		case deezerAlbumSearchPath:
 			_, _ = w.Write(searchBytes)
-		case "/search/track":
+		case deezerTrackSearchPath:
 			_, _ = w.Write([]byte(deezerTrackSearchPayload))
 		case "/track/116348128":
 			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
@@ -50,6 +52,13 @@ func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *ht
 		default:
 			http.NotFound(w, r)
 		}
+	}))
+}
+
+func newJSONTestServer(handler http.HandlerFunc) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		handler(w, r)
 	}))
 }
 

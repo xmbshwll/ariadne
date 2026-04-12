@@ -2,7 +2,6 @@ package youtubemusic
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,8 +9,8 @@ import (
 )
 
 func TestSearchByMetadataHydratesBrowseResult(t *testing.T) {
-	sourcePage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "source-page.html"))
-	searchPage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "search-page.html"))
+	sourcePage := mustReadYouTubeMusicSourcePage(t)
+	searchPage := mustReadYouTubeMusicSearchPage(t)
 
 	server := newYouTubeMusicTestServer(map[string][]byte{
 		youtubeMusicSearchPath: searchPage,
@@ -29,16 +28,16 @@ func TestSearchByMetadataHydratesBrowseResult(t *testing.T) {
 }
 
 func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T) {
-	sourcePage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "source-page.html"))
-	searchPage := youTubeMusicSearchPage(
-		youTubeMusicAlbumSearchResult(youtubeMusicAbbeyRoadTitle, "GOOD", youtubeMusicAbbeyRoadArtist),
-		youTubeMusicAlbumSearchResult("Broken Album", "BROKEN", youtubeMusicAbbeyRoadArtist),
+	sourcePage := mustReadYouTubeMusicSourcePage(t)
+	searchPage := youTubeMusicAlbumSearchPage(
+		youTubeMusicSearchResult{Title: youtubeMusicAbbeyRoadTitle, BrowseID: "GOOD", Artist: youtubeMusicAbbeyRoadArtist},
+		youTubeMusicSearchResult{Title: "Broken Album", BrowseID: "BROKEN", Artist: youtubeMusicAbbeyRoadArtist},
 	)
 
 	server := newYouTubeMusicTestServer(map[string][]byte{
 		youtubeMusicSearchPath: searchPage,
 		"/browse/GOOD":         sourcePage,
-		"/browse/BROKEN":       []byte(youtubeMusicBrokenPageHTML),
+		"/browse/BROKEN":       youTubeMusicBrokenBrowsePage(),
 	})
 	defer server.Close()
 
@@ -50,11 +49,11 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 }
 
 func TestSearchByMetadataReturnsMalformedPageErrorWhenNothingRecovers(t *testing.T) {
-	searchPage := mustReadYouTubeMusicFixture(t, filepath.Join("testdata", "search-page.html"))
+	searchPage := mustReadYouTubeMusicSearchPage(t)
 
 	server := newYouTubeMusicTestServer(map[string][]byte{
 		youtubeMusicSearchPath: searchPage,
-		youtubeMusicBrowsePath: []byte(youtubeMusicBrokenPageHTML),
+		youtubeMusicBrowsePath: youTubeMusicBrokenBrowsePage(),
 	})
 	defer server.Close()
 

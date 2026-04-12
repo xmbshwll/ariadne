@@ -1,6 +1,9 @@
 package adapterutil
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 func TrimmedNonEmptyStrings(values []string) []string {
 	trimmed := make([]string, 0, len(values))
@@ -48,4 +51,10 @@ func CollectCandidates[Input any, Candidate any](items []Input, limit int, itemI
 		return nil, firstErr
 	}
 	return results, nil
+}
+
+func CollectCandidatesWithContext[Input any, Candidate any](ctx context.Context, items []Input, limit int, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
+	return CollectCandidates(items, limit, itemID, func(item Input) (Candidate, error) {
+		return fetch(ctx, item)
+	})
 }

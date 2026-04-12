@@ -21,7 +21,7 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 
 	canonical, err := a.fetchAlbumByLookup(ctx, a.baseURL+"/album/upc:"+url.PathEscape(upc))
 	if err != nil {
-		if errors.Is(err, errDeezerAlbumNotFound) {
+		if isDeezerAlbumLookupMiss(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("search deezer by upc %s: %w", upc, err)
@@ -44,7 +44,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	for _, isrc := range isrcs {
 		track, err := a.fetchTrackLookup(ctx, a.baseURL+"/track/isrc:"+url.PathEscape(isrc))
 		if err != nil {
-			if errors.Is(err, errDeezerTrackNotFound) {
+			if isDeezerTrackLookupMiss(err) {
 				continue
 			}
 			if firstErr == nil {
@@ -53,6 +53,9 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 			continue
 		}
 		albumID := track.Album.ID
+		if albumID <= 0 {
+			continue
+		}
 		if _, ok := seenAlbumIDs[albumID]; ok {
 			continue
 		}
@@ -90,13 +93,12 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("search deezer by metadata %q: %w", query, err)
 	}
 
-	results, err := adapterutil.CollectCandidates(
+	results, err := adapterutil.CollectCandidatesWithContext(
+		ctx,
 		searchResults.Data,
 		metadataSearchLimit,
 		deezerAlbumSearchCandidateID,
-		func(candidate albumResponse) (model.CandidateAlbum, error) {
-			return a.hydrateDeezerAlbumSearchCandidate(ctx, candidate)
-		},
+		a.hydrateDeezerAlbumSearchCandidate,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect deezer album candidates: %w", err)
@@ -113,7 +115,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 
 	track, err := a.fetchTrackLookup(ctx, a.baseURL+"/track/isrc:"+url.PathEscape(isrc))
 	if err != nil {
-		if errors.Is(err, errDeezerTrackNotFound) {
+		if isDeezerTrackLookupMiss(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("search deezer song by isrc %s: %w", isrc, err)
@@ -134,13 +136,12 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("search deezer song by metadata %q: %w", query, err)
 	}
 
-	results, err := adapterutil.CollectCandidates(
+	results, err := adapterutil.CollectCandidatesWithContext(
+		ctx,
 		searchResults.Data,
 		metadataSearchLimit,
 		deezerSongSearchCandidateID,
-		func(candidate trackResponse) (model.CandidateSong, error) {
-			return a.hydrateDeezerSongSearchCandidate(ctx, candidate)
-		},
+		a.hydrateDeezerSongSearchCandidate,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect deezer song candidates: %w", err)
@@ -148,12 +149,27 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	return results, nil
 }
 
+func isDeezerAlbumLookupMiss(err error) bool {
+	return errors.Is(err, errDeezerAlbumNotFound)
+}
+
+func isDeezerTrackLookupMiss(err error) bool {
+	return errors.Is(err, errDeezerTrackNotFound)
+}
+
 func deezerAlbumSearchCandidateID(candidate albumResponse) string {
-	return strconv.Itoa(candidate.ID)
+	return deezerCandidateID(candidate.ID)
 }
 
 func deezerSongSearchCandidateID(candidate trackResponse) string {
-	return strconv.Itoa(candidate.ID)
+	return deezerCandidateID(candidate.ID)
+}
+
+func deezerCandidateID(id int) string {
+	if id <= 0 {
+		return ""
+	}
+	return strconv.Itoa(id)
 }
 
 func (a *Adapter) hydrateDeezerAlbumSearchCandidate(ctx context.Context, candidate albumResponse) (model.CandidateAlbum, error) {

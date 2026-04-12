@@ -118,13 +118,12 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 
 	searchCandidates := rankSearchCandidates(album, extractSearchCandidates(body))
-	results, err := adapterutil.CollectCandidates(
+	results, err := adapterutil.CollectCandidatesWithContext(
+		ctx,
 		searchCandidates,
 		searchHydrationLimit,
 		bandcampSearchCandidateURL,
-		func(candidate searchCandidate) (model.CandidateAlbum, error) {
-			return a.hydrateBandcampAlbumSearchCandidate(ctx, candidate)
-		},
+		a.hydrateBandcampAlbumSearchCandidate,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect bandcamp album candidates: %w", err)
@@ -171,13 +170,12 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 
 	searchCandidates := rankSongSearchCandidates(song, extractSongSearchCandidates(body))
-	results, err := adapterutil.CollectCandidates(
+	results, err := adapterutil.CollectCandidatesWithContext(
+		ctx,
 		searchCandidates,
 		searchHydrationLimit,
 		bandcampSearchCandidateURL,
-		func(candidate searchCandidate) (model.CandidateSong, error) {
-			return a.hydrateBandcampSongSearchCandidate(ctx, candidate)
-		},
+		a.hydrateBandcampSongSearchCandidate,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect bandcamp song candidates: %w", err)

@@ -101,13 +101,12 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("fetch youtube music search page: %w", err)
 	}
 	candidates := extractSearchCandidates(body)
-	results, err := adapterutil.CollectCandidates(
+	results, err := adapterutil.CollectCandidatesWithContext(
+		ctx,
 		candidates,
 		searchLimit,
 		youTubeMusicSearchCandidateID,
-		func(candidate searchCandidate) (model.CandidateAlbum, error) {
-			return a.hydrateYouTubeMusicAlbumSearchCandidate(ctx, candidate)
-		},
+		a.hydrateYouTubeMusicAlbumSearchCandidate,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect youtube music candidates: %w", err)
