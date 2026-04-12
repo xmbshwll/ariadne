@@ -21,41 +21,54 @@ const (
 	lonAbatyAbbeyRoad  = "Lôn Abaty / Abbey Road"
 )
 
+func newBandcampTestServer(buildRoutes func(baseURL string) map[string][]byte) *httptest.Server {
+	var routes map[string][]byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, ok := routes[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(body)
+	}))
+	routes = buildRoutes(server.URL)
+	return server
+}
+
+func newBandcampTestAdapter(server *httptest.Server) *Adapter {
+	return New(server.Client(), WithSearchBaseURL(server.URL))
+}
+
 func TestAdapter(t *testing.T) {
 	sourcePage := mustReadTestFile(t, "testdata/source-page.html")
 
-	var server *httptest.Server
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/album/l-n-abaty-abbey-road":
-			_, _ = w.Write(sourcePage)
-		case bandcampSearchPath:
-			searchHTML := fmt.Sprintf(`
-				<html><body>
-					<li class="searchresult data-search">
-					  <div class="itemtype">ALBUM</div>
-					  <div class="heading"><a href="%s/album/l-n-abaty-abbey-road?from=search">Lôn Abaty / Abbey Road</a></div>
-					  <div class="subhead">by COMRADIATION</div>
-					  <div class="length">14 tracks, 60 minutes</div>
-					  <div class="released">released December 2, 2021</div>
-					</li>
-					<li class="searchresult data-search">
-					  <div class="itemtype">ALBUM</div>
-					  <div class="heading"><a href="%s/album/after-abbey-road">After Abbey Road</a></div>
-					  <div class="subhead">by Mike Westbrook</div>
-					  <div class="length">17 tracks, 94 minutes</div>
-					  <div class="released">released September 27, 2019</div>
-					</li>
-				</body></html>
-			`, server.URL, server.URL)
-			_, _ = w.Write([]byte(searchHTML))
-		default:
-			http.NotFound(w, r)
+	server := newBandcampTestServer(func(baseURL string) map[string][]byte {
+		searchHTML := fmt.Sprintf(`
+			<html><body>
+				<li class="searchresult data-search">
+				  <div class="itemtype">ALBUM</div>
+				  <div class="heading"><a href="%s/album/l-n-abaty-abbey-road?from=search">Lôn Abaty / Abbey Road</a></div>
+				  <div class="subhead">by COMRADIATION</div>
+				  <div class="length">14 tracks, 60 minutes</div>
+				  <div class="released">released December 2, 2021</div>
+				</li>
+				<li class="searchresult data-search">
+				  <div class="itemtype">ALBUM</div>
+				  <div class="heading"><a href="%s/album/after-abbey-road">After Abbey Road</a></div>
+				  <div class="subhead">by Mike Westbrook</div>
+				  <div class="length">17 tracks, 94 minutes</div>
+				  <div class="released">released September 27, 2019</div>
+				</li>
+			</body></html>
+		`, baseURL, baseURL)
+		return map[string][]byte{
+			"/album/l-n-abaty-abbey-road": sourcePage,
+			bandcampSearchPath:            []byte(searchHTML),
 		}
-	}))
+	})
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
+	adapter := newBandcampTestAdapter(server)
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceBandcamp,
 		EntityType:   "album",
@@ -151,6 +164,64 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 	require.Len(t, results, 2)
 	assert.Equal(t, "live-at-kexp-high", results[0].CandidateID)
 	assert.Equal(t, "live-at-kexp-low", results[1].CandidateID)
+}
+
+func TestSearchByMetadataReturnsFirstHydrationErrorWhenNothingRecovers(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case bandcampSearchPath:
+			searchHTML := fmt.Sprintf(`
+				<html><body>
+					<li class="searchresult data-search">
+					  <div class="itemtype">ALBUM</div>
+					  <div class="heading"><a href="%s/album/broken?from=search">Broken</a></div>
+					  <div class="subhead">by COMRADIATION</div>
+					</li>
+				</body></html>
+			`, server.URL)
+			_, _ = w.Write([]byte(searchHTML))
+		case "/album/broken":
+			_, _ = w.Write([]byte(`<html><body><script type="application/ld+json">{"name": }</script></body></html>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
+	_, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"COMRADIATION"}})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errMalformedBandcampJSONLD)
+}
+
+func TestSearchSongByMetadataReturnsFirstHydrationErrorWhenNothingRecovers(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case bandcampSearchPath:
+			searchHTML := fmt.Sprintf(`
+				<html><body>
+					<li class="searchresult data-search">
+					  <div class="itemtype">TRACK</div>
+					  <div class="heading"><a href="%s/track/broken?from=search">Broken</a></div>
+					  <div class="subhead">by COMRADIATION</div>
+					</li>
+				</body></html>
+			`, server.URL)
+			_, _ = w.Write([]byte(searchHTML))
+		case "/track/broken":
+			_, _ = w.Write([]byte(`<html><body><script type="application/ld+json">{"name": }</script></body></html>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSearchBaseURL(server.URL))
+	_, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"COMRADIATION"}})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errMalformedBandcampJSONLD)
 }
 
 func TestSongAdapter(t *testing.T) {

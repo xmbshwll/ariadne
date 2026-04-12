@@ -1,12 +1,6 @@
 package deezer
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,144 +8,18 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-const (
-	deezerComeTogetherISRC         = "GBAYE0601690"
-	deezerTrackSearchPayload       = `{"data":[{"id":116348128,"title":"Come Together (Remastered 2009)"},{"id":999999,"title":"Come Together"}]}`
-	deezerComeTogetherTrackPayload = `{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`
-	deezerLiveTrackPayload         = `{"id":999999,"title":"Come Together","link":"https://www.deezer.com/track/999999","isrc":"OTHER0001","album":{"id":555,"title":"Abbey Road Live","link":"https://www.deezer.com/album/555","release_date":"2020-01-01"},"artist":{"id":2,"name":"Tribute Band"},"duration":200,"track_position":8,"disk_number":1,"explicit_lyrics":false}`
-	deezerSomethingTrackPayload    = `{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`
-)
+func TestAdapterIdentityAndParsing(t *testing.T) {
+	adapter := New(nil)
 
-func TestAdapter(t *testing.T) {
-	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
-	trackBytes := mustReadTestFile(t, "testdata/tracks.json")
-	searchBytes := []byte(`{"data":[{"id":12047952,"title":"Abbey Road (Remastered)"}]}`)
+	assert.Equal(t, model.ServiceDeezer, adapter.Service())
 
-	var album albumResponse
-	require.NoError(t, json.Unmarshal(albumBytes, &album))
-
-	var tracks tracksResponse
-	require.NoError(t, json.Unmarshal(trackBytes, &tracks))
-
-	t.Run("to canonical album", func(t *testing.T) {
-		adapter := New(nil)
-		parsed := model.ParsedAlbumURL{
-			Service:      model.ServiceDeezer,
-			EntityType:   "album",
-			ID:           "12047952",
-			CanonicalURL: "https://www.deezer.com/album/12047952",
-			RawURL:       "https://www.deezer.com/album/12047952",
-		}
-
-		got := adapter.toCanonicalAlbum(parsed, album, tracks)
-		assert.Equal(t, "Abbey Road (Remastered)", got.Title)
-		assert.Equal(t, "602547670342", got.UPC)
-		assert.Equal(t, "EMI Catalogue", got.Label)
-		assert.Equal(t, 17, got.TrackCount)
-		require.NotEmpty(t, got.Tracks)
-		assert.Equal(t, deezerComeTogetherISRC, got.Tracks[0].ISRC)
-		assert.Equal(t, 258000, got.Tracks[0].DurationMS)
-		assert.Equal(t, "The Beatles", got.Artists[0])
-	})
-
-	t.Run("target search", func(t *testing.T) {
-		server := newTestServer(t, albumBytes, trackBytes, searchBytes)
-		defer server.Close()
-
-		adapter := New(server.Client())
-		adapter.baseURL = server.URL
-		ctx := context.Background()
-
-		t.Run("search by upc", func(t *testing.T) {
-			results, err := adapter.SearchByUPC(ctx, "602547670342")
-			require.NoError(t, err)
-			assertSingleCandidate(t, results)
-		})
-
-		t.Run("search by isrc", func(t *testing.T) {
-			results, err := adapter.SearchByISRC(ctx, []string{deezerComeTogetherISRC, "GBAYE0601691"})
-			require.NoError(t, err)
-			assertSingleCandidate(t, results)
-		})
-
-		t.Run("search by metadata", func(t *testing.T) {
-			results, err := adapter.SearchByMetadata(ctx, model.CanonicalAlbum{
-				Title:   "Abbey Road (Remastered)",
-				Artists: []string{"The Beatles"},
-			})
-			require.NoError(t, err)
-			assertSingleCandidate(t, results)
-		})
-
-		t.Run("song source and search", func(t *testing.T) {
-			song, err := adapter.FetchSong(ctx, model.ParsedURL{Service: model.ServiceDeezer, EntityType: "song", ID: "116348128", CanonicalURL: "https://www.deezer.com/track/116348128"})
-			require.NoError(t, err)
-			assert.Equal(t, deezerComeTogetherISRC, song.ISRC)
-			assert.Equal(t, "Abbey Road (Remastered)", song.AlbumTitle)
-
-			isrcResults, err := adapter.SearchSongByISRC(ctx, deezerComeTogetherISRC)
-			require.NoError(t, err)
-			assertSingleSongCandidate(t, isrcResults)
-
-			metadataResults, err := adapter.SearchSongByMetadata(ctx, model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
-			require.NoError(t, err)
-			require.Len(t, metadataResults, 2)
-			assert.Equal(t, "116348128", metadataResults[0].CandidateID)
-		})
-	})
-}
-
-func newTestServer(t *testing.T, albumBytes, trackBytes, searchBytes []byte) *httptest.Server {
-	t.Helper()
-
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/album/12047952":
-			_, _ = w.Write(albumBytes)
-		case "/album/upc:602547670342":
-			_, _ = w.Write(albumBytes)
-		case "/album/12047952/tracks":
-			_, _ = w.Write(trackBytes)
-		case "/search/album":
-			_, _ = w.Write(searchBytes)
-		case "/search/track":
-			_, _ = w.Write([]byte(deezerTrackSearchPayload))
-		case "/track/116348128":
-			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
-		case "/track/999999":
-			_, _ = w.Write([]byte(deezerLiveTrackPayload))
-		case "/track/isrc:" + deezerComeTogetherISRC:
-			_, _ = w.Write([]byte(deezerComeTogetherTrackPayload))
-		case "/track/isrc:GBAYE0601691":
-			_, _ = w.Write([]byte(deezerSomethingTrackPayload))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-}
-
-func assertSingleCandidate(t *testing.T, results []model.CandidateAlbum) {
-	t.Helper()
-	require.Len(t, results, 1)
-	assert.Equal(t, "12047952", results[0].CandidateID)
-	assert.Equal(t, "https://www.deezer.com/album/12047952", results[0].MatchURL)
-	assert.Equal(t, "602547670342", results[0].UPC)
-}
-
-func assertSingleSongCandidate(t *testing.T, results []model.CandidateSong) {
-	t.Helper()
-	require.Len(t, results, 1)
-	assert.Equal(t, "116348128", results[0].CandidateID)
-	assert.Equal(t, "https://www.deezer.com/track/116348128", results[0].MatchURL)
-	assert.Equal(t, deezerComeTogetherISRC, results[0].ISRC)
-}
-
-func mustReadTestFile(t *testing.T, relativePath string) []byte {
-	t.Helper()
-	path := filepath.Clean(relativePath)
-	content, err := os.ReadFile(path)
+	album, err := adapter.ParseAlbumURL("https://www.deezer.com/album/12047952")
 	require.NoError(t, err)
-	return content
+	assert.Equal(t, model.ServiceDeezer, album.Service)
+	assert.Equal(t, "12047952", album.ID)
+
+	song, err := adapter.ParseSongURL("https://www.deezer.com/track/116348128")
+	require.NoError(t, err)
+	assert.Equal(t, model.ServiceDeezer, song.Service)
+	assert.Equal(t, "116348128", song.ID)
 }

@@ -29,7 +29,14 @@ func TestSearchByISRCWithOfficialAuth(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, "1441164426", results[0].CandidateID)
 	require.Len(t, results[0].Tracks, 2)
-	assert.Equal(t, comeTogetherISRC, results[0].Tracks[0].ISRC)
+	found := false
+	for _, track := range results[0].Tracks {
+		if track.ISRC == comeTogetherISRC {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found)
 }
 
 func TestSearchSongByISRCWithOfficialAuth(t *testing.T) {

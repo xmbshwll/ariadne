@@ -377,9 +377,15 @@ func TestResolverCrossServiceFixtures(t *testing.T) {
 	sourceAlbumsByURL := make(map[string]model.CanonicalAlbum, len(fixtures))
 	targetCandidates := make(map[model.ServiceName]map[string][]model.CandidateAlbum)
 	for _, fixture := range fixtures {
+		if _, exists := sourceAlbumsByURL[fixture.inputURL]; exists {
+			t.Fatalf("duplicate source fixture input URL %q for %s", fixture.inputURL, fixture.name)
+		}
 		sourceAlbumsByURL[fixture.inputURL] = fixture.source
 		if _, ok := targetCandidates[fixture.targetService]; !ok {
 			targetCandidates[fixture.targetService] = make(map[string][]model.CandidateAlbum)
+		}
+		if _, exists := targetCandidates[fixture.targetService][fixture.source.SourceID]; exists {
+			t.Fatalf("duplicate target fixture for service %q and source %q in %s", fixture.targetService, fixture.source.SourceID, fixture.name)
 		}
 		targetCandidates[fixture.targetService][fixture.source.SourceID] = fixture.candidates
 	}

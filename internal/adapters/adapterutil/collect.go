@@ -15,6 +15,10 @@ func TrimmedNonEmptyStrings(values []string) []string {
 }
 
 func CollectCandidates[Input any, Candidate any](items []Input, limit int, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+	if limit <= 0 {
+		return []Candidate{}, nil
+	}
+
 	results := make([]Candidate, 0, min(len(items), limit))
 	seen := make(map[string]struct{}, len(items))
 	var firstErr error

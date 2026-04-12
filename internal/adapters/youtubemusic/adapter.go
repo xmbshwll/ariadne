@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 	"github.com/xmbshwll/ariadne/internal/parse"
@@ -30,6 +31,7 @@ var (
 	albumResultPattern                = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
 	errUnexpectedYouTubeMusicService  = errors.New("unexpected youtube music service")
 	errUnexpectedYouTubeMusicStatus   = errors.New("unexpected youtube music status")
+	errMalformedYouTubeMusicPage      = errors.New("malformed youtube music page")
 	errYouTubeMusicAlbumTitleNotFound = errors.New("youtube music album title not found")
 )
 
@@ -99,26 +101,39 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("fetch youtube music search page: %w", err)
 	}
 	candidates := extractSearchCandidates(body)
-	results := make([]model.CandidateAlbum, 0, min(len(candidates), searchLimit))
-	for _, candidate := range candidates {
-		canonical, err := a.fetchAlbumByBrowseID(ctx, candidate.BrowseID)
-		if err != nil {
-			continue
-		}
-		results = append(results, toCandidateAlbum(*canonical))
-		if len(results) >= searchLimit {
-			break
-		}
+	results, err := adapterutil.CollectCandidates(
+		candidates,
+		searchLimit,
+		youTubeMusicSearchCandidateID,
+		func(candidate searchCandidate) (model.CandidateAlbum, error) {
+			return a.hydrateYouTubeMusicAlbumSearchCandidate(ctx, candidate)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("collect youtube music candidates: %w", err)
 	}
 	return results, nil
 }
 
+func youTubeMusicSearchCandidateID(candidate searchCandidate) string {
+	return candidate.BrowseID
+}
+
+func (a *Adapter) hydrateYouTubeMusicAlbumSearchCandidate(ctx context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
+	canonical, err := a.fetchAlbumByBrowseID(ctx, candidate.BrowseID)
+	if err != nil {
+		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, err)
+	}
+	return toCandidateAlbum(*canonical), nil
+}
+
 func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*model.CanonicalAlbum, error) {
-	body, err := a.fetchPage(ctx, a.baseURL+"/browse/"+browseID)
+	browseURL := a.baseURL + "/browse/" + browseID
+	body, err := a.fetchPage(ctx, browseURL)
 	if err != nil {
 		return nil, err
 	}
-	return extractAlbum(body, a.baseURL+"/browse/"+browseID)
+	return extractAlbum(body, browseURL)
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
@@ -157,7 +172,7 @@ func extractAlbum(body []byte, fallbackURL string) (*model.CanonicalAlbum, error
 	}
 	title := cleanAlbumTitle(extractFirstGroup(ogTitlePattern, body))
 	if title == "" {
-		return nil, errYouTubeMusicAlbumTitleNotFound
+		return nil, errors.Join(errMalformedYouTubeMusicPage, errYouTubeMusicAlbumTitleNotFound)
 	}
 	artist := html.UnescapeString(extractFirstGroup(subtitleArtistPattern, body))
 	trackTitles := extractTrackTitles(body)

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -32,19 +33,14 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	if err := a.getSearchJSON(ctx, "/search/playlists", query, &payload); err != nil {
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
-	results := make([]model.CandidateAlbum, 0, min(len(payload.Collection), searchLimit))
-	seen := make(map[string]struct{}, searchLimit)
-	for _, playlist := range payload.Collection {
-		if !validSoundCloudPlaylistSearchHit(playlist) {
-			continue
-		}
-		canonical := toCanonicalAlbum(playlist)
-		if !appendSoundCloudAlbumCandidate(&results, seen, canonical) {
-			continue
-		}
-		if len(results) >= searchLimit {
-			break
-		}
+	results, err := adapterutil.CollectCandidates(
+		payload.Collection,
+		searchLimit,
+		soundCloudPlaylistCandidateID,
+		soundCloudAlbumSearchCandidate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("collect soundcloud album candidates: %w", err)
 	}
 	return results, nil
 }
@@ -62,19 +58,14 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	if err := a.getSearchJSON(ctx, "/search/tracks", query, &payload); err != nil {
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
-	results := make([]model.CandidateSong, 0, min(len(payload.Collection), searchLimit))
-	seen := make(map[string]struct{}, searchLimit)
-	for _, track := range payload.Collection {
-		if !validSoundCloudTrackSearchHit(track) {
-			continue
-		}
-		canonical := toCanonicalSong(track)
-		if !appendSoundCloudSongCandidate(&results, seen, canonical) {
-			continue
-		}
-		if len(results) >= searchLimit {
-			break
-		}
+	results, err := adapterutil.CollectCandidates(
+		payload.Collection,
+		searchLimit,
+		soundCloudSongCandidateID,
+		soundCloudSongSearchCandidate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("collect soundcloud song candidates: %w", err)
 	}
 	return results, nil
 }
@@ -87,28 +78,36 @@ func validSoundCloudTrackSearchHit(track soundTrack) bool {
 	return strings.TrimSpace(track.PermalinkURL) != "" && strings.TrimSpace(track.Title) != ""
 }
 
-func appendSoundCloudAlbumCandidate(results *[]model.CandidateAlbum, seen map[string]struct{}, canonical *model.CanonicalAlbum) bool {
-	if canonical == nil || strings.TrimSpace(canonical.SourceID) == "" || strings.TrimSpace(canonical.SourceURL) == "" {
-		return false
+func soundCloudPlaylistCandidateID(playlist soundPlaylist) string {
+	if !validSoundCloudPlaylistSearchHit(playlist) {
+		return ""
 	}
-	if _, ok := seen[canonical.SourceID]; ok {
-		return false
-	}
-	seen[canonical.SourceID] = struct{}{}
-	*results = append(*results, toCandidateAlbum(*canonical))
-	return true
+	return soundCloudCandidateID(playlist.PermalinkURL)
 }
 
-func appendSoundCloudSongCandidate(results *[]model.CandidateSong, seen map[string]struct{}, canonical *model.CanonicalSong) bool {
-	if canonical == nil || strings.TrimSpace(canonical.SourceID) == "" || strings.TrimSpace(canonical.SourceURL) == "" {
-		return false
+func soundCloudSongCandidateID(track soundTrack) string {
+	if !validSoundCloudTrackSearchHit(track) {
+		return ""
 	}
-	if _, ok := seen[canonical.SourceID]; ok {
-		return false
+	return soundCloudCandidateID(track.PermalinkURL)
+}
+
+func soundCloudCandidateID(rawURL string) string {
+	canonicalURL := canonicalizeSoundCloudURL(rawURL)
+	if canonicalURL == "" {
+		return ""
 	}
-	seen[canonical.SourceID] = struct{}{}
-	*results = append(*results, toCandidateSong(*canonical))
-	return true
+	return soundCloudSourceID(canonicalURL)
+}
+
+func soundCloudAlbumSearchCandidate(playlist soundPlaylist) (model.CandidateAlbum, error) {
+	canonical := toCanonicalAlbum(playlist)
+	return toCandidateAlbum(*canonical), nil
+}
+
+func soundCloudSongSearchCandidate(track soundTrack) (model.CandidateSong, error) {
+	canonical := toCanonicalSong(track)
+	return toCandidateSong(*canonical), nil
 }
 
 func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, target any) error {

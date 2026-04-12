@@ -200,7 +200,7 @@ func validateResolveConfig(config resolveConfig) error {
 		if ariadne.SupportsEnabledSongTarget(config.resolverConfig, service) {
 			continue
 		}
-		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, supportedSongTargetServicesUsage(config.resolverConfig))
+		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, enabledSongTargetServicesUsage(config.resolverConfig))
 	}
 	return nil
 }
@@ -216,8 +216,8 @@ func requiresSongTargetValidation(config resolveConfig) bool {
 	}
 }
 
-func supportedSongTargetServicesUsage(config ariadne.Config) string {
-	return "supported for songs: " + strings.Join(serviceNames(ariadne.EnabledSongTargetServices(config)), ", ")
+func enabledSongTargetServicesUsage(config ariadne.Config) string {
+	return "enabled for songs: " + strings.Join(serviceNames(ariadne.EnabledSongTargetServices(config)), ", ")
 }
 
 func resolveModeFromConfig(config resolveConfig) resolveMode {
@@ -273,7 +273,7 @@ func normalizeRequestedService(raw string) (ariadne.ServiceName, error) {
 	}
 	service, ok := ariadne.LookupServiceName(normalized)
 	if !ok || !ariadne.SupportsTarget(service) {
-		return "", fmt.Errorf("%w %q (expected one of %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
+		return "", fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
 	}
 	return service, nil
 }

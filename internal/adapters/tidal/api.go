@@ -165,44 +165,55 @@ func songMetadataQuery(song model.CanonicalSong) string {
 	return normalize.SearchPrimaryQuery(song.Title, song.Artists)
 }
 
-func firstDataResource(document apiDocument) *apiResource {
-	resources := documentData(document)
-	if len(resources) == 0 {
-		return nil
+func firstDataResource(document apiDocument) (apiResource, bool, error) {
+	resources, err := documentData(document)
+	if err != nil {
+		return apiResource{}, false, err
 	}
-	resource := resources[0]
-	return &resource
+	if len(resources) == 0 {
+		return apiResource{}, false, nil
+	}
+	return resources[0], true, nil
 }
 
-func documentData(document apiDocument) []apiResource {
+func documentData(document apiDocument) ([]apiResource, error) {
 	switch data := document.Data.(type) {
 	case nil:
-		return nil
+		return nil, nil
 	case map[string]any:
-		content, _ := json.Marshal(data)
+		content, err := json.Marshal(data)
+		if err != nil {
+			return nil, errMalformedTIDALAPIResponse
+		}
 		var resource apiResource
 		if err := json.Unmarshal(content, &resource); err != nil {
-			return nil
+			return nil, errMalformedTIDALAPIResponse
 		}
-		return []apiResource{resource}
+		return []apiResource{resource}, nil
 	case []any:
 		resources := make([]apiResource, 0, len(data))
 		for _, item := range data {
-			content, _ := json.Marshal(item)
+			content, err := json.Marshal(item)
+			if err != nil {
+				return nil, errMalformedTIDALAPIResponse
+			}
 			var resource apiResource
 			if err := json.Unmarshal(content, &resource); err != nil {
-				continue
+				return nil, errMalformedTIDALAPIResponse
 			}
 			resources = append(resources, resource)
 		}
-		return resources
+		return resources, nil
 	default:
-		return nil
+		return nil, errMalformedTIDALAPIResponse
 	}
 }
 
-func albumIDsFromTrackDocument(document apiDocument) []string {
-	resources := documentData(document)
+func albumIDsFromTrackDocument(document apiDocument) ([]string, error) {
+	resources, err := documentData(document)
+	if err != nil {
+		return nil, err
+	}
 	seen := make(map[string]struct{})
 	ids := make([]string, 0, len(resources))
 	appendUniqueID := func(id string) {
@@ -231,5 +242,5 @@ func albumIDsFromTrackDocument(document apiDocument) []string {
 			appendUniqueID(relation.ID)
 		}
 	}
-	return ids
+	return ids, nil
 }

@@ -26,12 +26,15 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	endpoint := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(upc))
+	endpoint := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", a.apiBaseURL, url.QueryEscape(a.countryCodeFor("")), url.QueryEscape(upc))
 	var document apiDocument
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, fmt.Errorf("tidal search by upc: %w", err)
 	}
-	resources := documentData(document)
+	resources, err := documentData(document)
+	if err != nil {
+		return nil, err
+	}
 	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), "", func(albumID string) string {
 		return fmt.Sprintf("hydrate tidal album %s from upc", albumID)
 	})
@@ -49,7 +52,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	results := make([]model.CandidateAlbum, 0, len(isrcs))
 	seen := make(map[string]struct{}, len(isrcs))
 	for _, isrc := range isrcs {
-		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc), url.QueryEscape("albums"))
+		endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s&include=%s", a.apiBaseURL, url.QueryEscape(a.countryCodeFor("")), url.QueryEscape(isrc), url.QueryEscape("albums"))
 		var document apiDocument
 		if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 			if len(results) == 0 {
@@ -57,15 +60,25 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 			}
 			continue
 		}
-		albumIDs := uniqueStrings(albumIDsFromTrackDocument(document), seen)
+		albumIDsFromTracks, err := albumIDsFromTrackDocument(document)
+		if err != nil {
+			if len(results) == 0 {
+				return nil, err
+			}
+			continue
+		}
+		albumIDs := uniqueStrings(albumIDsFromTracks, seen)
 		hydrated, err := a.hydrateAlbumCandidates(ctx, albumIDs, "", func(albumID string) string {
 			return fmt.Sprintf("hydrate tidal album %s from isrc %s", albumID, isrc)
 		})
 		if err != nil {
-			if len(results) > 0 {
-				continue
+			if len(hydrated) > 0 {
+				results = append(results, hydrated...)
 			}
-			return nil, err
+			if len(hydrated) == 0 && len(results) == 0 {
+				return nil, err
+			}
+			continue
 		}
 		results = append(results, hydrated...)
 		if len(results) >= searchLimit {
@@ -89,7 +102,10 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, fmt.Errorf("tidal search by metadata: %w", err)
 	}
-	resources := documentData(document)
+	resources, err := documentData(document)
+	if err != nil {
+		return nil, err
+	}
 	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), album.RegionHint, func(albumID string) string {
 		return fmt.Sprintf("hydrate tidal album %s from metadata", albumID)
 	})
@@ -111,12 +127,15 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", a.apiBaseURL, url.QueryEscape(a.defaultCountryCode), url.QueryEscape(isrc))
+	endpoint := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", a.apiBaseURL, url.QueryEscape(a.countryCodeFor("")), url.QueryEscape(isrc))
 	var document apiDocument
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, fmt.Errorf("tidal song search by isrc %s: %w", isrc, err)
 	}
-	resources := documentData(document)
+	resources, err := documentData(document)
+	if err != nil {
+		return nil, err
+	}
 	return a.hydrateSongCandidates(ctx, resourceIDs(resources), "", func(songID string) string {
 		return fmt.Sprintf("hydrate tidal song %s from isrc", songID)
 	})
@@ -136,7 +155,10 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, fmt.Errorf("tidal song search by metadata: %w", err)
 	}
-	resources := documentData(document)
+	resources, err := documentData(document)
+	if err != nil {
+		return nil, err
+	}
 	return a.hydrateSongCandidates(ctx, resourceIDs(resources), song.RegionHint, func(songID string) string {
 		return fmt.Sprintf("hydrate tidal song %s from metadata", songID)
 	})
@@ -202,11 +224,14 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, err
 	}
-	resource := firstDataResource(document)
-	if resource == nil {
+	resource, ok, err := firstDataResource(document)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, fmt.Errorf("%w: %s", errTIDALAlbumNotFound, albumID)
 	}
-	return toCanonicalAlbum(*resource, document.Included, canonicalURL, regionHint), nil
+	return toCanonicalAlbum(resource, document.Included, canonicalURL, regionHint), nil
 }
 
 func (a *Adapter) fetchSongByID(ctx context.Context, trackID string, canonicalURL string, regionHint string) (*model.CanonicalSong, error) {
@@ -216,9 +241,12 @@ func (a *Adapter) fetchSongByID(ctx context.Context, trackID string, canonicalUR
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, err
 	}
-	resource := firstDataResource(document)
-	if resource == nil {
+	resource, ok, err := firstDataResource(document)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, fmt.Errorf("%w: %s", errTIDALTrackNotFound, trackID)
 	}
-	return toCanonicalSong(*resource, document.Included, canonicalURL, regionHint), nil
+	return toCanonicalSong(resource, document.Included, canonicalURL, regionHint), nil
 }

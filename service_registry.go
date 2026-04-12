@@ -46,6 +46,10 @@ type serviceAdapterSet struct {
 	songTarget  resolve.SongTargetAdapter
 }
 
+// serviceBinding describes Ariadne's built-in service support. The capability
+// metadata is config-independent and feeds the Supported* helpers, while build
+// applies Config-specific credential gating to the adapter set used by the
+// Enabled* helpers and default resolver wiring.
 type serviceBinding struct {
 	capability serviceCapability
 	build      func(client *http.Client, config Config) serviceAdapterSet
@@ -196,11 +200,12 @@ var defaultServiceBindings = []serviceBinding{
 	},
 }
 
-// defaultServiceOrder preserves intentional runtime priority differences between
-// album and song flows. Amazon Music appears only in albumSources because song
-// runtime resolution is deferred, YouTube Music is omitted from song lists
-// because it is album-only today, and Spotify/TIDAL stay behind the public-web
-// targets in target ordering because their official APIs are credential-gated.
+// defaultServiceOrder preserves intentional priority differences between
+// supported service lists and enabled runtime wiring. Amazon Music appears only
+// in albumSources because song runtime resolution is deferred, YouTube Music is
+// omitted from song lists because it is album-only today, and Spotify/TIDAL
+// stay behind the public-web targets in target ordering because their official
+// APIs are credential-gated in the Enabled* view.
 var defaultServiceOrder = struct {
 	albumSources []ServiceName
 	albumTargets []ServiceName

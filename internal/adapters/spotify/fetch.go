@@ -63,12 +63,13 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 
 	albumIDs := make([]string, 0, len(isrcs))
 	seen := make(map[string]struct{}, len(isrcs))
+	var firstErr error
 	for _, isrc := range isrcs {
 		endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape("isrc:"+isrc), 1)
 		var response apiTrackSearchResponse
 		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
-			if len(albumIDs) == 0 {
-				return nil, fmt.Errorf("spotify search by isrc %s: %w", isrc, err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("spotify search by isrc %s: %w", isrc, err)
 			}
 			continue
 		}
@@ -86,7 +87,11 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 			}
 		}
 	}
-	return a.hydrateAlbumCandidates(ctx, albumIDsToSummaries(albumIDs))
+	results, err := a.hydrateAlbumCandidates(ctx, albumIDsToSummaries(albumIDs))
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+	return results, err
 }
 
 // SearchByMetadata searches Spotify albums by title and artist metadata.
@@ -181,11 +186,12 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 func collectSpotifySearchResults[T any](queries []string, search func(string) ([]T, error), itemID func(T) string) ([]T, error) {
 	items := make([]T, 0, searchLimit)
 	seen := make(map[string]struct{}, searchLimit)
+	var firstErr error
 	for _, query := range queries {
 		results, err := search(query)
 		if err != nil {
-			if len(items) == 0 {
-				return nil, err
+			if firstErr == nil {
+				firstErr = err
 			}
 			continue
 		}
@@ -203,6 +209,9 @@ func collectSpotifySearchResults[T any](queries []string, search func(string) ([
 				return items, nil
 			}
 		}
+	}
+	if len(items) == 0 && firstErr != nil {
+		return nil, firstErr
 	}
 	return items, nil
 }

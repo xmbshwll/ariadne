@@ -45,5 +45,12 @@ func TestAlbumIDsFromTrackDocumentMergesIncludedAndRelationshipIDs(t *testing.T)
 		Included: []apiResource{{ID: "included-album", Type: "albums"}},
 	}
 
-	assert.Equal(t, []string{"included-album", "relationship-album"}, albumIDsFromTrackDocument(document))
+	albumIDs, err := albumIDsFromTrackDocument(document)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"included-album", "relationship-album"}, albumIDs)
+}
+
+func TestDocumentDataReturnsMalformedResponseErrorForUnexpectedType(t *testing.T) {
+	_, err := documentData(apiDocument{Data: "bad"})
+	require.ErrorIs(t, err, errMalformedTIDALAPIResponse)
 }

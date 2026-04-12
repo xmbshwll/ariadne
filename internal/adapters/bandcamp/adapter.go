@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 	"github.com/xmbshwll/ariadne/internal/parse"
@@ -28,6 +29,7 @@ var (
 	errUnexpectedBandcampService = errors.New("unexpected bandcamp service")
 	errUnexpectedBandcampStatus  = errors.New("unexpected bandcamp status")
 	errBandcampJSONLDNotFound    = errors.New("bandcamp json-ld not found")
+	errMalformedBandcampJSONLD   = errors.New("malformed bandcamp json-ld")
 )
 
 // Option configures the Bandcamp adapter.
@@ -116,20 +118,16 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 
 	searchCandidates := rankSearchCandidates(album, extractSearchCandidates(body))
-	results := make([]model.CandidateAlbum, 0, minInt(len(searchCandidates), searchHydrationLimit))
-	for i, candidate := range searchCandidates {
-		if i >= searchHydrationLimit {
-			break
-		}
-		canonical, err := a.fetchAlbumPage(ctx, candidate.URL)
-		if err != nil {
-			continue
-		}
-		results = append(results, model.CandidateAlbum{
-			CanonicalAlbum: *canonical,
-			CandidateID:    canonical.SourceID,
-			MatchURL:       canonical.SourceURL,
-		})
+	results, err := adapterutil.CollectCandidates(
+		searchCandidates,
+		searchHydrationLimit,
+		bandcampSearchCandidateURL,
+		func(candidate searchCandidate) (model.CandidateAlbum, error) {
+			return a.hydrateBandcampAlbumSearchCandidate(ctx, candidate)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("collect bandcamp album candidates: %w", err)
 	}
 	if len(results) == 0 {
 		return nil, nil
@@ -173,20 +171,16 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 
 	searchCandidates := rankSongSearchCandidates(song, extractSongSearchCandidates(body))
-	results := make([]model.CandidateSong, 0, minInt(len(searchCandidates), searchHydrationLimit))
-	for i, candidate := range searchCandidates {
-		if i >= searchHydrationLimit {
-			break
-		}
-		canonical, err := a.fetchSongPage(ctx, candidate.URL)
-		if err != nil {
-			continue
-		}
-		results = append(results, model.CandidateSong{
-			CanonicalSong: *canonical,
-			CandidateID:   canonical.SourceID,
-			MatchURL:      canonical.SourceURL,
-		})
+	results, err := adapterutil.CollectCandidates(
+		searchCandidates,
+		searchHydrationLimit,
+		bandcampSearchCandidateURL,
+		func(candidate searchCandidate) (model.CandidateSong, error) {
+			return a.hydrateBandcampSongSearchCandidate(ctx, candidate)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("collect bandcamp song candidates: %w", err)
 	}
 	if len(results) == 0 {
 		return nil, nil
@@ -201,6 +195,34 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		ordered = append(ordered, ranked.Candidate)
 	}
 	return ordered, nil
+}
+
+func bandcampSearchCandidateURL(candidate searchCandidate) string {
+	return candidate.URL
+}
+
+func (a *Adapter) hydrateBandcampAlbumSearchCandidate(ctx context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
+	canonical, err := a.fetchAlbumPage(ctx, candidate.URL)
+	if err != nil {
+		return model.CandidateAlbum{}, fmt.Errorf("hydrate bandcamp album %s: %w", candidate.URL, err)
+	}
+	return model.CandidateAlbum{
+		CanonicalAlbum: *canonical,
+		CandidateID:    canonical.SourceID,
+		MatchURL:       canonical.SourceURL,
+	}, nil
+}
+
+func (a *Adapter) hydrateBandcampSongSearchCandidate(ctx context.Context, candidate searchCandidate) (model.CandidateSong, error) {
+	canonical, err := a.fetchSongPage(ctx, candidate.URL)
+	if err != nil {
+		return model.CandidateSong{}, fmt.Errorf("hydrate bandcamp song %s: %w", candidate.URL, err)
+	}
+	return model.CandidateSong{
+		CanonicalSong: *canonical,
+		CandidateID:   canonical.SourceID,
+		MatchURL:      canonical.SourceURL,
+	}, nil
 }
 
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
@@ -288,7 +310,7 @@ func extractSchema(body []byte) (*schemaAlbum, error) {
 
 	var schema schemaAlbum
 	if err := json.Unmarshal(matches[1], &schema); err != nil {
-		return nil, fmt.Errorf("unmarshal bandcamp json-ld: %w", err)
+		return nil, fmt.Errorf("unmarshal bandcamp json-ld: %w", errors.Join(errMalformedBandcampJSONLD, err))
 	}
 	return &schema, nil
 }
