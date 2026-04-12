@@ -310,7 +310,7 @@ func extractSchema(body []byte) (*schemaAlbum, error) {
 
 	var schema schemaAlbum
 	if err := json.Unmarshal(matches[1], &schema); err != nil {
-		return nil, fmt.Errorf("unmarshal bandcamp json-ld: %w", errors.Join(errMalformedBandcampJSONLD, err))
+		return nil, errors.Join(errMalformedBandcampJSONLD, fmt.Errorf("unmarshal bandcamp json-ld: %w", err))
 	}
 	return &schema, nil
 }

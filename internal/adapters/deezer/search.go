@@ -21,6 +21,9 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 
 	canonical, err := a.fetchAlbumByLookup(ctx, a.baseURL+"/album/upc:"+url.PathEscape(upc))
 	if err != nil {
+		if errors.Is(err, errDeezerAlbumNotFound) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("search deezer by upc %s: %w", upc, err)
 	}
 
@@ -39,15 +42,14 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	var firstErr error
 
 	for _, isrc := range isrcs {
-		var track trackLookupResponse
-		endpoint := a.baseURL + "/track/isrc:" + url.PathEscape(isrc)
-		if err := a.getJSON(ctx, endpoint, &track); err != nil {
+		track, err := a.fetchTrackLookup(ctx, a.baseURL+"/track/isrc:"+url.PathEscape(isrc))
+		if err != nil {
+			if errors.Is(err, errDeezerTrackNotFound) {
+				continue
+			}
 			if firstErr == nil {
 				firstErr = fmt.Errorf("search deezer by isrc %s: %w", isrc, err)
 			}
-			continue
-		}
-		if track.Album.ID == 0 {
 			continue
 		}
 		albumID := track.Album.ID

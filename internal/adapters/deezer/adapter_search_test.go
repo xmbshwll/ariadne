@@ -11,6 +11,23 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+func TestSearchByUPCReturnsMissWithoutError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/album/upc:602547670342" {
+			_, _ = w.Write([]byte(`{"id":0}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	adapter := newTestAdapter(server)
+	results, err := adapter.SearchByUPC(context.Background(), "602547670342")
+	require.NoError(t, err)
+	assert.Nil(t, results)
+}
+
 func TestAlbumSearches(t *testing.T) {
 	albumBytes := mustReadTestFile(t, "testdata/source-payload.json")
 	trackBytes := mustReadTestFile(t, "testdata/tracks.json")

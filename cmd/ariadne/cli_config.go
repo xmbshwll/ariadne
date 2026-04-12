@@ -217,7 +217,11 @@ func requiresSongTargetValidation(config resolveConfig) bool {
 }
 
 func enabledSongTargetServicesUsage(config ariadne.Config) string {
-	return "enabled for songs: " + strings.Join(serviceNames(ariadne.EnabledSongTargetServices(config)), ", ")
+	names := serviceNames(ariadne.EnabledSongTargetServices(config))
+	if len(names) == 0 {
+		return "enabled for songs: none"
+	}
+	return "enabled for songs: " + strings.Join(names, ", ")
 }
 
 func resolveModeFromConfig(config resolveConfig) resolveMode {
