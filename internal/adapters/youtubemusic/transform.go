@@ -17,6 +17,8 @@ type searchCandidate struct {
 	Artist   string
 }
 
+var trackPlayCountPattern = regexp.MustCompile(`\b\d[\d,._\s]*\s*(views|wiedergaben)\b`)
+
 func extractAlbum(body []byte, fallbackURL string) (*model.CanonicalAlbum, error) {
 	canonicalURL := extractFirstGroup(canonicalURLPattern, body)
 	if canonicalURL == "" {
@@ -93,7 +95,6 @@ func extractSearchCandidates(body []byte) []searchCandidate {
 func extractTrackTitles(body []byte) []string {
 	matches := trackTitlePattern.FindAllSubmatch(body, -1)
 	titles := make([]string, 0, len(matches))
-	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
 		if len(match) != 2 {
 			continue
@@ -102,10 +103,9 @@ func extractTrackTitles(body []byte) []string {
 		if shouldSkipTrackTitle(title) {
 			continue
 		}
-		if _, ok := seen[title]; ok {
+		if len(titles) > 0 && titles[len(titles)-1] == title {
 			continue
 		}
-		seen[title] = struct{}{}
 		titles = append(titles, title)
 	}
 	return titles
@@ -117,8 +117,7 @@ func shouldSkipTrackTitle(value string) bool {
 		return true
 	}
 
-	lower := strings.ToLower(value)
-	return strings.Contains(lower, "wiedergaben") || strings.Contains(lower, "views")
+	return trackPlayCountPattern.MatchString(strings.ToLower(value))
 }
 
 func cleanAlbumTitle(value string) string {

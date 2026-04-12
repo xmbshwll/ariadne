@@ -115,6 +115,9 @@ func searchBandcampCandidates[Candidate any](ctx context.Context, adapter *Adapt
 }
 
 func topRankedCandidates[Ranked any, Candidate any](ranked []Ranked, candidate func(Ranked) Candidate) []Candidate {
+	if len(ranked) == 0 {
+		return nil
+	}
 	if len(ranked) > searchLimit {
 		ranked = ranked[:searchLimit]
 	}

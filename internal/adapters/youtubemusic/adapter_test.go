@@ -2,6 +2,8 @@ package youtubemusic
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,4 +42,29 @@ func TestUnsupportedIdentifierSearches(t *testing.T) {
 	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"ABC"})
 	require.NoError(t, err)
 	assert.Empty(t, isrcResults)
+}
+
+func TestExtractTrackTitlesPreservesRepeatedTitles(t *testing.T) {
+	body := youTubeMusicTrackTitleBody("Intro", "Interlude", "Intro")
+	assert.Equal(t, []string{"Intro", "Interlude", "Intro"}, extractTrackTitles(body))
+}
+
+func TestExtractTrackTitlesSkipsImmediateDuplicateParserArtifacts(t *testing.T) {
+	body := youTubeMusicTrackTitleBody("Intro", "Intro", "Interlude")
+	assert.Equal(t, []string{"Intro", "Interlude"}, extractTrackTitles(body))
+}
+
+func TestShouldSkipTrackTitleOnlySkipsCountLabels(t *testing.T) {
+	assert.True(t, shouldSkipTrackTitle("1,234 views"))
+	assert.True(t, shouldSkipTrackTitle("123 Wiedergaben"))
+	assert.False(t, shouldSkipTrackTitle("Views"))
+	assert.False(t, shouldSkipTrackTitle("Wiedergaben"))
+}
+
+func youTubeMusicTrackTitleBody(titles ...string) []byte {
+	parts := make([]string, 0, len(titles))
+	for _, title := range titles {
+		parts = append(parts, fmt.Sprintf(`musicResponsiveListItemFlexColumnRenderer\x22:\x7b\x22text\x22:\x7b\x22runs\x22:\x5b\x7b\x22text\x22:\x22%s\x22`, title))
+	}
+	return []byte(strings.Join(parts, " "))
 }

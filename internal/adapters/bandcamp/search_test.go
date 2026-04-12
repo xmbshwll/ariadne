@@ -73,3 +73,19 @@ func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.
 	assert.Equal(t, "Something", candidates[1].Title)
 	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
 }
+
+func TestTopRankedCandidatesPreservesNilForEmptyInput(t *testing.T) {
+	var ranked []int
+	ordered := topRankedCandidates(ranked, func(candidate int) int {
+		return candidate
+	})
+	assert.Nil(t, ordered)
+}
+
+func TestTopRankedCandidatesLimitsNonEmptyResults(t *testing.T) {
+	ranked := []int{1, 2, 3, 4, 5, 6, 7}
+	ordered := topRankedCandidates(ranked, func(candidate int) int {
+		return candidate * 10
+	})
+	assert.Equal(t, []int{10, 20, 30, 40, 50}, ordered)
+}
