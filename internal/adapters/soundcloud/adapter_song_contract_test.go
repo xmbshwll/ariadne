@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,6 +34,42 @@ func TestSearchSongByMetadataSkipsMalformedHits(t *testing.T) {
 		case soundCloudSongSearch:
 			require.Equal(t, clientID, r.URL.Query().Get("client_id"))
 			_, _ = w.Write([]byte(`{"collection":[{"title":"Broken Track","permalink_url":"","user":{"username":"Artist"}},{"title":"Good Track","permalink_url":"` + server.URL + `/artist/good-track","user":{"username":"Artist"}}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Good Track", Artists: []string{"Artist"}})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, server.URL+"/artist/good-track", results[0].MatchURL)
+}
+
+func TestSearchSongByMetadataFindsClientIDInLaterScriptAsset(t *testing.T) {
+	const clientID = "33333333333333333333333333333333"
+	const assetCount = 11
+	const clientIDAssetPath = "/assets/11.js"
+
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/":
+			var html strings.Builder
+			html.WriteString("<html><body>")
+			for i := 1; i <= assetCount; i++ {
+				_, _ = fmt.Fprintf(&html, `<script src="%s/assets/%d.js"></script>`, server.URL, i)
+			}
+			html.WriteString("</body></html>")
+			_, _ = w.Write([]byte(html.String()))
+		case r.URL.Path == clientIDAssetPath:
+			_, _ = w.Write([]byte(`window.__sc_config={client_id:"` + clientID + `"};`))
+		case strings.HasPrefix(r.URL.Path, "/assets/"):
+			_, _ = w.Write([]byte(`console.log("noop")`))
+		case r.URL.Path == soundCloudSongSearch:
+			require.Equal(t, clientID, r.URL.Query().Get("client_id"))
+			_, _ = w.Write([]byte(`{"collection":[{"title":"Good Track","permalink_url":"` + server.URL + `/artist/good-track","user":{"username":"Artist"}}]}`))
 		default:
 			http.NotFound(w, r)
 		}
