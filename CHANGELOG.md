@@ -4,6 +4,12 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.4.2 - 2026-04-13
+
+### Fixed
+
+- SoundCloud metadata search now scans all discovered homepage script assets when extracting the transient web `client_id`, avoiding failures when SoundCloud moves the token later in the asset list
+
 ## v0.4.1 - 2026-04-13
 
 ### Added
