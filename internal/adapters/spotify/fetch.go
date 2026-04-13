@@ -316,8 +316,6 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 
 	multiTrackFetch := len(ids) > 1
 	for i, trackID := range ids {
-		i := i
-		trackID := trackID
 		group.Go(func() error {
 			track, err := a.fetchTrackAPI(groupCtx, trackID)
 			if err != nil {
@@ -332,7 +330,7 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 	}
 
 	if err := group.Wait(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch spotify track details: %w", err)
 	}
 
 	tracks := make([]apiTrack, 0, len(results))

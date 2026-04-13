@@ -43,7 +43,6 @@ func executeResolve(config resolveConfig, stdout io.Writer, logger *cliLogger, m
 	case resolveModeSong:
 		resolution, err := resolver.ResolveSong(ctx, config.inputURL)
 		if err != nil {
-			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 			return fail(err)
 		}
 		if resolution == nil {
@@ -53,7 +52,6 @@ func executeResolve(config resolveConfig, stdout io.Writer, logger *cliLogger, m
 	case resolveModeAlbum:
 		resolution, err := resolver.ResolveAlbum(ctx, config.inputURL)
 		if err != nil {
-			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 			return fail(err)
 		}
 		if resolution == nil {
@@ -63,7 +61,6 @@ func executeResolve(config resolveConfig, stdout io.Writer, logger *cliLogger, m
 	case resolveModeAuto:
 		resolution, err := resolver.Resolve(ctx, config.inputURL)
 		if err != nil {
-			//nolint:wrapcheck // main prints the root cause without extra CLI wrappers.
 			return fail(err)
 		}
 		if resolution == nil {

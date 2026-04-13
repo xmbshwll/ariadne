@@ -201,21 +201,13 @@ func argsWithoutNamedFlags(args []string, flags ...string) []string {
 }
 
 func matchesNamedFlag(arg string, flags ...string) bool {
-	for _, flag := range flags {
-		if arg == flag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(flags, arg)
 }
 
 func matchesNamedFlagAssignment(arg string, flags ...string) bool {
-	for _, flag := range flags {
-		if strings.HasPrefix(arg, flag+"=") {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(flags, func(flag string) bool {
+		return strings.HasPrefix(arg, flag+"=")
+	})
 }
 
 func firstCommandArg(commandArgs []string, args []string) string {
