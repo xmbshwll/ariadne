@@ -4,3 +4,5 @@ use (
 	.
 	./cmd
 )
+
+replace github.com/xmbshwll/ariadne v0.4.1 => ./
