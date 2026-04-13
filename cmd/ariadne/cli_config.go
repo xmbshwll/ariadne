@@ -60,46 +60,40 @@ func defaultResolveConfig(baseConfig ariadne.Config) resolveConfig {
 }
 
 func configPathFromArgs(args []string) string {
-	for i, arg := range args {
-		switch {
-		case arg == "--config":
-			if i+1 >= len(args) {
-				return ""
-			}
-			value := args[i+1]
-			if strings.TrimSpace(value) == "" || strings.HasPrefix(value, "-") {
-				return ""
-			}
-			return value
-		case strings.HasPrefix(arg, "--config="):
-			value, _ := strings.CutPrefix(arg, "--config=")
-			return value
-		}
+	if value, ok := namedFlagValueFromArgs(args, "--config"); ok {
+		return value
 	}
 	return defaultConfigPath
 }
 
-func loadCLIConfig(configPath string) (ariadne.Config, error) {
+func loadCLIConfigWithLogger(configPath string, logger *cliLogger) (ariadne.Config, error) {
 	cfg := ariadne.DefaultConfig()
 	v := viper.New()
 	v.AutomaticEnv()
 
-	if strings.TrimSpace(configPath) != "" {
-		v.SetConfigFile(configPath)
-		if looksLikeEnvFile(configPath) {
+	trimmedConfigPath := strings.TrimSpace(configPath)
+	if trimmedConfigPath == "" {
+		logger.Debugf("cli config file loading disabled")
+	} else {
+		v.SetConfigFile(trimmedConfigPath)
+		if looksLikeEnvFile(trimmedConfigPath) {
 			v.SetConfigType("env")
 		}
 		if err := v.ReadInConfig(); err != nil {
 			var notFound viper.ConfigFileNotFoundError
 			if !errors.As(err, &notFound) && !errors.Is(err, os.ErrNotExist) {
-				return ariadne.Config{}, fmt.Errorf("load config %q: %w", configPath, err)
+				return ariadne.Config{}, fmt.Errorf("load config %q: %w", trimmedConfigPath, err)
 			}
+			logger.Debugf("cli config file not found path=%q", trimmedConfigPath)
+		} else {
+			logger.Debugf("config file loaded path=%q", v.ConfigFileUsed())
 		}
 	}
 
 	trimmedValue := func(key string) string {
 		return strings.TrimSpace(v.GetString(key))
 	}
+	logRawCLIConfigValues(logger, trimmedValue)
 
 	httpTimeout := trimmedValue("ARIADNE_HTTP_TIMEOUT")
 	if httpTimeout != "" {
@@ -115,6 +109,7 @@ func loadCLIConfig(configPath string) (ariadne.Config, error) {
 
 	loaded := ariadne.LoadConfigFromEnv(trimmedValue)
 	loaded.HTTPTimeout = cfg.HTTPTimeout
+	logNormalizedCLIConfig(logger, loaded)
 	return loaded, nil
 }
 

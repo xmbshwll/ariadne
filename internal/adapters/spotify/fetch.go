@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -272,15 +274,23 @@ func (a *Adapter) hydrateAlbumTrackDetails(ctx context.Context, album *apiAlbumR
 	return nil
 }
 
+const spotifyTrackFetchParallelism = 8
+
 func (a *Adapter) fetchTrackAPI(ctx context.Context, trackID string) (*apiTrack, error) {
-	tracks, err := a.fetchTrackDetailsAPI(ctx, []string{trackID})
-	if err != nil {
-		return nil, err
-	}
-	if len(tracks) == 0 {
+	trackID = strings.TrimSpace(trackID)
+	if trackID == "" {
 		return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
 	}
-	return &tracks[0], nil
+
+	var track apiTrack
+	endpoint := a.apiBaseURL + "/tracks/" + trackID
+	if err := a.getAPIJSON(ctx, endpoint, &track); err != nil {
+		if isSpotifyAPIStatus(err, http.StatusNotFound) {
+			return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
+		}
+		return nil, fmt.Errorf("spotify fetch track api %s: %w", trackID, err)
+	}
+	return &track, nil
 }
 
 func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) ([]apiTrack, error) {
@@ -300,24 +310,37 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		return nil, nil
 	}
 
-	tracks := make([]apiTrack, 0, len(ids))
-	for start := 0; start < len(ids); start += 50 {
-		end := min(start+50, len(ids))
-		chunk := ids[start:end]
-		endpoint := a.apiBaseURL + "/tracks?ids=" + strings.Join(chunk, ",")
-		var response apiTrackBatchResponse
-		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
-			if isSpotifyAPIStatus(err, http.StatusNotFound) && len(chunk) == 1 {
-				return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, chunk[0])
+	results := make([]*apiTrack, len(ids))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(spotifyTrackFetchParallelism)
+
+	multiTrackFetch := len(ids) > 1
+	for i, trackID := range ids {
+		i := i
+		trackID := trackID
+		group.Go(func() error {
+			track, err := a.fetchTrackAPI(groupCtx, trackID)
+			if err != nil {
+				if multiTrackFetch && errors.Is(err, errSpotifyTrackNotFound) {
+					return nil
+				}
+				return err
 			}
-			return nil, err
+			results[i] = track
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+
+	tracks := make([]apiTrack, 0, len(results))
+	for _, track := range results {
+		if track == nil || strings.TrimSpace(track.ID) == "" {
+			continue
 		}
-		for _, track := range response.Tracks {
-			if track == nil || strings.TrimSpace(track.ID) == "" {
-				continue
-			}
-			tracks = append(tracks, *track)
-		}
+		tracks = append(tracks, *track)
 	}
 	return tracks, nil
 }

@@ -95,6 +95,7 @@ Useful flags:
 - `--services=spotify,deezer` to limit which target services are searched
 - `--min-strength=probable` to hide weaker matches
 - `--http-timeout=30s` to raise or lower the per-request HTTP timeout
+- `--log-level=debug` to emit CLI diagnostics to stderr during troubleshooting
 - `--config=.env` or `--config=path/to/config.yaml` to load config from a file
 
 `--song` and `--album` are mutually exclusive.
@@ -102,7 +103,7 @@ Useful flags:
 Full command shape:
 
 ```bash
-ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <url>
+ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] <url>
 ```
 
 ### Library

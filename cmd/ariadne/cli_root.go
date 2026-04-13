@@ -17,13 +17,13 @@ const (
 	outputFormatJSON  = "json"
 	outputFormatYAML  = "yaml"
 	outputFormatCSV   = "csv"
-	resolveUsage      = "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>"
+	resolveUsage      = "usage: ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>"
 )
 
 const resolveHelpText = `Resolve a supported music URL across music services.
 
 Usage:
-  ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>
+  ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>
 
 Positional parameter:
   <url>
@@ -41,6 +41,12 @@ Flags:
     Supported file styles: .env-style key=value files, plus Viper-supported structured files such as yaml, yml, json, or toml.
     Default: %s
     Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.
+
+  --log-level
+    Values: error, warn, info, debug.
+    Default: error.
+    Environment override: ARIADNE_LOG_LEVEL.
+    Behavior: writes CLI diagnostics to stderr. debug prints effective configuration, including secrets loaded from env or config files.
 
   --song
     Forces song resolution for the provided URL.
@@ -127,7 +133,7 @@ var (
 func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	configPath := configPathFromArgs(args)
 	helpConfig := ariadne.DefaultConfig()
-	commandArgs := argsWithoutConfigFlag(args)
+	commandArgs := argsWithoutPersistentFlags(args)
 
 	if len(commandArgs) == 0 {
 		if err := renderRootHelp(stderr, helpConfig, configPath); err != nil {
@@ -139,20 +145,25 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		if len(commandArgs) == 1 {
 			return renderRootHelp(stdout, helpConfig, configPath)
 		}
-		return executeRootCommand(stdout, stderr, helpConfig, configPath, args)
+		return executeRootCommand(stdout, stderr, helpConfig, configPath, nil, args)
 	}
 	if containsHelpArg(commandArgs[1:]) {
-		return executeRootCommand(stdout, stderr, helpConfig, configPath, args)
+		return executeRootCommand(stdout, stderr, helpConfig, configPath, nil, args)
 	}
 
-	baseConfig, err := loadCLIConfig(configPath)
+	logger, err := newCLILoggerFromArgs(args, stderr)
+	if err != nil {
+		return err
+	}
+
+	baseConfig, err := loadCLIConfigWithLogger(configPath, logger)
 	if err != nil {
 		return err
 	}
 
 	unknownCommand := firstCommandArg(commandArgs, args)
 
-	if err := executeRootCommand(stdout, stderr, baseConfig, configPath, args); err != nil {
+	if err := executeRootCommand(stdout, stderr, baseConfig, configPath, logger, args); err != nil {
 		if isUnknownCommandError(err) {
 			if helpErr := renderRootHelp(stderr, baseConfig, configPath); helpErr != nil {
 				return fmt.Errorf("print usage: %w", helpErr)
@@ -164,12 +175,15 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	return nil
 }
 
-func argsWithoutConfigFlag(args []string) []string {
+func argsWithoutPersistentFlags(args []string) []string {
+	return argsWithoutNamedFlags(args, "--config", "--log-level")
+}
+
+func argsWithoutNamedFlags(args []string, flags ...string) []string {
 	filtered := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		switch {
-		case arg == "--config":
+		if matchesNamedFlag(arg, flags...) {
 			if i+1 < len(args) {
 				value := args[i+1]
 				if value == "" || !strings.HasPrefix(value, "-") {
@@ -177,13 +191,31 @@ func argsWithoutConfigFlag(args []string) []string {
 				}
 			}
 			continue
-		case strings.HasPrefix(arg, "--config="):
-			continue
-		default:
-			filtered = append(filtered, arg)
 		}
+		if matchesNamedFlagAssignment(arg, flags...) {
+			continue
+		}
+		filtered = append(filtered, arg)
 	}
 	return filtered
+}
+
+func matchesNamedFlag(arg string, flags ...string) bool {
+	for _, flag := range flags {
+		if arg == flag {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesNamedFlagAssignment(arg string, flags ...string) bool {
+	for _, flag := range flags {
+		if strings.HasPrefix(arg, flag+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 func firstCommandArg(commandArgs []string, args []string) string {
@@ -208,8 +240,8 @@ func isUnknownCommandError(err error) bool {
 	return strings.Contains(err.Error(), "unknown command ")
 }
 
-func executeRootCommand(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string, args []string) error {
-	root := newRootCmd(stdout, stderr, baseConfig, configPath)
+func executeRootCommand(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string, logger *cliLogger, args []string) error {
+	root := newRootCmd(stdout, stderr, baseConfig, configPath, logger)
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
 		return fmt.Errorf("execute root command: %w", err)
@@ -217,7 +249,7 @@ func executeRootCommand(stdout io.Writer, stderr io.Writer, baseConfig ariadne.C
 	return nil
 }
 
-func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string) *cobra.Command {
+func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, configPath string, logger *cliLogger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "ariadne",
 		Short:         "Resolve music URLs across services.",
@@ -227,15 +259,16 @@ func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, c
 	cmd.SetOut(stdout)
 	cmd.SetErr(stderr)
 	cmd.PersistentFlags().String("config", configPath, "configuration source (values: empty string to disable file loading, or a path to an .env, yaml, yml, json, or toml file)")
-	cmd.AddCommand(newResolveCmd(baseConfig, configPath))
+	cmd.PersistentFlags().String("log-level", defaultCLILogLevel.String(), "CLI log level (values: error, warn, info, debug; debug prints effective config including secrets)")
+	cmd.AddCommand(newResolveCmd(baseConfig, configPath, logger))
 	return cmd
 }
 
-func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command {
+func newResolveCmd(baseConfig ariadne.Config, configPath string, logger *cliLogger) *cobra.Command {
 	config := defaultResolveConfig(baseConfig)
 
 	cmd := &cobra.Command{
-		Use:   "resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
+		Use:   "resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 		Short: "Resolve one music URL into likely equivalents on other services.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) != 1 {
@@ -249,7 +282,7 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			return executeResolve(normalized, cmd.OutOrStdout(), resolveModeFromConfig(normalized))
+			return executeResolve(normalized, cmd.OutOrStdout(), logger, resolveModeFromConfig(normalized))
 		},
 	}
 

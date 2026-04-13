@@ -47,6 +47,7 @@ For the service-by-service runtime behavior, including first-wave song support, 
 | `TIDAL_CLIENT_SECRET` | no | empty | TIDAL client secret used in the token exchange. |
 | `ARIADNE_HTTP_TIMEOUT` | no | `15s` | Per-request timeout for Ariadne's default HTTP client. Uses Go duration syntax such as `5s`, `15s`, `30s`, or `1m`. |
 | `ARIADNE_TARGET_SERVICES` | no | empty | Comma-separated target services to search for both album and song resolution. Example: `spotify,appleMusic,tidal`. When unset, Ariadne searches all configured/default targets. |
+| `ARIADNE_LOG_LEVEL` | no | `error` | CLI-only diagnostics log level. Supported values: `error`, `warn`, `info`, `debug`. `debug` prints effective CLI config values, including secrets loaded from env or config files. |
 
 ## What changes when credentials are present
 
@@ -97,6 +98,7 @@ The CLI loads configuration with this precedence:
 
 Use `--http-timeout=30s` to override the per-request timeout from the command line.
 Use `--services=spotify,appleMusic` to override `ARIADNE_TARGET_SERVICES` for one invocation.
+Use `--log-level=debug` or `ARIADNE_LOG_LEVEL=debug` to emit CLI diagnostics to stderr. Be careful: debug logging prints effective config values, including secrets.
 Use `--song` or `--album` on `ariadne resolve <url>` when you want to force the entity type instead of relying on library auto-detection. Those two flags are mutually exclusive.
 
 That means the CLI can work with plain environment variables, a `.env` file, or another config file supported by Viper.
@@ -122,6 +124,7 @@ export TIDAL_CLIENT_ID=your-tidal-client-id
 export TIDAL_CLIENT_SECRET=your-tidal-client-secret
 export ARIADNE_HTTP_TIMEOUT=30s
 export ARIADNE_TARGET_SERVICES=spotify,appleMusic
+export ARIADNE_LOG_LEVEL=error
 ```
 
 Or let the CLI load `.env` directly, which is the default behavior:

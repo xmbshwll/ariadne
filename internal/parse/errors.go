@@ -13,9 +13,10 @@ var (
 	errMissingAppleMusicStorefrontOrAlbumID = errors.New("missing storefront or album id")
 	errMissingAppleMusicTrackID             = errors.New("missing apple music track id")
 
-	errMissingBandcampHost = errors.New("missing bandcamp host")
-	errBandcampNotAlbumURL = errors.New("bandcamp url is not an album url")
-	errBandcampNotSongURL  = errors.New("bandcamp url is not a song url")
+	errMissingBandcampHost     = errors.New("missing bandcamp host")
+	errUnsupportedBandcampHost = errors.New("unsupported bandcamp host")
+	errBandcampNotAlbumURL     = errors.New("bandcamp url is not an album url")
+	errBandcampNotSongURL      = errors.New("bandcamp url is not a song url")
 
 	errUnsupportedDeezerHost = errors.New("unsupported deezer host")
 	errInvalidDeezerPath     = errors.New("invalid deezer path")

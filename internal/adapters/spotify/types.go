@@ -140,10 +140,6 @@ type apiTrack struct {
 	Album       apiTrackAlbum  `json:"album"`
 }
 
-type apiTrackBatchResponse struct {
-	Tracks []*apiTrack `json:"tracks"`
-}
-
 type apiAlbumSearchResponse struct {
 	Albums apiAlbumSearchPage `json:"albums"`
 }

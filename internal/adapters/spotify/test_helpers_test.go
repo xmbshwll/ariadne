@@ -15,6 +15,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+const deprecatedSpotifyTrackBatchEndpointMessage = "deprecated spotify batch track endpoint should not be used"
+
 func mustReadTestFile(t *testing.T, relativePath string) []byte {
 	t.Helper()
 	path := filepath.Clean(relativePath)
@@ -72,24 +74,31 @@ func requireSpotifyBearerAuth(t *testing.T, r *http.Request) {
 	assert.Equal(t, "Bearer token-123", r.Header.Get("Authorization"))
 }
 
-func writeSpotifyTrackBatchJSON(t *testing.T, w http.ResponseWriter, r *http.Request, tracksByID map[string]apiTrack) {
+func registerSpotifyTrackEndpoint(t *testing.T, mux *http.ServeMux, tracksByID map[string]apiTrack) {
 	t.Helper()
-	ids := strings.Split(r.URL.Query().Get("ids"), ",")
-	tracks := make([]*apiTrack, 0, len(ids))
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		track, ok := tracksByID[id]
+	registerSpotifyTrackHandler(t, mux, func(w http.ResponseWriter, r *http.Request, trackID string) {
+		track, ok := tracksByID[trackID]
 		if !ok {
-			tracks = append(tracks, nil)
-			continue
+			http.NotFound(w, r)
+			return
 		}
-		trackCopy := track
-		tracks = append(tracks, &trackCopy)
-	}
-	writeJSON(t, w, apiTrackBatchResponse{Tracks: tracks})
+		writeJSON(t, w, track)
+	})
+}
+
+func registerSpotifyTrackHandler(t *testing.T, mux *http.ServeMux, handler func(http.ResponseWriter, *http.Request, string)) {
+	t.Helper()
+	mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, deprecatedSpotifyTrackBatchEndpointMessage, http.StatusGone)
+	})
+	mux.HandleFunc("/tracks/", func(w http.ResponseWriter, r *http.Request) {
+		requireSpotifyBearerAuth(t, r)
+		handler(w, r, spotifyTrackIDFromRequest(r))
+	})
+}
+
+func spotifyTrackIDFromRequest(r *http.Request) string {
+	return strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/tracks/"))
 }
 
 func TestSearchAlbumByMetadataEmptyAlbumWithoutCredentialsReturnsEmptyResults(t *testing.T) {

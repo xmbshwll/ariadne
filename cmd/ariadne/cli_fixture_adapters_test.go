@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"testing"
 
 	"github.com/xmbshwll/ariadne"
 )
@@ -133,4 +134,13 @@ func (a fixtureSongTargetAdapterForCLI) SearchSongByMetadata(_ context.Context, 
 		return nil, a.metadataErr
 	}
 	return append([]ariadne.CandidateSong(nil), a.metaResults...), nil
+}
+
+func withResolverFactory(t *testing.T, factory func(ariadne.Config) *ariadne.Resolver) {
+	t.Helper()
+	originalFactory := resolverFactory
+	resolverFactory = factory
+	t.Cleanup(func() {
+		resolverFactory = originalFactory
+	})
 }

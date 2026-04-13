@@ -31,6 +31,11 @@ func TestBandcampAlbumURL(t *testing.T) {
 			raw:     "https://comradiation.bandcamp.com/track/example",
 			wantErr: true,
 		},
+		{
+			name:    "unsupported host",
+			raw:     "https://open.spotify.com/album/example",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -68,6 +73,11 @@ func TestBandcampSongURL(t *testing.T) {
 		{
 			name:    "wrong path",
 			raw:     "https://comradiation.bandcamp.com/album/l-n-abaty-abbey-road",
+			wantErr: true,
+		},
+		{
+			name:    "unsupported host",
+			raw:     "https://open.spotify.com/track/example",
 			wantErr: true,
 		},
 	}

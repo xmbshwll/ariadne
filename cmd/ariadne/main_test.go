@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne"
 )
 
 var errRootBoom = errors.New("boom")
@@ -33,7 +34,7 @@ func TestRun(t *testing.T) {
 			args: []string{"help"},
 			wantStdout: []string{
 				"Usage:",
-				"ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
+				"ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 				"<url>",
 				"Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL",
 				"URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.",
@@ -43,6 +44,8 @@ func TestRun(t *testing.T) {
 				"Commands:",
 				"resolve  Resolve a supported album or song URL across services.",
 				"--config",
+				"--log-level",
+				"Environment override: ARIADNE_LOG_LEVEL.",
 				"Behavior: config file values are loaded first, environment variables override them, and explicit CLI flags override both.",
 				"--verbose, -v",
 				"--format",
@@ -78,7 +81,7 @@ func TestRun(t *testing.T) {
 		{
 			name:        "resolve usage",
 			args:        []string{"resolve"},
-			wantErr:     "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
+			wantErr:     "usage: ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 			avoidStdout: []string{"{"},
 		},
 	}
@@ -162,4 +165,90 @@ func TestRunMissingCommandIgnoresMalformedConfig(t *testing.T) {
 	assert.ErrorIs(t, err, errMissingCommand)
 	assert.Contains(t, stderr.String(), "Usage:")
 	assert.Empty(t, stdout.String())
+}
+
+func TestRunHelpWithLogLevelBeforeCommand(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"--log-level", "debug", "help"}, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "Usage:")
+	assert.Empty(t, stderr.String())
+}
+
+func TestRunRejectsUnsupportedLogLevel(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"--log-level", "trace", "resolve", "https://fixture.test/source"}, &stdout, &stderr)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unsupported log level "trace"`)
+	assert.Empty(t, stdout.String())
+	assert.Empty(t, stderr.String())
+}
+
+func TestRunResolveDebugLogIncludesSecretsFromConfig(t *testing.T) {
+	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
+		return ariadne.NewWithAdapters(
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
+				"https://fixture.test/source": {
+					Service:           ariadne.ServiceDeezer,
+					SourceID:          "src-1",
+					SourceURL:         "https://fixture.test/source",
+					Title:             "Fixture Album",
+					NormalizedTitle:   "fixture album",
+					Artists:           []string{"Fixture Artist"},
+					NormalizedArtists: []string{"fixture artist"},
+					ReleaseDate:       "2024-02-03",
+					UPC:               "123456789012",
+				},
+			})},
+			nil,
+		)
+	})
+
+	configPath := filepath.Join(t.TempDir(), ".env")
+	require.NoError(t, os.WriteFile(configPath, []byte("SPOTIFY_CLIENT_ID=debug-client\nSPOTIFY_CLIENT_SECRET=debug-secret\nAPPLE_MUSIC_PRIVATE_KEY_PATH=/tmp/debug-key.p8\n"), 0o600))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"--log-level", "debug", "--config", configPath, "resolve", "https://fixture.test/source"}, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.Contains(t, stderr.String(), `DEBUG config file loaded path=`)
+	assert.Contains(t, stderr.String(), `DEBUG effective config SPOTIFY_CLIENT_ID="debug-client" SPOTIFY_CLIENT_SECRET="debug-secret"`)
+	assert.Contains(t, stderr.String(), `APPLE_MUSIC_PRIVATE_KEY_PATH="/tmp/debug-key.p8"`)
+	assert.Contains(t, stderr.String(), `DEBUG resolve start mode=auto url="https://fixture.test/source"`)
+	assert.Contains(t, stderr.String(), `DEBUG resolve complete mode=auto url="https://fixture.test/source"`)
+	assert.NotEmpty(t, stdout.String())
+}
+
+func TestRunResolveInfoLogDoesNotPrintSecrets(t *testing.T) {
+	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
+		return ariadne.NewWithAdapters(
+			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
+				"https://fixture.test/source": {
+					Service:   ariadne.ServiceDeezer,
+					SourceID:  "src-1",
+					SourceURL: "https://fixture.test/source",
+					Title:     "Fixture Album",
+				},
+			})},
+			nil,
+		)
+	})
+
+	configPath := filepath.Join(t.TempDir(), ".env")
+	require.NoError(t, os.WriteFile(configPath, []byte("SPOTIFY_CLIENT_SECRET=info-secret\n"), 0o600))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"--log-level", "info", "--config", configPath, "resolve", "https://fixture.test/source"}, &stdout, &stderr)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr.String(), `info-secret`)
+	assert.NotContains(t, stderr.String(), `DEBUG effective config`)
+	assert.Empty(t, stderr.String())
+	assert.NotEmpty(t, stdout.String())
 }

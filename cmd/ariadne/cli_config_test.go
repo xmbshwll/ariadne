@@ -12,9 +12,14 @@ import (
 	"github.com/xmbshwll/ariadne"
 )
 
-func TestArgsWithoutConfigFlagConsumesExplicitEmptyValue(t *testing.T) {
+func TestArgsWithoutNamedFlagsConsumesExplicitEmptyValue(t *testing.T) {
 	args := []string{"--config", "", "resolve", "https://fixture.test/source"}
-	assert.Equal(t, []string{"resolve", "https://fixture.test/source"}, argsWithoutConfigFlag(args))
+	assert.Equal(t, []string{"resolve", "https://fixture.test/source"}, argsWithoutNamedFlags(args, "--config"))
+}
+
+func TestConfigPathFromArgsPreservesExplicitEmptyValue(t *testing.T) {
+	assert.Equal(t, "", configPathFromArgs([]string{"--config", "", "resolve", "https://fixture.test/source"}))
+	assert.Equal(t, "", configPathFromArgs([]string{"--config=", "resolve", "https://fixture.test/source"}))
 }
 
 func TestLoadCLIConfigFromDotEnv(t *testing.T) {
@@ -34,7 +39,7 @@ func TestLoadCLIConfigFromDotEnv(t *testing.T) {
 	}, "\n")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
-	cfg, err := loadCLIConfig(configPath)
+	cfg, err := loadCLIConfigWithLogger(configPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "spotify-client", cfg.Spotify.ClientID)
 	assert.Equal(t, "spotify-secret", cfg.Spotify.ClientSecret)
@@ -56,7 +61,7 @@ func TestLoadCLIConfigEnvironmentOverridesFile(t *testing.T) {
 	t.Setenv("SPOTIFY_CLIENT_ID", "env-client")
 	t.Setenv("ARIADNE_HTTP_TIMEOUT", "30s")
 
-	cfg, err := loadCLIConfig(configPath)
+	cfg, err := loadCLIConfigWithLogger(configPath, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "de", cfg.AppleMusicStorefront)
 	assert.Equal(t, "env-client", cfg.Spotify.ClientID)
@@ -99,7 +104,7 @@ func TestLoadCLIConfigRejectsNonPositiveHTTPTimeout(t *testing.T) {
 			configPath := filepath.Join(dir, ".env")
 			require.NoError(t, os.WriteFile(configPath, []byte("ARIADNE_HTTP_TIMEOUT="+tt.timeout+"\n"), 0o644))
 
-			_, err := loadCLIConfig(configPath)
+			_, err := loadCLIConfigWithLogger(configPath, nil)
 			require.Error(t, err)
 			assert.EqualError(t, err, tt.wantMessage)
 		})
@@ -176,7 +181,7 @@ func TestParseResolveArgs(t *testing.T) {
 		{
 			name:            "missing url",
 			args:            []string{"--apple-music-storefront=gb"},
-			wantErrContains: "usage: ariadne resolve [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
+			wantErrContains: "usage: ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
 		},
 		{
 			name:            "force song",

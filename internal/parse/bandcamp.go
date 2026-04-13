@@ -2,6 +2,7 @@ package parse
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -24,9 +25,12 @@ func bandcampEntityURL(raw string, pathSegment string, entityType string, notEnt
 		return nil, fmt.Errorf("parse bandcamp url: %w", err)
 	}
 
-	host := strings.ToLower(parsed.Host)
+	host := strings.ToLower(parsed.Hostname())
 	if host == "" {
 		return nil, errMissingBandcampHost
+	}
+	if !isSupportedBandcampHost(host) {
+		return nil, fmt.Errorf("%w: %s", errUnsupportedBandcampHost, parsed.Host)
 	}
 
 	segments := pathSegments(parsed.Path)
@@ -47,4 +51,12 @@ func bandcampEntityURL(raw string, pathSegment string, entityType string, notEnt
 		CanonicalURL: canonicalURL,
 		RawURL:       raw,
 	}, nil
+}
+
+func isSupportedBandcampHost(host string) bool {
+	if strings.HasSuffix(host, ".bandcamp.com") || host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

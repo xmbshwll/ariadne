@@ -4,6 +4,23 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.4.1 - 2026-04-13
+
+### Added
+
+- CLI log levels through `--log-level` and `ARIADNE_LOG_LEVEL`, including debug output for effective config values during troubleshooting
+
+### Changed
+
+- Spotify track hydration now uses parallel single-track `/v1/tracks/{id}` requests instead of the deprecated batch track endpoint
+- normal successful CLI runs stay quiet unless debug logging is explicitly enabled
+- CLI help and docs now include the logging flag in command examples and configuration guidance
+
+### Fixed
+
+- Spotify album and song source hydration no longer fails when the deprecated `Get Several Tracks` endpoint returns `403 Forbidden`
+- Bandcamp URL parsing now rejects non-Bandcamp hosts, preventing unrelated `/track/...` URLs from being misclassified as Bandcamp sources
+
 ## v0.4.0 - 2026-04-10
 
 ### Added

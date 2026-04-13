@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +27,64 @@ func TestFetchAlbumBootstrapMapsNotFoundStatus(t *testing.T) {
 		CanonicalURL: "https://open.spotify.com/album/missing",
 	})
 	require.ErrorIs(t, err, errSpotifyAlbumNotFound)
+}
+
+func TestFetchAlbumHydratesTracksViaSingleTrackEndpointInParallel(t *testing.T) {
+	release := make(chan struct{})
+	var mu sync.Mutex
+	started := 0
+
+	adapter := newSpotifyAPIAdapter(t, func(mux *http.ServeMux) {
+		mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
+			requireSpotifyBearerAuth(t, r)
+			writeJSON(t, w, apiAlbumResponse{
+				ID:          "album-good",
+				Name:        "Abbey Road (Remastered)",
+				ReleaseDate: "1969-09-26",
+				TotalTracks: 2,
+				Artists:     []apiArtist{{Name: "The Beatles"}},
+				Tracks: apiTrackPage{Items: []apiTrack{
+					{ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}},
+					{ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, Artists: []apiArtist{{Name: "The Beatles"}}},
+				}},
+			})
+		})
+		registerSpotifyTrackHandler(t, mux, func(w http.ResponseWriter, r *http.Request, trackID string) {
+			mu.Lock()
+			started++
+			if started == 2 {
+				close(release)
+			}
+			mu.Unlock()
+
+			select {
+			case <-release:
+			case <-time.After(250 * time.Millisecond):
+				http.Error(w, "expected parallel track hydration", http.StatusGatewayTimeout)
+				return
+			}
+
+			track, ok := map[string]apiTrack{
+				"track-1": {ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}},
+				"track-2": {ID: "track-2", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601691"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}},
+			}[trackID]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			writeJSON(t, w, track)
+		})
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	album, err := adapter.FetchAlbum(ctx, model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "album", ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"})
+	require.NoError(t, err)
+	require.NotNil(t, album)
+	require.Len(t, album.Tracks, 2)
+	assert.Equal(t, "GBAYE0601690", album.Tracks[0].ISRC)
+	assert.Equal(t, "GBAYE0601691", album.Tracks[1].ISRC)
 }
 
 func TestSearchByMetadataSkipsAlbumsThatDisappearDuringHydration(t *testing.T) {
@@ -55,11 +115,8 @@ func TestSearchByMetadataSkipsAlbumsThatDisappearDuringHydration(t *testing.T) {
 			requireSpotifyBearerAuth(t, r)
 			http.NotFound(w, r)
 		})
-		mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
-			requireSpotifyBearerAuth(t, r)
-			writeSpotifyTrackBatchJSON(t, w, r, map[string]apiTrack{
-				"track-1": {ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}},
-			})
+		registerSpotifyTrackEndpoint(t, mux, map[string]apiTrack{
+			"track-1": {ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}},
 		})
 	})
 
@@ -92,11 +149,8 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 				Tracks:      apiTrackPage{Items: []apiTrack{{ID: "track-1", Name: "ΘΕΛΗΜΑ", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, Artists: []apiArtist{{Name: "DECIPHER"}}}}},
 			})
 		})
-		mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
-			requireSpotifyBearerAuth(t, r)
-			writeSpotifyTrackBatchJSON(t, w, r, map[string]apiTrack{
-				"track-1": {ID: "track-1", Name: "ΘΕΛΗΜΑ", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, Artists: []apiArtist{{Name: "DECIPHER"}}, Album: apiTrackAlbum{ID: "album-good", Name: "ΘΕΛΗΜΑ", ReleaseDate: "2024-01-01", Artists: []apiArtist{{Name: "DECIPHER"}}}},
-			})
+		registerSpotifyTrackEndpoint(t, mux, map[string]apiTrack{
+			"track-1": {ID: "track-1", Name: "ΘΕΛΗΜΑ", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, Artists: []apiArtist{{Name: "DECIPHER"}}, Album: apiTrackAlbum{ID: "album-good", Name: "ΘΕΛΗΜΑ", ReleaseDate: "2024-01-01", Artists: []apiArtist{{Name: "DECIPHER"}}}},
 		})
 	})
 
@@ -132,11 +186,8 @@ func TestSearchSongByMetadataKeepsEarlierResultsWhenLaterQueriesFail(t *testing.
 			}
 			writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-good", Name: "ΘΕΛΗΜΑ", DurationMS: 200000, Artists: []apiArtist{{Name: "DECIPHER"}}}}}})
 		})
-		mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
-			requireSpotifyBearerAuth(t, r)
-			writeSpotifyTrackBatchJSON(t, w, r, map[string]apiTrack{
-				"track-good": {ID: "track-good", Name: "ΘΕΛΗΜΑ", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, Artists: []apiArtist{{Name: "DECIPHER"}}, Album: apiTrackAlbum{ID: "album-good", Name: "ΘΕΛΗΜΑ", ReleaseDate: "2024-01-01", Artists: []apiArtist{{Name: "DECIPHER"}}}},
-			})
+		registerSpotifyTrackEndpoint(t, mux, map[string]apiTrack{
+			"track-good": {ID: "track-good", Name: "ΘΕΛΗΜΑ", TrackNumber: 1, DiscNumber: 1, DurationMS: 200000, Artists: []apiArtist{{Name: "DECIPHER"}}, Album: apiTrackAlbum{ID: "album-good", Name: "ΘΕΛΗΜΑ", ReleaseDate: "2024-01-01", Artists: []apiArtist{{Name: "DECIPHER"}}}},
 		})
 	})
 
@@ -153,15 +204,19 @@ func TestSearchSongByMetadataKeepsPartialResultsWhenLaterHydrationFails(t *testi
 			requireSpotifyBearerAuth(t, r)
 			writeJSON(t, w, apiTrackSearchResponse{Tracks: apiTrackSearchPage{Items: []apiTrackSearchItem{{ID: "track-good", Name: "Come Together", DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}}, {ID: "track-bad", Name: "Come Together", DurationMS: 200000, Artists: []apiArtist{{Name: "Tribute Band"}}}}}})
 		})
-		mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
-			requireSpotifyBearerAuth(t, r)
-			if r.URL.Query().Get("ids") == "track-bad" {
+		registerSpotifyTrackHandler(t, mux, func(w http.ResponseWriter, r *http.Request, trackID string) {
+			if trackID == "track-bad" {
 				http.Error(w, "broken track hydration", http.StatusBadGateway)
 				return
 			}
-			writeSpotifyTrackBatchJSON(t, w, r, map[string]apiTrack{
+			track, ok := map[string]apiTrack{
 				"track-good": {ID: "track-good", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}},
-			})
+			}[trackID]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			writeJSON(t, w, track)
 		})
 	})
 
