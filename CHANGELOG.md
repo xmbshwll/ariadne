@@ -4,6 +4,12 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.4.3 - 2026-04-14
+
+### Fixed
+
+- Deezer album hydration now accepts album payloads that provide inline `tracks.data` but omit the `tracklist` URL, preventing valid Deezer matches like Saosin's `Starting Over Again` from being dropped during resolution
+
 ## v0.4.2 - 2026-04-13
 
 ### Fixed
