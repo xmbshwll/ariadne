@@ -1,22 +1,23 @@
 package deezer
 
 type albumResponse struct {
-	ID             int           `json:"id"`
-	Title          string        `json:"title"`
-	UPC            string        `json:"upc"`
-	Link           string        `json:"link"`
-	Cover          string        `json:"cover"`
-	CoverMedium    string        `json:"cover_medium"`
-	CoverBig       string        `json:"cover_big"`
-	CoverXL        string        `json:"cover_xl"`
-	Label          string        `json:"label"`
-	NBTracks       int           `json:"nb_tracks"`
-	Duration       int           `json:"duration"`
-	ReleaseDate    string        `json:"release_date"`
-	TracklistURL   string        `json:"tracklist"`
-	ExplicitLyrics bool          `json:"explicit_lyrics"`
-	Artist         artistRef     `json:"artist"`
-	Contributors   []contributor `json:"contributors"`
+	ID             int            `json:"id"`
+	Title          string         `json:"title"`
+	UPC            string         `json:"upc"`
+	Link           string         `json:"link"`
+	Cover          string         `json:"cover"`
+	CoverMedium    string         `json:"cover_medium"`
+	CoverBig       string         `json:"cover_big"`
+	CoverXL        string         `json:"cover_xl"`
+	Label          string         `json:"label"`
+	NBTracks       int            `json:"nb_tracks"`
+	Duration       int            `json:"duration"`
+	ReleaseDate    string         `json:"release_date"`
+	TracklistURL   string         `json:"tracklist"`
+	Tracks         tracksResponse `json:"tracks"`
+	ExplicitLyrics bool           `json:"explicit_lyrics"`
+	Artist         artistRef      `json:"artist"`
+	Contributors   []contributor  `json:"contributors"`
 }
 
 type tracksResponse struct {

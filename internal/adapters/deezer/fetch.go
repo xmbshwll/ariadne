@@ -64,13 +64,15 @@ func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parse
 		return nil, err
 	}
 
-	if album.ID == 0 || album.TracklistURL == "" {
+	if album.ID == 0 {
 		return nil, errDeezerAlbumNotFound
 	}
 
-	var tracks tracksResponse
-	if err := a.getJSON(ctx, album.TracklistURL, &tracks); err != nil {
-		return nil, fmt.Errorf("fetch deezer album tracks %d: %w", album.ID, err)
+	tracks := album.Tracks
+	if len(tracks.Data) == 0 && album.TracklistURL != "" {
+		if err := a.getJSON(ctx, album.TracklistURL, &tracks); err != nil {
+			return nil, fmt.Errorf("fetch deezer album tracks %d: %w", album.ID, err)
+		}
 	}
 
 	parsed := model.ParsedAlbumURL{

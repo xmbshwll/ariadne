@@ -123,6 +123,24 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 	assertSingleCandidate(t, results)
 }
 
+func TestSearchByMetadataUsesInlineAlbumTracksWhenTracklistMissing(t *testing.T) {
+	server := newJSONRouteServer(map[string]jsonRoute{
+		deezerAlbumSearchPath: jsonOK([]byte(`{"data":[{"id":961008851,"title":"Starting Over Again"}]}`)),
+		"/album/961008851":    jsonOK([]byte(`{"id":961008851,"title":"Starting Over Again","upc":"823375100898","label":"Sumerian Records","nb_tracks":1,"duration":236,"release_date":"2026-04-17","tracklist":"","artist":{"id":12025,"name":"Saosin"},"contributors":[{"id":12025,"name":"Saosin"}],"tracks":{"data":[{"id":3959199481,"title":"Starting Over Again","duration":236,"track_position":1,"disk_number":1,"isrc":"USYFZ2689701","artist":{"id":12025,"name":"Saosin"}}]}}`)),
+	})
+	defer server.Close()
+
+	adapter := newTestAdapter(server)
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Starting Over Again", Artists: []string{"Saosin"}})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "961008851", results[0].CandidateID)
+	assert.Equal(t, "https://www.deezer.com/album/961008851", results[0].MatchURL)
+	assert.Equal(t, "823375100898", results[0].UPC)
+	assert.Len(t, results[0].Tracks, 1)
+	assert.Equal(t, "USYFZ2689701", results[0].Tracks[0].ISRC)
+}
+
 func TestSearchByISRCSkipsTracksWithoutAlbumIDs(t *testing.T) {
 	server := newJSONRouteServer(map[string]jsonRoute{
 		"/track/isrc:" + deezerComeTogetherISRC: jsonOK(mustReadTestFile(t, "testdata/track-without-album-id.json")),
