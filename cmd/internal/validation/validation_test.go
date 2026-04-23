@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testArtifact = "artifact"
+
 var (
 	errTestSampleURLRequired = errors.New("sample url required")
 	errTestSampleURLEmpty    = errors.New("sample url empty")
@@ -170,12 +172,12 @@ func TestRun(t *testing.T) {
 				assert.True(t, ok)
 				assert.WithinDuration(t, time.Now().Add(100*time.Millisecond), deadline, 75*time.Millisecond)
 				assert.Equal(t, artifactDir, inputs.OutputDir())
-				return "artifact", nil
+				return testArtifact, nil
 			},
 			Write: func(outputDir string, artifact string) error {
 				writeCalled = true
 				assert.Equal(t, artifactDir, outputDir)
-				assert.Equal(t, "artifact", artifact)
+				assert.Equal(t, testArtifact, artifact)
 				return nil
 			},
 		})
@@ -197,7 +199,7 @@ func TestRun(t *testing.T) {
 			Collect: func(ctx context.Context, _ testRunInputs) (string, error) {
 				_, ok := ctx.Deadline()
 				assert.False(t, ok)
-				return "artifact", nil
+				return testArtifact, nil
 			},
 			Write: func(string, string) error {
 				return nil
@@ -263,7 +265,7 @@ func TestRun(t *testing.T) {
 				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil
 			},
 			Collect: func(context.Context, testRunInputs) (string, error) {
-				return "artifact", nil
+				return testArtifact, nil
 			},
 			Write: func(string, string) error {
 				return errTestWriteFailed
