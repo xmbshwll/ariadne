@@ -14,19 +14,18 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	helpConfig := ariadne.DefaultConfig()
 	commandArgs := argsWithoutPersistentFlags(args)
 
-	if len(commandArgs) == 0 {
+	switch {
+	case len(commandArgs) == 0:
 		if err := renderRootHelp(stderr, helpConfig, configPath); err != nil {
 			return fmt.Errorf("print usage: %w", err)
 		}
 		return errMissingCommand
-	}
-	if isHelpArg(commandArgs[0]) {
+	case isHelpArg(commandArgs[0]):
 		if len(commandArgs) == 1 {
 			return renderRootHelp(stdout, helpConfig, configPath)
 		}
 		return executeRootCommand(stdout, stderr, helpConfig, configPath, nil, args)
-	}
-	if containsHelpArg(commandArgs[1:]) {
+	case containsHelpArg(commandArgs[1:]):
 		return executeRootCommand(stdout, stderr, helpConfig, configPath, nil, args)
 	}
 

@@ -48,17 +48,22 @@ func normalizeRequestedService(raw string) (ariadne.ServiceName, error) {
 	if strings.TrimSpace(raw) == "" {
 		return "", errNoTargetServicesSelected
 	}
+
 	service, ok := ariadne.LookupServiceName(raw)
 	if !ok {
-		return "", fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
+		return "", unsupportedTargetServiceError(raw)
 	}
 	if service == ariadne.ServiceAmazonMusic {
 		return "", errAmazonMusicTargetService
 	}
 	if !ariadne.SupportsTarget(service) {
-		return "", fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
+		return "", unsupportedTargetServiceError(raw)
 	}
 	return service, nil
+}
+
+func unsupportedTargetServiceError(raw string) error {
+	return fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {

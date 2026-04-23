@@ -65,13 +65,10 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if !appConfig.AppleMusic.AuthEnabled() {
 		return validationInputs{}, errAppleMusicCredentialsRequired
 	}
-	developerToken, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
-		KeyID:          appConfig.AppleMusic.KeyID,
-		TeamID:         appConfig.AppleMusic.TeamID,
-		PrivateKeyPath: appConfig.AppleMusic.PrivateKeyPath,
-	}, time.Now().UTC())
+
+	developerToken, err := generateDeveloperToken(appConfig)
 	if err != nil {
-		return validationInputs{}, fmt.Errorf("generate apple music developer token: %w", err)
+		return validationInputs{}, err
 	}
 
 	rawURL, err := validation.LoadSampleURL(opts.sampleURL, opts.sampleURLPath, "apple music", errAppleMusicSampleURLRequired, errAppleMusicSampleURLEmpty)
@@ -96,6 +93,18 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 		parsed:         parsed,
 		storefront:     resolveStorefront(opts.storefront, parsed.RegionHint, appConfig.AppleMusic.Storefront),
 	}, nil
+}
+
+func generateDeveloperToken(appConfig config.Config) (string, error) {
+	developerToken, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
+		KeyID:          appConfig.AppleMusic.KeyID,
+		TeamID:         appConfig.AppleMusic.TeamID,
+		PrivateKeyPath: appConfig.AppleMusic.PrivateKeyPath,
+	}, time.Now().UTC())
+	if err != nil {
+		return "", fmt.Errorf("generate apple music developer token: %w", err)
+	}
+	return developerToken, nil
 }
 
 func parseFlags(args []string) (options, error) {

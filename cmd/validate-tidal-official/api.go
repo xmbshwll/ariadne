@@ -237,23 +237,9 @@ func getAPI(ctx context.Context, client *http.Client, endpoint string, accessTok
 }
 
 func collectIncludedNames(included []tidalIncludedResource, typ string) []string {
-	results := make([]string, 0, len(included))
-	seen := map[string]struct{}{}
-	for _, resource := range included {
-		if resource.Type != typ {
-			continue
-		}
-		name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
-		if name == "" {
-			continue
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		results = append(results, name)
-	}
-	return results
+	return collectIncludedValues(included, typ, 0, func(attrs tidalAttributes) string {
+		return firstNonEmpty(attrs.Name, attrs.Title)
+	})
 }
 
 func collectRelationshipNames(relations []tidalRelationshipData, included []tidalIncludedResource) []string {
@@ -284,22 +270,33 @@ func collectRelationshipNames(relations []tidalRelationshipData, included []tida
 }
 
 func collectIncludedTitles(included []tidalIncludedResource, typ string, limit int) []string {
-	results := make([]string, 0, limit)
+	return collectIncludedValues(included, typ, limit, func(attrs tidalAttributes) string {
+		return firstNonEmpty(attrs.Title, attrs.Name)
+	})
+}
+
+func collectIncludedValues(included []tidalIncludedResource, typ string, limit int, value func(tidalAttributes) string) []string {
+	capacity := len(included)
+	if limit > 0 && limit < capacity {
+		capacity = limit
+	}
+
+	results := make([]string, 0, capacity)
 	seen := map[string]struct{}{}
 	for _, resource := range included {
 		if resource.Type != typ {
 			continue
 		}
-		title := firstNonEmpty(resource.Attributes.Title, resource.Attributes.Name)
-		if title == "" {
+		item := value(resource.Attributes)
+		if item == "" {
 			continue
 		}
-		if _, ok := seen[title]; ok {
+		if _, ok := seen[item]; ok {
 			continue
 		}
-		seen[title] = struct{}{}
-		results = append(results, title)
-		if len(results) >= limit {
+		seen[item] = struct{}{}
+		results = append(results, item)
+		if limit > 0 && len(results) >= limit {
 			break
 		}
 	}

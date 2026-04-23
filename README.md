@@ -80,7 +80,7 @@ Ask for full details instead of compact links:
 ariadne resolve --verbose https://www.deezer.com/album/12047952
 ```
 
-By default, CLI prints compact JSON with one best URL per service.
+By default, CLI prints compact JSON with the best URL for each service.
 
 Example:
 
@@ -101,7 +101,7 @@ Useful flags:
 - `--min-strength=probable` to hide weaker matches
 - `--apple-music-storefront=us` to pick default Apple Music storefront when source URL does not include one
 - `--http-timeout=30s` to change per-request timeout
-- `--resolution-timeout=30s` to cap whole resolve run
+- `--resolution-timeout=20s` to cap the whole resolve run
 - `--log-level=debug` to print CLI diagnostics to stderr
 - `--config=.env` or `--config=path/to/config.yaml` to load config from file
 

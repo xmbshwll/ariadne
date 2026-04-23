@@ -17,18 +17,6 @@ const (
 )
 
 func buildValidationSummary(inputs validationInputs, artifacts validationArtifacts, title, artist, releaseDate, label, upc string, isrcs []string) map[string]any {
-	artifactPaths := map[string]string{
-		"source_payload_official":  validationArtifactPath(inputs.outputDir, appleMusicSourcePayloadFile),
-		"search_metadata_official": validationArtifactPath(inputs.outputDir, appleMusicSearchMetadataFile),
-		"official_summary":         validationArtifactPath(inputs.outputDir, appleMusicOfficialSummaryFile),
-	}
-	if len(artifacts.upcBody) > 0 {
-		artifactPaths["search_upc_official"] = validationArtifactPath(inputs.outputDir, appleMusicSearchUPCFile)
-	}
-	if len(artifacts.isrcBody) > 0 {
-		artifactPaths["search_isrc_official"] = validationArtifactPath(inputs.outputDir, appleMusicSearchISRCFile)
-	}
-
 	return map[string]any{
 		"sample_url":         inputs.rawURL,
 		"album_id":           inputs.parsed.ID,
@@ -42,34 +30,60 @@ func buildValidationSummary(inputs validationInputs, artifacts validationArtifac
 		"upc":                upc,
 		"track_isrc_samples": isrcs,
 		"generated_at":       time.Now().UTC().Format(time.RFC3339),
-		"artifacts":          artifactPaths,
+		"artifacts":          buildValidationArtifactPaths(inputs.outputDir, artifacts),
 	}
 }
 
+func buildValidationArtifactPaths(outputDir string, artifacts validationArtifacts) map[string]string {
+	artifactPaths := map[string]string{
+		"source_payload_official":  validationArtifactPath(outputDir, appleMusicSourcePayloadFile),
+		"search_metadata_official": validationArtifactPath(outputDir, appleMusicSearchMetadataFile),
+		"official_summary":         validationArtifactPath(outputDir, appleMusicOfficialSummaryFile),
+	}
+	addValidationArtifactPath(artifactPaths, "search_upc_official", outputDir, appleMusicSearchUPCFile, artifacts.upcBody)
+	addValidationArtifactPath(artifactPaths, "search_isrc_official", outputDir, appleMusicSearchISRCFile, artifacts.isrcBody)
+	return artifactPaths
+}
+
+func addValidationArtifactPath(paths map[string]string, key, outputDir, name string, body []byte) {
+	if len(body) == 0 {
+		return
+	}
+	paths[key] = validationArtifactPath(outputDir, name)
+}
+
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
-	sourcePayloadPath := filepath.Join(outputDir, appleMusicSourcePayloadFile)
-	if err := validation.WritePrettyJSON(sourcePayloadPath, artifacts.albumBody); err != nil {
-		return fmt.Errorf("write %s: %w", sourcePayloadPath, err)
+	if err := writePrettyJSONArtifact(outputDir, appleMusicSourcePayloadFile, artifacts.albumBody); err != nil {
+		return err
 	}
-	metadataPath := filepath.Join(outputDir, appleMusicSearchMetadataFile)
-	if err := validation.WritePrettyJSON(metadataPath, artifacts.metadataBody); err != nil {
-		return fmt.Errorf("write %s: %w", metadataPath, err)
+	if err := writePrettyJSONArtifact(outputDir, appleMusicSearchMetadataFile, artifacts.metadataBody); err != nil {
+		return err
 	}
-	if len(artifacts.upcBody) > 0 {
-		upcPath := filepath.Join(outputDir, appleMusicSearchUPCFile)
-		if err := validation.WritePrettyJSON(upcPath, artifacts.upcBody); err != nil {
-			return fmt.Errorf("write %s: %w", upcPath, err)
-		}
+	if err := writeOptionalPrettyJSONArtifact(outputDir, appleMusicSearchUPCFile, artifacts.upcBody); err != nil {
+		return err
 	}
-	if len(artifacts.isrcBody) > 0 {
-		isrcPath := filepath.Join(outputDir, appleMusicSearchISRCFile)
-		if err := validation.WritePrettyJSON(isrcPath, artifacts.isrcBody); err != nil {
-			return fmt.Errorf("write %s: %w", isrcPath, err)
-		}
+	if err := writeOptionalPrettyJSONArtifact(outputDir, appleMusicSearchISRCFile, artifacts.isrcBody); err != nil {
+		return err
 	}
+
 	summaryPath := filepath.Join(outputDir, appleMusicOfficialSummaryFile)
 	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
 		return fmt.Errorf("write %s: %w", summaryPath, err)
+	}
+	return nil
+}
+
+func writeOptionalPrettyJSONArtifact(outputDir, name string, body []byte) error {
+	if len(body) == 0 {
+		return nil
+	}
+	return writePrettyJSONArtifact(outputDir, name, body)
+}
+
+func writePrettyJSONArtifact(outputDir, name string, body []byte) error {
+	path := filepath.Join(outputDir, name)
+	if err := validation.WritePrettyJSON(path, body); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
 }

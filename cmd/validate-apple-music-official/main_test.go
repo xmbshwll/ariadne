@@ -141,11 +141,11 @@ func TestWriteValidationArtifacts(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, name := range []string{
-		"source-payload-official.json",
-		"search-metadata-official.json",
-		"search-upc-official.json",
-		"search-isrc-official.json",
-		"official-summary.json",
+		appleMusicSourcePayloadFile,
+		appleMusicSearchMetadataFile,
+		appleMusicSearchUPCFile,
+		appleMusicSearchISRCFile,
+		appleMusicOfficialSummaryFile,
 	} {
 		path := filepath.Join(outputDir, name)
 		content, readErr := os.ReadFile(path)

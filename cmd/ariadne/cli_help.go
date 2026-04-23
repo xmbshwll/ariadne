@@ -103,16 +103,28 @@ func renderRootHelp(w io.Writer, baseConfig ariadne.Config, configPath string) e
 }
 
 func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
+	return fmt.Sprintf(
+		resolveHelpText,
+		defaultResolveCommandUse,
+		helpConfigPath(configPath),
+		helpStorefrontDefault(baseConfig),
+		baseConfig.HTTPTimeout,
+		defaultResolveTimeout,
+	)
+}
+
+func helpConfigPath(configPath string) string {
 	if configPath == "" {
-		configPath = `"" (disable file loading)`
+		return `"" (disable file loading)`
 	}
+	return configPath
+}
 
-	storefrontDefault := "APPLE_MUSIC_STOREFRONT or us"
-	if baseConfig.AppleMusicStorefront != "" {
-		storefrontDefault = baseConfig.AppleMusicStorefront
+func helpStorefrontDefault(baseConfig ariadne.Config) string {
+	if baseConfig.AppleMusicStorefront == "" {
+		return "APPLE_MUSIC_STOREFRONT or us"
 	}
-
-	return fmt.Sprintf(resolveHelpText, defaultResolveCommandUse, configPath, storefrontDefault, baseConfig.HTTPTimeout, defaultResolveTimeout)
+	return baseConfig.AppleMusicStorefront
 }
 
 func rootHelpTextFor(baseConfig ariadne.Config, configPath string) string {

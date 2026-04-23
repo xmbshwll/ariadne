@@ -25,14 +25,8 @@ type RunConfig[Inputs RunInputs, Artifacts any] struct {
 var errNilRunConfigField = errors.New("nil RunConfig field")
 
 func Run[Inputs RunInputs, Artifacts any](cfg RunConfig[Inputs, Artifacts]) error {
-	if cfg.Load == nil {
-		return fmt.Errorf("%w: Load", errNilRunConfigField)
-	}
-	if cfg.Collect == nil {
-		return fmt.Errorf("%w: Collect", errNilRunConfigField)
-	}
-	if cfg.Write == nil {
-		return fmt.Errorf("%w: Write", errNilRunConfigField)
+	if err := validateRunConfig(cfg); err != nil {
+		return err
 	}
 
 	inputs, err := cfg.Load(cfg.Args)
@@ -69,4 +63,17 @@ func runContext(timeout time.Duration) (context.Context, func()) {
 		return context.Background(), func() {}
 	}
 	return context.WithTimeout(context.Background(), timeout)
+}
+
+func validateRunConfig[Inputs RunInputs, Artifacts any](cfg RunConfig[Inputs, Artifacts]) error {
+	switch {
+	case cfg.Load == nil:
+		return fmt.Errorf("%w: Load", errNilRunConfigField)
+	case cfg.Collect == nil:
+		return fmt.Errorf("%w: Collect", errNilRunConfigField)
+	case cfg.Write == nil:
+		return fmt.Errorf("%w: Write", errNilRunConfigField)
+	default:
+		return nil
+	}
 }
