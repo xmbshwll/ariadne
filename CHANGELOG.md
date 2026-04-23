@@ -4,6 +4,21 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.4.4 - 2026-04-23
+
+### Changed
+
+- rewrote the main user and maintainer docs for clearer CLI usage, configuration, service-resolution, contribution, and release guidance
+- simplified recent CLI and validation code paths without changing behavior, reducing duplication in help text, service parsing, validation runners, and validation artifact writing
+
+### Fixed
+
+- validation commands now honor Ariadne's configured HTTP timeout for Apple Music, Spotify, and TIDAL API requests instead of relying on `http.DefaultClient`
+- Apple Music official validation now searches all sampled track ISRCs, merges the results, and reports optional artifacts based on files that were actually written
+- Spotify and Apple Music validation commands now parse sample URLs before creating output directories, avoiding leaked temp directories on invalid input
+- CLI parsing now handles nil unknown-command errors safely and ignores empty segments in `--services` lists such as `spotify,,tidal`
+- TIDAL validation artist-name lookup now ignores non-artist included resources when relationship IDs collide across resource types
+
 ## v0.4.3 - 2026-04-14
 
 ### Fixed
