@@ -82,7 +82,7 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 		artistNames = collectRelationshipNames(album.Data.Relationships.Artists.Data, album.Included)
 	}
 	trackTitles := collectIncludedTitles(album.Included, "tracks", defaultSearchLimit)
-	trackISRCs := collectIncludedISRCs(album.Included, defaultSearchLimit)
+	trackISRCs := collectIncludedValues(album.Included, "tracks", defaultSearchLimit, includedISRC)
 	upc := firstNonEmpty(album.Data.Attributes.BarcodeID, album.Data.Attributes.UPC)
 	releaseDate := strings.TrimSpace(album.Data.Attributes.ReleaseDate)
 	query := buildTIDALQuery(title, artistNames, inputs.parsed.ID)
@@ -303,27 +303,8 @@ func collectIncludedValues(included []tidalIncludedResource, typ string, limit i
 	return results
 }
 
-func collectIncludedISRCs(included []tidalIncludedResource, limit int) []string {
-	results := make([]string, 0, limit)
-	seen := map[string]struct{}{}
-	for _, resource := range included {
-		if resource.Type != "tracks" {
-			continue
-		}
-		isrc := strings.TrimSpace(resource.Attributes.ISRC)
-		if isrc == "" {
-			continue
-		}
-		if _, ok := seen[isrc]; ok {
-			continue
-		}
-		seen[isrc] = struct{}{}
-		results = append(results, isrc)
-		if len(results) >= limit {
-			break
-		}
-	}
-	return results
+func includedISRC(attrs tidalAttributes) string {
+	return strings.TrimSpace(attrs.ISRC)
 }
 
 func firstArtist(values []string) string {

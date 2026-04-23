@@ -67,7 +67,7 @@ func TestTIDALIncludedHelpers(t *testing.T) {
 	assert.Equal(t, []string{"Artist One", "Artist Two"}, collectIncludedNames(included, "artists"))
 	assert.Equal(t, []string{"Artist Two", "Artist One"}, collectRelationshipNames(relations, included))
 	assert.Equal(t, []string{"Track One", "Track Two"}, collectIncludedTitles(included, "tracks", 2))
-	assert.Equal(t, []string{"ISRC001", "ISRC003"}, collectIncludedISRCs(included, 5))
+	assert.Equal(t, []string{"ISRC001", "ISRC003"}, collectIncludedValues(included, "tracks", 5, includedISRC))
 	assert.Equal(t, "Artist One", firstArtist([]string{"Artist One", "Artist Two"}))
 	assert.Empty(t, firstArtist(nil))
 	assert.Equal(t, "value", firstNonEmpty(" ", "value", "other"))

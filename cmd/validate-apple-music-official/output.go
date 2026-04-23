@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -67,10 +66,8 @@ func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) e
 	}
 
 	summaryPath := filepath.Join(outputDir, appleMusicOfficialSummaryFile)
-	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
-		return fmt.Errorf("write %s: %w", summaryPath, err)
-	}
-	return nil
+	//nolint:wrapcheck // validation.WriteJSON already includes file-path context.
+	return validation.WriteJSON(summaryPath, artifacts.summary)
 }
 
 func writeOptionalPrettyJSONArtifact(outputDir, name string, body []byte) error {
@@ -82,10 +79,8 @@ func writeOptionalPrettyJSONArtifact(outputDir, name string, body []byte) error 
 
 func writePrettyJSONArtifact(outputDir, name string, body []byte) error {
 	path := filepath.Join(outputDir, name)
-	if err := validation.WritePrettyJSON(path, body); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
+	//nolint:wrapcheck // validation.WritePrettyJSON already includes file-path context.
+	return validation.WritePrettyJSON(path, body)
 }
 
 func validationArtifactPath(outputDir, name string) string {
