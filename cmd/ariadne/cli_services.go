@@ -21,6 +21,10 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 	services := make([]ariadne.ServiceName, 0)
 	seen := map[ariadne.ServiceName]struct{}{}
 	for part := range strings.SplitSeq(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
 		service, err := normalizeRequestedService(part)
 		if err != nil {
 			return nil, err

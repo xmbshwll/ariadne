@@ -148,6 +148,49 @@ func (i testRunInputs) SuccessMessage() string {
 func TestRun(t *testing.T) {
 	t.Parallel()
 
+	t.Run("rejects nil callbacks", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			cfg  RunConfig[testRunInputs, string]
+			want string
+		}{
+			{
+				name: "load",
+				cfg: RunConfig[testRunInputs, string]{
+					Collect: func(context.Context, testRunInputs) (string, error) { return testArtifact, nil },
+					Write:   func(string, string) error { return nil },
+				},
+				want: "nil RunConfig field: Load",
+			},
+			{
+				name: "collect",
+				cfg: RunConfig[testRunInputs, string]{
+					Load:  func([]string) (testRunInputs, error) { return testRunInputs{}, nil },
+					Write: func(string, string) error { return nil },
+				},
+				want: "nil RunConfig field: Collect",
+			},
+			{
+				name: "write",
+				cfg: RunConfig[testRunInputs, string]{
+					Load:    func([]string) (testRunInputs, error) { return testRunInputs{}, nil },
+					Collect: func(context.Context, testRunInputs) (string, error) { return testArtifact, nil },
+				},
+				want: "nil RunConfig field: Write",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				err := Run(tt.cfg)
+				require.EqualError(t, err, tt.want)
+			})
+		}
+	})
+
 	t.Run("writes artifacts and success message", func(t *testing.T) {
 		t.Parallel()
 

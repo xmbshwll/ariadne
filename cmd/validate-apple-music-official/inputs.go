@@ -78,13 +78,13 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("load apple music sample url: %w", err)
 	}
-	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-apple-music-validation-")
-	if err != nil {
-		return validationInputs{}, fmt.Errorf("resolve apple music output dir: %w", err)
-	}
 	parsed, err := parse.AppleMusicAlbumURL(rawURL)
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("parse sample apple music album url: %w", err)
+	}
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-apple-music-validation-")
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("resolve apple music output dir: %w", err)
 	}
 
 	return validationInputs{

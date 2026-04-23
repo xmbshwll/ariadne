@@ -11,7 +11,7 @@ import (
 const resolveHelpText = `Resolve a supported music URL across music services.
 
 Usage:
-  ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>
+  ariadne %s
 
 Positional parameter:
   <url>
@@ -86,7 +86,7 @@ Flags:
 
   --resolution-timeout
     Values: a Go duration such as 20s, 30s, 1m, or 2m.
-    Default: 20s.
+    Default: %s.
     Sets the overall timeout for one resolve command across parsing, source fetch, and target searches.
 
 Notes:
@@ -112,7 +112,7 @@ func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 		storefrontDefault = baseConfig.AppleMusicStorefront
 	}
 
-	return fmt.Sprintf(resolveHelpText, configPath, storefrontDefault, baseConfig.HTTPTimeout)
+	return fmt.Sprintf(resolveHelpText, defaultResolveCommandUse, configPath, storefrontDefault, baseConfig.HTTPTimeout, defaultResolveTimeout)
 }
 
 func rootHelpTextFor(baseConfig ariadne.Config, configPath string) string {

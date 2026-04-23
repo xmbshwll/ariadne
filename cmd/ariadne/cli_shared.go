@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,7 +14,6 @@ const (
 	outputFormatJSON  = "json"
 	outputFormatYAML  = "yaml"
 	outputFormatCSV   = "csv"
-	resolveUsage      = "usage: ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>"
 )
 
 type resolveMode string
@@ -38,9 +38,19 @@ type resolveConfig struct {
 	resolverConfig    ariadne.Config
 }
 
+func resolveCommandUse(timeout time.Duration) string {
+	return fmt.Sprintf("resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=%s] <url>", timeout)
+}
+
+func resolveCommandUsage(timeout time.Duration) string {
+	return "usage: ariadne " + resolveCommandUse(timeout)
+}
+
 var (
-	resolverFactory = ariadne.New
-	valueNormalizer = strings.NewReplacer("-", "", "_", "")
+	defaultResolveCommandUse = resolveCommandUse(defaultResolveTimeout)
+	resolveUsage             = resolveCommandUsage(defaultResolveTimeout)
+	resolverFactory          = ariadne.New
+	valueNormalizer          = strings.NewReplacer("-", "", "_", "")
 )
 
 var (
@@ -63,9 +73,8 @@ var (
 )
 
 var matchStrengthByName = map[string]ariadne.MatchStrength{
-	"veryweak":  ariadne.MatchStrengthVeryWeak,
-	"very_weak": ariadne.MatchStrengthVeryWeak,
-	"weak":      ariadne.MatchStrengthWeak,
-	"probable":  ariadne.MatchStrengthProbable,
-	"strong":    ariadne.MatchStrengthStrong,
+	"veryweak": ariadne.MatchStrengthVeryWeak,
+	"weak":     ariadne.MatchStrengthWeak,
+	"probable": ariadne.MatchStrengthProbable,
+	"strong":   ariadne.MatchStrengthStrong,
 }

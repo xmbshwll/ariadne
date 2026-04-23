@@ -2,6 +2,7 @@ package validation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -21,7 +22,19 @@ type RunConfig[Inputs RunInputs, Artifacts any] struct {
 	Write   func(string, Artifacts) error
 }
 
+var errNilRunConfigField = errors.New("nil RunConfig field")
+
 func Run[Inputs RunInputs, Artifacts any](cfg RunConfig[Inputs, Artifacts]) error {
+	if cfg.Load == nil {
+		return fmt.Errorf("%w: Load", errNilRunConfigField)
+	}
+	if cfg.Collect == nil {
+		return fmt.Errorf("%w: Collect", errNilRunConfigField)
+	}
+	if cfg.Write == nil {
+		return fmt.Errorf("%w: Write", errNilRunConfigField)
+	}
+
 	inputs, err := cfg.Load(cfg.Args)
 	if err != nil {
 		return err

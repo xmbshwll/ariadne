@@ -81,7 +81,7 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string, logger *cliLogg
 	config := defaultResolveConfig(baseConfig)
 
 	cmd := &cobra.Command{
-		Use:   "resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--resolution-timeout=20s] <url>",
+		Use:   defaultResolveCommandUse,
 		Short: "Resolve one music URL into likely equivalents on other services.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) != 1 {

@@ -66,13 +66,13 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("load spotify sample url: %w", err)
 	}
-	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-spotify-validation-")
-	if err != nil {
-		return validationInputs{}, fmt.Errorf("resolve spotify output dir: %w", err)
-	}
 	parsed, err := parse.SpotifyAlbumURL(rawURL)
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("parse sample spotify album url: %w", err)
+	}
+	outputDir, err := validation.ResolveOutputDir(opts.outputDir, "ariadne-spotify-validation-")
+	if err != nil {
+		return validationInputs{}, fmt.Errorf("resolve spotify output dir: %w", err)
 	}
 
 	return validationInputs{

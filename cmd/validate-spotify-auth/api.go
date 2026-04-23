@@ -18,6 +18,7 @@ const (
 	defaultSpotifyAPIBaseURL  = "https://api.spotify.com/v1"
 	defaultSpotifyAuthBaseURL = "https://accounts.spotify.com/api"
 	searchLimit               = 5
+	isrcSampleLimit           = 5
 )
 
 var (
@@ -241,7 +242,7 @@ func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, alb
 		}
 		seen[isrc] = struct{}{}
 		isrcs = append(isrcs, isrc)
-		if len(isrcs) >= searchLimit {
+		if len(isrcs) >= isrcSampleLimit {
 			return isrcs, nil
 		}
 	}

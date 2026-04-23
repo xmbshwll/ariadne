@@ -56,6 +56,7 @@ func TestTIDALIncludedHelpers(t *testing.T) {
 		{ID: "artist-1", Type: "artists", Attributes: tidalAttributes{Name: "Artist One"}},
 		{ID: "artist-1-duplicate", Type: "artists", Attributes: tidalAttributes{Name: "Artist One"}},
 		{ID: "artist-2", Type: "artists", Attributes: tidalAttributes{Title: "Artist Two"}},
+		{ID: "artist-2", Type: "albums", Attributes: tidalAttributes{Title: "Wrong Collision", ISRC: "ISRC000"}},
 		{ID: "track-1", Type: "tracks", Attributes: tidalAttributes{Title: "Track One", ISRC: "ISRC001"}},
 		{ID: "track-2", Type: "tracks", Attributes: tidalAttributes{Name: "Track Two", ISRC: "ISRC001"}},
 		{ID: "track-3", Type: "tracks", Attributes: tidalAttributes{Title: "Track Three", ISRC: "ISRC003"}},

@@ -6,9 +6,9 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/xmbshwll/ariadne.svg)](https://pkg.go.dev/github.com/xmbshwll/ariadne)
 [![Go Report Card](https://goreportcard.com/badge/github.com/xmbshwll/ariadne)](https://goreportcard.com/report/github.com/xmbshwll/ariadne)
 
-Ariadne is Go library and CLI for turning one music URL into matching album or song links on other services.
+Ariadne is a Go library and CLI for turning one music URL into matching album or song links on other services.
 
-Give it supported Spotify, Apple Music, Deezer, TIDAL, Bandcamp, SoundCloud, or YouTube Music URL. Ariadne fetches source metadata, searches other services, scores candidates, and returns best matches.
+Give it a supported Spotify, Apple Music, Deezer, TIDAL, Bandcamp, SoundCloud, or YouTube Music URL. Ariadne fetches source metadata, searches other services, scores candidates, and returns best matches.
 
 ## When Ariadne is useful
 
@@ -158,7 +158,7 @@ Advanced constructors are available when you want more control:
 
 ## How matching works
 
-At high level, Ariadne does same thing for every service:
+At a high level, Ariadne does the same thing for every service:
 
 1. parse input URL
 2. fetch canonical metadata from source service
@@ -214,7 +214,7 @@ Full configuration guide: [`docs/configuration.md`](./docs/configuration.md)
 
 ## Error handling
 
-If you use library API, branch on exported errors with `errors.Is`, not string matching.
+If you use the library API, branch on exported errors with `errors.Is`, not string matching.
 
 Common exported errors:
 

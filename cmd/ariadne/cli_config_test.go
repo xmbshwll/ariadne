@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,11 @@ import (
 	"github.com/xmbshwll/ariadne"
 )
 
+var (
+	errUnknownOops     = errors.New("unknown command \"oops\" for \"ariadne\"")
+	errDifferentCLIArg = errors.New("different error")
+)
+
 func TestArgsWithoutNamedFlagsConsumesExplicitEmptyValue(t *testing.T) {
 	args := []string{"--config", "", "resolve", "https://fixture.test/source"}
 	assert.Equal(t, []string{"resolve", "https://fixture.test/source"}, argsWithoutNamedFlags(args, "--config"))
@@ -20,6 +26,26 @@ func TestArgsWithoutNamedFlagsConsumesExplicitEmptyValue(t *testing.T) {
 func TestConfigPathFromArgsPreservesExplicitEmptyValue(t *testing.T) {
 	assert.Equal(t, "", configPathFromArgs([]string{"--config", "", "resolve", "https://fixture.test/source"}))
 	assert.Equal(t, "", configPathFromArgs([]string{"--config=", "resolve", "https://fixture.test/source"}))
+}
+
+func TestIsUnknownCommandError(t *testing.T) {
+	assert.False(t, isUnknownCommandError(nil))
+	assert.True(t, isUnknownCommandError(errUnknownOops))
+	assert.False(t, isUnknownCommandError(errDifferentCLIArg))
+}
+
+func TestParseRequestedServicesSkipsEmptySegments(t *testing.T) {
+	services, err := parseRequestedServices(" deezer, ,bandcamp,, ", ariadne.Config{})
+	require.NoError(t, err)
+	assert.Equal(t, []ariadne.ServiceName{ariadne.ServiceDeezer, ariadne.ServiceBandcamp}, services)
+}
+
+func TestParseMatchStrengthNormalizesAliases(t *testing.T) {
+	for _, raw := range []string{"very_weak", "very-weak", "veryweak", " VERY_WEAK "} {
+		strength, err := parseMatchStrength(raw)
+		require.NoError(t, err)
+		assert.Equal(t, ariadne.MatchStrengthVeryWeak, strength)
+	}
 }
 
 func TestLoadCLIConfigFromDotEnv(t *testing.T) {

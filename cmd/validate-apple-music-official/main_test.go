@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestParseFlags(t *testing.T) {
@@ -80,6 +85,46 @@ func TestAlbumISRCsAndNonEmptyStrings(t *testing.T) {
 
 	assert.Equal(t, []string{"ISRC001", "ISRC002", "ISRC003", "ISRC004", "ISRC005"}, albumISRCs(album))
 	assert.Equal(t, []string{"Artist", "Guest"}, nonEmptyStrings(" ", "Artist", "", "Guest"))
+}
+
+func TestFetchAppleMusicISRCSearchAggregatesAllQueries(t *testing.T) {
+	t.Parallel()
+
+	queried := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queried = append(queried, r.URL.Query().Get("filter[isrc]"))
+		_, _ = fmt.Fprintf(w, `{"data":[{"id":%q}]}`, r.URL.Query().Get("filter[isrc]"))
+	}))
+	defer server.Close()
+
+	inputs := validationInputs{
+		opts:           options{apiBaseURL: server.URL},
+		developerToken: "token",
+		storefront:     "us",
+	}
+
+	body, err := fetchAppleMusicISRCSearch(context.Background(), server.Client(), inputs, []string{"ISRC001", "ISRC002"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ISRC001", "ISRC002"}, queried)
+	assert.JSONEq(t, `{"data":[{"id":"ISRC001"},{"id":"ISRC002"}]}`, string(body))
+}
+
+func TestBuildValidationSummaryUsesWrittenOptionalArtifacts(t *testing.T) {
+	t.Parallel()
+
+	summary := buildValidationSummary(validationInputs{
+		rawURL:     "https://music.apple.com/us/album/example/123",
+		outputDir:  "/tmp/ariadne-apple-music-validation",
+		parsed:     &model.ParsedAlbumURL{ID: "123", CanonicalURL: "https://music.apple.com/us/album/example/123"},
+		storefront: "us",
+	}, validationArtifacts{
+		isrcBody: []byte(`{"data":[]}`),
+	}, "Example Album", "Example Artist", "2024-01-02", "Example Label", "00602567713449", []string{"ISRC001"})
+
+	artifactPaths, ok := summary["artifacts"].(map[string]string)
+	require.True(t, ok)
+	assert.NotContains(t, artifactPaths, "search_upc_official")
+	assert.Contains(t, artifactPaths["search_isrc_official"], appleMusicSearchISRCFile)
 }
 
 func TestWriteValidationArtifacts(t *testing.T) {

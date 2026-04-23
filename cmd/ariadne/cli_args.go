@@ -59,5 +59,8 @@ func isHelpArg(arg string) bool {
 }
 
 func isUnknownCommandError(err error) bool {
+	if err == nil {
+		return false
+	}
 	return strings.Contains(err.Error(), "unknown command ")
 }

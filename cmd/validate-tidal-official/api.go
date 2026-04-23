@@ -64,12 +64,14 @@ type tidalRelationshipData struct {
 }
 
 func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
-	accessToken, err := fetchAccessToken(ctx, inputs.opts.authBaseURL, inputs.appConfig.TIDAL.ClientID, inputs.appConfig.TIDAL.ClientSecret)
+	client := &http.Client{Timeout: inputs.appConfig.HTTPTimeout}
+
+	accessToken, err := fetchAccessToken(ctx, client, inputs.opts.authBaseURL, inputs.appConfig.TIDAL.ClientID, inputs.appConfig.TIDAL.ClientSecret)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("fetch tidal access token: %w", err)
 	}
 
-	albumBody, album, err := fetchTIDALAlbum(ctx, inputs, accessToken)
+	albumBody, album, err := fetchTIDALAlbum(ctx, client, inputs, accessToken)
 	if err != nil {
 		return validationArtifacts{}, err
 	}
@@ -85,7 +87,7 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 	releaseDate := strings.TrimSpace(album.Data.Attributes.ReleaseDate)
 	query := buildTIDALQuery(title, artistNames, inputs.parsed.ID)
 
-	searchBody, err := fetchTIDALAlbumSearch(ctx, inputs, accessToken, query)
+	searchBody, err := fetchTIDALAlbumSearch(ctx, client, inputs, accessToken, query)
 	if err != nil {
 		return validationArtifacts{}, err
 	}
@@ -94,10 +96,10 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 		"source-payload-official.json": albumBody,
 		"search-albums-official.json":  searchBody,
 	}
-	if err := addTIDALUPCArtifact(ctx, inputs, accessToken, targets, upc); err != nil {
+	if err := addTIDALUPCArtifact(ctx, client, inputs, accessToken, targets, upc); err != nil {
 		return validationArtifacts{}, err
 	}
-	if err := addTIDALISRCArtifact(ctx, inputs, accessToken, targets, trackISRCs); err != nil {
+	if err := addTIDALISRCArtifact(ctx, client, inputs, accessToken, targets, trackISRCs); err != nil {
 		return validationArtifacts{}, err
 	}
 
@@ -107,9 +109,9 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 	}, nil
 }
 
-func fetchTIDALAlbum(ctx context.Context, inputs validationInputs, accessToken string) ([]byte, tidalAlbumDocument, error) {
+func fetchTIDALAlbum(ctx context.Context, client *http.Client, inputs validationInputs, accessToken string) ([]byte, tidalAlbumDocument, error) {
 	albumURL := fmt.Sprintf("%s/albums/%s?countryCode=%s&include=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(inputs.parsed.ID), url.QueryEscape(inputs.countryCode), url.QueryEscape("artists,items,coverArt"))
-	albumBody, err := getAPI(ctx, albumURL, accessToken)
+	albumBody, err := getAPI(ctx, client, albumURL, accessToken)
 	if err != nil {
 		return nil, tidalAlbumDocument{}, fmt.Errorf("fetch tidal album payload: %w", err)
 	}
@@ -132,21 +134,21 @@ func buildTIDALQuery(title string, artistNames []string, albumID string) string 
 	return albumID
 }
 
-func fetchTIDALAlbumSearch(ctx context.Context, inputs validationInputs, accessToken, query string) ([]byte, error) {
+func fetchTIDALAlbumSearch(ctx context.Context, client *http.Client, inputs validationInputs, accessToken, query string) ([]byte, error) {
 	searchURL := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(query), url.QueryEscape(inputs.countryCode))
-	searchBody, err := getAPI(ctx, searchURL, accessToken)
+	searchBody, err := getAPI(ctx, client, searchURL, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("search tidal albums: %w", err)
 	}
 	return searchBody, nil
 }
 
-func addTIDALUPCArtifact(ctx context.Context, inputs validationInputs, accessToken string, targets map[string][]byte, upc string) error {
+func addTIDALUPCArtifact(ctx context.Context, client *http.Client, inputs validationInputs, accessToken string, targets map[string][]byte, upc string) error {
 	if upc == "" {
 		return nil
 	}
 	upcSearchURL := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(upc))
-	upcSearchBody, err := getAPI(ctx, upcSearchURL, accessToken)
+	upcSearchBody, err := getAPI(ctx, client, upcSearchURL, accessToken)
 	if err != nil {
 		return fmt.Errorf("search tidal albums by upc: %w", err)
 	}
@@ -154,12 +156,12 @@ func addTIDALUPCArtifact(ctx context.Context, inputs validationInputs, accessTok
 	return nil
 }
 
-func addTIDALISRCArtifact(ctx context.Context, inputs validationInputs, accessToken string, targets map[string][]byte, trackISRCs []string) error {
+func addTIDALISRCArtifact(ctx context.Context, client *http.Client, inputs validationInputs, accessToken string, targets map[string][]byte, trackISRCs []string) error {
 	if len(trackISRCs) == 0 {
 		return nil
 	}
 	isrcSearchURL := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(trackISRCs[0]))
-	isrcSearchBody, err := getAPI(ctx, isrcSearchURL, accessToken)
+	isrcSearchBody, err := getAPI(ctx, client, isrcSearchURL, accessToken)
 	if err != nil {
 		return fmt.Errorf("search tidal tracks by isrc: %w", err)
 	}
@@ -167,7 +169,7 @@ func addTIDALISRCArtifact(ctx context.Context, inputs validationInputs, accessTo
 	return nil
 }
 
-func fetchAccessToken(ctx context.Context, authBaseURL string, clientID string, clientSecret string) (string, error) {
+func fetchAccessToken(ctx context.Context, client *http.Client, authBaseURL string, clientID string, clientSecret string) (string, error) {
 	form := url.Values{}
 	form.Set("client_id", clientID)
 	form.Set("client_secret", clientSecret)
@@ -181,7 +183,7 @@ func fetchAccessToken(ctx context.Context, authBaseURL string, clientID string, 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("execute tidal token request: %w", err)
 	}
@@ -209,7 +211,7 @@ func fetchAccessToken(ctx context.Context, authBaseURL string, clientID string, 
 	return payload.AccessToken, nil
 }
 
-func getAPI(ctx context.Context, endpoint string, accessToken string) ([]byte, error) {
+func getAPI(ctx context.Context, client *http.Client, endpoint string, accessToken string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build tidal api request: %w", err)
@@ -218,7 +220,7 @@ func getAPI(ctx context.Context, endpoint string, accessToken string) ([]byte, e
 	req.Header.Set("Accept", "application/vnd.api+json")
 	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("execute tidal api request: %w", err)
 	}
@@ -261,6 +263,9 @@ func collectRelationshipNames(relations []tidalRelationshipData, included []tida
 
 	idToName := make(map[string]string, len(included))
 	for _, resource := range included {
+		if resource.Type != "artists" {
+			continue
+		}
 		resourceID := strings.TrimSpace(resource.ID)
 		name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
 		if resourceID == "" || name == "" {
