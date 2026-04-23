@@ -5,99 +5,101 @@ Ariadne is published as two Go modules from one repository:
 - library module: `github.com/xmbshwll/ariadne`
 - CLI module: `github.com/xmbshwll/ariadne/cmd`
 
-Because the CLI depends on the library, release order matters when both change together.
+If both modules changed, release order matters because CLI depends on library.
 
-## Before you tag anything
+## Before any release
 
-Run the standard checks:
+Run standard checks:
 
 ```bash
 make verify
 make verify-release
 ```
 
-These checks confirm that:
-
-- the repository still works in normal workspace-based development
-- the root library module passes with `GOWORK=off`
-- the `cmd` module passes with `GOWORK=off` against the current root checkout via a temporary local replace during verification
-- the CLI still builds from the `cmd` module directly
-
-Also check the working tree:
+Then confirm tree is clean:
 
 ```bash
 git status --short
 ```
 
-Do not cut release tags from a dirty tree.
+Do not tag from dirty tree.
+
+## Tag names
+
+- library tag: `vX.Y.Z`
+- CLI tag: `cmd/vX.Y.Z`
+
+CLI tags must include `cmd/` prefix. Plain `vX.Y.Z` only releases root library module.
 
 ## Release scenarios
 
-### Library-only release
+### 1. Library-only release
 
-Use this when only the root library changed.
+Use this when only root module changed.
+
+Steps:
 
 1. update `CHANGELOG.md`
 2. run verification
-3. create and push the root tag
+3. create and push library tag
 
 ```bash
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-This publishes the library module and the corresponding pkg.go.dev version.
+After push, Go module proxy and pkg.go.dev will pick up new library version.
 
-### CLI-only release
+### 2. CLI-only release
 
-Use this when only the `cmd` module changed and it does not need a newer library release.
+Use this when only `cmd` module changed and it should keep depending on already-published library version.
 
-1. confirm `cmd/go.mod` points at the intended library version
+Steps:
+
+1. confirm `cmd/go.mod` points at intended library version
 2. run verification
-3. create and push the CLI submodule tag
+3. create and push CLI tag
 
 ```bash
 git tag cmd/vX.Y.Z
 git push origin cmd/vX.Y.Z
 ```
 
-This publishes:
+This publishes CLI module at:
 
-- module `github.com/xmbshwll/ariadne/cmd`
-- install path `github.com/xmbshwll/ariadne/cmd/ariadne`
+- module path: `github.com/xmbshwll/ariadne/cmd`
+- install path: `github.com/xmbshwll/ariadne/cmd/ariadne`
 
-### Library and CLI release together
+### 3. Library and CLI release together
 
-Use this when both modules changed and the CLI should depend on the new library release.
+Use this when both modules changed and CLI should depend on new library version.
 
-Before the library is tagged, `make verify-release` intentionally tests the `cmd` module against the current root checkout using a temporary local replace instead of the last published library version. That keeps pre-release verification useful while `cmd/go.mod` still points at the most recent published tag.
-
-#### Step 1: release the library first
+#### Step 1: release library first
 
 1. update `CHANGELOG.md`
 2. run verification
-3. tag and push the root module
+3. tag and push root library module
 
 ```bash
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-Optionally confirm the version is visible through the module proxy:
+Optional check:
 
 ```bash
 go list -m github.com/xmbshwll/ariadne@vX.Y.Z
 ```
 
-#### Step 2: update the CLI module to the released library version
+#### Step 2: update CLI to released library version
 
-Set `cmd/go.mod` to the new root library version:
+Set `cmd/go.mod` to new root version:
 
 ```go
 require github.com/xmbshwll/ariadne vX.Y.Z
 ```
 
-Then tidy and verify from the CLI module without the workspace:
+Then verify CLI module without workspace:
 
 ```bash
 cd cmd
@@ -107,16 +109,27 @@ GOWORK=off go build ./...
 cd ..
 ```
 
-That is the state the published CLI module should be released from.
-
-#### Step 3: tag the CLI module
+#### Step 3: release CLI module
 
 ```bash
 git tag cmd/vX.Y.Z
 git push origin cmd/vX.Y.Z
 ```
 
-## Recommended checks after publishing
+## Why `make verify-release` exists
+
+`make verify-release` checks release-shaped workflows, not only normal workspace development.
+
+It verifies that:
+
+- root library module passes with `GOWORK=off`
+- CLI module can be tested independently
+- CLI module can be built independently
+- when root changes are not tagged yet, CLI verification can still run against current root checkout through temporary local `replace`
+
+That keeps pre-release verification useful before new library tag exists.
+
+## Post-release checks
 
 ### Library module
 
@@ -142,11 +155,4 @@ Open:
 
 - `https://pkg.go.dev/github.com/xmbshwll/ariadne`
 
-If indexing is slow, request a fetch manually.
-
-## Tag format reminder
-
-- library tag: `vX.Y.Z`
-- CLI tag: `cmd/vX.Y.Z`
-
-Do not tag the CLI module with a plain `vX.Y.Z`. Go submodules require the directory prefix in the tag name.
+If indexing is slow, request refresh manually from pkg.go.dev.
