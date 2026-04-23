@@ -27,16 +27,7 @@ func Run[Inputs RunInputs, Artifacts any](cfg RunConfig[Inputs, Artifacts]) erro
 		return err
 	}
 
-	stdout := cfg.Stdout
-	if stdout == nil {
-		stdout = io.Discard
-	}
-
-	ctx := context.Background()
-	cancel := func() {}
-	if cfg.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
-	}
+	ctx, cancel := runContext(cfg.Timeout)
 	defer cancel()
 
 	artifacts, err := cfg.Collect(ctx, inputs)
@@ -47,8 +38,22 @@ func Run[Inputs RunInputs, Artifacts any](cfg RunConfig[Inputs, Artifacts]) erro
 		return err
 	}
 
-	if _, err := fmt.Fprintln(stdout, inputs.SuccessMessage()); err != nil {
+	if _, err := fmt.Fprintln(runStdout(cfg.Stdout), inputs.SuccessMessage()); err != nil {
 		return fmt.Errorf("write success message: %w", err)
 	}
 	return nil
+}
+
+func runStdout(stdout io.Writer) io.Writer {
+	if stdout == nil {
+		return io.Discard
+	}
+	return stdout
+}
+
+func runContext(timeout time.Duration) (context.Context, func()) {
+	if timeout <= 0 {
+		return context.Background(), func() {}
+	}
+	return context.WithTimeout(context.Background(), timeout)
 }

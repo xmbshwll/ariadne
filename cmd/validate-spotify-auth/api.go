@@ -73,15 +73,15 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 		return validationArtifacts{}, err
 	}
 
-	upcBody, err := getAPI(ctx, apiURL(apiBaseURL, "/search?q="+url.QueryEscape("upc:"+upc)+"&type=album&limit="+strconv.Itoa(searchLimit)), token)
+	upcBody, err := getAPI(ctx, spotifySearchURL(apiBaseURL, "upc:"+upc, "album"), token)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search spotify by upc: %w", err)
 	}
-	isrcBody, err := getAPI(ctx, apiURL(apiBaseURL, "/search?q="+url.QueryEscape("isrc:"+isrcs[0])+"&type=track&limit="+strconv.Itoa(searchLimit)), token)
+	isrcBody, err := getAPI(ctx, spotifySearchURL(apiBaseURL, "isrc:"+isrcs[0], "track"), token)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search spotify by isrc: %w", err)
 	}
-	metadataBody, err := getAPI(ctx, apiURL(apiBaseURL, "/search?q="+url.QueryEscape(metadata)+"&type=album&limit="+strconv.Itoa(searchLimit)), token)
+	metadataBody, err := getAPI(ctx, spotifySearchURL(apiBaseURL, metadata, "album"), token)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search spotify by metadata: %w", err)
 	}
@@ -246,6 +246,11 @@ func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, alb
 		}
 	}
 	return isrcs, nil
+}
+
+func spotifySearchURL(apiBaseURL string, query string, entityType string) string {
+	path := "/search?q=" + url.QueryEscape(query) + "&type=" + entityType + "&limit=" + strconv.Itoa(searchLimit)
+	return apiURL(apiBaseURL, path)
 }
 
 func normalizeBaseURL(baseURL string) string {

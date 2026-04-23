@@ -75,19 +75,22 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 		return validationInputs{}, fmt.Errorf("resolve tidal output dir: %w", err)
 	}
 
-	countryCode := strings.ToUpper(strings.TrimSpace(opts.countryCode))
-	if countryCode == "" {
-		countryCode = defaultCountryCode
-	}
-
 	return validationInputs{
 		opts:        opts,
 		appConfig:   appConfig,
 		rawURL:      rawURL,
 		outputDir:   outputDir,
 		parsed:      parsed,
-		countryCode: countryCode,
+		countryCode: normalizeCountryCode(opts.countryCode),
 	}, nil
+}
+
+func normalizeCountryCode(raw string) string {
+	countryCode := strings.ToUpper(strings.TrimSpace(raw))
+	if countryCode == "" {
+		return defaultCountryCode
+	}
+	return countryCode
 }
 
 func parseFlags(args []string) (options, error) {

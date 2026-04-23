@@ -60,18 +60,21 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 		return validationArtifacts{}, err
 	}
 
-	title := strings.TrimSpace(album.Attributes.Name)
-	artist := strings.TrimSpace(album.Attributes.ArtistName)
-	releaseDate := strings.TrimSpace(album.Attributes.ReleaseDate)
-	label := strings.TrimSpace(album.Attributes.RecordLabel)
-	upc := strings.TrimSpace(album.Attributes.UPC)
+	attrs := album.Attributes
+	title := strings.TrimSpace(attrs.Name)
+	artist := strings.TrimSpace(attrs.ArtistName)
+	releaseDate := strings.TrimSpace(attrs.ReleaseDate)
+	label := strings.TrimSpace(attrs.RecordLabel)
+	upc := strings.TrimSpace(attrs.UPC)
 	isrcs := albumISRCs(album)
-	metadataQuery := strings.TrimSpace(strings.Join([]string{title, artist}, " "))
-	if metadataQuery == "" {
+	metadataTerm := strings.TrimSpace(strings.Join([]string{title, artist}, " "))
+	if metadataTerm == "" {
 		return validationArtifacts{}, errAppleMusicMetadataMissing
 	}
 
-	metadataBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/catalog/"+inputs.storefront+"/search?types=albums&limit="+strconv.Itoa(defaultSearchLimit)+"&term="+url.QueryEscape(metadataQuery), inputs.developerToken)
+	catalogBaseURL := appleMusicCatalogBaseURL(inputs)
+	metadataURL := catalogBaseURL + "/search?types=albums&limit=" + strconv.Itoa(defaultSearchLimit) + "&term=" + url.QueryEscape(metadataTerm)
+	metadataBody, err := getAPI(ctx, metadataURL, inputs.developerToken)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search official apple music metadata: %w", err)
 	}
@@ -105,7 +108,8 @@ func resolveStorefront(flagValue, parsedRegion, configuredStorefront string) str
 }
 
 func fetchAppleMusicAlbum(ctx context.Context, inputs validationInputs) ([]byte, appleMusicAlbumResource, error) {
-	albumBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/catalog/"+inputs.storefront+"/albums/"+inputs.parsed.ID+"?include=tracks", inputs.developerToken)
+	albumURL := appleMusicCatalogBaseURL(inputs) + "/albums/" + inputs.parsed.ID + "?include=tracks"
+	albumBody, err := getAPI(ctx, albumURL, inputs.developerToken)
 	if err != nil {
 		return nil, appleMusicAlbumResource{}, fmt.Errorf("fetch official apple music album payload: %w", err)
 	}
@@ -124,7 +128,8 @@ func fetchAppleMusicUPCSearch(ctx context.Context, inputs validationInputs, upc 
 	if upc == "" {
 		return nil, nil
 	}
-	upcBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/catalog/"+inputs.storefront+"/albums?filter[upc]="+url.QueryEscape(upc), inputs.developerToken)
+	upcURL := appleMusicCatalogBaseURL(inputs) + "/albums?filter[upc]=" + url.QueryEscape(upc)
+	upcBody, err := getAPI(ctx, upcURL, inputs.developerToken)
 	if err != nil {
 		return nil, fmt.Errorf("search official apple music by upc: %w", err)
 	}
@@ -135,11 +140,16 @@ func fetchAppleMusicISRCSearch(ctx context.Context, inputs validationInputs, isr
 	if len(isrcs) == 0 {
 		return nil, nil
 	}
-	isrcBody, err := getAPI(ctx, inputs.opts.apiBaseURL+"/catalog/"+inputs.storefront+"/songs?filter[isrc]="+url.QueryEscape(isrcs[0]), inputs.developerToken)
+	isrcURL := appleMusicCatalogBaseURL(inputs) + "/songs?filter[isrc]=" + url.QueryEscape(isrcs[0])
+	isrcBody, err := getAPI(ctx, isrcURL, inputs.developerToken)
 	if err != nil {
 		return nil, fmt.Errorf("search official apple music by isrc: %w", err)
 	}
 	return isrcBody, nil
+}
+
+func appleMusicCatalogBaseURL(inputs validationInputs) string {
+	return inputs.opts.apiBaseURL + "/catalog/" + inputs.storefront
 }
 
 func getAPI(ctx context.Context, endpoint string, developerToken string) ([]byte, error) {
