@@ -241,7 +241,7 @@ func collectTrackISRCs(ctx context.Context, apiBaseURL string, token string, alb
 		}
 		seen[isrc] = struct{}{}
 		isrcs = append(isrcs, isrc)
-		if len(isrcs) >= 5 {
+		if len(isrcs) >= searchLimit {
 			return isrcs, nil
 		}
 	}

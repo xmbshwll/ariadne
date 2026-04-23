@@ -155,13 +155,16 @@ func TestRun(t *testing.T) {
 		collectCalled := false
 		writeCalled := false
 
-		err := Run([]string{"--flag"}, &stdout, 100*time.Millisecond,
-			func(args []string) (testRunInputs, error) {
+		err := Run(RunConfig[testRunInputs, string]{
+			Args:    []string{"--flag"},
+			Stdout:  &stdout,
+			Timeout: 100 * time.Millisecond,
+			Load: func(args []string) (testRunInputs, error) {
 				loadCalled = true
 				assert.Equal(t, []string{"--flag"}, args)
 				return testRunInputs{outputDir: artifactDir, successMessage: "done"}, nil
 			},
-			func(ctx context.Context, inputs testRunInputs) (string, error) {
+			Collect: func(ctx context.Context, inputs testRunInputs) (string, error) {
 				collectCalled = true
 				deadline, ok := ctx.Deadline()
 				assert.True(t, ok)
@@ -169,18 +172,38 @@ func TestRun(t *testing.T) {
 				assert.Equal(t, artifactDir, inputs.OutputDir())
 				return "artifact", nil
 			},
-			func(outputDir string, artifact string) error {
+			Write: func(outputDir string, artifact string) error {
 				writeCalled = true
 				assert.Equal(t, artifactDir, outputDir)
 				assert.Equal(t, "artifact", artifact)
 				return nil
 			},
-		)
+		})
 		require.NoError(t, err)
 		assert.True(t, loadCalled)
 		assert.True(t, collectCalled)
 		assert.True(t, writeCalled)
 		assert.Equal(t, "done\n", stdout.String())
+	})
+
+	t.Run("uses background context when timeout non positive", func(t *testing.T) {
+		t.Parallel()
+
+		err := Run(RunConfig[testRunInputs, string]{
+			Timeout: 0,
+			Load: func([]string) (testRunInputs, error) {
+				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil
+			},
+			Collect: func(ctx context.Context, _ testRunInputs) (string, error) {
+				_, ok := ctx.Deadline()
+				assert.False(t, ok)
+				return "artifact", nil
+			},
+			Write: func(string, string) error {
+				return nil
+			},
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("returns load error", func(t *testing.T) {
@@ -189,19 +212,21 @@ func TestRun(t *testing.T) {
 		collectCalled := false
 		writeCalled := false
 
-		err := Run([]string(nil), nil, time.Second,
-			func([]string) (testRunInputs, error) {
+		err := Run(RunConfig[testRunInputs, string]{
+			Stdout:  nil,
+			Timeout: time.Second,
+			Load: func([]string) (testRunInputs, error) {
 				return testRunInputs{}, errTestLoadFailed
 			},
-			func(context.Context, testRunInputs) (string, error) {
+			Collect: func(context.Context, testRunInputs) (string, error) {
 				collectCalled = true
 				return "", nil
 			},
-			func(string, string) error {
+			Write: func(string, string) error {
 				writeCalled = true
 				return nil
 			},
-		)
+		})
 		require.ErrorIs(t, err, errTestLoadFailed)
 		assert.False(t, collectCalled)
 		assert.False(t, writeCalled)
@@ -212,18 +237,19 @@ func TestRun(t *testing.T) {
 
 		writeCalled := false
 
-		err := Run([]string(nil), nil, time.Second,
-			func([]string) (testRunInputs, error) {
+		err := Run(RunConfig[testRunInputs, string]{
+			Timeout: time.Second,
+			Load: func([]string) (testRunInputs, error) {
 				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil
 			},
-			func(context.Context, testRunInputs) (string, error) {
+			Collect: func(context.Context, testRunInputs) (string, error) {
 				return "", errTestCollectFailed
 			},
-			func(string, string) error {
+			Write: func(string, string) error {
 				writeCalled = true
 				return nil
 			},
-		)
+		})
 		require.ErrorIs(t, err, errTestCollectFailed)
 		assert.False(t, writeCalled)
 	})
@@ -231,17 +257,18 @@ func TestRun(t *testing.T) {
 	t.Run("returns write error", func(t *testing.T) {
 		t.Parallel()
 
-		err := Run([]string(nil), nil, time.Second,
-			func([]string) (testRunInputs, error) {
+		err := Run(RunConfig[testRunInputs, string]{
+			Timeout: time.Second,
+			Load: func([]string) (testRunInputs, error) {
 				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil
 			},
-			func(context.Context, testRunInputs) (string, error) {
+			Collect: func(context.Context, testRunInputs) (string, error) {
 				return "artifact", nil
 			},
-			func(string, string) error {
+			Write: func(string, string) error {
 				return errTestWriteFailed
 			},
-		)
+		})
 		require.ErrorIs(t, err, errTestWriteFailed)
 	})
 }

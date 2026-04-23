@@ -16,7 +16,14 @@ func main() {
 }
 
 func run(args []string) error {
-	if err := validation.Run(args, os.Stdout, 30*time.Second, loadValidationInputs, collectValidationArtifacts, writeValidationArtifacts); err != nil {
+	if err := validation.Run(validation.RunConfig[validationInputs, validationArtifacts]{
+		Args:    args,
+		Stdout:  os.Stdout,
+		Timeout: 30 * time.Second,
+		Load:    loadValidationInputs,
+		Collect: collectValidationArtifacts,
+		Write:   writeValidationArtifacts,
+	}); err != nil {
 		return fmt.Errorf("run spotify validation: %w", err)
 	}
 	return nil

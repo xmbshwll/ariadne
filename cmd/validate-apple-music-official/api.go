@@ -179,7 +179,7 @@ func albumISRCs(album appleMusicAlbumResource) []string {
 		}
 		seen[isrc] = struct{}{}
 		isrcs = append(isrcs, isrc)
-		if len(isrcs) >= 5 {
+		if len(isrcs) >= defaultSearchLimit {
 			break
 		}
 	}

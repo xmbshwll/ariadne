@@ -105,7 +105,7 @@ func TestWriteValidationArtifacts(t *testing.T) {
 		path := filepath.Join(outputDir, name)
 		content, readErr := os.ReadFile(path)
 		require.NoError(t, readErr)
-		assert.NotEmpty(t, content)
+		require.NotEmpty(t, content)
 		assert.Equal(t, byte('\n'), content[len(content)-1])
 	}
 }

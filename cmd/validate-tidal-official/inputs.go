@@ -77,7 +77,7 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 
 	countryCode := strings.ToUpper(strings.TrimSpace(opts.countryCode))
 	if countryCode == "" {
-		countryCode = "US"
+		countryCode = defaultCountryCode
 	}
 
 	return validationInputs{

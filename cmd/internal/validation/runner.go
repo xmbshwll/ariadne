@@ -12,24 +12,38 @@ type RunInputs interface {
 	SuccessMessage() string
 }
 
-func Run[Inputs RunInputs, Artifacts any](args []string, stdout io.Writer, timeout time.Duration, load func([]string) (Inputs, error), collect func(context.Context, Inputs) (Artifacts, error), write func(string, Artifacts) error) error {
-	inputs, err := load(args)
+type RunConfig[Inputs RunInputs, Artifacts any] struct {
+	Args    []string
+	Stdout  io.Writer
+	Timeout time.Duration
+	Load    func([]string) (Inputs, error)
+	Collect func(context.Context, Inputs) (Artifacts, error)
+	Write   func(string, Artifacts) error
+}
+
+func Run[Inputs RunInputs, Artifacts any](cfg RunConfig[Inputs, Artifacts]) error {
+	inputs, err := cfg.Load(cfg.Args)
 	if err != nil {
 		return err
 	}
 
+	stdout := cfg.Stdout
 	if stdout == nil {
 		stdout = io.Discard
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx := context.Background()
+	cancel := func() {}
+	if cfg.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+	}
 	defer cancel()
 
-	artifacts, err := collect(ctx, inputs)
+	artifacts, err := cfg.Collect(ctx, inputs)
 	if err != nil {
 		return err
 	}
-	if err := write(inputs.OutputDir(), artifacts); err != nil {
+	if err := cfg.Write(inputs.OutputDir(), artifacts); err != nil {
 		return err
 	}
 

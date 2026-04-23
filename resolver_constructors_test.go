@@ -18,9 +18,9 @@ func TestNewWithClientBuildsDefaultServiceAdaptersOnce(t *testing.T) {
 			return serviceAdapterSet{}
 		},
 	}}
-	defer func() {
+	t.Cleanup(func() {
 		defaultServiceBindings = originalBindings
-	}()
+	})
 
 	resolver := NewWithClient(&http.Client{}, DefaultConfig())
 	require.NotNil(t, resolver)
