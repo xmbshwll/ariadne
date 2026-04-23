@@ -171,6 +171,15 @@ func TestParseResolveArgs(t *testing.T) {
 			wantServices:    []ariadne.ServiceName{ariadne.ServiceDeezer, ariadne.ServiceBandcamp},
 		},
 		{
+			name:            "service filter aliases",
+			args:            []string{"--services=apple-music,yt_music", "https://www.deezer.com/album/12047952"},
+			wantURL:         "https://www.deezer.com/album/12047952",
+			wantStorefront:  "de",
+			wantFormat:      "json",
+			wantMinStrength: ariadne.MatchStrengthVeryWeak,
+			wantServices:    []ariadne.ServiceName{ariadne.ServiceAppleMusic, ariadne.ServiceYouTubeMusic},
+		},
+		{
 			name:            "flag overrides env storefront",
 			args:            []string{"--apple-music-storefront=gb", "https://www.deezer.com/album/12047952"},
 			wantURL:         "https://www.deezer.com/album/12047952",

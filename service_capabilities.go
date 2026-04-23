@@ -4,13 +4,10 @@
 // gating is applied.
 package ariadne
 
-import "strings"
-
-var serviceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
+import "github.com/xmbshwll/ariadne/internal/services"
 
 var (
 	supportedCapabilitiesByService = buildServiceCapabilitiesByName(defaultServiceBindings)
-	serviceNameByLookupKey         = buildServiceNamesByLookupKey(defaultServiceBindings)
 	supportedTargetServices        = collectSupportedServicesInOrder(defaultServiceOrder.albumTargets, supportedCapabilitiesByService, supportsAnyTarget)
 	supportedSongTargetServices    = collectSupportedServicesInOrder(defaultServiceOrder.songTargets, supportedCapabilitiesByService, func(capability serviceCapability) bool {
 		return capability.supportsSongTarget
@@ -20,12 +17,11 @@ var (
 
 // LookupServiceName normalizes a service name or alias into the canonical public service name.
 func LookupServiceName(raw string) (ServiceName, bool) {
-	service, ok := serviceNameByLookupKey[normalizeServiceLookupKey(raw)]
-	return service, ok
-}
-
-func normalizeServiceLookupKey(raw string) string {
-	return serviceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(raw)))
+	service, ok := services.Lookup(raw)
+	if !ok {
+		return "", false
+	}
+	return fromInternalServiceName(service), true
 }
 
 // DescribeService reports Ariadne's built-in service support, independent of config.
@@ -140,18 +136,6 @@ func buildServiceCapabilitiesByName(bindings []serviceBinding) map[ServiceName]s
 		capabilities[binding.capability.name] = binding.capability
 	}
 	return capabilities
-}
-
-func buildServiceNamesByLookupKey(bindings []serviceBinding) map[string]ServiceName {
-	services := make(map[string]ServiceName, len(bindings)*2)
-	for _, binding := range bindings {
-		capability := binding.capability
-		services[normalizeServiceLookupKey(string(capability.name))] = capability.name
-		for _, alias := range capability.aliases {
-			services[normalizeServiceLookupKey(alias)] = capability.name
-		}
-	}
-	return services
 }
 
 func collectSupportedServicesInOrder(order []ServiceName, capabilities map[ServiceName]serviceCapability, supported func(serviceCapability) bool) []ServiceName {

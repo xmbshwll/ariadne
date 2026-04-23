@@ -14,6 +14,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 	"github.com/xmbshwll/ariadne/internal/resolve"
+	"github.com/xmbshwll/ariadne/internal/services"
 )
 
 type songURLParser func(string) (*model.ParsedURL, error)
@@ -55,11 +56,15 @@ type serviceBinding struct {
 	build      func(client *http.Client, config Config) serviceAdapterSet
 }
 
+func builtinServiceAliases(service ServiceName) []string {
+	return services.AliasesFor(toInternalServiceName(service))
+}
+
 var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                 ServiceAppleMusic,
-			aliases:              []string{"applemusic"},
+			aliases:              builtinServiceAliases(ServiceAppleMusic),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
@@ -87,7 +92,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                 ServiceBandcamp,
-			aliases:              []string{"bandcamp"},
+			aliases:              builtinServiceAliases(ServiceBandcamp),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
@@ -102,7 +107,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                 ServiceDeezer,
-			aliases:              []string{"deezer"},
+			aliases:              builtinServiceAliases(ServiceDeezer),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
@@ -117,7 +122,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                 ServiceSoundCloud,
-			aliases:              []string{"soundcloud"},
+			aliases:              builtinServiceAliases(ServiceSoundCloud),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
@@ -132,7 +137,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                 ServiceSpotify,
-			aliases:              []string{"spotify"},
+			aliases:              builtinServiceAliases(ServiceSpotify),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
@@ -155,7 +160,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                 ServiceTIDAL,
-			aliases:              []string{"tidal"},
+			aliases:              builtinServiceAliases(ServiceTIDAL),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
@@ -178,7 +183,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                ServiceYouTubeMusic,
-			aliases:             []string{"youtubemusic", "ytmusic"},
+			aliases:             builtinServiceAliases(ServiceYouTubeMusic),
 			supportsAlbumSource: true,
 			supportsAlbumTarget: true,
 		},
@@ -190,7 +195,7 @@ var defaultServiceBindings = []serviceBinding{
 	{
 		capability: serviceCapability{
 			name:                ServiceAmazonMusic,
-			aliases:             []string{"amazonmusic", "amazon"},
+			aliases:             builtinServiceAliases(ServiceAmazonMusic),
 			supportsAlbumSource: true,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
