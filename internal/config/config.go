@@ -7,18 +7,7 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
-)
-
-var targetServiceLookupNormalizer = strings.NewReplacer("-", "", "_", "")
-
-var targetServicesByLookupKey = buildTargetServiceLookupMap(
-	targetServiceLookup(model.ServiceAppleMusic, "applemusic"),
-	targetServiceLookup(model.ServiceBandcamp),
-	targetServiceLookup(model.ServiceDeezer),
-	targetServiceLookup(model.ServiceSoundCloud),
-	targetServiceLookup(model.ServiceSpotify),
-	targetServiceLookup(model.ServiceTIDAL),
-	targetServiceLookup(model.ServiceYouTubeMusic, "youtubemusic", "ytmusic"),
+	"github.com/xmbshwll/ariadne/internal/services"
 )
 
 const defaultAppleMusicStorefront = "us"
@@ -122,10 +111,10 @@ func normalizedTargetServices(value string) []model.ServiceName {
 		return nil
 	}
 
-	services := make([]model.ServiceName, 0)
+	resolved := make([]model.ServiceName, 0)
 	seen := make(map[model.ServiceName]struct{})
 	for part := range strings.SplitSeq(value, ",") {
-		service, ok := lookupTargetService(part)
+		service, ok := services.LookupTarget(part)
 		if !ok {
 			continue
 		}
@@ -133,39 +122,10 @@ func normalizedTargetServices(value string) []model.ServiceName {
 			continue
 		}
 		seen[service] = struct{}{}
-		services = append(services, service)
+		resolved = append(resolved, service)
 	}
-	if len(services) == 0 {
+	if len(resolved) == 0 {
 		return nil
 	}
-	return services
-}
-
-func lookupTargetService(value string) (model.ServiceName, bool) {
-	service, ok := targetServicesByLookupKey[normalizeTargetServiceLookupKey(value)]
-	return service, ok
-}
-
-func normalizeTargetServiceLookupKey(value string) string {
-	return targetServiceLookupNormalizer.Replace(strings.ToLower(strings.TrimSpace(value)))
-}
-
-type targetServiceAliases struct {
-	service model.ServiceName
-	aliases []string
-}
-
-func targetServiceLookup(service model.ServiceName, aliases ...string) targetServiceAliases {
-	return targetServiceAliases{service: service, aliases: aliases}
-}
-
-func buildTargetServiceLookupMap(entries ...targetServiceAliases) map[string]model.ServiceName {
-	lookup := make(map[string]model.ServiceName, len(entries)*2)
-	for _, entry := range entries {
-		lookup[normalizeTargetServiceLookupKey(string(entry.service))] = entry.service
-		for _, alias := range entry.aliases {
-			lookup[normalizeTargetServiceLookupKey(alias)] = entry.service
-		}
-	}
-	return lookup
+	return resolved
 }

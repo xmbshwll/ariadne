@@ -1,53 +1,14 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 
 	"github.com/xmbshwll/ariadne"
 )
-
-var (
-	errNonPositiveCLIHTTPTimeout = errors.New("ARIADNE_HTTP_TIMEOUT must be positive")
-
-	matchStrengthByName = map[string]ariadne.MatchStrength{
-		"veryweak":  ariadne.MatchStrengthVeryWeak,
-		"very_weak": ariadne.MatchStrengthVeryWeak,
-		"weak":      ariadne.MatchStrengthWeak,
-		"probable":  ariadne.MatchStrengthProbable,
-		"strong":    ariadne.MatchStrengthStrong,
-	}
-)
-
-type resolveMode string
-
-const (
-	resolveModeAuto       resolveMode = "auto"
-	resolveModeSong       resolveMode = "song"
-	resolveModeAlbum      resolveMode = "album"
-	defaultResolveTimeout             = 20 * time.Second
-)
-
-type resolveConfig struct {
-	inputURL          string
-	forceSong         bool
-	forceAlbum        bool
-	verbose           bool
-	format            string
-	requestedServices string
-	minStrengthName   string
-	minStrength       ariadne.MatchStrength
-	resolutionTimeout time.Duration
-	resolverConfig    ariadne.Config
-}
 
 func defaultResolveConfig(baseConfig ariadne.Config) resolveConfig {
 	return resolveConfig{
@@ -57,65 +18,6 @@ func defaultResolveConfig(baseConfig ariadne.Config) resolveConfig {
 		resolutionTimeout: defaultResolveTimeout,
 		resolverConfig:    baseConfig,
 	}
-}
-
-func configPathFromArgs(args []string) string {
-	if value, ok := namedFlagValueFromArgs(args, "--config"); ok {
-		return value
-	}
-	return defaultConfigPath
-}
-
-func loadCLIConfigWithLogger(configPath string, logger *cliLogger) (ariadne.Config, error) {
-	cfg := ariadne.DefaultConfig()
-	v := viper.New()
-	v.AutomaticEnv()
-
-	trimmedConfigPath := strings.TrimSpace(configPath)
-	if trimmedConfigPath == "" {
-		logger.Debugf("cli config file loading disabled")
-	} else {
-		v.SetConfigFile(trimmedConfigPath)
-		if looksLikeEnvFile(trimmedConfigPath) {
-			v.SetConfigType("env")
-		}
-		if err := v.ReadInConfig(); err != nil {
-			var notFound viper.ConfigFileNotFoundError
-			if !errors.As(err, &notFound) && !errors.Is(err, os.ErrNotExist) {
-				return ariadne.Config{}, fmt.Errorf("load config %q: %w", trimmedConfigPath, err)
-			}
-			logger.Debugf("cli config file not found path=%q", trimmedConfigPath)
-		} else {
-			logger.Debugf("config file loaded path=%q", v.ConfigFileUsed())
-		}
-	}
-
-	trimmedValue := func(key string) string {
-		return strings.TrimSpace(v.GetString(key))
-	}
-	logRawCLIConfigValues(logger, trimmedValue)
-
-	httpTimeout := trimmedValue("ARIADNE_HTTP_TIMEOUT")
-	if httpTimeout != "" {
-		parsedTimeout, err := time.ParseDuration(httpTimeout)
-		if err != nil {
-			return ariadne.Config{}, fmt.Errorf("parse ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, err)
-		}
-		if parsedTimeout <= 0 {
-			return ariadne.Config{}, fmt.Errorf("invalid ARIADNE_HTTP_TIMEOUT %q: %w", httpTimeout, errNonPositiveCLIHTTPTimeout)
-		}
-		cfg.HTTPTimeout = parsedTimeout
-	}
-
-	loaded := ariadne.LoadConfigFromEnv(trimmedValue)
-	loaded.HTTPTimeout = cfg.HTTPTimeout
-	logNormalizedCLIConfig(logger, loaded)
-	return loaded, nil
-}
-
-func looksLikeEnvFile(path string) bool {
-	base := filepath.Base(path)
-	return strings.HasPrefix(base, ".env") || strings.EqualFold(filepath.Ext(base), ".env")
 }
 
 func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
@@ -227,101 +129,4 @@ func resolveModeFromConfig(config resolveConfig) resolveMode {
 		return resolveModeAlbum
 	}
 	return resolveModeAuto
-}
-
-func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.ServiceName, error) {
-	if strings.TrimSpace(raw) == "" {
-		services := append([]ariadne.ServiceName(nil), appConfig.TargetServices...)
-		for _, service := range services {
-			if err := validateRequestedService(service, appConfig); err != nil {
-				return nil, err
-			}
-		}
-		return services, nil
-	}
-
-	services := make([]ariadne.ServiceName, 0)
-	seen := map[ariadne.ServiceName]struct{}{}
-	for part := range strings.SplitSeq(raw, ",") {
-		service, err := normalizeRequestedService(part)
-		if err != nil {
-			return nil, err
-		}
-		if err := validateRequestedService(service, appConfig); err != nil {
-			return nil, err
-		}
-		if _, ok := seen[service]; ok {
-			continue
-		}
-		seen[service] = struct{}{}
-		services = append(services, service)
-	}
-	if len(services) == 0 {
-		return nil, errNoTargetServicesSelected
-	}
-	return services, nil
-}
-
-func normalizeRequestedService(raw string) (ariadne.ServiceName, error) {
-	normalized := normalizeLookupKey(raw)
-	if normalized == "" {
-		return "", errNoTargetServicesSelected
-	}
-	if normalized == "amazonmusic" || normalized == "amazon" {
-		return "", errAmazonMusicTargetService
-	}
-	service, ok := ariadne.LookupServiceName(normalized)
-	if !ok || !ariadne.SupportsTarget(service) {
-		return "", fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
-	}
-	return service, nil
-}
-
-func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
-	switch service {
-	case ariadne.ServiceSpotify:
-		if !appConfig.SpotifyEnabled() {
-			return errSpotifyTargetCredentials
-		}
-	case ariadne.ServiceTIDAL:
-		if !appConfig.TIDALEnabled() {
-			return errTIDALTargetCredentials
-		}
-	}
-	return nil
-}
-
-func normalizeOutputFormat(raw string) (string, error) {
-	format := strings.ToLower(strings.TrimSpace(raw))
-	if format == "" {
-		return outputFormatJSON, nil
-	}
-	if format != outputFormatJSON && format != outputFormatYAML && format != outputFormatCSV {
-		return "", fmt.Errorf("%w %q (expected json, yaml, or csv)", errUnsupportedFormat, format)
-	}
-	return format, nil
-}
-
-func parseMatchStrength(raw string) (ariadne.MatchStrength, error) {
-	normalized := normalizeLookupKey(raw)
-	if normalized == "" {
-		return ariadne.MatchStrengthVeryWeak, nil
-	}
-	strength, ok := matchStrengthByName[normalized]
-	if !ok {
-		return "", fmt.Errorf("%w %q (expected very_weak, weak, probable, or strong)", errUnsupportedMinStrength, raw)
-	}
-	return strength, nil
-}
-
-func normalizeLookupKey(raw string) string {
-	return valueNormalizer.Replace(strings.ToLower(strings.TrimSpace(raw)))
-}
-
-func serviceNames(services []ariadne.ServiceName) []string {
-	names := make([]string, 0, len(services))
-	for _, service := range services {
-		names = append(names, string(service))
-	}
-	return names
 }
