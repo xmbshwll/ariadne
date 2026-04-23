@@ -63,6 +63,14 @@ type validationInputs struct {
 	storefront     string
 }
 
+func (i validationInputs) OutputDir() string {
+	return i.outputDir
+}
+
+func (i validationInputs) SuccessMessage() string {
+	return "wrote Apple Music official artifacts to " + i.outputDir
+}
+
 type validationArtifacts struct {
 	albumBody    []byte
 	metadataBody []byte
@@ -103,23 +111,9 @@ type appleMusicSongAttributes struct {
 }
 
 func run(args []string) error {
-	inputs, err := loadValidationInputs(args)
-	if err != nil {
-		return err
+	if err := validation.Run(args, os.Stdout, 30*time.Second, loadValidationInputs, collectValidationArtifacts, writeValidationArtifacts); err != nil {
+		return fmt.Errorf("run apple music validation: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	artifacts, err := collectValidationArtifacts(ctx, inputs)
-	if err != nil {
-		return err
-	}
-	if err := writeValidationArtifacts(inputs.outputDir, artifacts); err != nil {
-		return err
-	}
-
-	fmt.Printf("wrote Apple Music official artifacts to %s\n", inputs.outputDir)
 	return nil
 }
 
@@ -285,24 +279,29 @@ func buildValidationSummary(inputs validationInputs, title, artist, releaseDate,
 }
 
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
-	if err := writePrettyJSON(filepath.Join(outputDir, "source-payload-official.json"), artifacts.albumBody); err != nil {
-		return err
+	sourcePayloadPath := filepath.Join(outputDir, "source-payload-official.json")
+	if err := validation.WritePrettyJSON(sourcePayloadPath, artifacts.albumBody); err != nil {
+		return fmt.Errorf("write %s: %w", sourcePayloadPath, err)
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-metadata-official.json"), artifacts.metadataBody); err != nil {
-		return err
+	metadataPath := filepath.Join(outputDir, "search-metadata-official.json")
+	if err := validation.WritePrettyJSON(metadataPath, artifacts.metadataBody); err != nil {
+		return fmt.Errorf("write %s: %w", metadataPath, err)
 	}
 	if len(artifacts.upcBody) > 0 {
-		if err := writePrettyJSON(filepath.Join(outputDir, "search-upc-official.json"), artifacts.upcBody); err != nil {
-			return err
+		upcPath := filepath.Join(outputDir, "search-upc-official.json")
+		if err := validation.WritePrettyJSON(upcPath, artifacts.upcBody); err != nil {
+			return fmt.Errorf("write %s: %w", upcPath, err)
 		}
 	}
 	if len(artifacts.isrcBody) > 0 {
-		if err := writePrettyJSON(filepath.Join(outputDir, "search-isrc-official.json"), artifacts.isrcBody); err != nil {
-			return err
+		isrcPath := filepath.Join(outputDir, "search-isrc-official.json")
+		if err := validation.WritePrettyJSON(isrcPath, artifacts.isrcBody); err != nil {
+			return fmt.Errorf("write %s: %w", isrcPath, err)
 		}
 	}
-	if err := writeJSON(filepath.Join(outputDir, "official-summary.json"), artifacts.summary); err != nil {
-		return err
+	summaryPath := filepath.Join(outputDir, "official-summary.json")
+	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
+		return fmt.Errorf("write %s: %w", summaryPath, err)
 	}
 	return nil
 }
@@ -382,24 +381,4 @@ func nonEmptyStrings(values ...string) []string {
 		out = append(out, value)
 	}
 	return out
-}
-
-func writePrettyJSON(path string, raw []byte) error {
-	var payload any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("decode raw json for %s: %w", path, err)
-	}
-	return writeJSON(path, payload)
-}
-
-func writeJSON(path string, payload any) error {
-	content, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode %s: %w", path, err)
-	}
-	content = append(content, '\n')
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
 }

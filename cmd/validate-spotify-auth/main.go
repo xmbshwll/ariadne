@@ -52,23 +52,9 @@ func main() {
 }
 
 func run(args []string) error {
-	inputs, err := loadValidationInputs(args)
-	if err != nil {
-		return err
+	if err := validation.Run(args, os.Stdout, 30*time.Second, loadValidationInputs, collectValidationArtifacts, writeValidationArtifacts); err != nil {
+		return fmt.Errorf("run spotify validation: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	artifacts, err := collectValidationArtifacts(ctx, inputs)
-	if err != nil {
-		return err
-	}
-	if err := writeValidationArtifacts(inputs.outputDir, artifacts); err != nil {
-		return err
-	}
-
-	fmt.Printf("wrote Spotify authenticated artifacts to %s\n", inputs.outputDir)
 	return nil
 }
 
@@ -201,20 +187,25 @@ func buildValidationSummary(inputs validationInputs, album spotifyAlbumPayload, 
 }
 
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
-	if err := writePrettyJSON(filepath.Join(outputDir, "source-payload-api.json"), artifacts.albumBody); err != nil {
-		return err
+	sourcePayloadPath := filepath.Join(outputDir, "source-payload-api.json")
+	if err := validation.WritePrettyJSON(sourcePayloadPath, artifacts.albumBody); err != nil {
+		return fmt.Errorf("write %s: %w", sourcePayloadPath, err)
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-upc-results.json"), artifacts.upcBody); err != nil {
-		return err
+	searchUPCPath := filepath.Join(outputDir, "search-upc-results.json")
+	if err := validation.WritePrettyJSON(searchUPCPath, artifacts.upcBody); err != nil {
+		return fmt.Errorf("write %s: %w", searchUPCPath, err)
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-isrc-results.json"), artifacts.isrcBody); err != nil {
-		return err
+	searchISRCPath := filepath.Join(outputDir, "search-isrc-results.json")
+	if err := validation.WritePrettyJSON(searchISRCPath, artifacts.isrcBody); err != nil {
+		return fmt.Errorf("write %s: %w", searchISRCPath, err)
 	}
-	if err := writePrettyJSON(filepath.Join(outputDir, "search-metadata-results.json"), artifacts.metadataBody); err != nil {
-		return err
+	searchMetadataPath := filepath.Join(outputDir, "search-metadata-results.json")
+	if err := validation.WritePrettyJSON(searchMetadataPath, artifacts.metadataBody); err != nil {
+		return fmt.Errorf("write %s: %w", searchMetadataPath, err)
 	}
-	if err := writeJSON(filepath.Join(outputDir, "authenticated-summary.json"), artifacts.summary); err != nil {
-		return err
+	summaryPath := filepath.Join(outputDir, "authenticated-summary.json")
+	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
+		return fmt.Errorf("write %s: %w", summaryPath, err)
 	}
 	return nil
 }
@@ -233,6 +224,14 @@ type validationInputs struct {
 	rawURL    string
 	outputDir string
 	parsed    *model.ParsedAlbumURL
+}
+
+func (i validationInputs) OutputDir() string {
+	return i.outputDir
+}
+
+func (i validationInputs) SuccessMessage() string {
+	return "wrote Spotify authenticated artifacts to " + i.outputDir
 }
 
 type validationArtifacts struct {
@@ -417,24 +416,4 @@ func normalizeBaseURL(baseURL string) string {
 
 func apiURL(baseURL string, path string) string {
 	return normalizeBaseURL(baseURL) + "/" + strings.TrimLeft(path, "/")
-}
-
-func writePrettyJSON(path string, raw []byte) error {
-	var payload any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("decode raw json for %s: %w", path, err)
-	}
-	return writeJSON(path, payload)
-}
-
-func writeJSON(path string, payload any) error {
-	content, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode %s: %w", path, err)
-	}
-	content = append(content, '\n')
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
 }

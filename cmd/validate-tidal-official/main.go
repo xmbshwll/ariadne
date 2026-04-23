@@ -58,6 +58,14 @@ type validationInputs struct {
 	countryCode string
 }
 
+func (i validationInputs) OutputDir() string {
+	return i.outputDir
+}
+
+func (i validationInputs) SuccessMessage() string {
+	return "wrote TIDAL official artifacts to " + i.outputDir
+}
+
 type validationArtifacts struct {
 	targets map[string][]byte
 	summary map[string]any
@@ -109,23 +117,9 @@ func main() {
 }
 
 func run(args []string) error {
-	inputs, err := loadValidationInputs(args)
-	if err != nil {
-		return err
+	if err := validation.Run(args, os.Stdout, 30*time.Second, loadValidationInputs, collectValidationArtifacts, writeValidationArtifacts); err != nil {
+		return fmt.Errorf("run tidal validation: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	artifacts, err := collectValidationArtifacts(ctx, inputs)
-	if err != nil {
-		return err
-	}
-	if err := writeValidationArtifacts(inputs.outputDir, artifacts); err != nil {
-		return err
-	}
-
-	fmt.Printf("wrote TIDAL official artifacts to %s\n", inputs.outputDir)
 	return nil
 }
 
@@ -304,12 +298,14 @@ func buildValidationSummary(inputs validationInputs, title string, artistNames [
 
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
 	for name, raw := range artifacts.targets {
-		if err := writePrettyJSON(filepath.Join(outputDir, name), raw); err != nil {
-			return err
+		path := filepath.Join(outputDir, name)
+		if err := validation.WritePrettyJSON(path, raw); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
 		}
 	}
-	if err := writeJSON(filepath.Join(outputDir, "official-summary.json"), artifacts.summary); err != nil {
-		return err
+	summaryPath := filepath.Join(outputDir, "official-summary.json")
+	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
+		return fmt.Errorf("write %s: %w", summaryPath, err)
 	}
 	return nil
 }
@@ -510,24 +506,4 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func writePrettyJSON(path string, raw []byte) error {
-	var payload any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("decode raw json for %s: %w", path, err)
-	}
-	return writeJSON(path, payload)
-}
-
-func writeJSON(path string, payload any) error {
-	content, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode %s: %w", path, err)
-	}
-	content = append(content, '\n')
-	if err := os.WriteFile(path, content, 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
 }

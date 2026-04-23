@@ -1,44 +1,42 @@
 package ariadne
 
 import (
-	"net/http"
-
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-func defaultSourceAdapters(client *http.Client, config Config) []resolve.SourceAdapter {
+func defaultSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SourceAdapter {
 	return orderedAdapters(
-		buildDefaultServiceAdapters(client, config),
+		sets,
 		defaultServiceOrder.albumSources,
 		func(set serviceAdapterSet) resolve.SourceAdapter { return set.albumSource },
 	)
 }
 
-func defaultTargetAdapters(client *http.Client, config Config) []resolve.TargetAdapter {
+func defaultTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.TargetAdapter {
 	targets := orderedAdapters(
-		buildDefaultServiceAdapters(client, config),
+		sets,
 		defaultServiceOrder.albumTargets,
 		func(set serviceAdapterSet) resolve.TargetAdapter { return set.albumTarget },
 	)
-	return filterAdaptersByServiceName(targets, config.TargetServices)
+	return filterAdaptersByServiceName(targets, services)
 }
 
-func defaultSongSourceAdapters(client *http.Client, config Config) []resolve.SongSourceAdapter {
+func defaultSongSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SongSourceAdapter {
 	return orderedAdapters(
-		buildDefaultServiceAdapters(client, config),
+		sets,
 		defaultServiceOrder.songSources,
 		func(set serviceAdapterSet) resolve.SongSourceAdapter { return set.songSource },
 	)
 }
 
-func defaultSongTargetAdapters(client *http.Client, config Config) []resolve.SongTargetAdapter {
+func defaultSongTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.SongTargetAdapter {
 	targets := orderedAdapters(
-		buildDefaultServiceAdapters(client, config),
+		sets,
 		defaultServiceOrder.songTargets,
 		func(set serviceAdapterSet) resolve.SongTargetAdapter { return set.songTarget },
 	)
-	return filterAdaptersByServiceName(targets, config.TargetServices)
+	return filterAdaptersByServiceName(targets, services)
 }
 
 func orderedAdapters[T comparable](sets map[ServiceName]serviceAdapterSet, services []ServiceName, pick func(serviceAdapterSet) T) []T {
