@@ -62,7 +62,7 @@ func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, 
 				return target.SearchByMetadata(ctx, source)
 			},
 			filter: func(candidates []model.CandidateAlbum) []model.CandidateAlbum {
-				return filterAlbumMetadataFallbackCandidates(target.Service(), source, candidates, weights)
+				return filterAppleMusicMetadataFallbackCandidates(target.Service(), source, candidates, weights)
 			},
 		},
 	}
@@ -89,29 +89,4 @@ func songTargetSearchLayers(target SongTargetAdapter, source model.CanonicalSong
 			},
 		},
 	}
-}
-
-func filterAlbumMetadataFallbackCandidates(
-	targetService model.ServiceName,
-	source model.CanonicalAlbum,
-	candidates []model.CandidateAlbum,
-	weights score.Weights,
-) []model.CandidateAlbum {
-	if targetService != model.ServiceAppleMusic || len(candidates) == 0 {
-		return candidates
-	}
-
-	filtered := make([]model.CandidateAlbum, 0, len(candidates))
-	for _, candidate := range candidates {
-		ranking := score.RankAlbums(source, []model.CandidateAlbum{candidate}, weights)
-		if len(ranking.Ranked) == 0 {
-			continue
-		}
-		ranked := ranking.Ranked[0]
-		if ranked.Score <= 0 || !ranked.Evidence.HasTitleOrArtist() {
-			continue
-		}
-		filtered = append(filtered, candidate)
-	}
-	return filtered
 }

@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
-	"sync"
 
 	"golang.org/x/sync/errgroup"
 
@@ -20,8 +17,6 @@ var (
 	// ErrNoSourceAdapters indicates that the resolver was created without source adapters.
 	ErrNoSourceAdapters = errors.New("no source adapters configured")
 )
-
-const appleMusicCascadeMinimumScore = 100
 
 // SourceAdapter fetches canonical album metadata from a parsed source URL.
 type SourceAdapter interface {
@@ -119,7 +114,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		Matches:  matches,
 	}
 
-	if err := r.resolveAppleMusicWithCascadedIdentifiers(ctx, targets, *sourceAlbum, resolution.Matches); err != nil {
+	if err := newAppleMusicEnrichmentPolicy(r.weights).apply(ctx, targets, *sourceAlbum, resolution.Matches); err != nil {
 		return nil, fmt.Errorf("resolve apple music cascaded search: %w", err)
 	}
 	return resolution, nil
@@ -144,135 +139,6 @@ func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlb
 			return source.ParseAlbumURL(raw)
 		},
 	)
-}
-
-func (r *Resolver) resolveAppleMusicWithCascadedIdentifiers(
-	ctx context.Context,
-	targets []TargetAdapter,
-	source model.CanonicalAlbum,
-	matches map[model.ServiceName]MatchResult,
-) error {
-	appleMusicTargets := appleMusicTargets(targets)
-	if len(appleMusicTargets) == 0 {
-		return nil
-	}
-
-	enriched := enrichAlbumIdentifiersFromStrongMatches(source, matches)
-	if !albumIdentifiersChanged(source, enriched) {
-		return nil
-	}
-
-	var matchesMu sync.Mutex
-	return resolveTargetsConcurrently(ctx, appleMusicTargets, func(groupCtx context.Context, target TargetAdapter) error {
-		candidates, err := collectAlbumTargetCandidates(groupCtx, target, enriched, r.weights)
-		if err != nil {
-			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
-		}
-		ranking := score.RankAlbums(enriched, candidates, r.weights)
-
-		newResult := albumMatchResultFromRanking(target.Service(), ranking)
-		matchesMu.Lock()
-		existing := matches[target.Service()]
-		if newResult.Best != nil && (existing.Best == nil || newResult.Best.Score > existing.Best.Score) {
-			matches[target.Service()] = newResult
-		}
-		matchesMu.Unlock()
-		return nil
-	})
-}
-
-func appleMusicTargets(targets []TargetAdapter) []TargetAdapter {
-	filtered := make([]TargetAdapter, 0, len(targets))
-	for _, target := range targets {
-		if target.Service() != model.ServiceAppleMusic {
-			continue
-		}
-		filtered = append(filtered, target)
-	}
-	return filtered
-}
-
-func enrichAlbumIdentifiersFromStrongMatches(source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) model.CanonicalAlbum {
-	enriched := cloneAlbum(source)
-	strongMatches := strongIntermediateAlbumMatches(matches)
-	for _, match := range strongMatches {
-		mergeAlbumIdentifiers(&enriched, match.Candidate)
-	}
-	return enriched
-}
-
-func cloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
-	clone := album
-	clone.Artists = append([]string(nil), album.Artists...)
-	clone.NormalizedArtists = append([]string(nil), album.NormalizedArtists...)
-	clone.EditionHints = append([]string(nil), album.EditionHints...)
-	clone.Tracks = append([]model.CanonicalTrack(nil), album.Tracks...)
-	return clone
-}
-
-func strongIntermediateAlbumMatches(matches map[model.ServiceName]MatchResult) []ScoredMatch {
-	strongMatches := make([]ScoredMatch, 0, len(matches))
-	for service, match := range matches {
-		if service == model.ServiceAppleMusic || match.Best == nil || match.Best.Score < appleMusicCascadeMinimumScore {
-			continue
-		}
-		strongMatches = append(strongMatches, *match.Best)
-	}
-	sort.SliceStable(strongMatches, func(i, j int) bool {
-		if strongMatches[i].Score == strongMatches[j].Score {
-			leftService := string(strongMatches[i].Candidate.Service)
-			rightService := string(strongMatches[j].Candidate.Service)
-			if leftService == rightService {
-				return strongMatches[i].Candidate.CandidateID < strongMatches[j].Candidate.CandidateID
-			}
-			return leftService < rightService
-		}
-		return strongMatches[i].Score > strongMatches[j].Score
-	})
-	return strongMatches
-}
-
-func mergeAlbumIdentifiers(album *model.CanonicalAlbum, candidate model.CandidateAlbum) {
-	if album.UPC == "" && candidate.UPC != "" {
-		album.UPC = candidate.UPC
-	}
-	mergeTrackISRCs(album, candidate.Tracks)
-}
-
-func mergeTrackISRCs(album *model.CanonicalAlbum, tracks []model.CanonicalTrack) {
-	if len(tracks) == 0 {
-		return
-	}
-	if len(album.Tracks) == 0 {
-		album.Tracks = append([]model.CanonicalTrack(nil), tracks...)
-		return
-	}
-	if len(album.Tracks) != len(tracks) {
-		return
-	}
-	for i := range album.Tracks {
-		if album.Tracks[i].ISRC != "" || tracks[i].ISRC == "" {
-			continue
-		}
-		album.Tracks[i].ISRC = tracks[i].ISRC
-	}
-}
-
-func albumIdentifiersChanged(source model.CanonicalAlbum, enriched model.CanonicalAlbum) bool {
-	if source.UPC != enriched.UPC {
-		return true
-	}
-	sourceISRCs := collectISRCs(source)
-	enrichedISRCs := collectISRCs(enriched)
-	if len(sourceISRCs) != len(enrichedISRCs) {
-		return true
-	}
-	for i := range sourceISRCs {
-		if !strings.EqualFold(sourceISRCs[i], enrichedISRCs[i]) {
-			return true
-		}
-	}
-	return false
 }
 
 type fatalParseFailure interface {

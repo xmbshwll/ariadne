@@ -24,17 +24,25 @@ _Avoid_: fetch, scrape
 The step that searches a Music Service for candidates matching a hydrated source entity.
 _Avoid_: lookup, discovery
 
+**Identifier Enrichment**:
+The repair step that copies missing UPC or ISRC identifiers from strong intermediate matches into a source copy for a follow-up Target Search.
+_Avoid_: cascade hack, backfill
+
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
 - A **Music Service** exposes zero or more **Capabilities**.
 - **Runtime Hydration** is required for source **Capabilities** but can be intentionally deferred for parse-only **Music Services**.
 - **Target Search** is required for target **Capabilities**.
+- **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
 
 ## Example dialogue
 
 > **Dev:** "Does **Amazon Music** have a song source **Capability**?"
 > **Domain expert:** "It can parse the URL, but **Runtime Hydration** is deferred, so the **Provider Catalog** must report that constraint explicitly."
+>
+> **Dev:** "Why does Apple Music run another **Target Search** after Spotify matches?"
+> **Domain expert:** "That is **Identifier Enrichment**: Spotify can provide UPC or ISRC evidence that Apple Music metadata search could not see."
 
 ## Flagged ambiguities
 
