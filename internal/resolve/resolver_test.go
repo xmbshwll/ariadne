@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -172,35 +173,28 @@ func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t
 
 	var appleUPC string
 	var appleISRCs []string
+	spotifyTarget := newTargetAdapterMock(model.ServiceSpotify)
+	spotifyTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
+
+	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
+	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
+		appleUPC = upc
+		if upc != "3618021182192" {
+			return nil, nil
+		}
+		return []model.CandidateAlbum{appleCandidate}, nil
+	})
+	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+		appleISRCs = append([]string(nil), isrcs...)
+		return nil, nil
+	})
+	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
+
 	resolver := New(
 		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]TargetAdapter{
-			mockTargetAdapter{
-				service:      model.ServiceSpotify,
-				searchByUPC:  func(context.Context, string) ([]model.CandidateAlbum, error) { return nil, nil },
-				searchByISRC: func(context.Context, []string) ([]model.CandidateAlbum, error) { return nil, nil },
-				searchByMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-					return []model.CandidateAlbum{spotifyCandidate}, nil
-				},
-			},
-			mockTargetAdapter{
-				service: model.ServiceAppleMusic,
-				searchByUPC: func(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
-					appleUPC = upc
-					if upc != "3618021182192" {
-						return nil, nil
-					}
-					return []model.CandidateAlbum{appleCandidate}, nil
-				},
-				searchByISRC: func(_ context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-					appleISRCs = append([]string(nil), isrcs...)
-					return nil, nil
-				},
-				searchByMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-					return nil, nil
-				},
-			},
-		},
+		[]TargetAdapter{spotifyTarget, appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -229,18 +223,16 @@ func TestResolverResolveAlbumFiltersAppleMusicMetadataFallbackCandidates(t *test
 		trackCount: 3,
 		explicit:   true,
 	})
+	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
+	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(
+		[]model.CandidateAlbum{noTitleArtistCandidate, nonPositiveCandidate},
+		nil,
+	)
 	resolver := New(
 		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]TargetAdapter{
-			mockTargetAdapter{
-				service:      model.ServiceAppleMusic,
-				searchByUPC:  func(context.Context, string) ([]model.CandidateAlbum, error) { return nil, nil },
-				searchByISRC: func(context.Context, []string) ([]model.CandidateAlbum, error) { return nil, nil },
-				searchByMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-					return []model.CandidateAlbum{noTitleArtistCandidate, nonPositiveCandidate}, nil
-				},
-			},
-		},
+		[]TargetAdapter{appleTarget},
 		score.DefaultWeights(),
 	)
 
