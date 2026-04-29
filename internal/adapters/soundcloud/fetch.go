@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -44,26 +42,18 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build soundcloud request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute soundcloud request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("%w %d: %s", errUnexpectedSoundCloudStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read soundcloud response: %w", err)
-	}
-	return body, nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
+	return adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			URL:          requestURL,
+			UserAgent:    adapterutil.BrowserUserAgent,
+			BuildError:   "build soundcloud request",
+			ExecuteError: "execute soundcloud request",
+			StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
+		},
+		ReadError: "read soundcloud response",
+	})
 }
 
 func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {

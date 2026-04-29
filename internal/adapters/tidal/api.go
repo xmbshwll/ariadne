@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -27,28 +27,23 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return fmt.Errorf("build api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute api request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%w %d: %s", errUnexpectedTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode api response: %w", errors.Join(errMalformedTIDALAPIResponse, err))
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client: a.client,
+			URL:    endpoint,
+			Headers: map[string]string{
+				"Authorization": "Bearer " + token,
+				"Accept":        "application/vnd.api+json",
+			},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build api request",
+			ExecuteError: "execute api request",
+			StatusError:  adapterutil.StatusError(errUnexpectedTIDALAPIStatus),
+		},
+		DecodeError:       "decode api response",
+		MalformedResponse: errMalformedTIDALAPIResponse,
+	}, target)
 }
 
 func (a *Adapter) accessToken() (string, error) {
@@ -91,29 +86,27 @@ func (a *Adapter) refreshAccessToken(ctx context.Context) (string, error) {
 	form.Set("client_secret", a.clientSecret)
 	form.Set("grant_type", "client_credentials")
 	endpoint := a.authBaseURL + "/oauth2/token"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	body, err := adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			Method:       http.MethodPost,
+			URL:          endpoint,
+			Body:         strings.NewReader(form.Encode()),
+			Headers:      map[string]string{"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build token request",
+			ExecuteError: "execute token request",
+			StatusError:  adapterutil.StatusError(errUnexpectedTIDALTokenStatus),
+		},
+		ReadError:    "read token response",
+		MaxBodyBytes: maxTIDALTokenResponseBytes,
+		TooLarge: func(maxBytes int64) error {
+			return fmt.Errorf("read token response: %w (%d bytes max)", errTIDALTokenResponseTooLarge, maxBytes)
+		},
+	})
 	if err != nil {
-		return "", fmt.Errorf("build token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute token request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	limitedBody := io.LimitReader(resp.Body, maxTIDALTokenResponseBytes+1)
-	body, err := io.ReadAll(limitedBody)
-	if err != nil {
-		return "", fmt.Errorf("read token response: %w", err)
-	}
-	if len(body) > maxTIDALTokenResponseBytes {
-		return "", fmt.Errorf("read token response: %w (%d bytes max)", errTIDALTokenResponseTooLarge, maxTIDALTokenResponseBytes)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w %d: %s", errUnexpectedTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
+		//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
+		return "", err
 	}
 	var token tokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {

@@ -2,13 +2,11 @@ package applemusic
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -76,26 +74,18 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 }
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return fmt.Errorf("build apple music request: %w", err)
-	}
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute apple music request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%w %d: %s", errUnexpectedAppleMusicStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode apple music response: %w", err)
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			URL:          requestURL,
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build apple music request",
+			ExecuteError: "execute apple music request",
+			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicStatus),
+		},
+		DecodeError: "decode apple music response",
+	}, target)
 }
 
 func firstSongLookupItem(items []lookupItem) (lookupItem, bool) {
