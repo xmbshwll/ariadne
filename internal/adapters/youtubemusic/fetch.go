@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -35,7 +36,8 @@ func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.C
 	if parsed.Service != model.ServiceYouTubeMusic {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedYouTubeMusicService, parsed.Service)
 	}
-	return nil, ErrDeferredRuntimeAdapter
+	//nolint:wrapcheck // Preserve the deferred-runtime sentinel for errors.Is callers.
+	return nil, adapterutil.NewRuntimeDeferredError(model.ServiceYouTubeMusic, songRuntimeDeferred)
 }
 
 func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*model.CanonicalAlbum, error) {

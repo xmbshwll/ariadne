@@ -334,6 +334,28 @@ func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testi
 	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
 }
 
+func TestResolveAlbumReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
+	resolver := New(DefaultConfig())
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://music.amazon.com/albums/B0064UPU4G")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrRuntimeDeferred)
+	assert.ErrorIs(t, err, ErrAmazonMusicDeferred)
+	assert.False(t, errors.Is(err, ErrYouTubeMusicDeferred))
+}
+
+func TestResolveSongReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
+	resolver := New(DefaultConfig())
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://music.youtube.com/watch?v=dQw4w9WgXcQ")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrRuntimeDeferred)
+	assert.ErrorIs(t, err, ErrYouTubeMusicDeferred)
+	assert.False(t, errors.Is(err, ErrAmazonMusicDeferred))
+}
+
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
 	resolver := NewWithAdapters([]SourceAdapter{newLibrarySourceAdapter()}, []TargetAdapter{newFailingLibraryTargetAdapter()})
 

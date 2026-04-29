@@ -108,6 +108,8 @@ func newResolver(
 //     or one whose albumResolver guard detects a missing inner resolver
 //   - ErrUnsupportedURL when no registered source adapter recognizes inputURL
 //   - ErrNoSourceAdapters when the resolver was built without any source adapters
+//   - ErrRuntimeDeferred when a recognized URL can parse, but runtime hydration
+//     is intentionally deferred
 //   - ErrAmazonMusicDeferred when an Amazon Music URL is recognized but runtime
 //     resolution is intentionally deferred
 //   - ErrAppleMusicCredentialsNotConfigured when an Apple Music official API
@@ -141,8 +143,12 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 //     or one whose songResolver guard detects a missing inner resolver
 //   - ErrUnsupportedURL when no registered source adapter recognizes inputURL
 //   - ErrNoSourceAdapters when the resolver was built without any source adapters
+//   - ErrRuntimeDeferred when a recognized URL can parse, but runtime hydration
+//     is intentionally deferred
 //   - ErrAmazonMusicDeferred when an Amazon Music URL is recognized but runtime
 //     resolution is intentionally deferred
+//   - ErrYouTubeMusicDeferred when a YouTube Music song URL is recognized but
+//     runtime song hydration is intentionally deferred
 //   - ErrAppleMusicCredentialsNotConfigured when an Apple Music official API
 //     operation requires developer token credentials
 //   - ErrSpotifyCredentialsNotConfigured when a Spotify Web API operation

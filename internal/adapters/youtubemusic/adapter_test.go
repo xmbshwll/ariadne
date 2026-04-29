@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 func TestFetchAlbum(t *testing.T) {
@@ -42,6 +43,7 @@ func TestParseSongURLAndDeferredFetch(t *testing.T) {
 
 	_, err = adapter.FetchSong(context.Background(), *parsed)
 	assert.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
+	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
 }
 
 func TestUnsupportedIdentifierSearches(t *testing.T) {

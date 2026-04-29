@@ -221,7 +221,9 @@ Common exported errors:
 - `ariadne.ErrUnsupportedURL`
 - `ariadne.ErrNoSourceAdapters`
 - `ariadne.ErrResolverNotInitialized`
+- `ariadne.ErrRuntimeDeferred`
 - `ariadne.ErrAmazonMusicDeferred`
+- `ariadne.ErrYouTubeMusicDeferred`
 - `ariadne.ErrAppleMusicCredentialsNotConfigured`
 - `ariadne.ErrSpotifyCredentialsNotConfigured`
 - `ariadne.ErrTIDALCredentialsNotConfigured`
@@ -235,6 +237,9 @@ Example:
 resolution, err := resolver.ResolveAlbum(ctx, inputURL)
 if err != nil {
 	if errors.Is(err, ariadne.ErrUnsupportedURL) {
+		return err
+	}
+	if errors.Is(err, ariadne.ErrRuntimeDeferred) {
 		return err
 	}
 	if errors.Is(err, ariadne.ErrSpotifyCredentialsNotConfigured) {

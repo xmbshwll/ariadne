@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
+const runtimeDeferredReason = "no viable public metadata fetch or search path exists"
+
 var (
-	ErrDeferredRuntimeAdapter  = errors.New("amazon music runtime adapter is deferred: no viable public metadata fetch or search path exists")
+	// ErrDeferredRuntimeAdapter indicates that an Amazon Music URL parsed successfully, but runtime hydration is intentionally deferred.
+	ErrDeferredRuntimeAdapter  = adapterutil.RuntimeDeferredService(model.ServiceAmazonMusic)
 	errUnexpectedAmazonService = errors.New("unexpected amazon music service")
 )
 
@@ -45,14 +49,16 @@ func (a *Adapter) FetchAlbum(_ context.Context, parsed model.ParsedAlbumURL) (*m
 	if parsed.Service != model.ServiceAmazonMusic {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedAmazonService, parsed.Service)
 	}
-	return nil, ErrDeferredRuntimeAdapter
+	//nolint:wrapcheck // Preserve the deferred-runtime sentinel for errors.Is callers.
+	return nil, adapterutil.NewRuntimeDeferredError(model.ServiceAmazonMusic, runtimeDeferredReason)
 }
 
 func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceAmazonMusic {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedAmazonService, parsed.Service)
 	}
-	return nil, ErrDeferredRuntimeAdapter
+	//nolint:wrapcheck // Preserve the deferred-runtime sentinel for errors.Is callers.
+	return nil, adapterutil.NewRuntimeDeferredError(model.ServiceAmazonMusic, runtimeDeferredReason)
 }
 
 func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {

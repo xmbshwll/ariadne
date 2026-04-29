@@ -8,18 +8,20 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
-	defaultBaseURL = "https://music.youtube.com"
-	searchLimit    = 5
+	defaultBaseURL      = "https://music.youtube.com"
+	searchLimit         = 5
+	songRuntimeDeferred = "no stable public song metadata fetch path exists"
 )
 
 var (
 	// ErrDeferredRuntimeAdapter indicates that a YouTube Music URL parsed successfully, but runtime song hydration is intentionally deferred.
-	ErrDeferredRuntimeAdapter = errors.New("youtube music song runtime adapter is deferred: no stable public song metadata fetch path exists")
+	ErrDeferredRuntimeAdapter = adapterutil.RuntimeDeferredService(model.ServiceYouTubeMusic)
 
 	canonicalURLPattern   = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
 	ogTitlePattern        = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
