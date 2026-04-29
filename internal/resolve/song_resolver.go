@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -84,29 +83,27 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 	source := *sourceSong
 
 	targets := excludeTargetService(r.targets, source.Service)
-	resolution := &SongResolution{
+	matches, err := resolveTargetMatches(
+		ctx,
+		targets,
+		source,
+		r.collectCandidates,
+		func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
+			return score.RankSongs(source, candidates, r.weights)
+		},
+		songMatchResultFromRanking,
+		"song candidates",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve song target searches: %w", err)
+	}
+
+	return &SongResolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
 		Source:   source,
-		Matches:  make(map[model.ServiceName]SongMatchResult, len(targets)),
-	}
-
-	var matchesMu sync.Mutex
-	if err := resolveTargetsConcurrently(ctx, targets, func(groupCtx context.Context, target SongTargetAdapter) error {
-		candidates, err := r.collectCandidates(groupCtx, target, source)
-		if err != nil {
-			return fmt.Errorf("collect song candidates from %s: %w", target.Service(), err)
-		}
-		ranking := score.RankSongs(source, candidates, r.weights)
-
-		matchesMu.Lock()
-		resolution.Matches[target.Service()] = songMatchResultFromRanking(target.Service(), ranking)
-		matchesMu.Unlock()
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("resolve song target searches: %w", err)
-	}
-	return resolution, nil
+		Matches:  matches,
+	}, nil
 }
 
 func (r *SongResolver) fetchSourceSong(ctx context.Context, sourceAdapter SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
@@ -131,20 +128,23 @@ func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.P
 }
 
 func (r *SongResolver) collectCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
-	return collectCandidateLayers(ctx, songCandidateKey,
-		candidateLayer[model.CandidateSong]{
-			enabled: source.ISRC != "",
-			search: func(ctx context.Context) ([]model.CandidateSong, error) {
-				return target.SearchSongByISRC(ctx, source.ISRC)
-			},
-		},
-		candidateLayer[model.CandidateSong]{
-			enabled: true,
-			search: func(ctx context.Context) ([]model.CandidateSong, error) {
-				return target.SearchSongByMetadata(ctx, source)
-			},
-		},
-	)
+	combined := []model.CandidateSong{}
+	seen := map[string]struct{}{}
+
+	if source.ISRC != "" {
+		candidates, err := target.SearchSongByISRC(ctx, source.ISRC)
+		if err != nil {
+			return nil, fmt.Errorf("SearchSongByISRC %s (%T) failed: %w", target.Service(), target, err)
+		}
+		combined = appendUniqueByKey(combined, seen, candidates, songCandidateKey)
+	}
+
+	metadataCandidates, err := target.SearchSongByMetadata(ctx, source)
+	if err != nil {
+		return nil, fmt.Errorf("SearchSongByMetadata %s (%T) failed: %w", target.Service(), target, err)
+	}
+	combined = appendUniqueByKey(combined, seen, metadataCandidates, songCandidateKey)
+	return combined, nil
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {

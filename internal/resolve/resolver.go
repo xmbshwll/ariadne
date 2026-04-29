@@ -95,27 +95,26 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 	}
 
 	targets := excludeTargetService(r.targets, sourceAlbum.Service)
+	matches, err := resolveTargetMatches(
+		ctx,
+		targets,
+		*sourceAlbum,
+		r.collectCandidates,
+		func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
+			return score.RankAlbums(source, candidates, r.weights)
+		},
+		albumMatchResultFromRanking,
+		"candidates",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve target searches: %w", err)
+	}
+
 	resolution := &Resolution{
 		InputURL: inputURL,
 		Parsed:   *parsed,
 		Source:   *sourceAlbum,
-		Matches:  make(map[model.ServiceName]MatchResult, len(targets)),
-	}
-
-	var matchesMu sync.Mutex
-	if err := resolveTargetsConcurrently(ctx, targets, func(groupCtx context.Context, target TargetAdapter) error {
-		candidates, err := r.collectCandidates(groupCtx, target, *sourceAlbum)
-		if err != nil {
-			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
-		}
-		ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
-
-		matchesMu.Lock()
-		resolution.Matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
-		matchesMu.Unlock()
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("resolve target searches: %w", err)
+		Matches:  matches,
 	}
 
 	if err := r.resolveAppleMusicWithCascadedIdentifiers(ctx, targets, *sourceAlbum, resolution.Matches); err != nil {
@@ -361,11 +360,6 @@ func parseSourceAdapter[S any, P any](sources []S, inputURL string, parse func(S
 	return zero, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
 }
 
-type candidateLayer[T any] struct {
-	enabled bool
-	search  func(context.Context) ([]T, error)
-}
-
 func resolveTargetsConcurrently[T interface{ Service() model.ServiceName }](ctx context.Context, targets []T, resolve func(context.Context, T) error) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 	for _, target := range targets {
@@ -375,22 +369,6 @@ func resolveTargetsConcurrently[T interface{ Service() model.ServiceName }](ctx 
 	}
 	//nolint:wrapcheck // Preserve worker errors without adding another wrapper layer.
 	return group.Wait()
-}
-
-func collectCandidateLayers[T any](ctx context.Context, keyFunc func(T) string, layers ...candidateLayer[T]) ([]T, error) {
-	combined := []T{}
-	seen := map[string]struct{}{}
-	for _, layer := range layers {
-		if !layer.enabled {
-			continue
-		}
-		candidates, err := layer.search(ctx)
-		if err != nil {
-			return nil, err
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, keyFunc)
-	}
-	return combined, nil
 }
 
 func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {
