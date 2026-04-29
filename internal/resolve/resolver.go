@@ -99,7 +99,9 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		ctx,
 		targets,
 		*sourceAlbum,
-		r.collectCandidates,
+		func(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+			return collectAlbumTargetCandidates(ctx, target, source, r.weights)
+		},
 		func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
 			return score.RankAlbums(source, candidates, r.weights)
 		},
@@ -144,36 +146,6 @@ func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlb
 	)
 }
 
-func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	combined := []model.CandidateAlbum{}
-	seen := map[string]struct{}{}
-	isrcs := collectISRCs(source)
-
-	if source.UPC != "" {
-		candidates, err := target.SearchByUPC(ctx, source.UPC)
-		if err != nil {
-			return nil, fmt.Errorf("SearchByUPC %s (%T) failed: %w", target.Service(), target, err)
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
-	}
-
-	if len(isrcs) > 0 {
-		candidates, err := target.SearchByISRC(ctx, isrcs)
-		if err != nil {
-			return nil, fmt.Errorf("SearchByISRC %s (%T) failed: %w", target.Service(), target, err)
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
-	}
-
-	metadataCandidates, err := target.SearchByMetadata(ctx, source)
-	if err != nil {
-		return nil, fmt.Errorf("SearchByMetadata %s (%T) failed: %w", target.Service(), target, err)
-	}
-	metadataCandidates = r.filterMetadataFallbackCandidates(target, source, metadataCandidates)
-	combined = appendUniqueByKey(combined, seen, metadataCandidates, albumCandidateKey)
-	return combined, nil
-}
-
 func (r *Resolver) resolveAppleMusicWithCascadedIdentifiers(
 	ctx context.Context,
 	targets []TargetAdapter,
@@ -192,7 +164,7 @@ func (r *Resolver) resolveAppleMusicWithCascadedIdentifiers(
 
 	var matchesMu sync.Mutex
 	return resolveTargetsConcurrently(ctx, appleMusicTargets, func(groupCtx context.Context, target TargetAdapter) error {
-		candidates, err := r.collectCandidates(groupCtx, target, enriched)
+		candidates, err := collectAlbumTargetCandidates(groupCtx, target, enriched, r.weights)
 		if err != nil {
 			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
 		}
@@ -301,30 +273,6 @@ func albumIdentifiersChanged(source model.CanonicalAlbum, enriched model.Canonic
 		}
 	}
 	return false
-}
-
-func (r *Resolver) filterMetadataFallbackCandidates(
-	target TargetAdapter,
-	source model.CanonicalAlbum,
-	candidates []model.CandidateAlbum,
-) []model.CandidateAlbum {
-	if target.Service() != model.ServiceAppleMusic || len(candidates) == 0 {
-		return candidates
-	}
-
-	filtered := make([]model.CandidateAlbum, 0, len(candidates))
-	for _, candidate := range candidates {
-		ranking := score.RankAlbums(source, []model.CandidateAlbum{candidate}, r.weights)
-		if len(ranking.Ranked) == 0 {
-			continue
-		}
-		ranked := ranking.Ranked[0]
-		if ranked.Score <= 0 || !ranked.Evidence.HasTitleOrArtist() {
-			continue
-		}
-		filtered = append(filtered, candidate)
-	}
-	return filtered
 }
 
 type fatalParseFailure interface {

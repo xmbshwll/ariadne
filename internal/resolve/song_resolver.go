@@ -87,7 +87,7 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 		ctx,
 		targets,
 		source,
-		r.collectCandidates,
+		collectSongTargetCandidates,
 		func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
 			return score.RankSongs(source, candidates, r.weights)
 		},
@@ -125,26 +125,6 @@ func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.P
 			return source.ParseSongURL(raw)
 		},
 	)
-}
-
-func (r *SongResolver) collectCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
-	combined := []model.CandidateSong{}
-	seen := map[string]struct{}{}
-
-	if source.ISRC != "" {
-		candidates, err := target.SearchSongByISRC(ctx, source.ISRC)
-		if err != nil {
-			return nil, fmt.Errorf("SearchSongByISRC %s (%T) failed: %w", target.Service(), target, err)
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, songCandidateKey)
-	}
-
-	metadataCandidates, err := target.SearchSongByMetadata(ctx, source)
-	if err != nil {
-		return nil, fmt.Errorf("SearchSongByMetadata %s (%T) failed: %w", target.Service(), target, err)
-	}
-	combined = appendUniqueByKey(combined, seen, metadataCandidates, songCandidateKey)
-	return combined, nil
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {
