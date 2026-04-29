@@ -100,6 +100,20 @@ func TestResolverResolveAlbum(t *testing.T) {
 	}
 }
 
+func TestResolverResolveAlbumReturnsNilSourceAlbumError(t *testing.T) {
+	resolver := New(
+		[]SourceAdapter{newNilAlbumSourceAdapter()},
+		nil,
+		score.DefaultWeights(),
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.EqualError(t, err, "fetch source album returned nil from deezer")
+	assert.ErrorIs(t, err, errNilSourceAlbum)
+}
+
 func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 	release := make(chan struct{})
 	spotifyStarted := make(chan struct{}, 1)

@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -46,8 +45,6 @@ type SongResolution struct {
 	Matches  map[model.ServiceName]SongMatchResult
 }
 
-var errNilSourceSong = errors.New("fetch source song returned nil")
-
 // SongResolver coordinates source parsing, source fetching, and layered target search for songs.
 type SongResolver struct {
 	sources []SongSourceAdapter
@@ -67,26 +64,28 @@ func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights 
 // ResolveSong parses an input song URL, fetches the canonical source song,
 // then collects and ranks candidates from every target adapter except the source service.
 func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
-	if len(r.sources) == 0 {
-		return nil, ErrNoSourceAdapters
-	}
-
-	sourceAdapter, parsed, err := r.parseSource(inputURL)
+	source, err := resolveSourceInput(
+		ctx,
+		r.sources,
+		inputURL,
+		func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
+			return source.ParseSongURL(raw)
+		},
+		func(ctx context.Context, source SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
+			return source.FetchSong(ctx, parsed)
+		},
+		"song",
+		errNilSourceSong,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceSong, err := r.fetchSourceSong(ctx, sourceAdapter, *parsed)
-	if err != nil {
-		return nil, err
-	}
-	source := *sourceSong
-
-	targets := excludeTargetService(r.targets, source.Service)
+	targets := excludeTargetService(r.targets, source.Entity.Service)
 	matches, err := resolveTargetMatches(
 		ctx,
 		targets,
-		source,
+		source.Entity,
 		collectSongTargetCandidates,
 		func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
 			return score.RankSongs(source, candidates, r.weights)
@@ -100,31 +99,10 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 
 	return &SongResolution{
 		InputURL: inputURL,
-		Parsed:   *parsed,
-		Source:   source,
+		Parsed:   source.Parsed,
+		Source:   source.Entity,
 		Matches:  matches,
 	}, nil
-}
-
-func (r *SongResolver) fetchSourceSong(ctx context.Context, sourceAdapter SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
-	sourceSong, err := sourceAdapter.FetchSong(ctx, parsed)
-	if err != nil {
-		return nil, fmt.Errorf("fetch source song with %s: %w", sourceAdapter.Service(), err)
-	}
-	if sourceSong == nil {
-		return nil, fmt.Errorf("%w from %s", errNilSourceSong, sourceAdapter.Service())
-	}
-	return sourceSong, nil
-}
-
-func (r *SongResolver) parseSource(inputURL string) (SongSourceAdapter, *model.ParsedURL, error) {
-	return parseSourceAdapter(
-		r.sources,
-		inputURL,
-		func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
-			return source.ParseSongURL(raw)
-		},
-	)
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {

@@ -198,6 +198,18 @@ func newSingleAlbumSourceAdapter(inputURL string, album model.CanonicalAlbum) So
 	return newFixtureSourceAdapter(map[string]model.CanonicalAlbum{inputURL: album})
 }
 
+func newNilAlbumSourceAdapter() SourceAdapter {
+	adapter := newSourceAdapterMock(model.ServiceDeezer)
+	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*model.ParsedURL, error) {
+		if raw != "https://www.deezer.com/album/12047952" {
+			return nil, errUnsupportedTestSource
+		}
+		return &model.ParsedURL{Service: model.ServiceDeezer, EntityType: "album", ID: "12047952", CanonicalURL: raw, RawURL: raw}, nil
+	})
+	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).Return(nil, nil)
+	return adapter
+}
+
 func newFixtureTargetAdapter(service model.ServiceName, candidatesBySourceID map[string][]model.CandidateAlbum) TargetAdapter {
 	adapter := newTargetAdapterMock(service)
 	adapter.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {

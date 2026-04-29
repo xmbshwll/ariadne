@@ -16,6 +16,10 @@ _Avoid_: registry, service list
 A supported resolution role for a Music Service, such as album source, album target, song source, or song target.
 _Avoid_: feature flag, support bit
 
+**Source Input**:
+A user-supplied music URL while Ariadne is recognizing its Music Service and entity shape.
+_Avoid_: raw URL, input string
+
 **Runtime Hydration**:
 The network-backed step that turns a parsed Music Service URL into canonical album or song metadata.
 _Avoid_: fetch, scrape
@@ -32,12 +36,16 @@ _Avoid_: cascade hack, backfill
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
 - A **Music Service** exposes zero or more **Capabilities**.
+- A **Source Input** resolves to at most one **Music Service** before **Runtime Hydration** starts.
 - **Runtime Hydration** is required for source **Capabilities** but can be intentionally deferred for parse-only **Music Services**.
 - **Target Search** is required for target **Capabilities**.
 - **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
 
 ## Example dialogue
 
+> **Dev:** "What happens if a **Source Input** looks like Spotify but cannot be hydrated?"
+> **Domain expert:** "Recognition succeeded, then **Runtime Hydration** explains the failure for that **Music Service**."
+>
 > **Dev:** "Does **Amazon Music** have a song source **Capability**?"
 > **Domain expert:** "It can parse the URL, but **Runtime Hydration** is deferred, so the **Provider Catalog** must report that constraint explicitly."
 >

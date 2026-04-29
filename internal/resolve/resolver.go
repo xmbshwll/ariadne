@@ -75,25 +75,28 @@ func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights
 // ResolveAlbum parses an input album URL, fetches the canonical source album,
 // then collects and ranks candidates from every target adapter except the source service.
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
-	if len(r.sources) == 0 {
-		return nil, ErrNoSourceAdapters
-	}
-
-	sourceAdapter, parsed, err := r.parseSource(inputURL)
+	source, err := resolveSourceInput(
+		ctx,
+		r.sources,
+		inputURL,
+		func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
+			return source.ParseAlbumURL(raw)
+		},
+		func(ctx context.Context, source SourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
+			return source.FetchAlbum(ctx, parsed)
+		},
+		"album",
+		errNilSourceAlbum,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	sourceAlbum, err := sourceAdapter.FetchAlbum(ctx, *parsed)
-	if err != nil {
-		return nil, fmt.Errorf("fetch source album with %s: %w", sourceAdapter.Service(), err)
-	}
-
-	targets := excludeTargetService(r.targets, sourceAlbum.Service)
+	targets := excludeTargetService(r.targets, source.Entity.Service)
 	matches, err := resolveTargetMatches(
 		ctx,
 		targets,
-		*sourceAlbum,
+		source.Entity,
 		func(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 			return collectAlbumTargetCandidates(ctx, target, source, r.weights)
 		},
@@ -109,12 +112,12 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 
 	resolution := &Resolution{
 		InputURL: inputURL,
-		Parsed:   *parsed,
-		Source:   *sourceAlbum,
+		Parsed:   source.Parsed,
+		Source:   source.Entity,
 		Matches:  matches,
 	}
 
-	if err := newAppleMusicEnrichmentPolicy(r.weights).apply(ctx, targets, *sourceAlbum, resolution.Matches); err != nil {
+	if err := newAppleMusicEnrichmentPolicy(r.weights).apply(ctx, targets, source.Entity, resolution.Matches); err != nil {
 		return nil, fmt.Errorf("resolve apple music cascaded search: %w", err)
 	}
 	return resolution, nil
@@ -129,39 +132,6 @@ func excludeTargetService[T interface{ Service() model.ServiceName }](targets []
 		filtered = append(filtered, target)
 	}
 	return filtered
-}
-
-func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlbumURL, error) {
-	return parseSourceAdapter(
-		r.sources,
-		inputURL,
-		func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
-			return source.ParseAlbumURL(raw)
-		},
-	)
-}
-
-type fatalParseFailure interface {
-	FatalParseFailure() bool
-}
-
-func parseSourceAdapter[S any, P any](sources []S, inputURL string, parse func(S, string) (*P, error)) (S, *P, error) {
-	var zero S
-	for _, source := range sources {
-		parsed, err := parse(source, inputURL)
-		if err != nil {
-			var fatal fatalParseFailure
-			if errors.As(err, &fatal) && fatal.FatalParseFailure() {
-				return zero, nil, err
-			}
-			continue
-		}
-		if parsed == nil {
-			continue
-		}
-		return source, parsed, nil
-	}
-	return zero, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
 }
 
 func resolveTargetsConcurrently[T interface{ Service() model.ServiceName }](ctx context.Context, targets []T, resolve func(context.Context, T) error) error {
