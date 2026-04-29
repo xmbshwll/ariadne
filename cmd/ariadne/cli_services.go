@@ -67,17 +67,17 @@ func unsupportedTargetServiceError(raw string) error {
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
+	if ariadne.SupportsEnabledTarget(appConfig, service) {
+		return nil
+	}
 	switch service {
 	case ariadne.ServiceSpotify:
-		if !appConfig.SpotifyEnabled() {
-			return errSpotifyTargetCredentials
-		}
+		return errSpotifyTargetCredentials
 	case ariadne.ServiceTIDAL:
-		if !appConfig.TIDALEnabled() {
-			return errTIDALTargetCredentials
-		}
+		return errTIDALTargetCredentials
+	default:
+		return unsupportedTargetServiceError(string(service))
 	}
-	return nil
 }
 
 func normalizeOutputFormat(raw string) (string, error) {
