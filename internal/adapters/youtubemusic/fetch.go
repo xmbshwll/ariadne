@@ -35,7 +35,7 @@ func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.C
 	if parsed.Service != model.ServiceYouTubeMusic {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedYouTubeMusicService, parsed.Service)
 	}
-	return nil, errYouTubeMusicSongRuntimeDeferred
+	return nil, ErrDeferredRuntimeAdapter
 }
 
 func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*model.CanonicalAlbum, error) {

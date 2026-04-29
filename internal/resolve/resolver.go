@@ -153,7 +153,7 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 	if source.UPC != "" {
 		candidates, err := target.SearchByUPC(ctx, source.UPC)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("SearchByUPC %s (%T) failed: %w", target.Service(), target, err)
 		}
 		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
 	}
@@ -161,14 +161,14 @@ func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, 
 	if len(isrcs) > 0 {
 		candidates, err := target.SearchByISRC(ctx, isrcs)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("SearchByISRC %s (%T) failed: %w", target.Service(), target, err)
 		}
 		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
 	}
 
 	metadataCandidates, err := target.SearchByMetadata(ctx, source)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("SearchByMetadata %s (%T) failed: %w", target.Service(), target, err)
 	}
 	metadataCandidates = r.filterMetadataFallbackCandidates(target, source, metadataCandidates)
 	combined = appendUniqueByKey(combined, seen, metadataCandidates, albumCandidateKey)
@@ -199,8 +199,12 @@ func (r *Resolver) resolveAppleMusicWithCascadedIdentifiers(
 		}
 		ranking := score.RankAlbums(enriched, candidates, r.weights)
 
+		newResult := albumMatchResultFromRanking(target.Service(), ranking)
 		matchesMu.Lock()
-		matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
+		existing := matches[target.Service()]
+		if newResult.Best != nil && (existing.Best == nil || newResult.Best.Score > existing.Best.Score) {
+			matches[target.Service()] = newResult
+		}
 		matchesMu.Unlock()
 		return nil
 	})

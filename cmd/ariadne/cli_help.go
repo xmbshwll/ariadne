@@ -19,11 +19,10 @@ Positional parameter:
     Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL,
     SoundCloud, YouTube Music, Bandcamp, or Amazon Music, or a supported song
     URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.
-    YouTube Music and Amazon Music song URLs are recognized for parsing, but
-    runtime song hydration remains deferred.
+    Amazon Music URLs and YouTube Music song URLs are recognized for parsing,
+    but runtime hydration remains deferred.
     Behavior: when neither --song nor --album is set, Ariadne asks the library
     to auto-detect the resource type from the URL.
-    Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.
 
 Flags:
   --config

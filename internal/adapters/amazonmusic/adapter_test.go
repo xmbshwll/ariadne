@@ -30,12 +30,7 @@ func TestAdapter(t *testing.T) {
 	require.NotNil(t, song)
 	assert.Equal(t, "B0064TRACK", song.ID)
 
-	_, err = adapter.FetchSong(context.Background(), model.ParsedURL{
-		Service:      model.ServiceAmazonMusic,
-		EntityType:   "song",
-		ID:           "B0064TRACK",
-		CanonicalURL: "https://music.amazon.com/tracks/B0064TRACK",
-	})
+	_, err = adapter.FetchSong(context.Background(), *song)
 	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
 
 	upcResults, err := adapter.SearchByUPC(context.Background(), "123")

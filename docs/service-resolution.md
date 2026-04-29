@@ -85,7 +85,7 @@ Ariadne tests source adapters in a fixed order. First adapter that parses the UR
 8. Bandcamp
 ```
 
-Amazon Music album and song URLs can parse, but runtime fetch is deferred and returns an error. YouTube Music song URLs can parse, but song fetch is also deferred.
+Amazon Music album and song URLs can parse, but runtime fetch is deferred and returns `ErrDeferredRuntimeAdapter`. YouTube Music song URLs can parse, but song fetch is also deferred and returns `ErrDeferredRuntimeAdapter`.
 
 ## Album resolution order
 
@@ -218,7 +218,7 @@ ResolveSong(url)
 
 Song resolution does not currently run the Apple Music cascade pass.
 
-YouTube Music and Amazon Music song URLs are recognized by the song parser, but their source fetch path is parse-only today. If one of those URLs is selected as the song source, resolution stops with a deferred-runtime error before target search.
+YouTube Music and Amazon Music song URLs are recognized by the song parser, but their source fetch path is parse-only today. If one of those URLs is selected as the song source, resolution stops with `ErrDeferredRuntimeAdapter` before target search.
 
 ## CLI output order
 
@@ -396,7 +396,7 @@ YouTube Music album-like URL
 YouTube Music watch URL
   |
   |-- parse video id from ?v={videoID}
-  `-- stop: song runtime adapter is deferred
+  `-- stop: song runtime adapter returns ErrDeferredRuntimeAdapter
 ```
 
 ### Amazon Music source
@@ -405,24 +405,24 @@ YouTube Music watch URL
 Amazon Music album URL
   |
   |-- parse album URL
-  `-- stop: runtime adapter is deferred
+  `-- stop: runtime adapter returns ErrDeferredRuntimeAdapter
 ```
 
 ```text
 Amazon Music track URL
   |
   |-- parse /tracks/{trackASIN}
-  `-- stop: runtime adapter is deferred
+  `-- stop: runtime adapter returns ErrDeferredRuntimeAdapter
 ```
 
 ```text
 Amazon Music album URL with trackAsin
   |
   |-- parse /albums/{albumASIN}?trackAsin={trackASIN}
-  `-- stop: runtime adapter is deferred
+  `-- stop: runtime adapter returns ErrDeferredRuntimeAdapter
 ```
 
-Amazon Music is parse-only today.
+Amazon Music is parse-only today; runtime fetch attempts return `ErrDeferredRuntimeAdapter`.
 
 ## Target-service search diagrams
 
@@ -532,5 +532,5 @@ Ranking sorts candidates by descending score. Equal album scores break by candid
 | TIDAL | Yes | Yes | Yes | Yes | album: UPC + ISRC + metadata; song: ISRC + metadata | source and target need TIDAL credentials |
 | Bandcamp | Yes | Yes | Yes | Yes | metadata only | HTML / JSON-LD based |
 | SoundCloud | Yes | Yes | Yes | Yes | metadata only | public page / API-v2 based |
-| YouTube Music | Yes | Yes | Parse only | No | album metadata only | song fetch deferred |
-| Amazon Music | Parse only | No | Parse only | No | none | runtime deferred |
+| YouTube Music | Yes | Yes | Parse only | No | album metadata only | song fetch returns `ErrDeferredRuntimeAdapter` |
+| Amazon Music | Parse only | No | Parse only | No | none | runtime fetch returns `ErrDeferredRuntimeAdapter` |

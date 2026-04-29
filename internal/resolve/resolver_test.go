@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -205,6 +206,70 @@ func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t
 	match := resolution.Matches[model.ServiceAppleMusic]
 	require.NotNil(t, match.Best)
 	assert.Equal(t, "1840194741", match.Best.Candidate.CandidateID)
+}
+
+func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.T) {
+	inputURL := "https://fixture.test/bandcamp/high-horse-heaven"
+	source := testAlbum(model.ServiceBandcamp, "high-horse-heaven", inputURL, "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      2,
+		totalDurationMS: 300000,
+		tracks: []model.CanonicalTrack{
+			{Title: "The Edge", NormalizedTitle: "the edge", DurationMS: 150000},
+			{Title: "Cherry Coke", NormalizedTitle: "cherry coke", DurationMS: 150000},
+		},
+	})
+	spotifyCandidate := testCandidate(model.ServiceSpotify, "spotify-high-horse-heaven", "https://open.spotify.com/album/spotify", "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      2,
+		totalDurationMS: 300000,
+		tracks: []model.CanonicalTrack{
+			{Title: "The Edge", NormalizedTitle: "the edge", ISRC: "QZHN92500001", DurationMS: 150000},
+			{Title: "Cherry Coke", NormalizedTitle: "cherry coke", ISRC: "QZHN92500002", DurationMS: 150000},
+		},
+	})
+	spotifyCandidate.UPC = "3618021182192"
+	existingAppleCandidate := testCandidate(model.ServiceAppleMusic, "apple-existing", "https://music.apple.com/us/album/high-horse-heaven/existing", "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      2,
+		totalDurationMS: 300000,
+		tracks: []model.CanonicalTrack{
+			{Title: "The Edge", NormalizedTitle: "the edge", DurationMS: 150000},
+			{Title: "Cherry Coke", NormalizedTitle: "cherry coke", DurationMS: 150000},
+		},
+	})
+	lowerCascadedCandidate := testCandidate(model.ServiceAppleMusic, "apple-lower-cascade", "https://music.apple.com/us/album/wrong/lower", "Wrong Album", []string{"Wrong Artist"}, testAlbumOptions{
+		trackCount: 1,
+	})
+	lowerCascadedCandidate.UPC = "3618021182192"
+
+	spotifyTarget := newTargetAdapterMock(model.ServiceSpotify)
+	spotifyTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
+
+	var metadataCalls atomic.Int32
+	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
+	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{lowerCascadedCandidate}, nil)
+	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+		if metadataCalls.Add(1) == 1 {
+			return []model.CandidateAlbum{existingAppleCandidate}, nil
+		}
+		return nil, nil
+	})
+
+	resolver := New(
+		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]TargetAdapter{spotifyTarget, appleTarget},
+		score.DefaultWeights(),
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), inputURL)
+	require.NoError(t, err)
+	match := resolution.Matches[model.ServiceAppleMusic]
+	require.NotNil(t, match.Best)
+	assert.Equal(t, "apple-existing", match.Best.Candidate.CandidateID)
 }
 
 func TestResolverResolveAlbumFiltersAppleMusicMetadataFallbackCandidates(t *testing.T) {

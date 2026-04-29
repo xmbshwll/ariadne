@@ -41,7 +41,7 @@ func TestParseSongURLAndDeferredFetch(t *testing.T) {
 	assert.Equal(t, "dQw4w9WgXcQ", parsed.ID)
 
 	_, err = adapter.FetchSong(context.Background(), *parsed)
-	assert.ErrorIs(t, err, errYouTubeMusicSongRuntimeDeferred)
+	assert.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
 }
 
 func TestUnsupportedIdentifierSearches(t *testing.T) {
