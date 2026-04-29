@@ -13,8 +13,8 @@ func toInternalCanonicalSong(song CanonicalSong) model.CanonicalSong {
 		RegionHint:             song.RegionHint,
 		Title:                  song.Title,
 		NormalizedTitle:        song.NormalizedTitle,
-		Artists:                append([]string(nil), song.Artists...),
-		NormalizedArtists:      append([]string(nil), song.NormalizedArtists...),
+		Artists:                cloneStrings(song.Artists),
+		NormalizedArtists:      cloneStrings(song.NormalizedArtists),
 		DurationMS:             song.DurationMS,
 		ISRC:                   song.ISRC,
 		Explicit:               song.Explicit,
@@ -23,11 +23,11 @@ func toInternalCanonicalSong(song CanonicalSong) model.CanonicalSong {
 		AlbumID:                song.AlbumID,
 		AlbumTitle:             song.AlbumTitle,
 		AlbumNormalizedTitle:   song.AlbumNormalizedTitle,
-		AlbumArtists:           append([]string(nil), song.AlbumArtists...),
-		AlbumNormalizedArtists: append([]string(nil), song.AlbumNormalizedArtists...),
+		AlbumArtists:           cloneStrings(song.AlbumArtists),
+		AlbumNormalizedArtists: cloneStrings(song.AlbumNormalizedArtists),
 		ReleaseDate:            song.ReleaseDate,
 		ArtworkURL:             song.ArtworkURL,
-		EditionHints:           append([]string(nil), song.EditionHints...),
+		EditionHints:           cloneStrings(song.EditionHints),
 	}
 }
 
@@ -39,8 +39,8 @@ func fromInternalCanonicalSong(song model.CanonicalSong) CanonicalSong {
 		RegionHint:             song.RegionHint,
 		Title:                  song.Title,
 		NormalizedTitle:        song.NormalizedTitle,
-		Artists:                append([]string(nil), song.Artists...),
-		NormalizedArtists:      append([]string(nil), song.NormalizedArtists...),
+		Artists:                cloneStrings(song.Artists),
+		NormalizedArtists:      cloneStrings(song.NormalizedArtists),
 		DurationMS:             song.DurationMS,
 		ISRC:                   song.ISRC,
 		Explicit:               song.Explicit,
@@ -49,11 +49,11 @@ func fromInternalCanonicalSong(song model.CanonicalSong) CanonicalSong {
 		AlbumID:                song.AlbumID,
 		AlbumTitle:             song.AlbumTitle,
 		AlbumNormalizedTitle:   song.AlbumNormalizedTitle,
-		AlbumArtists:           append([]string(nil), song.AlbumArtists...),
-		AlbumNormalizedArtists: append([]string(nil), song.AlbumNormalizedArtists...),
+		AlbumArtists:           cloneStrings(song.AlbumArtists),
+		AlbumNormalizedArtists: cloneStrings(song.AlbumNormalizedArtists),
 		ReleaseDate:            song.ReleaseDate,
 		ArtworkURL:             song.ArtworkURL,
-		EditionHints:           append([]string(nil), song.EditionHints...),
+		EditionHints:           cloneStrings(song.EditionHints),
 	}
 }
 
@@ -74,21 +74,14 @@ func fromInternalCandidateSong(song model.CandidateSong) CandidateSong {
 }
 
 func toInternalCandidateSongs(songs []CandidateSong) []model.CandidateSong {
-	if len(songs) == 0 {
-		return nil
-	}
-	internal := make([]model.CandidateSong, 0, len(songs))
-	for _, song := range songs {
-		internal = append(internal, toInternalCandidateSong(song))
-	}
-	return internal
+	return translateNonEmptySlice(songs, toInternalCandidateSong)
 }
 
 func fromInternalSongScoredMatch(match resolve.SongScoredMatch) SongScoredMatch {
 	return SongScoredMatch{
 		URL:       match.URL,
 		Score:     match.Score,
-		Reasons:   append([]string(nil), match.Reasons...),
+		Reasons:   cloneStrings(match.Reasons),
 		Candidate: fromInternalCandidateSong(match.Candidate),
 	}
 }
@@ -96,27 +89,20 @@ func fromInternalSongScoredMatch(match resolve.SongScoredMatch) SongScoredMatch 
 func fromInternalSongMatchResult(result resolve.SongMatchResult) SongMatchResult {
 	public := SongMatchResult{
 		Service:    fromInternalServiceName(result.Service),
-		Alternates: make([]SongScoredMatch, 0, len(result.Alternates)),
+		Alternates: translateSliceToEmpty(result.Alternates, fromInternalSongScoredMatch),
 	}
 	if result.Best != nil {
 		best := fromInternalSongScoredMatch(*result.Best)
 		public.Best = &best
 	}
-	for _, alternate := range result.Alternates {
-		public.Alternates = append(public.Alternates, fromInternalSongScoredMatch(alternate))
-	}
 	return public
 }
 
 func fromInternalSongResolution(resolution resolve.SongResolution) SongResolution {
-	matches := make(map[ServiceName]SongMatchResult, len(resolution.Matches))
-	for service, match := range resolution.Matches {
-		matches[fromInternalServiceName(service)] = fromInternalSongMatchResult(match)
-	}
 	return SongResolution{
 		InputURL: resolution.InputURL,
 		Parsed:   fromInternalParsedURL(resolution.Parsed),
 		Source:   fromInternalCanonicalSong(resolution.Source),
-		Matches:  matches,
+		Matches:  translateServiceMap(resolution.Matches, fromInternalSongMatchResult),
 	}
 }
