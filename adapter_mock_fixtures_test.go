@@ -39,9 +39,8 @@ func newNilParsedSourceAdapter() SourceAdapter {
 		if raw != testLibrarySourceURL {
 			return nil, errUnsupportedLibrarySource
 		}
-		return nil, nil
+		return nil, nil //nolint:nilnil // Exercise adapter contract validation for invalid nil parsed URLs.
 	})
-	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).Return(nil, nil)
 	return adapter
 }
 

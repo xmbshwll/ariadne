@@ -11,16 +11,14 @@ import (
 )
 
 func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
-	called := false
 	resolver := NewSongs(
 		[]SongSourceAdapter{newStubSongSourceAdapter()},
-		[]SongTargetAdapter{newSourceServiceSongTargetAdapter(&called), newStubSongTargetAdapter()},
+		[]SongTargetAdapter{newSourceServiceSongTargetAdapter(), newStubSongTargetAdapter()},
 		score.DefaultSongWeights(),
 	)
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
 	require.NoError(t, err)
-	assert.False(t, called)
 	require.NotNil(t, resolution.Matches[model.ServiceAppleMusic].Best)
 	_, ok := resolution.Matches[model.ServiceSpotify]
 	assert.False(t, ok)

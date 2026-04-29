@@ -11,11 +11,10 @@ import (
 )
 
 func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
-	called := false
 	resolver := New(
 		[]SourceAdapter{newStubSourceAdapter()},
 		[]TargetAdapter{
-			newSourceServiceTargetAdapter(&called),
+			newSourceServiceTargetAdapter(),
 			newStubTargetAdapter(),
 		},
 		score.DefaultWeights(),
@@ -23,7 +22,6 @@ func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
 	require.NoError(t, err)
-	assert.False(t, called)
 	require.NotNil(t, resolution.Matches[model.ServiceSpotify].Best)
 	_, ok := resolution.Matches[model.ServiceDeezer]
 	assert.False(t, ok)

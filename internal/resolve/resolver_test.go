@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +13,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
+
+const testBandcampHighHorseHeavenURL = "https://fixture.test/bandcamp/high-horse-heaven"
 
 var (
 	errUnsupportedTestSource = errors.New("unsupported")
@@ -141,7 +142,7 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 }
 
 func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t *testing.T) {
-	inputURL := "https://fixture.test/bandcamp/high-horse-heaven"
+	inputURL := testBandcampHighHorseHeavenURL
 	source := testAlbum(model.ServiceBandcamp, "high-horse-heaven", inputURL, "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
 		releaseDate:     "2026-04-24",
 		trackCount:      2,
@@ -209,7 +210,7 @@ func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t
 }
 
 func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.T) {
-	inputURL := "https://fixture.test/bandcamp/high-horse-heaven"
+	inputURL := testBandcampHighHorseHeavenURL
 	source := testAlbum(model.ServiceBandcamp, "high-horse-heaven", inputURL, "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
 		releaseDate:     "2026-04-24",
 		trackCount:      2,
@@ -248,12 +249,13 @@ func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.
 	spotifyTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
 	spotifyTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
 
-	var metadataCalls atomic.Int32
+	metadataCalls := 0
 	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
 	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{lowerCascadedCandidate}, nil)
 	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
 	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-		if metadataCalls.Add(1) == 1 {
+		metadataCalls++
+		if metadataCalls == 1 {
 			return []model.CandidateAlbum{existingAppleCandidate}, nil
 		}
 		return nil, nil
@@ -273,7 +275,7 @@ func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.
 }
 
 func TestResolverResolveAlbumFiltersAppleMusicMetadataFallbackCandidates(t *testing.T) {
-	inputURL := "https://fixture.test/bandcamp/high-horse-heaven"
+	inputURL := testBandcampHighHorseHeavenURL
 	source := testAlbum(model.ServiceBandcamp, "high-horse-heaven", inputURL, "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
 		releaseDate:     "2026-04-24",
 		trackCount:      10,

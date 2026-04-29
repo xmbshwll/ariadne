@@ -162,21 +162,8 @@ func newBlockingTargetAdapter(service model.ServiceName, started chan<- struct{}
 	return adapter
 }
 
-func newSourceServiceTargetAdapter(called *bool) TargetAdapter {
-	adapter := newTargetAdapterMock(model.ServiceDeezer)
-	adapter.EXPECT().SearchByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-		*called = true
-		return nil, nil
-	})
-	adapter.EXPECT().SearchByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-		*called = true
-		return nil, nil
-	})
-	adapter.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-		*called = true
-		return nil, nil
-	})
-	return adapter
+func newSourceServiceTargetAdapter() TargetAdapter {
+	return newTargetAdapterMock(model.ServiceDeezer)
 }
 
 func newFailingTargetAdapter() TargetAdapter {
@@ -213,8 +200,6 @@ func newSingleAlbumSourceAdapter(inputURL string, album model.CanonicalAlbum) So
 
 func newFixtureTargetAdapter(service model.ServiceName, candidatesBySourceID map[string][]model.CandidateAlbum) TargetAdapter {
 	adapter := newTargetAdapterMock(service)
-	adapter.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
-	adapter.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
 	adapter.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 		return append([]model.CandidateAlbum(nil), candidatesBySourceID[album.SourceID]...), nil
 	})
@@ -267,17 +252,8 @@ func newStubSongTargetAdapter() SongTargetAdapter {
 	return adapter
 }
 
-func newSourceServiceSongTargetAdapter(called *bool) SongTargetAdapter {
-	adapter := newSongTargetAdapterMock(model.ServiceSpotify)
-	adapter.EXPECT().SearchSongByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ string) ([]model.CandidateSong, error) {
-		*called = true
-		return nil, nil
-	})
-	adapter.EXPECT().SearchSongByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, _ model.CanonicalSong) ([]model.CandidateSong, error) {
-		*called = true
-		return nil, nil
-	})
-	return adapter
+func newSourceServiceSongTargetAdapter() SongTargetAdapter {
+	return newSongTargetAdapterMock(model.ServiceSpotify)
 }
 
 func newFailingSongTargetAdapter() SongTargetAdapter {
