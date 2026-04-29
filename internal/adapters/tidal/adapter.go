@@ -54,12 +54,6 @@ func WithAuthBaseURL(baseURL string) Option {
 	}
 }
 
-func WithDefaultCountryCode(countryCode string) Option {
-	return func(adapter *Adapter) {
-		adapter.defaultCountryCode = normalizeCountryCode(countryCode)
-	}
-}
-
 type Adapter struct {
 	client             *http.Client
 	clientID           string
