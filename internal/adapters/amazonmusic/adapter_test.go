@@ -25,6 +25,19 @@ func TestAdapter(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
 
+	song, err := adapter.ParseSongURL("https://music.amazon.com/albums/B0064UPU4G?trackAsin=B0064TRACK")
+	require.NoError(t, err)
+	require.NotNil(t, song)
+	assert.Equal(t, "B0064TRACK", song.ID)
+
+	_, err = adapter.FetchSong(context.Background(), model.ParsedURL{
+		Service:      model.ServiceAmazonMusic,
+		EntityType:   "song",
+		ID:           "B0064TRACK",
+		CanonicalURL: "https://music.amazon.com/tracks/B0064TRACK",
+	})
+	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
+
 	upcResults, err := adapter.SearchByUPC(context.Background(), "123")
 	require.NoError(t, err)
 	assert.Empty(t, upcResults)

@@ -184,9 +184,9 @@ For detailed runtime behavior by service, see [`docs/service-resolution.md`](./d
 | Deezer | Yes | Yes | Yes | Yes | No credentials required | supported |
 | Bandcamp | Yes | Yes | Yes | Yes | Metadata-first, scraping-based | experimental |
 | SoundCloud | Yes | Yes | Yes | Yes | Metadata-first, public page and API extraction | experimental |
-| YouTube Music | Yes | Yes | No | No | Public HTML extraction | experimental |
+| YouTube Music | Yes | Yes | Parse only | No | Album public HTML extraction; song hydration deferred | experimental |
 | TIDAL | Yes | Yes | Yes | Yes | Needs `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` | experimental |
-| Amazon Music | Parse only | No | No | No | Runtime resolution intentionally deferred | deferred |
+| Amazon Music | Parse only | No | Parse only | No | Runtime resolution intentionally deferred | deferred |
 
 ## Configuration
 

@@ -38,6 +38,7 @@ func TestRun(t *testing.T) {
 				"<url>",
 				"Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL",
 				"URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.",
+				"YouTube Music and Amazon Music song URLs are recognized for parsing, but",
 				"Behavior: when neither --song nor --album is set, Ariadne asks the library",
 				"--song",
 				"--album",

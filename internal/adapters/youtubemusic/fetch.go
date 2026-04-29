@@ -31,6 +31,13 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	return extractAlbum(body, parsed.CanonicalURL)
 }
 
+func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceYouTubeMusic {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedYouTubeMusicService, parsed.Service)
+	}
+	return nil, errYouTubeMusicSongRuntimeDeferred
+}
+
 func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*model.CanonicalAlbum, error) {
 	browseURL := a.baseURL + "/browse/" + browseID
 	body, err := a.fetchPage(ctx, browseURL)

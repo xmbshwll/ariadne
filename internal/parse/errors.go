@@ -5,7 +5,9 @@ import "errors"
 var (
 	errUnsupportedAmazonMusicHost = errors.New("unsupported amazon music host")
 	errAmazonMusicNotAlbumURL     = errors.New("amazon music url is not an album url")
+	errAmazonMusicNotSongURL      = errors.New("amazon music url is not a song url")
 	errMissingAmazonMusicAlbumID  = errors.New("missing amazon music album id")
+	errMissingAmazonMusicTrackID  = errors.New("missing amazon music track id")
 
 	errUnsupportedAppleMusicHost            = errors.New("unsupported apple music host")
 	errInvalidAppleMusicAlbumPath           = errors.New("invalid apple music album path")

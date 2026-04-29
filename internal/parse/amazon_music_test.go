@@ -6,6 +6,50 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+func TestAmazonMusicSongURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		wantID  string
+		wantURL string
+		wantErr bool
+	}{
+		{
+			name:    "canonical track url",
+			raw:     "https://music.amazon.com/tracks/B0064TRACK",
+			wantID:  "B0064TRACK",
+			wantURL: "https://music.amazon.com/tracks/B0064TRACK",
+		},
+		{
+			name:    "album url with track asin",
+			raw:     "https://music.amazon.com/albums/B0064ALBUM?trackAsin=B0064TRACK&ref=dm_sh_test",
+			wantID:  "B0064TRACK",
+			wantURL: "https://music.amazon.com/tracks/B0064TRACK",
+		},
+		{
+			name:    "album url without track asin rejected",
+			raw:     "https://music.amazon.com/albums/B0064ALBUM",
+			wantErr: true,
+		},
+		{
+			name:    "wrong host",
+			raw:     "https://amazon.com/tracks/B0064TRACK",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := AmazonMusicSongURL(tt.raw)
+			if tt.wantErr {
+				requireParseError(t, got, err)
+				return
+			}
+			requireParsedURL(t, got, err, model.ServiceAmazonMusic, "song", tt.wantID, tt.wantURL, "")
+		})
+	}
+}
+
 func TestAmazonMusicAlbumURL(t *testing.T) {
 	tests := []struct {
 		name    string

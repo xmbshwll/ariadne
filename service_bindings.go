@@ -165,14 +165,16 @@ func tidalServiceBinding() serviceBinding {
 func youTubeMusicServiceBinding() serviceBinding {
 	return serviceBinding{
 		capability: serviceCapability{
-			name:                ServiceYouTubeMusic,
-			aliases:             builtinServiceAliases(ServiceYouTubeMusic),
-			supportsAlbumSource: true,
-			supportsAlbumTarget: true,
+			name:                 ServiceYouTubeMusic,
+			aliases:              builtinServiceAliases(ServiceYouTubeMusic),
+			supportsAlbumSource:  true,
+			supportsAlbumTarget:  true,
+			supportsSongSource:   true,
+			runtimeSongURLParser: parse.YouTubeMusicSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := youtubemusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter}
+			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter, songSource: adapter}
 		},
 	}
 }
@@ -180,13 +182,15 @@ func youTubeMusicServiceBinding() serviceBinding {
 func amazonMusicServiceBinding() serviceBinding {
 	return serviceBinding{
 		capability: serviceCapability{
-			name:                ServiceAmazonMusic,
-			aliases:             builtinServiceAliases(ServiceAmazonMusic),
-			supportsAlbumSource: true,
+			name:                 ServiceAmazonMusic,
+			aliases:              builtinServiceAliases(ServiceAmazonMusic),
+			supportsAlbumSource:  true,
+			supportsSongSource:   true,
+			runtimeSongURLParser: parse.AmazonMusicSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := amazonmusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter}
+			return serviceAdapterSet{albumSource: adapter, songSource: adapter}
 		},
 	}
 }

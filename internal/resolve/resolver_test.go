@@ -138,6 +138,120 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 	}
 }
 
+func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t *testing.T) {
+	inputURL := "https://fixture.test/bandcamp/high-horse-heaven"
+	source := testAlbum(model.ServiceBandcamp, "high-horse-heaven", inputURL, "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      2,
+		totalDurationMS: 300000,
+		tracks: []model.CanonicalTrack{
+			{Title: "The Edge", NormalizedTitle: "the edge"},
+			{Title: "Cherry Coke", NormalizedTitle: "cherry coke"},
+		},
+	})
+	spotifyCandidate := testCandidate(model.ServiceSpotify, "spotify-high-horse-heaven", "https://open.spotify.com/album/spotify", "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      2,
+		totalDurationMS: 300000,
+		tracks: []model.CanonicalTrack{
+			{Title: "The Edge", NormalizedTitle: "the edge", ISRC: "QZHN92500001"},
+			{Title: "Cherry Coke", NormalizedTitle: "cherry coke", ISRC: "QZHN92500002"},
+		},
+	})
+	spotifyCandidate.UPC = "3618021182192"
+	appleCandidate := testCandidate(model.ServiceAppleMusic, "1840194741", "https://music.apple.com/us/album/high-horse-heaven/1840194741", "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      2,
+		totalDurationMS: 300000,
+		tracks: []model.CanonicalTrack{
+			{Title: "The Edge", NormalizedTitle: "the edge", ISRC: "QZHN92500001"},
+			{Title: "Cherry Coke", NormalizedTitle: "cherry coke", ISRC: "QZHN92500002"},
+		},
+	})
+	appleCandidate.UPC = "3618021182192"
+
+	var appleUPC string
+	var appleISRCs []string
+	resolver := New(
+		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]TargetAdapter{
+			mockTargetAdapter{
+				service:      model.ServiceSpotify,
+				searchByUPC:  func(context.Context, string) ([]model.CandidateAlbum, error) { return nil, nil },
+				searchByISRC: func(context.Context, []string) ([]model.CandidateAlbum, error) { return nil, nil },
+				searchByMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+					return []model.CandidateAlbum{spotifyCandidate}, nil
+				},
+			},
+			mockTargetAdapter{
+				service: model.ServiceAppleMusic,
+				searchByUPC: func(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
+					appleUPC = upc
+					if upc != "3618021182192" {
+						return nil, nil
+					}
+					return []model.CandidateAlbum{appleCandidate}, nil
+				},
+				searchByISRC: func(_ context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+					appleISRCs = append([]string(nil), isrcs...)
+					return nil, nil
+				},
+				searchByMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+					return nil, nil
+				},
+			},
+		},
+		score.DefaultWeights(),
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), inputURL)
+	require.NoError(t, err)
+	assert.Equal(t, "3618021182192", appleUPC)
+	assert.Equal(t, []string{"QZHN92500001", "QZHN92500002"}, appleISRCs)
+	match := resolution.Matches[model.ServiceAppleMusic]
+	require.NotNil(t, match.Best)
+	assert.Equal(t, "1840194741", match.Best.Candidate.CandidateID)
+}
+
+func TestResolverResolveAlbumFiltersAppleMusicMetadataFallbackCandidates(t *testing.T) {
+	inputURL := "https://fixture.test/bandcamp/high-horse-heaven"
+	source := testAlbum(model.ServiceBandcamp, "high-horse-heaven", inputURL, "High Horse Heaven", []string{"Emarosa"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      10,
+		totalDurationMS: 1800000,
+	})
+	noTitleArtistCandidate := testCandidate(model.ServiceAppleMusic, "apple-unrelated", "https://music.apple.com/us/album/unrelated/1", "Different Record", []string{"Various Artists"}, testAlbumOptions{
+		releaseDate:     "2026-04-24",
+		trackCount:      10,
+		totalDurationMS: 1800000,
+	})
+	nonPositiveCandidate := testCandidate(model.ServiceAppleMusic, "apple-non-positive", "https://music.apple.com/us/album/non-positive/2", "Different Record", []string{"Emarosa"}, testAlbumOptions{
+		trackCount: 3,
+		explicit:   true,
+	})
+	resolver := New(
+		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]TargetAdapter{
+			mockTargetAdapter{
+				service:      model.ServiceAppleMusic,
+				searchByUPC:  func(context.Context, string) ([]model.CandidateAlbum, error) { return nil, nil },
+				searchByISRC: func(context.Context, []string) ([]model.CandidateAlbum, error) { return nil, nil },
+				searchByMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+					return []model.CandidateAlbum{noTitleArtistCandidate, nonPositiveCandidate}, nil
+				},
+			},
+		},
+		score.DefaultWeights(),
+	)
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), inputURL)
+	require.NoError(t, err)
+	match, ok := resolution.Matches[model.ServiceAppleMusic]
+	require.True(t, ok)
+	assert.Nil(t, match.Best)
+	assert.Empty(t, match.Alternates)
+}
+
 func TestResolverCrossServiceFixtures(t *testing.T) {
 	fixtures := []struct {
 		name            string

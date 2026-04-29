@@ -33,7 +33,22 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parsed, nil
 }
 
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
+	parsed, err := parse.AmazonMusicSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse amazon music song url: %w", err)
+	}
+	return parsed, nil
+}
+
 func (a *Adapter) FetchAlbum(_ context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
+	if parsed.Service != model.ServiceAmazonMusic {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedAmazonService, parsed.Service)
+	}
+	return nil, ErrDeferredRuntimeAdapter
+}
+
+func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 	if parsed.Service != model.ServiceAmazonMusic {
 		return nil, fmt.Errorf("%w: %s", errUnexpectedAmazonService, parsed.Service)
 	}

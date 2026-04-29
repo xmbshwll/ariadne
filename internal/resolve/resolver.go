@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -18,6 +20,8 @@ var (
 	// ErrNoSourceAdapters indicates that the resolver was created without source adapters.
 	ErrNoSourceAdapters = errors.New("no source adapters configured")
 )
+
+const appleMusicCascadeMinimumScore = 100
 
 // SourceAdapter fetches canonical album metadata from a parsed source URL.
 type SourceAdapter interface {
@@ -113,6 +117,10 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 	}); err != nil {
 		return nil, fmt.Errorf("resolve target searches: %w", err)
 	}
+
+	if err := r.resolveAppleMusicWithCascadedIdentifiers(ctx, targets, *sourceAlbum, resolution.Matches); err != nil {
+		return nil, fmt.Errorf("resolve apple music cascaded search: %w", err)
+	}
 	return resolution, nil
 }
 
@@ -138,27 +146,192 @@ func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlb
 }
 
 func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	combined := []model.CandidateAlbum{}
+	seen := map[string]struct{}{}
 	isrcs := collectISRCs(source)
-	return collectCandidateLayers(ctx, albumCandidateKey,
-		candidateLayer[model.CandidateAlbum]{
-			enabled: source.UPC != "",
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByUPC(ctx, source.UPC)
-			},
-		},
-		candidateLayer[model.CandidateAlbum]{
-			enabled: len(isrcs) > 0,
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByISRC(ctx, isrcs)
-			},
-		},
-		candidateLayer[model.CandidateAlbum]{
-			enabled: true,
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByMetadata(ctx, source)
-			},
-		},
-	)
+
+	if source.UPC != "" {
+		candidates, err := target.SearchByUPC(ctx, source.UPC)
+		if err != nil {
+			return nil, err
+		}
+		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
+	}
+
+	if len(isrcs) > 0 {
+		candidates, err := target.SearchByISRC(ctx, isrcs)
+		if err != nil {
+			return nil, err
+		}
+		combined = appendUniqueByKey(combined, seen, candidates, albumCandidateKey)
+	}
+
+	metadataCandidates, err := target.SearchByMetadata(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	metadataCandidates = r.filterMetadataFallbackCandidates(target, source, metadataCandidates)
+	combined = appendUniqueByKey(combined, seen, metadataCandidates, albumCandidateKey)
+	return combined, nil
+}
+
+func (r *Resolver) resolveAppleMusicWithCascadedIdentifiers(
+	ctx context.Context,
+	targets []TargetAdapter,
+	source model.CanonicalAlbum,
+	matches map[model.ServiceName]MatchResult,
+) error {
+	appleMusicTargets := appleMusicTargets(targets)
+	if len(appleMusicTargets) == 0 {
+		return nil
+	}
+
+	enriched := enrichAlbumIdentifiersFromStrongMatches(source, matches)
+	if !albumIdentifiersChanged(source, enriched) {
+		return nil
+	}
+
+	var matchesMu sync.Mutex
+	return resolveTargetsConcurrently(ctx, appleMusicTargets, func(groupCtx context.Context, target TargetAdapter) error {
+		candidates, err := r.collectCandidates(groupCtx, target, enriched)
+		if err != nil {
+			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
+		}
+		ranking := score.RankAlbums(enriched, candidates, r.weights)
+
+		matchesMu.Lock()
+		matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
+		matchesMu.Unlock()
+		return nil
+	})
+}
+
+func appleMusicTargets(targets []TargetAdapter) []TargetAdapter {
+	filtered := make([]TargetAdapter, 0, len(targets))
+	for _, target := range targets {
+		if target.Service() != model.ServiceAppleMusic {
+			continue
+		}
+		filtered = append(filtered, target)
+	}
+	return filtered
+}
+
+func enrichAlbumIdentifiersFromStrongMatches(source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) model.CanonicalAlbum {
+	enriched := cloneAlbum(source)
+	strongMatches := strongIntermediateAlbumMatches(matches)
+	for _, match := range strongMatches {
+		mergeAlbumIdentifiers(&enriched, match.Candidate)
+	}
+	return enriched
+}
+
+func cloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
+	clone := album
+	clone.Artists = append([]string(nil), album.Artists...)
+	clone.NormalizedArtists = append([]string(nil), album.NormalizedArtists...)
+	clone.EditionHints = append([]string(nil), album.EditionHints...)
+	clone.Tracks = append([]model.CanonicalTrack(nil), album.Tracks...)
+	return clone
+}
+
+func strongIntermediateAlbumMatches(matches map[model.ServiceName]MatchResult) []ScoredMatch {
+	strongMatches := make([]ScoredMatch, 0, len(matches))
+	for service, match := range matches {
+		if service == model.ServiceAppleMusic || match.Best == nil || match.Best.Score < appleMusicCascadeMinimumScore {
+			continue
+		}
+		strongMatches = append(strongMatches, *match.Best)
+	}
+	sort.SliceStable(strongMatches, func(i, j int) bool {
+		if strongMatches[i].Score == strongMatches[j].Score {
+			leftService := string(strongMatches[i].Candidate.Service)
+			rightService := string(strongMatches[j].Candidate.Service)
+			if leftService == rightService {
+				return strongMatches[i].Candidate.CandidateID < strongMatches[j].Candidate.CandidateID
+			}
+			return leftService < rightService
+		}
+		return strongMatches[i].Score > strongMatches[j].Score
+	})
+	return strongMatches
+}
+
+func mergeAlbumIdentifiers(album *model.CanonicalAlbum, candidate model.CandidateAlbum) {
+	if album.UPC == "" && candidate.UPC != "" {
+		album.UPC = candidate.UPC
+	}
+	mergeTrackISRCs(album, candidate.Tracks)
+}
+
+func mergeTrackISRCs(album *model.CanonicalAlbum, tracks []model.CanonicalTrack) {
+	if len(tracks) == 0 {
+		return
+	}
+	if len(album.Tracks) == 0 {
+		album.Tracks = append([]model.CanonicalTrack(nil), tracks...)
+		return
+	}
+	if len(album.Tracks) != len(tracks) {
+		return
+	}
+	for i := range album.Tracks {
+		if album.Tracks[i].ISRC != "" || tracks[i].ISRC == "" {
+			continue
+		}
+		album.Tracks[i].ISRC = tracks[i].ISRC
+	}
+}
+
+func albumIdentifiersChanged(source model.CanonicalAlbum, enriched model.CanonicalAlbum) bool {
+	if source.UPC != enriched.UPC {
+		return true
+	}
+	sourceISRCs := collectISRCs(source)
+	enrichedISRCs := collectISRCs(enriched)
+	if len(sourceISRCs) != len(enrichedISRCs) {
+		return true
+	}
+	for i := range sourceISRCs {
+		if !strings.EqualFold(sourceISRCs[i], enrichedISRCs[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Resolver) filterMetadataFallbackCandidates(
+	target TargetAdapter,
+	source model.CanonicalAlbum,
+	candidates []model.CandidateAlbum,
+) []model.CandidateAlbum {
+	if target.Service() != model.ServiceAppleMusic || len(candidates) == 0 {
+		return candidates
+	}
+
+	filtered := make([]model.CandidateAlbum, 0, len(candidates))
+	for _, candidate := range candidates {
+		ranking := score.RankAlbums(source, []model.CandidateAlbum{candidate}, r.weights)
+		if len(ranking.Ranked) == 0 {
+			continue
+		}
+		ranked := ranking.Ranked[0]
+		if ranked.Score <= 0 || !albumScoreHasTitleOrArtistEvidence(ranked.Reasons) {
+			continue
+		}
+		filtered = append(filtered, candidate)
+	}
+	return filtered
+}
+
+func albumScoreHasTitleOrArtistEvidence(reasons []string) bool {
+	for _, reason := range reasons {
+		switch reason {
+		case "title exact match", "core title match", "primary artist exact match", "artist overlap":
+			return true
+		}
+	}
+	return false
 }
 
 type fatalParseFailure interface {

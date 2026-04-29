@@ -32,6 +32,18 @@ func TestFetchAlbum(t *testing.T) {
 	assert.NotEmpty(t, album.ArtworkURL)
 }
 
+func TestParseSongURLAndDeferredFetch(t *testing.T) {
+	adapter := New(nil)
+
+	parsed, err := adapter.ParseSongURL("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ")
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, "dQw4w9WgXcQ", parsed.ID)
+
+	_, err = adapter.FetchSong(context.Background(), *parsed)
+	assert.ErrorIs(t, err, errYouTubeMusicSongRuntimeDeferred)
+}
+
 func TestUnsupportedIdentifierSearches(t *testing.T) {
 	adapter := New(nil)
 

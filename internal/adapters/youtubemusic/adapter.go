@@ -18,17 +18,18 @@ const (
 )
 
 var (
-	canonicalURLPattern               = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
-	ogTitlePattern                    = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
-	ogImagePattern                    = regexp.MustCompile(`(?i)<meta property="og:image" content="([^"]+)"`)
-	subtitleArtistPattern             = regexp.MustCompile(`subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	trackTitlePattern                 = regexp.MustCompile(`musicResponsiveListItemFlexColumnRenderer\\x22:\\x7b\\x22text\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	albumResultPattern                = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	errUnexpectedYouTubeMusicService  = errors.New("unexpected youtube music service")
-	errUnexpectedYouTubeMusicStatus   = errors.New("unexpected youtube music status")
-	errMalformedYouTubeMusicPage      = errors.New("malformed youtube music page")
-	errYouTubeMusicAlbumTitleNotFound = errors.New("youtube music album title not found")
-	errNilYouTubeMusicCanonicalAlbum  = errors.New("youtube music adapter returned nil canonical album")
+	canonicalURLPattern                = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
+	ogTitlePattern                     = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
+	ogImagePattern                     = regexp.MustCompile(`(?i)<meta property="og:image" content="([^"]+)"`)
+	subtitleArtistPattern              = regexp.MustCompile(`subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	trackTitlePattern                  = regexp.MustCompile(`musicResponsiveListItemFlexColumnRenderer\\x22:\\x7b\\x22text\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	albumResultPattern                 = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	errUnexpectedYouTubeMusicService   = errors.New("unexpected youtube music service")
+	errUnexpectedYouTubeMusicStatus    = errors.New("unexpected youtube music status")
+	errMalformedYouTubeMusicPage       = errors.New("malformed youtube music page")
+	errYouTubeMusicAlbumTitleNotFound  = errors.New("youtube music album title not found")
+	errNilYouTubeMusicCanonicalAlbum   = errors.New("youtube music adapter returned nil canonical album")
+	errYouTubeMusicSongRuntimeDeferred = errors.New("youtube music song runtime adapter is deferred: no stable public song metadata fetch path exists")
 )
 
 type Option func(*Adapter)
@@ -63,6 +64,14 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parse.YouTubeMusicAlbumURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse youtube music album url: %w", err)
+	}
+	return parsed, nil
+}
+
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
+	parsed, err := parse.YouTubeMusicSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse youtube music song url: %w", err)
 	}
 	return parsed, nil
 }

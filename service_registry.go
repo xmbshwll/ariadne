@@ -89,6 +89,8 @@ var defaultServiceOrder = struct {
 		ServiceSoundCloud,
 		ServiceSpotify,
 		ServiceTIDAL,
+		ServiceYouTubeMusic,
+		ServiceAmazonMusic,
 	},
 	songTargets: []ServiceName{
 		ServiceAppleMusic,

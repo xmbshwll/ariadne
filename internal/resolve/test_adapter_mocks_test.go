@@ -244,6 +244,10 @@ func newFixtureSourceAdapter(albumsByURL map[string]model.CanonicalAlbum) Source
 	}
 }
 
+func newSingleAlbumSourceAdapter(inputURL string, album model.CanonicalAlbum) SourceAdapter {
+	return newFixtureSourceAdapter(map[string]model.CanonicalAlbum{inputURL: album})
+}
+
 func newFixtureTargetAdapter(service model.ServiceName, candidatesBySourceID map[string][]model.CandidateAlbum) TargetAdapter {
 	return mockTargetAdapter{
 		service:      service,

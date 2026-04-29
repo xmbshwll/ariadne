@@ -146,13 +146,21 @@ func TestDescribeService(t *testing.T) {
 	assert.True(t, spotify.SupportsSongTarget)
 	assert.True(t, spotify.SupportsRuntimeSongInputURL)
 
+	youTubeMusic, ok := DescribeService(ServiceYouTubeMusic)
+	require.True(t, ok)
+	assert.True(t, youTubeMusic.SupportsAlbumSource)
+	assert.True(t, youTubeMusic.SupportsAlbumTarget)
+	assert.True(t, youTubeMusic.SupportsSongSource)
+	assert.False(t, youTubeMusic.SupportsSongTarget)
+	assert.True(t, youTubeMusic.SupportsRuntimeSongInputURL)
+
 	amazon, ok := DescribeService(ServiceAmazonMusic)
 	require.True(t, ok)
 	assert.True(t, amazon.SupportsAlbumSource)
 	assert.False(t, amazon.SupportsAlbumTarget)
-	assert.False(t, amazon.SupportsSongSource)
+	assert.True(t, amazon.SupportsSongSource)
 	assert.False(t, amazon.SupportsSongTarget)
-	assert.False(t, amazon.SupportsRuntimeSongInputURL)
+	assert.True(t, amazon.SupportsRuntimeSongInputURL)
 }
 
 func TestDescribeEnabledService(t *testing.T) {
