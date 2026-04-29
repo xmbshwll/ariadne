@@ -319,22 +319,12 @@ func (r *Resolver) filterMetadataFallbackCandidates(
 			continue
 		}
 		ranked := ranking.Ranked[0]
-		if ranked.Score <= 0 || !albumScoreHasTitleOrArtistEvidence(ranked.Reasons) {
+		if ranked.Score <= 0 || !ranked.Evidence.HasTitleOrArtist() {
 			continue
 		}
 		filtered = append(filtered, candidate)
 	}
 	return filtered
-}
-
-func albumScoreHasTitleOrArtistEvidence(reasons []string) bool {
-	for _, reason := range reasons {
-		switch reason {
-		case "title exact match", "core title match", "primary artist exact match", "artist overlap":
-			return true
-		}
-	}
-	return false
 }
 
 type fatalParseFailure interface {

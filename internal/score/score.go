@@ -62,6 +62,7 @@ type RankedCandidate struct {
 	Candidate model.CandidateAlbum
 	Score     int
 	Reasons   []string
+	Evidence  MatchEvidence
 }
 
 // Ranking is the ordered ranking for one target service.
@@ -93,7 +94,7 @@ func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, 
 }
 
 func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) RankedCandidate {
-	score, reasons := collectScoreContributions(
+	score, reasons, evidence := collectScoreContributions(
 		scoreAlbumTitle(source, candidate.CanonicalAlbum, weights),
 		scoreAlbumArtists(source, candidate.CanonicalAlbum, weights),
 		scoreAlbumUPC(source, candidate.CanonicalAlbum, weights),
@@ -112,6 +113,7 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum,
 		Candidate: candidate,
 		Score:     score,
 		Reasons:   reasons,
+		Evidence:  evidence,
 	}
 }
 
@@ -119,13 +121,13 @@ func scoreAlbumTitle(source model.CanonicalAlbum, candidate model.CanonicalAlbum
 	sourceTitle := normalizedOrDerived(source.Title, source.NormalizedTitle)
 	candidateTitle := normalizedOrDerived(candidate.Title, candidate.NormalizedTitle)
 	if sourceTitle != "" && sourceTitle == candidateTitle {
-		return scoreContribution{value: weights.TitleExact, reason: "title exact match"}
+		return scoreContribution{value: weights.TitleExact, reason: "title exact match", evidence: MatchEvidence{Title: true}}
 	}
 
 	sourceCoreTitle := coreTitle(source.Title, source.NormalizedTitle)
 	candidateCoreTitle := coreTitle(candidate.Title, candidate.NormalizedTitle)
 	if sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle {
-		return scoreContribution{value: weights.CoreTitleExact, reason: "core title match"}
+		return scoreContribution{value: weights.CoreTitleExact, reason: "core title match", evidence: MatchEvidence{Title: true}}
 	}
 
 	return scoreContribution{}
@@ -138,10 +140,10 @@ func scoreAlbumArtists(source model.CanonicalAlbum, candidate model.CanonicalAlb
 		return scoreContribution{}
 	}
 	if sourceArtists[0] == candidateArtists[0] {
-		return scoreContribution{value: weights.PrimaryArtistExact, reason: "primary artist exact match"}
+		return scoreContribution{value: weights.PrimaryArtistExact, reason: "primary artist exact match", evidence: MatchEvidence{Artist: true}}
 	}
 	if artistOverlap(sourceArtists, candidateArtists) {
-		return scoreContribution{value: weights.ArtistOverlap, reason: "artist overlap"}
+		return scoreContribution{value: weights.ArtistOverlap, reason: "artist overlap", evidence: MatchEvidence{Artist: true}}
 	}
 	return scoreContribution{}
 }
