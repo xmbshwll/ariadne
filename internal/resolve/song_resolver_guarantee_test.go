@@ -20,7 +20,8 @@ func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
 	require.NoError(t, err)
-	assert.Zero(t, sourceServiceTarget.CallCount())
+	sourceServiceTarget.AssertNumberOfCalls(t, "SearchSongByISRC", 0)
+	sourceServiceTarget.AssertNumberOfCalls(t, "SearchSongByMetadata", 0)
 	require.NotNil(t, resolution.Matches[model.ServiceAppleMusic].Best)
 	_, ok := resolution.Matches[model.ServiceSpotify]
 	assert.False(t, ok)

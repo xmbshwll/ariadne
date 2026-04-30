@@ -157,11 +157,10 @@ func cloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
 	clone.NormalizedArtists = append([]string(nil), album.NormalizedArtists...)
 	clone.EditionHints = append([]string(nil), album.EditionHints...)
 	if album.Tracks != nil {
-		clone.Tracks = make([]model.CanonicalTrack, 0, len(album.Tracks))
-		for _, track := range album.Tracks {
-			trackCopy := track
-			trackCopy.Artists = append([]string(nil), track.Artists...)
-			clone.Tracks = append(clone.Tracks, trackCopy)
+		clone.Tracks = make([]model.CanonicalTrack, len(album.Tracks))
+		for i, track := range album.Tracks {
+			clone.Tracks[i] = track
+			clone.Tracks[i].Artists = append([]string(nil), track.Artists...)
 		}
 	}
 	return clone

@@ -62,9 +62,10 @@ func TestAppleMusicEnrichmentPolicyCopiesIdentifiersFromStrongMatches(t *testing
 	assert.Equal(t, "QZHN92500001", enriched.Tracks[0].ISRC)
 	assert.Equal(t, "QZHN92500002", enriched.Tracks[1].ISRC)
 	assert.Empty(t, source.UPC)
+	expectedTitles := []string{"The Edge", "Cherry Coke"}
 	for i, track := range source.Tracks {
 		assert.Empty(t, track.ISRC)
-		assert.Equal(t, []string{"The Edge", "Cherry Coke"}[i], track.Title)
+		assert.Equal(t, expectedTitles[i], track.Title)
 	}
 }
 
@@ -77,13 +78,10 @@ func TestMergeTrackISRCsWithEmptySourceTracksCopiesOnlyISRCs(t *testing.T) {
 
 	mergeTrackISRCs(&album, tracks)
 
-	require.Len(t, album.Tracks, 2)
-	assert.Equal(t, "QZHN92500001", album.Tracks[0].ISRC)
-	assert.Equal(t, "QZHN92500002", album.Tracks[1].ISRC)
-	assert.Empty(t, album.Tracks[0].Title)
-	assert.Empty(t, album.Tracks[0].Artists)
-	assert.Zero(t, album.Tracks[1].TrackNumber)
-	assert.Zero(t, album.Tracks[1].DurationMS)
+	assert.Equal(t, []model.CanonicalTrack{
+		{ISRC: "QZHN92500001"},
+		{ISRC: "QZHN92500002"},
+	}, album.Tracks)
 }
 
 func TestCloneAlbumDeepCopiesTrackArtists(t *testing.T) {
