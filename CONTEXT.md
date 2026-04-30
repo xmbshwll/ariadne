@@ -36,6 +36,10 @@ _Avoid_: cascade hack, backfill
 A short-lived access token issued from configured Music Service credentials and cached for credentialed Runtime Hydration or Target Search.
 _Avoid_: auth blob, bearer cache
 
+**Entity Resolution**:
+The end-to-end pipeline that recognizes Source Input, performs Runtime Hydration, runs Target Search, and returns ranked matches for one music entity shape.
+_Avoid_: resolver orchestration, flow glue
+
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
@@ -45,6 +49,7 @@ _Avoid_: auth blob, bearer cache
 - **Target Search** is required for target **Capabilities**.
 - **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
 - A **Credential Token** is required only by Music Services whose source or target **Capabilities** need credentialed network access.
+- **Entity Resolution** composes Source Input recognition, Runtime Hydration, Target Search, and optional Identifier Enrichment.
 
 ## Example dialogue
 

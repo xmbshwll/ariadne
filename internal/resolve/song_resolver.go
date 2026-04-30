@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -64,44 +63,37 @@ func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights 
 // ResolveSong parses an input song URL, fetches the canonical source song,
 // then collects and ranks candidates from every target adapter except the source service.
 func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
-	source, err := resolveSourceInput(
-		ctx,
-		r.sources,
-		inputURL,
-		func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
+	result, err := resolveEntity(ctx, inputURL, entityResolutionPipeline[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult]{
+		sources: r.sources,
+		targets: r.targets,
+		parse: func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
 			return source.ParseSongURL(raw)
 		},
-		func(ctx context.Context, source SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
+		hydrate: func(ctx context.Context, source SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 			return source.FetchSong(ctx, parsed)
 		},
-		"song",
-		errNilSourceSong,
-	)
+		sourceService: func(source model.CanonicalSong) model.ServiceName {
+			return source.Service
+		},
+		collect: collectSongTargetCandidates,
+		rank: func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
+			return score.RankSongs(source, candidates, r.weights)
+		},
+		result:         songMatchResultFromRanking,
+		entityLabel:    "song",
+		nilEntityErr:   errNilSourceSong,
+		candidateLabel: "song candidates",
+		targetErrLabel: "resolve song target searches",
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	targets := excludeTargetService(r.targets, source.Entity.Service)
-	matches, err := resolveTargetMatches(
-		ctx,
-		targets,
-		source.Entity,
-		collectSongTargetCandidates,
-		func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
-			return score.RankSongs(source, candidates, r.weights)
-		},
-		songMatchResultFromRanking,
-		"song candidates",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("resolve song target searches: %w", err)
-	}
-
 	return &SongResolution{
-		InputURL: inputURL,
-		Parsed:   source.Parsed,
-		Source:   source.Entity,
-		Matches:  matches,
+		InputURL: result.InputURL,
+		Parsed:   result.Parsed,
+		Source:   result.Source,
+		Matches:  result.Matches,
 	}, nil
 }
 
