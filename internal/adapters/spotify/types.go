@@ -1,7 +1,5 @@
 package spotify
 
-import "time"
-
 type initialState struct {
 	Entities spotifyEntities `json:"entities"`
 }
@@ -82,11 +80,6 @@ type tokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
-}
-
-type cachedToken struct {
-	AccessToken string
-	ExpiresAt   time.Time
 }
 
 type apiAlbumResponse struct {

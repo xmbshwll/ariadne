@@ -52,17 +52,27 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 }
 
 func (a *Adapter) accessToken(ctx context.Context) (string, error) {
-	if !a.hasCredentials() {
-		return "", ErrCredentialsNotConfigured
-	}
+	//nolint:wrapcheck // Credential token source preserves service-specific token errors.
+	return a.tokenSource.AccessToken(ctx)
+}
 
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
+func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
+	return adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: a.clientID, ClientSecret: a.clientSecret}
+		},
+		MissingCredentials: ErrCredentialsNotConfigured,
+		EmptyAccessToken:   errEmptySpotifyAccessToken,
+		Fetch:              a.fetchAccessToken,
+		SingleflightKey:    "spotify-token",
+	})
+}
 
-	if a.token.AccessToken != "" && time.Now().Before(a.token.ExpiresAt) {
-		return a.token.AccessToken, nil
-	}
+func (a *Adapter) hasCredentials() bool {
+	return a.tokenSource.CredentialsConfigured()
+}
 
+func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
 	endpoint := a.authBaseURL + "/token"
@@ -76,7 +86,7 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 			Body:   strings.NewReader(form.Encode()),
 			Headers: map[string]string{
 				"Content-Type":  "application/x-www-form-urlencoded",
-				"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte(a.clientID+":"+a.clientSecret)),
+				"Authorization": credentials.BasicAuthorization(),
 			},
 			UserAgent:    adapterutil.DefaultUserAgent,
 			BuildError:   "build token request",
@@ -85,22 +95,12 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 		},
 		DecodeError: "decode token response",
 	}, &token); err != nil {
-		return "", err
+		return adapterutil.CredentialToken{}, err
 	}
-	if token.AccessToken == "" {
-		return "", errEmptySpotifyAccessToken
-	}
-
-	ttl := max(token.ExpiresIn-30, 0)
-	a.token = cachedToken{
+	return adapterutil.CredentialToken{
 		AccessToken: token.AccessToken,
-		ExpiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
-	}
-	return a.token.AccessToken, nil
-}
-
-func (a *Adapter) hasCredentials() bool {
-	return strings.TrimSpace(a.clientID) != "" && strings.TrimSpace(a.clientSecret) != ""
+		ExpiresIn:   time.Duration(token.ExpiresIn) * time.Second,
+	}, nil
 }
 
 func isSpotifyAPIStatus(err error, statusCode int) bool {

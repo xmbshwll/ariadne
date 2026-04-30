@@ -32,6 +32,10 @@ _Avoid_: lookup, discovery
 The repair step that copies missing UPC or ISRC identifiers from strong intermediate matches into a source copy for a follow-up Target Search.
 _Avoid_: cascade hack, backfill
 
+**Credential Token**:
+A short-lived access token issued from configured Music Service credentials and cached for credentialed Runtime Hydration or Target Search.
+_Avoid_: auth blob, bearer cache
+
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
@@ -40,6 +44,7 @@ _Avoid_: cascade hack, backfill
 - **Runtime Hydration** is required for source **Capabilities** but can be intentionally deferred for parse-only **Music Services**.
 - **Target Search** is required for target **Capabilities**.
 - **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
+- A **Credential Token** is required only by Music Services whose source or target **Capabilities** need credentialed network access.
 
 ## Example dialogue
 

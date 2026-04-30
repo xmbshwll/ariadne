@@ -23,7 +23,7 @@ const (
 var errTIDALTokenResponseTooLarge = errors.New("tidal token response too large")
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
-	token, err := a.accessToken()
+	token, err := a.accessToken(ctx)
 	if err != nil {
 		return err
 	}
@@ -46,44 +46,33 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 	}, target)
 }
 
-func (a *Adapter) accessToken() (string, error) {
-	if !a.hasCredentials() {
-		return "", ErrCredentialsNotConfigured
-	}
+func (a *Adapter) accessToken(ctx context.Context) (string, error) {
+	//nolint:wrapcheck // Credential token source preserves service-specific token errors.
+	return a.tokenSource.AccessToken(ctx)
+}
 
-	if accessToken, ok := a.cachedAccessToken(); ok {
-		return accessToken, nil
-	}
-
-	result, err, _ := a.tokenGroup.Do("tidal-token", func() (any, error) {
-		if accessToken, ok := a.cachedAccessToken(); ok {
-			return accessToken, nil
-		}
-		refreshCtx, cancel := context.WithTimeout(context.Background(), tidalTokenRefreshTimeout)
-		defer cancel()
-		return a.refreshAccessToken(refreshCtx)
+func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
+	return adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: a.clientID, ClientSecret: a.clientSecret}
+		},
+		MissingCredentials: ErrCredentialsNotConfigured,
+		EmptyAccessToken:   errEmptyTIDALAccessToken,
+		IsEmptyAccessToken: func(accessToken string) bool { return strings.TrimSpace(accessToken) == "" },
+		Fetch:              a.fetchAccessToken,
+		RefreshTimeout:     tidalTokenRefreshTimeout,
+		SingleflightKey:    "tidal-token",
 	})
-	if err != nil {
-		//nolint:wrapcheck // Preserve refresh errors from the shared token fetch path.
-		return "", err
-	}
-	accessToken, _ := result.(string)
-	return accessToken, nil
 }
 
-func (a *Adapter) cachedAccessToken() (string, bool) {
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-	if a.token.accessToken == "" || !time.Now().Before(a.token.expiresAt) {
-		return "", false
-	}
-	return a.token.accessToken, true
+func (a *Adapter) hasCredentials() bool {
+	return a.tokenSource.CredentialsConfigured()
 }
 
-func (a *Adapter) refreshAccessToken(ctx context.Context) (string, error) {
+func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 	form := url.Values{}
-	form.Set("client_id", a.clientID)
-	form.Set("client_secret", a.clientSecret)
+	form.Set("client_id", credentials.ClientID)
+	form.Set("client_secret", credentials.ClientSecret)
 	form.Set("grant_type", "client_credentials")
 	endpoint := a.authBaseURL + "/oauth2/token"
 	body, err := adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
@@ -106,32 +95,16 @@ func (a *Adapter) refreshAccessToken(ctx context.Context) (string, error) {
 	})
 	if err != nil {
 		//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
-		return "", err
+		return adapterutil.CredentialToken{}, err
 	}
 	var token tokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
-		return "", fmt.Errorf("decode token response: %w", err)
+		return adapterutil.CredentialToken{}, fmt.Errorf("decode token response: %w", err)
 	}
-	if strings.TrimSpace(token.AccessToken) == "" {
-		return "", errEmptyTIDALAccessToken
-	}
-	ttl := max(token.ExpiresIn-30, 0)
-	cached := cachedToken{
-		accessToken: token.AccessToken,
-		expiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
-	}
-
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-	if a.token.accessToken != "" && time.Now().Before(a.token.expiresAt) {
-		return a.token.accessToken, nil
-	}
-	a.token = cached
-	return a.token.accessToken, nil
-}
-
-func (a *Adapter) hasCredentials() bool {
-	return strings.TrimSpace(a.clientID) != "" && strings.TrimSpace(a.clientSecret) != ""
+	return adapterutil.CredentialToken{
+		AccessToken: token.AccessToken,
+		ExpiresIn:   time.Duration(token.ExpiresIn) * time.Second,
+	}, nil
 }
 
 func (a *Adapter) countryCodeFor(regionHint string) string {
