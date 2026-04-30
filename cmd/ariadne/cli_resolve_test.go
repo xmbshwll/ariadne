@@ -28,6 +28,7 @@ func TestResolverReportsAmazonMusicAsDeferred(t *testing.T) {
 
 	_, err := resolver.ResolveAlbum(context.Background(), "https://music.amazon.com/albums/B0064UPU4G")
 	require.Error(t, err)
+	assert.ErrorIs(t, err, ariadne.ErrRuntimeDeferred)
 	assert.ErrorIs(t, err, ariadne.ErrAmazonMusicDeferred)
 }
 

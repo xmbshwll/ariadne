@@ -14,15 +14,7 @@ func fromInternalServiceName(service model.ServiceName) ServiceName {
 }
 
 func fromInternalServiceNames(services []model.ServiceName) []ServiceName {
-	if services == nil {
-		return nil
-	}
-
-	converted := make([]ServiceName, 0, len(services))
-	for _, service := range services {
-		converted = append(converted, fromInternalServiceName(service))
-	}
-	return converted
+	return translateSlice(services, fromInternalServiceName)
 }
 
 func toInternalScoreWeights(weights ScoreWeights) score.Weights {
@@ -139,7 +131,7 @@ func toInternalCanonicalTrack(track CanonicalTrack) model.CanonicalTrack {
 		NormalizedTitle: track.NormalizedTitle,
 		DurationMS:      track.DurationMS,
 		ISRC:            track.ISRC,
-		Artists:         append([]string(nil), track.Artists...),
+		Artists:         cloneStrings(track.Artists),
 	}
 }
 
@@ -151,6 +143,6 @@ func fromInternalCanonicalTrack(track model.CanonicalTrack) CanonicalTrack {
 		NormalizedTitle: track.NormalizedTitle,
 		DurationMS:      track.DurationMS,
 		ISRC:            track.ISRC,
-		Artists:         append([]string(nil), track.Artists...),
+		Artists:         cloneStrings(track.Artists),
 	}
 }

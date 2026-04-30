@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 func TestFetchAlbum(t *testing.T) {
@@ -30,6 +31,19 @@ func TestFetchAlbum(t *testing.T) {
 	require.NotEmpty(t, album.Tracks)
 	assert.Equal(t, "Come Together (2019 Mix)", album.Tracks[0].Title)
 	assert.NotEmpty(t, album.ArtworkURL)
+}
+
+func TestParseSongURLAndDeferredFetch(t *testing.T) {
+	adapter := New(nil)
+
+	parsed, err := adapter.ParseSongURL("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ")
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, "dQw4w9WgXcQ", parsed.ID)
+
+	_, err = adapter.FetchSong(context.Background(), *parsed)
+	assert.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
+	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
 }
 
 func TestUnsupportedIdentifierSearches(t *testing.T) {

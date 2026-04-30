@@ -2,11 +2,7 @@ package applemusic
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -128,27 +124,20 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return fmt.Errorf("build apple music official request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+developerToken)
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute apple music official request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%w %d: %s", errUnexpectedAppleMusicOfficialStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode apple music official response: %w", errors.Join(errMalformedAppleMusicOfficialResponse, err))
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			URL:          requestURL,
+			Headers:      map[string]string{"Authorization": "Bearer " + developerToken},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build apple music official request",
+			ExecuteError: "execute apple music official request",
+			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicOfficialStatus),
+		},
+		DecodeError:       "decode apple music official response",
+		MalformedResponse: errMalformedAppleMusicOfficialResponse,
+	}, target)
 }
 
 func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {

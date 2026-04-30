@@ -10,16 +10,16 @@ import (
 
 func TestNewWithClientBuildsDefaultServiceAdaptersOnce(t *testing.T) {
 	buildCount := 0
-	originalBindings := defaultServiceBindings
-	defaultServiceBindings = []serviceBinding{{
+	originalCatalog := defaultProviderCatalog
+	defaultProviderCatalog = newProviderCatalog([]serviceBinding{{
 		capability: serviceCapability{name: ServiceName("fixture")},
 		build: func(*http.Client, Config) serviceAdapterSet {
 			buildCount++
 			return serviceAdapterSet{}
 		},
-	}}
+	}}, serviceOrder{})
 	t.Cleanup(func() {
-		defaultServiceBindings = originalBindings
+		defaultProviderCatalog = originalCatalog
 	})
 
 	resolver := NewWithClient(&http.Client{}, DefaultConfig())

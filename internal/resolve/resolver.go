@@ -3,8 +3,6 @@ package resolve
 import (
 	"context"
 	"errors"
-	"fmt"
-	"sync"
 
 	"golang.org/x/sync/errgroup"
 
@@ -76,44 +74,44 @@ func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights
 // ResolveAlbum parses an input album URL, fetches the canonical source album,
 // then collects and ranks candidates from every target adapter except the source service.
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
-	if len(r.sources) == 0 {
-		return nil, ErrNoSourceAdapters
-	}
-
-	sourceAdapter, parsed, err := r.parseSource(inputURL)
+	result, err := resolveEntity(ctx, inputURL, entityResolutionPipeline[SourceAdapter, TargetAdapter, model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]{
+		sources: r.sources,
+		targets: r.targets,
+		parse: func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
+			return source.ParseAlbumURL(raw)
+		},
+		hydrate: func(ctx context.Context, source SourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
+			return source.FetchAlbum(ctx, parsed)
+		},
+		sourceService: func(source model.CanonicalAlbum) model.ServiceName {
+			return source.Service
+		},
+		collect: func(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+			return collectAlbumTargetCandidates(ctx, target, source, r.weights)
+		},
+		rank: func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
+			return score.RankAlbums(source, candidates, r.weights)
+		},
+		result:               albumMatchResultFromRanking,
+		entityLabel:          "album",
+		nilEntityErr:         errNilSourceAlbum,
+		candidateLabel:       "candidates",
+		targetErrLabel:       "resolve target searches",
+		afterTargetsErrLabel: "resolve apple music cascaded search",
+		afterTargets: func(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) error {
+			return newAppleMusicEnrichmentPolicy(r.weights).apply(ctx, targets, source, matches)
+		},
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	sourceAlbum, err := sourceAdapter.FetchAlbum(ctx, *parsed)
-	if err != nil {
-		return nil, fmt.Errorf("fetch source album with %s: %w", sourceAdapter.Service(), err)
-	}
-
-	targets := excludeTargetService(r.targets, sourceAlbum.Service)
-	resolution := &Resolution{
-		InputURL: inputURL,
-		Parsed:   *parsed,
-		Source:   *sourceAlbum,
-		Matches:  make(map[model.ServiceName]MatchResult, len(targets)),
-	}
-
-	var matchesMu sync.Mutex
-	if err := resolveTargetsConcurrently(ctx, targets, func(groupCtx context.Context, target TargetAdapter) error {
-		candidates, err := r.collectCandidates(groupCtx, target, *sourceAlbum)
-		if err != nil {
-			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
-		}
-		ranking := score.RankAlbums(*sourceAlbum, candidates, r.weights)
-
-		matchesMu.Lock()
-		resolution.Matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
-		matchesMu.Unlock()
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("resolve target searches: %w", err)
-	}
-	return resolution, nil
+	return &Resolution{
+		InputURL: result.InputURL,
+		Parsed:   result.Parsed,
+		Source:   result.Source,
+		Matches:  result.Matches,
+	}, nil
 }
 
 func excludeTargetService[T interface{ Service() model.ServiceName }](targets []T, sourceService model.ServiceName) []T {
@@ -127,68 +125,6 @@ func excludeTargetService[T interface{ Service() model.ServiceName }](targets []
 	return filtered
 }
 
-func (r *Resolver) parseSource(inputURL string) (SourceAdapter, *model.ParsedAlbumURL, error) {
-	return parseSourceAdapter(
-		r.sources,
-		inputURL,
-		func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
-			return source.ParseAlbumURL(raw)
-		},
-	)
-}
-
-func (r *Resolver) collectCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	isrcs := collectISRCs(source)
-	return collectCandidateLayers(ctx, albumCandidateKey,
-		candidateLayer[model.CandidateAlbum]{
-			enabled: source.UPC != "",
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByUPC(ctx, source.UPC)
-			},
-		},
-		candidateLayer[model.CandidateAlbum]{
-			enabled: len(isrcs) > 0,
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByISRC(ctx, isrcs)
-			},
-		},
-		candidateLayer[model.CandidateAlbum]{
-			enabled: true,
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByMetadata(ctx, source)
-			},
-		},
-	)
-}
-
-type fatalParseFailure interface {
-	FatalParseFailure() bool
-}
-
-func parseSourceAdapter[S any, P any](sources []S, inputURL string, parse func(S, string) (*P, error)) (S, *P, error) {
-	var zero S
-	for _, source := range sources {
-		parsed, err := parse(source, inputURL)
-		if err != nil {
-			var fatal fatalParseFailure
-			if errors.As(err, &fatal) && fatal.FatalParseFailure() {
-				return zero, nil, err
-			}
-			continue
-		}
-		if parsed == nil {
-			continue
-		}
-		return source, parsed, nil
-	}
-	return zero, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
-}
-
-type candidateLayer[T any] struct {
-	enabled bool
-	search  func(context.Context) ([]T, error)
-}
-
 func resolveTargetsConcurrently[T interface{ Service() model.ServiceName }](ctx context.Context, targets []T, resolve func(context.Context, T) error) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 	for _, target := range targets {
@@ -198,22 +134,6 @@ func resolveTargetsConcurrently[T interface{ Service() model.ServiceName }](ctx 
 	}
 	//nolint:wrapcheck // Preserve worker errors without adding another wrapper layer.
 	return group.Wait()
-}
-
-func collectCandidateLayers[T any](ctx context.Context, keyFunc func(T) string, layers ...candidateLayer[T]) ([]T, error) {
-	combined := []T{}
-	seen := map[string]struct{}{}
-	for _, layer := range layers {
-		if !layer.enabled {
-			continue
-		}
-		candidates, err := layer.search(ctx)
-		if err != nil {
-			return nil, err
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, keyFunc)
-	}
-	return combined, nil
 }
 
 func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {

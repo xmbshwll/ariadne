@@ -146,13 +146,21 @@ func TestDescribeService(t *testing.T) {
 	assert.True(t, spotify.SupportsSongTarget)
 	assert.True(t, spotify.SupportsRuntimeSongInputURL)
 
+	youTubeMusic, ok := DescribeService(ServiceYouTubeMusic)
+	require.True(t, ok)
+	assert.True(t, youTubeMusic.SupportsAlbumSource)
+	assert.True(t, youTubeMusic.SupportsAlbumTarget)
+	assert.True(t, youTubeMusic.SupportsSongSource)
+	assert.False(t, youTubeMusic.SupportsSongTarget)
+	assert.True(t, youTubeMusic.SupportsRuntimeSongInputURL)
+
 	amazon, ok := DescribeService(ServiceAmazonMusic)
 	require.True(t, ok)
 	assert.True(t, amazon.SupportsAlbumSource)
 	assert.False(t, amazon.SupportsAlbumTarget)
-	assert.False(t, amazon.SupportsSongSource)
+	assert.True(t, amazon.SupportsSongSource)
 	assert.False(t, amazon.SupportsSongTarget)
-	assert.False(t, amazon.SupportsRuntimeSongInputURL)
+	assert.True(t, amazon.SupportsRuntimeSongInputURL)
 }
 
 func TestDescribeEnabledService(t *testing.T) {
@@ -324,6 +332,28 @@ func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testi
 	require.Error(t, err)
 	assert.Nil(t, resolution)
 	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
+}
+
+func TestResolveAlbumReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
+	resolver := New(DefaultConfig())
+
+	resolution, err := resolver.ResolveAlbum(context.Background(), "https://music.amazon.com/albums/B0064UPU4G")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrRuntimeDeferred)
+	assert.ErrorIs(t, err, ErrAmazonMusicDeferred)
+	assert.False(t, errors.Is(err, ErrYouTubeMusicDeferred))
+}
+
+func TestResolveSongReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
+	resolver := New(DefaultConfig())
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://music.youtube.com/watch?v=dQw4w9WgXcQ")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrRuntimeDeferred)
+	assert.ErrorIs(t, err, ErrYouTubeMusicDeferred)
+	assert.False(t, errors.Is(err, ErrAmazonMusicDeferred))
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {

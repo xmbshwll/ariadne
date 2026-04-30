@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -23,122 +23,88 @@ const (
 var errTIDALTokenResponseTooLarge = errors.New("tidal token response too large")
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
-	token, err := a.accessToken()
+	token, err := a.accessToken(ctx)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return fmt.Errorf("build api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute api request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%w %d: %s", errUnexpectedTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode api response: %w", errors.Join(errMalformedTIDALAPIResponse, err))
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client: a.client,
+			URL:    endpoint,
+			Headers: map[string]string{
+				"Authorization": "Bearer " + token,
+				"Accept":        "application/vnd.api+json",
+			},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build api request",
+			ExecuteError: "execute api request",
+			StatusError:  adapterutil.StatusError(errUnexpectedTIDALAPIStatus),
+		},
+		DecodeError:       "decode api response",
+		MalformedResponse: errMalformedTIDALAPIResponse,
+	}, target)
 }
 
-func (a *Adapter) accessToken() (string, error) {
-	if !a.hasCredentials() {
-		return "", ErrCredentialsNotConfigured
-	}
+func (a *Adapter) accessToken(ctx context.Context) (string, error) {
+	//nolint:wrapcheck // Credential token source preserves service-specific token errors.
+	return a.tokenSource.AccessToken(ctx)
+}
 
-	if accessToken, ok := a.cachedAccessToken(); ok {
-		return accessToken, nil
-	}
-
-	result, err, _ := a.tokenGroup.Do("tidal-token", func() (any, error) {
-		if accessToken, ok := a.cachedAccessToken(); ok {
-			return accessToken, nil
-		}
-		refreshCtx, cancel := context.WithTimeout(context.Background(), tidalTokenRefreshTimeout)
-		defer cancel()
-		return a.refreshAccessToken(refreshCtx)
+func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
+	return adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: a.clientID, ClientSecret: a.clientSecret}
+		},
+		MissingCredentials: ErrCredentialsNotConfigured,
+		EmptyAccessToken:   errEmptyTIDALAccessToken,
+		IsEmptyAccessToken: func(accessToken string) bool { return strings.TrimSpace(accessToken) == "" },
+		Fetch:              a.fetchAccessToken,
+		RefreshTimeout:     tidalTokenRefreshTimeout,
+		SingleflightKey:    "tidal-token",
 	})
-	if err != nil {
-		//nolint:wrapcheck // Preserve refresh errors from the shared token fetch path.
-		return "", err
-	}
-	accessToken, _ := result.(string)
-	return accessToken, nil
-}
-
-func (a *Adapter) cachedAccessToken() (string, bool) {
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-	if a.token.accessToken == "" || !time.Now().Before(a.token.expiresAt) {
-		return "", false
-	}
-	return a.token.accessToken, true
-}
-
-func (a *Adapter) refreshAccessToken(ctx context.Context) (string, error) {
-	form := url.Values{}
-	form.Set("client_id", a.clientID)
-	form.Set("client_secret", a.clientSecret)
-	form.Set("grant_type", "client_credentials")
-	endpoint := a.authBaseURL + "/oauth2/token"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("build token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute token request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	limitedBody := io.LimitReader(resp.Body, maxTIDALTokenResponseBytes+1)
-	body, err := io.ReadAll(limitedBody)
-	if err != nil {
-		return "", fmt.Errorf("read token response: %w", err)
-	}
-	if len(body) > maxTIDALTokenResponseBytes {
-		return "", fmt.Errorf("read token response: %w (%d bytes max)", errTIDALTokenResponseTooLarge, maxTIDALTokenResponseBytes)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w %d: %s", errUnexpectedTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	var token tokenResponse
-	if err := json.Unmarshal(body, &token); err != nil {
-		return "", fmt.Errorf("decode token response: %w", err)
-	}
-	if strings.TrimSpace(token.AccessToken) == "" {
-		return "", errEmptyTIDALAccessToken
-	}
-	ttl := max(token.ExpiresIn-30, 0)
-	cached := cachedToken{
-		accessToken: token.AccessToken,
-		expiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
-	}
-
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-	if a.token.accessToken != "" && time.Now().Before(a.token.expiresAt) {
-		return a.token.accessToken, nil
-	}
-	a.token = cached
-	return a.token.accessToken, nil
 }
 
 func (a *Adapter) hasCredentials() bool {
-	return strings.TrimSpace(a.clientID) != "" && strings.TrimSpace(a.clientSecret) != ""
+	return a.tokenSource.CredentialsConfigured()
+}
+
+func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
+	form := url.Values{}
+	form.Set("client_id", credentials.ClientID)
+	form.Set("client_secret", credentials.ClientSecret)
+	form.Set("grant_type", "client_credentials")
+	endpoint := a.authBaseURL + "/oauth2/token"
+	body, err := adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			Method:       http.MethodPost,
+			URL:          endpoint,
+			Body:         strings.NewReader(form.Encode()),
+			Headers:      map[string]string{"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build token request",
+			ExecuteError: "execute token request",
+			StatusError:  adapterutil.StatusError(errUnexpectedTIDALTokenStatus),
+		},
+		ReadError:    "read token response",
+		MaxBodyBytes: maxTIDALTokenResponseBytes,
+		TooLarge: func(maxBytes int64) error {
+			return fmt.Errorf("read token response: %w (%d bytes max)", errTIDALTokenResponseTooLarge, maxBytes)
+		},
+	})
+	if err != nil {
+		//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
+		return adapterutil.CredentialToken{}, err
+	}
+	var token tokenResponse
+	if err := json.Unmarshal(body, &token); err != nil {
+		return adapterutil.CredentialToken{}, fmt.Errorf("decode token response: %w", err)
+	}
+	return adapterutil.CredentialToken{
+		AccessToken: token.AccessToken,
+		ExpiresIn:   time.Duration(token.ExpiresIn) * time.Second,
+	}, nil
 }
 
 func (a *Adapter) countryCodeFor(regionHint string) string {

@@ -8,22 +8,28 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
-	defaultBaseURL = "https://music.youtube.com"
-	searchLimit    = 5
+	defaultBaseURL      = "https://music.youtube.com"
+	searchLimit         = 5
+	songRuntimeDeferred = "no stable public song metadata fetch path exists"
 )
 
 var (
-	canonicalURLPattern               = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
-	ogTitlePattern                    = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
-	ogImagePattern                    = regexp.MustCompile(`(?i)<meta property="og:image" content="([^"]+)"`)
-	subtitleArtistPattern             = regexp.MustCompile(`subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	trackTitlePattern                 = regexp.MustCompile(`musicResponsiveListItemFlexColumnRenderer\\x22:\\x7b\\x22text\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
-	albumResultPattern                = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	// ErrDeferredRuntimeAdapter indicates that a YouTube Music URL parsed successfully, but runtime song hydration is intentionally deferred.
+	ErrDeferredRuntimeAdapter = adapterutil.RuntimeDeferredService(model.ServiceYouTubeMusic)
+
+	canonicalURLPattern   = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
+	ogTitlePattern        = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
+	ogImagePattern        = regexp.MustCompile(`(?i)<meta property="og:image" content="([^"]+)"`)
+	subtitleArtistPattern = regexp.MustCompile(`subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	trackTitlePattern     = regexp.MustCompile(`musicResponsiveListItemFlexColumnRenderer\\x22:\\x7b\\x22text\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+	albumResultPattern    = regexp.MustCompile(`title\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22,\\x22navigationEndpoint\\x22:\\x7b.*?browseId\\x22:\\x22([^\\]+?)\\x22.*?pageType\\x22:\\x22MUSIC_PAGE_TYPE_ALBUM\\x22.*?subtitle\\x22:\\x7b\\x22runs\\x22:\\x5b\\x7b\\x22text\\x22:\\x22Album\\x22\\x7d,\\x7b\\x22text\\x22:\\x22 .*?\\x7d,\\x7b\\x22text\\x22:\\x22([^\\]+?)\\x22`)
+
 	errUnexpectedYouTubeMusicService  = errors.New("unexpected youtube music service")
 	errUnexpectedYouTubeMusicStatus   = errors.New("unexpected youtube music status")
 	errMalformedYouTubeMusicPage      = errors.New("malformed youtube music page")
@@ -63,6 +69,14 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parse.YouTubeMusicAlbumURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse youtube music album url: %w", err)
+	}
+	return parsed, nil
+}
+
+func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
+	parsed, err := parse.YouTubeMusicSongURL(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse youtube music song url: %w", err)
 	}
 	return parsed, nil
 }

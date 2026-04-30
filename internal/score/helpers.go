@@ -9,22 +9,37 @@ import (
 
 var editionMarkerCandidates = []string{"super deluxe", "deluxe", "remix", "mix", "anniversary", "live", "acoustic"}
 
-type scoreContribution struct {
-	value  int
-	reason string
+// MatchEvidence describes structured match signals used by resolvers for behavioral decisions.
+type MatchEvidence struct {
+	Title  bool
+	Artist bool
 }
 
-func collectScoreContributions(contributions ...scoreContribution) (int, []string) {
+// HasTitleOrArtist reports whether a candidate has album/song title or artist evidence.
+func (e MatchEvidence) HasTitleOrArtist() bool {
+	return e.Title || e.Artist
+}
+
+type scoreContribution struct {
+	value    int
+	reason   string
+	evidence MatchEvidence
+}
+
+func collectScoreContributions(contributions ...scoreContribution) (int, []string, MatchEvidence) {
 	score := 0
 	reasons := make([]string, 0, len(contributions))
+	evidence := MatchEvidence{}
 	for _, contribution := range contributions {
 		if contribution.reason == "" {
 			continue
 		}
 		score += contribution.value
 		reasons = append(reasons, contribution.reason)
+		evidence.Title = evidence.Title || contribution.evidence.Title
+		evidence.Artist = evidence.Artist || contribution.evidence.Artist
 	}
-	return score, reasons
+	return score, reasons, evidence
 }
 
 func normalizedOrDerived(raw string, normalized string) string {

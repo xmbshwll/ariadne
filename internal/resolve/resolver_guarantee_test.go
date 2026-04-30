@@ -11,11 +11,10 @@ import (
 )
 
 func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
-	called := false
 	resolver := New(
 		[]SourceAdapter{newStubSourceAdapter()},
 		[]TargetAdapter{
-			newSourceServiceTargetAdapter(&called),
+			newSourceServiceTargetAdapter(),
 			newStubTargetAdapter(),
 		},
 		score.DefaultWeights(),
@@ -23,7 +22,6 @@ func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
 	require.NoError(t, err)
-	assert.False(t, called)
 	require.NotNil(t, resolution.Matches[model.ServiceSpotify].Best)
 	_, ok := resolution.Matches[model.ServiceDeezer]
 	assert.False(t, ok)
@@ -42,28 +40,17 @@ func TestResolverResolveAlbumReturnsTargetError(t *testing.T) {
 	assert.ErrorIs(t, err, errTargetSearchBoom)
 }
 
-func TestCollectCandidateLayersPreservesFirstSeenOrdering(t *testing.T) {
-	candidates, err := collectCandidateLayers(context.Background(), albumCandidateKey,
-		candidateLayer[model.CandidateAlbum]{
-			enabled: true,
-			search: func(context.Context) ([]model.CandidateAlbum, error) {
-				return []model.CandidateAlbum{
-					{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-					{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-				}, nil
-			},
-		},
-		candidateLayer[model.CandidateAlbum]{
-			enabled: true,
-			search: func(context.Context) ([]model.CandidateAlbum, error) {
-				return []model.CandidateAlbum{
-					{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-					{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-				}, nil
-			},
-		},
-	)
-	require.NoError(t, err)
+func TestAppendUniqueByKeyPreservesFirstSeenOrdering(t *testing.T) {
+	seen := map[string]struct{}{}
+	candidates := appendUniqueByKey([]model.CandidateAlbum{}, seen, []model.CandidateAlbum{
+		{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+		{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+	}, albumCandidateKey)
+	candidates = appendUniqueByKey(candidates, seen, []model.CandidateAlbum{
+		{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+		{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+	}, albumCandidateKey)
+
 	require.Len(t, candidates, 3)
 	assert.Equal(t, "album-1", candidates[0].CandidateID)
 	assert.Equal(t, "album-2", candidates[1].CandidateID)

@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
@@ -63,29 +61,18 @@ func fetchCanonicalPage[Parsed any, Canonical any](adapter *Adapter, ctx context
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build bandcamp request: %w", err)
-	}
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute bandcamp request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("%w %d: %s", errUnexpectedBandcampStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBandcampResponseBytes+1))
-	if err != nil {
-		return nil, fmt.Errorf("read bandcamp response: %w", err)
-	}
-	if len(body) > maxBandcampResponseBytes {
-		return nil, fmt.Errorf("%w: exceeded %d bytes", errBandcampResponseTooLarge, maxBandcampResponseBytes)
-	}
-	return body, nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
+	return adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			URL:          requestURL,
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build bandcamp request",
+			ExecuteError: "execute bandcamp request",
+			StatusError:  adapterutil.StatusError(errUnexpectedBandcampStatus),
+		},
+		ReadError:     "read bandcamp response",
+		MaxBodyBytes:  maxBandcampResponseBytes,
+		TooLargeError: errBandcampResponseTooLarge,
+	})
 }

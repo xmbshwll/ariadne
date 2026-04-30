@@ -1,17 +1,17 @@
 package spotify
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 type spotifyAPIError struct {
@@ -33,85 +33,74 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return fmt.Errorf("build api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute api request: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return &spotifyAPIError{StatusCode: resp.StatusCode, Message: strings.TrimSpace(string(body))}
-	}
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode api response: %w", errors.Join(errMalformedSpotifyAPIResponse, err))
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			URL:          endpoint,
+			Headers:      map[string]string{"Authorization": "Bearer " + token},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build api request",
+			ExecuteError: "execute api request",
+			StatusError: func(statusCode int, body string) error {
+				return &spotifyAPIError{StatusCode: statusCode, Message: body}
+			},
+		},
+		DecodeError:       "decode api response",
+		MalformedResponse: errMalformedSpotifyAPIResponse,
+	}, target)
 }
 
 func (a *Adapter) accessToken(ctx context.Context) (string, error) {
-	if !a.hasCredentials() {
-		return "", ErrCredentialsNotConfigured
-	}
+	//nolint:wrapcheck // Credential token source preserves service-specific token errors.
+	return a.tokenSource.AccessToken(ctx)
+}
 
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-
-	if a.token.AccessToken != "" && time.Now().Before(a.token.ExpiresAt) {
-		return a.token.AccessToken, nil
-	}
-
-	form := url.Values{}
-	form.Set("grant_type", "client_credentials")
-	endpoint := a.authBaseURL + "/token"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("build token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(a.clientID+":"+a.clientSecret)))
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute token request: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return "", fmt.Errorf("%w %d: %s", errUnexpectedSpotifyTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var token tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return "", fmt.Errorf("decode token response: %w", err)
-	}
-	if token.AccessToken == "" {
-		return "", errEmptySpotifyAccessToken
-	}
-
-	ttl := max(token.ExpiresIn-30, 0)
-	a.token = cachedToken{
-		AccessToken: token.AccessToken,
-		ExpiresAt:   time.Now().Add(time.Duration(ttl) * time.Second),
-	}
-	return a.token.AccessToken, nil
+func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
+	return adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: a.clientID, ClientSecret: a.clientSecret}
+		},
+		MissingCredentials: ErrCredentialsNotConfigured,
+		EmptyAccessToken:   errEmptySpotifyAccessToken,
+		Fetch:              a.fetchAccessToken,
+		SingleflightKey:    "spotify-token",
+	})
 }
 
 func (a *Adapter) hasCredentials() bool {
-	return strings.TrimSpace(a.clientID) != "" && strings.TrimSpace(a.clientSecret) != ""
+	return a.tokenSource.CredentialsConfigured()
+}
+
+func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	endpoint := a.authBaseURL + "/token"
+	var token tokenResponse
+	//nolint:wrapcheck // HTTP exchange spec supplies token request/status/decode context.
+	if err := adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client: a.client,
+			Method: http.MethodPost,
+			URL:    endpoint,
+			Body:   strings.NewReader(form.Encode()),
+			Headers: map[string]string{
+				"Content-Type":  "application/x-www-form-urlencoded",
+				"Authorization": credentials.BasicAuthorization(),
+			},
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build token request",
+			ExecuteError: "execute token request",
+			StatusError:  adapterutil.StatusError(errUnexpectedSpotifyTokenStatus),
+		},
+		DecodeError: "decode token response",
+	}, &token); err != nil {
+		return adapterutil.CredentialToken{}, err
+	}
+	return adapterutil.CredentialToken{
+		AccessToken: token.AccessToken,
+		ExpiresIn:   time.Duration(token.ExpiresIn) * time.Second,
+	}, nil
 }
 
 func isSpotifyAPIStatus(err error, statusCode int) bool {

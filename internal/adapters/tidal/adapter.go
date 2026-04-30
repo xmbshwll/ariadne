@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
-	"golang.org/x/sync/singleflight"
-
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
@@ -54,12 +51,6 @@ func WithAuthBaseURL(baseURL string) Option {
 	}
 }
 
-func WithDefaultCountryCode(countryCode string) Option {
-	return func(adapter *Adapter) {
-		adapter.defaultCountryCode = normalizeCountryCode(countryCode)
-	}
-}
-
 type Adapter struct {
 	client             *http.Client
 	clientID           string
@@ -68,14 +59,7 @@ type Adapter struct {
 	authBaseURL        string
 	defaultCountryCode string
 
-	tokenMu    sync.Mutex
-	token      cachedToken
-	tokenGroup singleflight.Group
-}
-
-type cachedToken struct {
-	accessToken string
-	expiresAt   time.Time
+	tokenSource *adapterutil.CredentialTokenSource
 }
 
 func New(client *http.Client, opts ...Option) *Adapter {
@@ -91,6 +75,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	for _, opt := range opts {
 		opt(adapter)
 	}
+	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
 }
 

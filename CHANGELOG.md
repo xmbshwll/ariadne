@@ -4,6 +4,10 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+### Added
+
+- public `ErrRuntimeDeferred` sentinel for parseable services whose runtime hydration is intentionally deferred, with service-specific Amazon Music and YouTube Music sentinels for narrower `errors.Is` branches
+
 ## v0.4.4 - 2026-04-23
 
 ### Changed

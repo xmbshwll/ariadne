@@ -5,40 +5,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-func defaultSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SourceAdapter {
-	return orderedAdapters(
-		sets,
-		defaultServiceOrder.albumSources,
-		func(set serviceAdapterSet) resolve.SourceAdapter { return set.albumSource },
-	)
-}
-
-func defaultTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.TargetAdapter {
-	targets := orderedAdapters(
-		sets,
-		defaultServiceOrder.albumTargets,
-		func(set serviceAdapterSet) resolve.TargetAdapter { return set.albumTarget },
-	)
-	return filterAdaptersByServiceName(targets, services)
-}
-
-func defaultSongSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SongSourceAdapter {
-	return orderedAdapters(
-		sets,
-		defaultServiceOrder.songSources,
-		func(set serviceAdapterSet) resolve.SongSourceAdapter { return set.songSource },
-	)
-}
-
-func defaultSongTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.SongTargetAdapter {
-	targets := orderedAdapters(
-		sets,
-		defaultServiceOrder.songTargets,
-		func(set serviceAdapterSet) resolve.SongTargetAdapter { return set.songTarget },
-	)
-	return filterAdaptersByServiceName(targets, services)
-}
-
 func orderedAdapters[T comparable](sets map[ServiceName]serviceAdapterSet, services []ServiceName, pick func(serviceAdapterSet) T) []T {
 	adapters := make([]T, 0, len(services))
 	var zero T

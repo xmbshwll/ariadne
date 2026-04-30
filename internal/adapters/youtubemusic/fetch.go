@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -31,6 +29,14 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	return extractAlbum(body, parsed.CanonicalURL)
 }
 
+func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
+	if parsed.Service != model.ServiceYouTubeMusic {
+		return nil, fmt.Errorf("%w: %s", errUnexpectedYouTubeMusicService, parsed.Service)
+	}
+	//nolint:wrapcheck // Preserve the deferred-runtime sentinel for errors.Is callers.
+	return nil, adapterutil.NewRuntimeDeferredError(model.ServiceYouTubeMusic, songRuntimeDeferred)
+}
+
 func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*model.CanonicalAlbum, error) {
 	browseURL := a.baseURL + "/browse/" + browseID
 	body, err := a.fetchPage(ctx, browseURL)
@@ -47,28 +53,19 @@ func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, err
 		defer cancel()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build youtube music request: %w", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute youtube music request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxYouTubeMusicErrorResponseBytes))
-		return nil, fmt.Errorf("%w %d: %s", errUnexpectedYouTubeMusicStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxYouTubeMusicResponseBytes+1))
-	if err != nil {
-		return nil, fmt.Errorf("read youtube music response: %w", err)
-	}
-	if len(body) > maxYouTubeMusicResponseBytes {
-		return nil, fmt.Errorf("%w: exceeded %d bytes", errYouTubeMusicResponseTooLarge, maxYouTubeMusicResponseBytes)
-	}
-	return body, nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
+	return adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:         a.client,
+			URL:            requestURL,
+			UserAgent:      adapterutil.BrowserUserAgent,
+			BuildError:     "build youtube music request",
+			ExecuteError:   "execute youtube music request",
+			StatusError:    adapterutil.StatusError(errUnexpectedYouTubeMusicStatus),
+			ErrorBodyLimit: maxYouTubeMusicErrorResponseBytes,
+		},
+		ReadError:     "read youtube music response",
+		MaxBodyBytes:  maxYouTubeMusicResponseBytes,
+		TooLargeError: errYouTubeMusicResponseTooLarge,
+	})
 }

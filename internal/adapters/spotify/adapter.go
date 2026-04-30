@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/parse"
 )
@@ -78,8 +78,7 @@ type Adapter struct {
 	authBaseURL  string
 	webBaseURL   string
 
-	tokenMu sync.Mutex
-	token   cachedToken
+	tokenSource *adapterutil.CredentialTokenSource
 }
 
 // New creates a Spotify adapter.
@@ -96,6 +95,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	for _, opt := range opts {
 		opt(adapter)
 	}
+	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
 }
 

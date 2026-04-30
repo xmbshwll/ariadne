@@ -19,9 +19,10 @@ Positional parameter:
     Values: a supported album URL from Apple Music, Deezer, Spotify, TIDAL,
     SoundCloud, YouTube Music, Bandcamp, or Amazon Music, or a supported song
     URL from Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, or TIDAL.
+    Amazon Music URLs and YouTube Music song URLs are recognized for parsing,
+    but runtime hydration remains deferred.
     Behavior: when neither --song nor --album is set, Ariadne asks the library
     to auto-detect the resource type from the URL.
-    Amazon Music URLs are recognized for parsing, but runtime resolution remains deferred.
 
 Flags:
   --config
@@ -93,7 +94,8 @@ Notes:
   - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
   - Apple Music UPC and ISRC target search are enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
   - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
-  - Song resolution currently supports Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, and TIDAL.`
+  - Song resolution currently hydrates Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, and TIDAL.
+  - YouTube Music and Amazon Music song URLs are parse-only today.`
 
 func renderRootHelp(w io.Writer, baseConfig ariadne.Config, configPath string) error {
 	if _, err := io.WriteString(w, rootHelpTextFor(baseConfig, configPath)); err != nil {
