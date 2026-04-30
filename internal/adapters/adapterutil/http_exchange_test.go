@@ -96,6 +96,28 @@ func TestGetJSONWrapsStatusAndDecodeErrors(t *testing.T) {
 }
 
 func TestFetchBytesReadsAndLimitsResponseBody(t *testing.T) {
+	t.Run("accepts non-200 success status", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte("created"))
+		}))
+		defer server.Close()
+
+		body, err := FetchBytes(context.Background(), BytesRequest{
+			RequestSpec: RequestSpec{
+				Client:       server.Client(),
+				URL:          server.URL,
+				BuildError:   "build test request",
+				ExecuteError: "execute test request",
+				StatusError:  StatusError(errHTTPExchangeStatus),
+			},
+			ReadError: "read test response",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []byte("created"), body)
+	})
+
 	t.Run("success", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("hello"))

@@ -128,7 +128,7 @@ func doRequest(ctx context.Context, spec RequestSpec) (*http.Response, error) {
 }
 
 func statusError(resp *http.Response, spec RequestSpec) error {
-	if resp.StatusCode == http.StatusOK {
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
 		return nil
 	}
 	limit := spec.ErrorBodyLimit

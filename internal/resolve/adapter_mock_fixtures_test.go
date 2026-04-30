@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -37,6 +38,28 @@ type songTargetFixture struct {
 	service    model.ServiceName
 	byISRC     func(context.Context, string) ([]model.CandidateSong, error)
 	byMetadata func(context.Context, model.CanonicalSong) ([]model.CandidateSong, error)
+}
+
+type sourceServiceSongTargetAdapter struct {
+	calls atomic.Int32
+}
+
+func (a *sourceServiceSongTargetAdapter) Service() model.ServiceName {
+	return model.ServiceSpotify
+}
+
+func (a *sourceServiceSongTargetAdapter) SearchSongByISRC(context.Context, string) ([]model.CandidateSong, error) {
+	a.calls.Add(1)
+	return nil, nil
+}
+
+func (a *sourceServiceSongTargetAdapter) SearchSongByMetadata(context.Context, model.CanonicalSong) ([]model.CandidateSong, error) {
+	a.calls.Add(1)
+	return nil, nil
+}
+
+func (a *sourceServiceSongTargetAdapter) CallCount() int32 {
+	return a.calls.Load()
 }
 
 func newSourceAdapterMock(service model.ServiceName) *MockSourceAdapter {
@@ -385,8 +408,8 @@ func stubSongTwo() model.CandidateSong {
 	}
 }
 
-func newSourceServiceSongTargetAdapter() SongTargetAdapter {
-	return newSongTargetAdapterMock(model.ServiceSpotify)
+func newSourceServiceSongTargetAdapter() *sourceServiceSongTargetAdapter {
+	return &sourceServiceSongTargetAdapter{}
 }
 
 func newFailingSongTargetAdapter() SongTargetAdapter {

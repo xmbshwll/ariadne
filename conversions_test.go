@@ -9,6 +9,20 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
+func TestCloneStringsPreservesNilAndEmptySlices(t *testing.T) {
+	assert.Nil(t, cloneStrings(nil))
+
+	empty := []string{}
+	clonedEmpty := cloneStrings(empty)
+	assert.NotNil(t, clonedEmpty)
+	assert.Empty(t, clonedEmpty)
+
+	values := []string{"one"}
+	cloned := cloneStrings(values)
+	values[0] = "mutated"
+	assert.Equal(t, []string{"one"}, cloned)
+}
+
 func TestCanonicalAlbumTranslationDeepCopiesSlices(t *testing.T) {
 	album := CanonicalAlbum{
 		Service:           ServiceSpotify,

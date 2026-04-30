@@ -121,8 +121,7 @@ func mergeTrackISRCs(album *model.CanonicalAlbum, tracks []model.CanonicalTrack)
 		return
 	}
 	if len(album.Tracks) == 0 {
-		album.Tracks = append([]model.CanonicalTrack(nil), tracks...)
-		return
+		album.Tracks = make([]model.CanonicalTrack, len(tracks))
 	}
 	if len(album.Tracks) != len(tracks) {
 		return
@@ -157,7 +156,14 @@ func cloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
 	clone.Artists = append([]string(nil), album.Artists...)
 	clone.NormalizedArtists = append([]string(nil), album.NormalizedArtists...)
 	clone.EditionHints = append([]string(nil), album.EditionHints...)
-	clone.Tracks = append([]model.CanonicalTrack(nil), album.Tracks...)
+	if album.Tracks != nil {
+		clone.Tracks = make([]model.CanonicalTrack, 0, len(album.Tracks))
+		for _, track := range album.Tracks {
+			trackCopy := track
+			trackCopy.Artists = append([]string(nil), track.Artists...)
+			clone.Tracks = append(clone.Tracks, trackCopy)
+		}
+	}
 	return clone
 }
 

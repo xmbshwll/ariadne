@@ -5,7 +5,12 @@ import (
 )
 
 func cloneStrings(values []string) []string {
-	return append([]string(nil), values...)
+	if values == nil {
+		return nil
+	}
+	cloned := make([]string, len(values))
+	copy(cloned, values)
+	return cloned
 }
 
 func translateSlice[From any, To any](values []From, translate func(From) To) []To {

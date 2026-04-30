@@ -85,7 +85,7 @@ Ariadne tests source adapters in a fixed order. First adapter that parses the UR
 8. Bandcamp
 ```
 
-Amazon Music album and song URLs can parse, but runtime fetch is deferred and returns `ErrDeferredRuntimeAdapter`. YouTube Music song URLs can parse, but song fetch is also deferred and returns `ErrDeferredRuntimeAdapter`.
+Amazon Music album and song URLs can parse, but runtime fetch is deferred and returns `ErrAmazonMusicDeferred`. YouTube Music song URLs can parse, but song fetch is also deferred and returns `ErrYouTubeMusicDeferred`.
 
 ## Album resolution order
 
