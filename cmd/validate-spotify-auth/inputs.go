@@ -7,9 +7,9 @@ import (
 	"io"
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
+	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
 )
 
 var (

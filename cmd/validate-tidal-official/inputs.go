@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
+	tidaladapter "github.com/xmbshwll/ariadne/internal/adapters/tidal"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	tidaladapter "github.com/xmbshwll/ariadne/internal/adapters/tidal"
 )
 
 var (

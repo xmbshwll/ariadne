@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
+	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 	"github.com/xmbshwll/ariadne/internal/applemusicauth"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 )
 
 var (
