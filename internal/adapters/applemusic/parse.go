@@ -49,7 +49,7 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	segments := parseutil.PathSegments(parsed.Path)
-	if len(segments) < 4 {
+	if len(segments) != 4 {
 		return nil, fmt.Errorf("%w: %s", errInvalidAppleMusicAlbumPath, parsed.Path)
 	}
 	if segments[1] != albumPathSegment {
@@ -57,12 +57,12 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	storefront := segments[0]
-	id := segments[len(segments)-1]
+	id := segments[3]
 	if storefront == "" || id == "" {
 		return nil, errMissingAppleMusicStorefrontOrAlbumID
 	}
 
-	canonicalURL := fmt.Sprintf("https://music.apple.com/%s/%s/%s/%s", storefront, albumPathSegment, segments[len(segments)-2], id)
+	canonicalURL := fmt.Sprintf("https://music.apple.com/%s/%s/%s/%s", storefront, albumPathSegment, segments[2], id)
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceAppleMusic,

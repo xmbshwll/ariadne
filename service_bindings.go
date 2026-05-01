@@ -168,12 +168,11 @@ func youTubeMusicServiceBinding() serviceBinding {
 			aliases:              builtinServiceAliases(ServiceYouTubeMusic),
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
 			runtimeSongURLParser: youtubemusicadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := youtubemusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter, songSource: adapter}
+			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter}
 		},
 	}
 }
@@ -184,12 +183,11 @@ func amazonMusicServiceBinding() serviceBinding {
 			name:                 ServiceAmazonMusic,
 			aliases:              builtinServiceAliases(ServiceAmazonMusic),
 			supportsAlbumSource:  true,
-			supportsSongSource:   true,
 			runtimeSongURLParser: amazonmusicadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := amazonmusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, songSource: adapter}
+			return serviceAdapterSet{albumSource: adapter}
 		},
 	}
 }

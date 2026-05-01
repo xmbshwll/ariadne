@@ -150,7 +150,7 @@ func TestDescribeService(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, youTubeMusic.SupportsAlbumSource)
 	assert.True(t, youTubeMusic.SupportsAlbumTarget)
-	assert.True(t, youTubeMusic.SupportsSongSource)
+	assert.False(t, youTubeMusic.SupportsSongSource)
 	assert.False(t, youTubeMusic.SupportsSongTarget)
 	assert.True(t, youTubeMusic.SupportsRuntimeSongInputURL)
 
@@ -158,7 +158,7 @@ func TestDescribeService(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, amazon.SupportsAlbumSource)
 	assert.False(t, amazon.SupportsAlbumTarget)
-	assert.True(t, amazon.SupportsSongSource)
+	assert.False(t, amazon.SupportsSongSource)
 	assert.False(t, amazon.SupportsSongTarget)
 	assert.True(t, amazon.SupportsRuntimeSongInputURL)
 }
@@ -387,15 +387,18 @@ func TestResolveAlbumReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
 	assert.False(t, errors.Is(err, ErrYouTubeMusicDeferred))
 }
 
-func TestResolveSongReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
+func TestResolveSongReturnsUnsupportedURLForParseOnlyServices(t *testing.T) {
 	resolver := New(DefaultConfig())
+
+	// YouTube Music song URLs are parse-only: SupportsRuntimeSongInputURL returns true,
+	// but ResolveSong returns ErrUnsupportedURL because there is no songSource adapter.
+	assert.True(t, SupportsRuntimeSongInputURL("https://music.youtube.com/watch?v=dQw4w9WgXcQ"))
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://music.youtube.com/watch?v=dQw4w9WgXcQ")
 	require.Error(t, err)
 	assert.Nil(t, resolution)
-	assert.ErrorIs(t, err, ErrRuntimeDeferred)
-	assert.ErrorIs(t, err, ErrYouTubeMusicDeferred)
-	assert.False(t, errors.Is(err, ErrAmazonMusicDeferred))
+	assert.ErrorIs(t, err, ErrUnsupportedURL)
+	assert.False(t, errors.Is(err, ErrYouTubeMusicDeferred))
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {

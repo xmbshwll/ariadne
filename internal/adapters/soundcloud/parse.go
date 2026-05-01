@@ -52,7 +52,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	}
 
 	segments := parseutil.PathSegments(parsed.Path)
-	if len(segments) != 2 || segments[1] == "sets" {
+	if len(segments) != 2 {
 		return nil, fmt.Errorf("%w: %s", errSoundCloudNotSongURL, raw)
 	}
 
@@ -60,6 +60,9 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	trackSlug := segments[1]
 	if userSlug == "" || trackSlug == "" {
 		return nil, errMissingSoundCloudUserOrTrackSlug
+	}
+	if isSoundCloudNonTrackPath(trackSlug) {
+		return nil, fmt.Errorf("%w: %s", errSoundCloudNotSongURL, raw)
 	}
 
 	canonicalURL := fmt.Sprintf("https://soundcloud.com/%s/%s", userSlug, trackSlug)
@@ -70,6 +73,15 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 		CanonicalURL: canonicalURL,
 		RawURL:       raw,
 	}, nil
+}
+
+func isSoundCloudNonTrackPath(segment string) bool {
+	switch segment {
+	case "sets", "likes", "followers", "following", "posts", "activities", "comments", "tracks":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseSoundCloudURL(raw string) (*url.URL, error) {

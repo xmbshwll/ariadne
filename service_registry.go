@@ -124,11 +124,10 @@ func builtinServiceAliases(service ServiceName) []string {
 
 // defaultServiceOrder preserves intentional priority differences between
 // supported service lists and enabled runtime wiring. Amazon Music appears in
-// albumSources and songSources because its URLs parse in both pipelines, while
-// runtime fetch remains deferred. YouTube Music appears in album sources,
-// album targets, and song sources; song target search is still omitted. Spotify
-// and TIDAL stay behind the public-web targets in target ordering because their
-// official APIs are credential-gated in the Enabled* view.
+// albumSources because its album URLs parse, while runtime fetch remains
+// deferred. YouTube Music appears in album sources and album targets; song URLs
+// are parse-only. Spotify and TIDAL stay behind the public-web targets in target
+// ordering because their official APIs are credential-gated in the Enabled* view.
 var defaultServiceOrder = serviceOrder{
 	albumSources: []ServiceName{
 		ServiceAppleMusic,
@@ -156,8 +155,6 @@ var defaultServiceOrder = serviceOrder{
 		ServiceSoundCloud,
 		ServiceSpotify,
 		ServiceTIDAL,
-		ServiceYouTubeMusic,
-		ServiceAmazonMusic,
 	},
 	songTargets: []ServiceName{
 		ServiceAppleMusic,

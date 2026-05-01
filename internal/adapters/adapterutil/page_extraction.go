@@ -20,10 +20,16 @@ func FetchPage(ctx context.Context, spec PageRequest) ([]byte, error) {
 	if spec.Timeout <= 0 {
 		return FetchBytes(ctx, spec.BytesRequest)
 	}
-	if _, ok := ctx.Deadline(); ok {
-		return FetchBytes(ctx, spec.BytesRequest)
+
+	timeout := spec.Timeout
+	if deadline, ok := ctx.Deadline(); ok {
+		remaining := time.Until(deadline)
+		if remaining < timeout {
+			timeout = remaining
+		}
 	}
-	ctx, cancel := context.WithTimeout(ctx, spec.Timeout)
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return FetchBytes(ctx, spec.BytesRequest)
 }
