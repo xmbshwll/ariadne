@@ -13,8 +13,8 @@ func toInternalCanonicalSong(song CanonicalSong) model.CanonicalSong {
 		RegionHint:             song.RegionHint,
 		Title:                  song.Title,
 		NormalizedTitle:        song.NormalizedTitle,
-		Artists:                cloneStrings(song.Artists),
-		NormalizedArtists:      cloneStrings(song.NormalizedArtists),
+		Artists:                copyStrings(song.Artists),
+		NormalizedArtists:      copyStrings(song.NormalizedArtists),
 		DurationMS:             song.DurationMS,
 		ISRC:                   song.ISRC,
 		Explicit:               song.Explicit,
@@ -23,11 +23,11 @@ func toInternalCanonicalSong(song CanonicalSong) model.CanonicalSong {
 		AlbumID:                song.AlbumID,
 		AlbumTitle:             song.AlbumTitle,
 		AlbumNormalizedTitle:   song.AlbumNormalizedTitle,
-		AlbumArtists:           cloneStrings(song.AlbumArtists),
-		AlbumNormalizedArtists: cloneStrings(song.AlbumNormalizedArtists),
+		AlbumArtists:           copyStrings(song.AlbumArtists),
+		AlbumNormalizedArtists: copyStrings(song.AlbumNormalizedArtists),
 		ReleaseDate:            song.ReleaseDate,
 		ArtworkURL:             song.ArtworkURL,
-		EditionHints:           cloneStrings(song.EditionHints),
+		EditionHints:           copyStrings(song.EditionHints),
 	}
 }
 
@@ -39,8 +39,8 @@ func fromInternalCanonicalSong(song model.CanonicalSong) CanonicalSong {
 		RegionHint:             song.RegionHint,
 		Title:                  song.Title,
 		NormalizedTitle:        song.NormalizedTitle,
-		Artists:                cloneStrings(song.Artists),
-		NormalizedArtists:      cloneStrings(song.NormalizedArtists),
+		Artists:                copyStrings(song.Artists),
+		NormalizedArtists:      copyStrings(song.NormalizedArtists),
 		DurationMS:             song.DurationMS,
 		ISRC:                   song.ISRC,
 		Explicit:               song.Explicit,
@@ -49,11 +49,11 @@ func fromInternalCanonicalSong(song model.CanonicalSong) CanonicalSong {
 		AlbumID:                song.AlbumID,
 		AlbumTitle:             song.AlbumTitle,
 		AlbumNormalizedTitle:   song.AlbumNormalizedTitle,
-		AlbumArtists:           cloneStrings(song.AlbumArtists),
-		AlbumNormalizedArtists: cloneStrings(song.AlbumNormalizedArtists),
+		AlbumArtists:           copyStrings(song.AlbumArtists),
+		AlbumNormalizedArtists: copyStrings(song.AlbumNormalizedArtists),
 		ReleaseDate:            song.ReleaseDate,
 		ArtworkURL:             song.ArtworkURL,
-		EditionHints:           cloneStrings(song.EditionHints),
+		EditionHints:           copyStrings(song.EditionHints),
 	}
 }
 
@@ -74,14 +74,14 @@ func fromInternalCandidateSong(song model.CandidateSong) CandidateSong {
 }
 
 func toInternalCandidateSongs(songs []CandidateSong) []model.CandidateSong {
-	return translateNonEmptySlice(songs, toInternalCandidateSong)
+	return translateCompactSlice(songs, toInternalCandidateSong)
 }
 
 func fromInternalSongScoredMatch(match resolve.SongScoredMatch) SongScoredMatch {
 	return SongScoredMatch{
 		URL:       match.URL,
 		Score:     match.Score,
-		Reasons:   cloneStrings(match.Reasons),
+		Reasons:   copyStrings(match.Reasons),
 		Candidate: fromInternalCandidateSong(match.Candidate),
 	}
 }
@@ -89,7 +89,7 @@ func fromInternalSongScoredMatch(match resolve.SongScoredMatch) SongScoredMatch 
 func fromInternalSongMatchResult(result resolve.SongMatchResult) SongMatchResult {
 	public := SongMatchResult{
 		Service:    fromInternalServiceName(result.Service),
-		Alternates: translateSliceToEmpty(result.Alternates, fromInternalSongScoredMatch),
+		Alternates: translateStableSlice(result.Alternates, fromInternalSongScoredMatch),
 	}
 	if result.Best != nil {
 		best := fromInternalSongScoredMatch(*result.Best)
@@ -103,6 +103,6 @@ func fromInternalSongResolution(resolution resolve.SongResolution) SongResolutio
 		InputURL: resolution.InputURL,
 		Parsed:   fromInternalParsedURL(resolution.Parsed),
 		Source:   fromInternalCanonicalSong(resolution.Source),
-		Matches:  translateServiceMap(resolution.Matches, fromInternalSongMatchResult),
+		Matches:  translateStableServiceMap(resolution.Matches, fromInternalSongMatchResult),
 	}
 }

@@ -13,8 +13,8 @@ func toInternalCanonicalAlbum(album CanonicalAlbum) model.CanonicalAlbum {
 		RegionHint:        album.RegionHint,
 		Title:             album.Title,
 		NormalizedTitle:   album.NormalizedTitle,
-		Artists:           cloneStrings(album.Artists),
-		NormalizedArtists: cloneStrings(album.NormalizedArtists),
+		Artists:           copyStrings(album.Artists),
+		NormalizedArtists: copyStrings(album.NormalizedArtists),
 		ReleaseDate:       album.ReleaseDate,
 		Label:             album.Label,
 		UPC:               album.UPC,
@@ -22,8 +22,8 @@ func toInternalCanonicalAlbum(album CanonicalAlbum) model.CanonicalAlbum {
 		TotalDurationMS:   album.TotalDurationMS,
 		ArtworkURL:        album.ArtworkURL,
 		Explicit:          album.Explicit,
-		EditionHints:      cloneStrings(album.EditionHints),
-		Tracks:            translateSliceToEmpty(album.Tracks, toInternalCanonicalTrack),
+		EditionHints:      copyStrings(album.EditionHints),
+		Tracks:            translateStableSlice(album.Tracks, toInternalCanonicalTrack),
 	}
 }
 
@@ -35,8 +35,8 @@ func fromInternalCanonicalAlbum(album model.CanonicalAlbum) CanonicalAlbum {
 		RegionHint:        album.RegionHint,
 		Title:             album.Title,
 		NormalizedTitle:   album.NormalizedTitle,
-		Artists:           cloneStrings(album.Artists),
-		NormalizedArtists: cloneStrings(album.NormalizedArtists),
+		Artists:           copyStrings(album.Artists),
+		NormalizedArtists: copyStrings(album.NormalizedArtists),
 		ReleaseDate:       album.ReleaseDate,
 		Label:             album.Label,
 		UPC:               album.UPC,
@@ -44,8 +44,8 @@ func fromInternalCanonicalAlbum(album model.CanonicalAlbum) CanonicalAlbum {
 		TotalDurationMS:   album.TotalDurationMS,
 		ArtworkURL:        album.ArtworkURL,
 		Explicit:          album.Explicit,
-		EditionHints:      cloneStrings(album.EditionHints),
-		Tracks:            translateSliceToEmpty(album.Tracks, fromInternalCanonicalTrack),
+		EditionHints:      copyStrings(album.EditionHints),
+		Tracks:            translateStableSlice(album.Tracks, fromInternalCanonicalTrack),
 	}
 }
 
@@ -66,14 +66,14 @@ func fromInternalCandidateAlbum(album model.CandidateAlbum) CandidateAlbum {
 }
 
 func toInternalCandidateAlbums(albums []CandidateAlbum) []model.CandidateAlbum {
-	return translateNonEmptySlice(albums, toInternalCandidateAlbum)
+	return translateCompactSlice(albums, toInternalCandidateAlbum)
 }
 
 func fromInternalScoredMatch(match resolve.ScoredMatch) ScoredMatch {
 	return ScoredMatch{
 		URL:       match.URL,
 		Score:     match.Score,
-		Reasons:   cloneStrings(match.Reasons),
+		Reasons:   copyStrings(match.Reasons),
 		Candidate: fromInternalCandidateAlbum(match.Candidate),
 	}
 }
@@ -81,7 +81,7 @@ func fromInternalScoredMatch(match resolve.ScoredMatch) ScoredMatch {
 func fromInternalMatchResult(result resolve.MatchResult) MatchResult {
 	public := MatchResult{
 		Service:    fromInternalServiceName(result.Service),
-		Alternates: translateSliceToEmpty(result.Alternates, fromInternalScoredMatch),
+		Alternates: translateStableSlice(result.Alternates, fromInternalScoredMatch),
 	}
 	if result.Best != nil {
 		best := fromInternalScoredMatch(*result.Best)
@@ -95,6 +95,6 @@ func fromInternalResolution(resolution resolve.Resolution) Resolution {
 		InputURL: resolution.InputURL,
 		Parsed:   fromInternalParsedURL(resolution.Parsed),
 		Source:   fromInternalCanonicalAlbum(resolution.Source),
-		Matches:  translateServiceMap(resolution.Matches, fromInternalMatchResult),
+		Matches:  translateStableServiceMap(resolution.Matches, fromInternalMatchResult),
 	}
 }

@@ -14,91 +14,26 @@ func fromInternalServiceName(service model.ServiceName) ServiceName {
 }
 
 func fromInternalServiceNames(services []model.ServiceName) []ServiceName {
-	return translateSlice(services, fromInternalServiceName)
+	return translateOwnedSlice(services, fromInternalServiceName)
 }
 
+// Score-weight structs have identical field layouts on both sides of the
+// seam. Named-type conversions keep the two layouts locked together at
+// compile time: any drift fails the build here.
 func toInternalScoreWeights(weights ScoreWeights) score.Weights {
-	return score.Weights{
-		UPCExact:             weights.UPCExact,
-		ISRCStrongOverlap:    weights.ISRCStrongOverlap,
-		ISRCPartialScale:     weights.ISRCPartialScale,
-		TrackTitleStrong:     weights.TrackTitleStrong,
-		TrackTitlePartial:    weights.TrackTitlePartial,
-		TitleExact:           weights.TitleExact,
-		CoreTitleExact:       weights.CoreTitleExact,
-		PrimaryArtistExact:   weights.PrimaryArtistExact,
-		ArtistOverlap:        weights.ArtistOverlap,
-		TrackCountExact:      weights.TrackCountExact,
-		TrackCountNear:       weights.TrackCountNear,
-		TrackCountMismatch:   weights.TrackCountMismatch,
-		ReleaseDateExact:     weights.ReleaseDateExact,
-		ReleaseYearExact:     weights.ReleaseYearExact,
-		DurationNear:         weights.DurationNear,
-		LabelExact:           weights.LabelExact,
-		ExplicitMismatch:     weights.ExplicitMismatch,
-		EditionMismatch:      weights.EditionMismatch,
-		EditionMarkerPenalty: weights.EditionMarkerPenalty,
-	}
+	return score.Weights(weights)
 }
 
 func fromInternalScoreWeights(weights score.Weights) ScoreWeights {
-	return ScoreWeights{
-		UPCExact:             weights.UPCExact,
-		ISRCStrongOverlap:    weights.ISRCStrongOverlap,
-		ISRCPartialScale:     weights.ISRCPartialScale,
-		TrackTitleStrong:     weights.TrackTitleStrong,
-		TrackTitlePartial:    weights.TrackTitlePartial,
-		TitleExact:           weights.TitleExact,
-		CoreTitleExact:       weights.CoreTitleExact,
-		PrimaryArtistExact:   weights.PrimaryArtistExact,
-		ArtistOverlap:        weights.ArtistOverlap,
-		TrackCountExact:      weights.TrackCountExact,
-		TrackCountNear:       weights.TrackCountNear,
-		TrackCountMismatch:   weights.TrackCountMismatch,
-		ReleaseDateExact:     weights.ReleaseDateExact,
-		ReleaseYearExact:     weights.ReleaseYearExact,
-		DurationNear:         weights.DurationNear,
-		LabelExact:           weights.LabelExact,
-		ExplicitMismatch:     weights.ExplicitMismatch,
-		EditionMismatch:      weights.EditionMismatch,
-		EditionMarkerPenalty: weights.EditionMarkerPenalty,
-	}
+	return ScoreWeights(weights)
 }
 
 func toInternalSongScoreWeights(weights SongScoreWeights) score.SongWeights {
-	return score.SongWeights{
-		ISRCExact:            weights.ISRCExact,
-		TitleExact:           weights.TitleExact,
-		CoreTitleExact:       weights.CoreTitleExact,
-		PrimaryArtistExact:   weights.PrimaryArtistExact,
-		ArtistOverlap:        weights.ArtistOverlap,
-		DurationNear:         weights.DurationNear,
-		AlbumTitleExact:      weights.AlbumTitleExact,
-		ReleaseDateExact:     weights.ReleaseDateExact,
-		ReleaseYearExact:     weights.ReleaseYearExact,
-		TrackNumberExact:     weights.TrackNumberExact,
-		ExplicitMismatch:     weights.ExplicitMismatch,
-		EditionMismatch:      weights.EditionMismatch,
-		EditionMarkerPenalty: weights.EditionMarkerPenalty,
-	}
+	return score.SongWeights(weights)
 }
 
 func fromInternalSongScoreWeights(weights score.SongWeights) SongScoreWeights {
-	return SongScoreWeights{
-		ISRCExact:            weights.ISRCExact,
-		TitleExact:           weights.TitleExact,
-		CoreTitleExact:       weights.CoreTitleExact,
-		PrimaryArtistExact:   weights.PrimaryArtistExact,
-		ArtistOverlap:        weights.ArtistOverlap,
-		DurationNear:         weights.DurationNear,
-		AlbumTitleExact:      weights.AlbumTitleExact,
-		ReleaseDateExact:     weights.ReleaseDateExact,
-		ReleaseYearExact:     weights.ReleaseYearExact,
-		TrackNumberExact:     weights.TrackNumberExact,
-		ExplicitMismatch:     weights.ExplicitMismatch,
-		EditionMismatch:      weights.EditionMismatch,
-		EditionMarkerPenalty: weights.EditionMarkerPenalty,
-	}
+	return SongScoreWeights(weights)
 }
 
 func toInternalParsedURL(parsed ParsedURL) model.ParsedURL {
@@ -131,7 +66,7 @@ func toInternalCanonicalTrack(track CanonicalTrack) model.CanonicalTrack {
 		NormalizedTitle: track.NormalizedTitle,
 		DurationMS:      track.DurationMS,
 		ISRC:            track.ISRC,
-		Artists:         cloneStrings(track.Artists),
+		Artists:         copyStrings(track.Artists),
 	}
 }
 
@@ -143,6 +78,6 @@ func fromInternalCanonicalTrack(track model.CanonicalTrack) CanonicalTrack {
 		NormalizedTitle: track.NormalizedTitle,
 		DurationMS:      track.DurationMS,
 		ISRC:            track.ISRC,
-		Artists:         cloneStrings(track.Artists),
+		Artists:         copyStrings(track.Artists),
 	}
 }
