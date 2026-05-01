@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 var (
