@@ -2,7 +2,6 @@ package spotify
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -105,18 +104,10 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Spotify album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := ParseAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse spotify album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 // ParseSongURL parses a Spotify track URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := ParseSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse spotify song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }

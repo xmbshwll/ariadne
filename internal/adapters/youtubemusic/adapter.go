@@ -3,7 +3,6 @@ package youtubemusic
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -65,19 +64,11 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := ParseAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse youtube music album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := ParseSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse youtube music song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }
 
 func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {

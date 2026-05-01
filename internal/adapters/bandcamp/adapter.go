@@ -3,7 +3,6 @@ package bandcamp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -57,20 +56,12 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Bandcamp album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := ParseAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse bandcamp album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 // ParseSongURL parses a Bandcamp track URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := ParseSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse bandcamp song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }
 
 // SearchByUPC is not supported for Bandcamp.

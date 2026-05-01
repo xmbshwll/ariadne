@@ -2,7 +2,6 @@ package applemusic
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -106,18 +105,10 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses an Apple Music album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := ParseAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse apple music album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 // ParseSongURL parses an Apple Music song URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := ParseSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse apple music song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }
