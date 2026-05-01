@@ -1,8 +1,11 @@
 package ariadne
 
-// ServiceName identifies a music service known to the library.
-type ServiceName string
+import "github.com/xmbshwll/ariadne/internal/model"
 
+// ServiceName identifies a music service known to the library.
+type ServiceName = model.ServiceName
+
+// Re-export service name constants so callers don't need to import internal/model.
 const (
 	// ServiceSpotify identifies Spotify.
 	ServiceSpotify ServiceName = "spotify"
@@ -25,6 +28,7 @@ const (
 // MatchStrength buckets raw scores into user-facing confidence bands.
 type MatchStrength string
 
+// Re-export match strength constants.
 const (
 	// MatchStrengthVeryWeak indicates a low-confidence match.
 	MatchStrengthVeryWeak MatchStrength = "very_weak"
@@ -55,6 +59,7 @@ type ServiceCapabilities struct {
 // TargetServiceRequestStatus explains whether a requested target service can be used under a Config.
 type TargetServiceRequestStatus string
 
+// Re-export target service request status constants.
 const (
 	// TargetServiceRequestAvailable means the service can be used as requested.
 	TargetServiceRequestAvailable TargetServiceRequestStatus = "available"
