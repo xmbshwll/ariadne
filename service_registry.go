@@ -119,7 +119,7 @@ func newProviderCatalog(bindings []serviceBinding, order serviceOrder) providerC
 }
 
 func builtinServiceAliases(service ServiceName) []string {
-	return services.AliasesFor(toInternalServiceName(service))
+	return services.AliasesFor(service)
 }
 
 // defaultServiceOrder preserves intentional priority differences between

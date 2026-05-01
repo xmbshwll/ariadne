@@ -26,7 +26,7 @@ func filterAdaptersByServiceName[T interface{ Service() model.ServiceName }](ada
 
 	filtered := make([]T, 0, len(adapters))
 	for _, adapter := range adapters {
-		if _, ok := allowed[fromInternalServiceName(adapter.Service())]; !ok {
+		if _, ok := allowed[adapter.Service()]; !ok {
 			continue
 		}
 		filtered = append(filtered, adapter)

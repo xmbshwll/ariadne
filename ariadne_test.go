@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 const testLibrarySourceURL = "https://fixture.test/source"
@@ -129,11 +128,6 @@ func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
 			assert.Equal(t, tt.ok, tt.fn())
 		})
 	}
-}
-
-func TestFromInternalServiceNamesPreservesNilVsEmpty(t *testing.T) {
-	assert.Nil(t, fromInternalServiceNames(nil))
-	assert.Equal(t, []ServiceName{}, fromInternalServiceNames([]model.ServiceName{}))
 }
 
 func TestDescribeService(t *testing.T) {

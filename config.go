@@ -147,7 +147,7 @@ func configFromInternal(cfg internalconfig.Config) Config {
 		},
 		AppleMusicStorefront: cfg.AppleMusic.Storefront,
 		HTTPTimeout:          cfg.HTTPTimeout,
-		TargetServices:       fromInternalServiceNames(cfg.TargetServices),
+		TargetServices:       cfg.TargetServices,
 	})
 }
 

@@ -47,8 +47,8 @@ func NewWithClient(client *http.Client, config Config) *Resolver {
 		adapters.albumTargets,
 		adapters.songSources,
 		adapters.songTargets,
-		toInternalScoreWeights(config.ScoreWeights),
-		toInternalSongScoreWeights(config.SongScoreWeights),
+		config.ScoreWeights,
+		config.SongScoreWeights,
 	)
 }
 
@@ -81,8 +81,8 @@ func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets 
 		wrapTargetAdapters(albumTargets),
 		wrapSongSourceAdapters(songSources),
 		wrapSongTargetAdapters(songTargets),
-		toInternalScoreWeights(albumWeights),
-		toInternalSongScoreWeights(songWeights),
+		albumWeights,
+		songWeights,
 	)
 }
 
@@ -131,8 +131,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
 		return nil, err
 	}
-	public := fromInternalResolution(*resolution)
-	return &public, nil
+	return resolution, nil
 }
 
 // ResolveSong resolves one input song URL into a canonical source song plus per-service matches.
@@ -168,8 +167,7 @@ func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResol
 		//nolint:wrapcheck // Preserve the underlying resolver error for callers and CLI output.
 		return nil, err
 	}
-	public := fromInternalSongResolution(*resolution)
-	return &public, nil
+	return resolution, nil
 }
 
 // Resolve tries ResolveSong first and returns an EntityResolution containing

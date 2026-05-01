@@ -92,7 +92,7 @@ func translateCompactSlice[From any, To any](values []From, translate func(From)
 func translateStableServiceMap[From any, To any](values map[model.ServiceName]From, translate func(From) To) map[ServiceName]To {
 	translated := make(map[ServiceName]To, len(values))
 	for service, value := range values {
-		translated[fromInternalServiceName(service)] = translate(value)
+		translated[service] = translate(value)
 	}
 	return translated
 }

@@ -12,7 +12,7 @@ func LookupServiceName(raw string) (ServiceName, bool) {
 	if !ok {
 		return "", false
 	}
-	return fromInternalServiceName(service), true
+	return service, true
 }
 
 // DescribeService reports Ariadne's built-in service support, independent of config.
