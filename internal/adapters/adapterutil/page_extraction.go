@@ -30,7 +30,7 @@ func FetchPage(ctx context.Context, spec PageRequest) ([]byte, error) {
 
 func FirstRegexpGroup(body []byte, pattern *regexp.Regexp, notFound error) ([]byte, error) {
 	matches := pattern.FindSubmatch(body)
-	if len(matches) != 2 {
+	if len(matches) < 2 {
 		if notFound == nil {
 			notFound = errRegexpGroupNotFound
 		}
