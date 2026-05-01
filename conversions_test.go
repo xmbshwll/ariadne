@@ -9,13 +9,20 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-func TestCloneStringsPreservesNilAndEmptySlices(t *testing.T) {
-	assert.Nil(t, cloneStrings(nil))
+func TestConversionSliceContracts(t *testing.T) {
+	identity := func(value string) string { return value }
 
-	empty := []string{}
-	clonedEmpty := cloneStrings(empty)
+	assert.Nil(t, cloneStrings(nil))
+	assert.Nil(t, translateSlice[string, string](nil, identity))
+	assert.Nil(t, translateNonEmptySlice[string, string]([]string{}, identity))
+
+	clonedEmpty := cloneStrings([]string{})
 	assert.NotNil(t, clonedEmpty)
 	assert.Empty(t, clonedEmpty)
+
+	translatedEmpty := translateSliceToEmpty[string, string](nil, identity)
+	assert.NotNil(t, translatedEmpty)
+	assert.Empty(t, translatedEmpty)
 
 	values := []string{"one"}
 	cloned := cloneStrings(values)
@@ -56,6 +63,33 @@ func TestCanonicalAlbumTranslationDeepCopiesSlices(t *testing.T) {
 	assert.Equal(t, "Track Artist", public.Tracks[0].Artists[0])
 }
 
+func TestCanonicalSongTranslationDeepCopiesSlices(t *testing.T) {
+	song := CanonicalSong{
+		Service:                ServiceSpotify,
+		Artists:                []string{"Song Artist"},
+		NormalizedArtists:      []string{"song artist"},
+		AlbumArtists:           []string{"Album Artist"},
+		AlbumNormalizedArtists: []string{"album artist"},
+		EditionHints:           []string{"single"},
+	}
+
+	internal := toInternalCanonicalSong(song)
+	song.Artists[0] = "mutated song artist"
+	song.AlbumArtists[0] = "mutated album artist"
+	song.EditionHints[0] = "mutated edition"
+
+	assert.Equal(t, "Song Artist", internal.Artists[0])
+	assert.Equal(t, "Album Artist", internal.AlbumArtists[0])
+	assert.Equal(t, "single", internal.EditionHints[0])
+
+	public := fromInternalCanonicalSong(internal)
+	internal.Artists[0] = "mutated internal song artist"
+	internal.AlbumArtists[0] = "mutated internal album artist"
+
+	assert.Equal(t, "Song Artist", public.Artists[0])
+	assert.Equal(t, "Album Artist", public.AlbumArtists[0])
+}
+
 func TestCandidateBatchTranslationPreservesEmptyAsNil(t *testing.T) {
 	assert.Nil(t, toInternalCandidateAlbums(nil))
 	assert.Nil(t, toInternalCandidateAlbums([]CandidateAlbum{}))
@@ -74,6 +108,10 @@ func TestResultTranslationUsesEmptyOutputContainers(t *testing.T) {
 	assert.NotNil(t, album.Matches[ServiceSpotify].Alternates)
 	assert.Empty(t, album.Matches[ServiceSpotify].Alternates)
 
+	emptyAlbum := fromInternalResolution(resolve.Resolution{})
+	assert.NotNil(t, emptyAlbum.Matches)
+	assert.Empty(t, emptyAlbum.Matches)
+
 	song := fromInternalSongResolution(resolve.SongResolution{
 		Matches: map[model.ServiceName]resolve.SongMatchResult{
 			model.ServiceAppleMusic: {Service: model.ServiceAppleMusic},
@@ -83,4 +121,8 @@ func TestResultTranslationUsesEmptyOutputContainers(t *testing.T) {
 	assert.NotNil(t, song.Matches)
 	assert.NotNil(t, song.Matches[ServiceAppleMusic].Alternates)
 	assert.Empty(t, song.Matches[ServiceAppleMusic].Alternates)
+
+	emptySong := fromInternalSongResolution(resolve.SongResolution{})
+	assert.NotNil(t, emptySong.Matches)
+	assert.Empty(t, emptySong.Matches)
 }

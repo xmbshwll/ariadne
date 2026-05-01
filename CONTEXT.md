@@ -52,6 +52,10 @@ _Avoid_: scoring helper, reason string
 An ordered title/artist search string used when Target Search falls back from identifiers to source metadata.
 _Avoid_: query helper, search text
 
+**Conversion Semantics**:
+Rules for translating between Ariadne's public API types and internal model types, including field mapping, nil/empty container shape, and deep-copy ownership.
+_Avoid_: mapper glue, conversion helper
+
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
@@ -65,6 +69,7 @@ _Avoid_: query helper, search text
 - **Entity Resolution** composes Source Input recognition, Runtime Hydration, Target Search, and optional Identifier Enrichment.
 - **Target Search** can use identifiers first, then one or more **Metadata Queries** when identifiers are missing or insufficient.
 - **Target Search** candidates are ranked by **Score Signals** before **Entity Resolution** returns matches.
+- **Conversion Semantics** keep public **Entity Resolution** outputs isolated from internal model mutation.
 
 ## Example dialogue
 
