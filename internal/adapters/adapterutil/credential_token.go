@@ -100,22 +100,33 @@ func (s *CredentialTokenSource) AccessToken(ctx context.Context) (string, error)
 	if accessToken, ok := s.cachedAccessToken(); ok {
 		return accessToken, nil
 	}
+	if err := ctx.Err(); err != nil {
+		//nolint:wrapcheck // Return caller cancellation unchanged.
+		return "", err
+	}
 
-	result, err, _ := s.group.Do(s.config.SingleflightKey, func() (any, error) {
+	detachedCtx := context.WithoutCancel(ctx)
+	resultCh := s.group.DoChan(s.config.SingleflightKey, func() (any, error) {
 		if accessToken, ok := s.cachedAccessToken(); ok {
 			return accessToken, nil
 		}
-		return s.refreshAccessToken(ctx, credentials)
+		return s.refreshAccessToken(detachedCtx, credentials)
 	})
-	if err != nil {
-		//nolint:wrapcheck // Preserve service-specific fetch errors across singleflight.
-		return "", err
+
+	select {
+	case <-ctx.Done():
+		//nolint:wrapcheck // Return caller cancellation unchanged.
+		return "", ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return "", result.Err
+		}
+		accessToken, ok := result.Val.(string)
+		if !ok {
+			return "", errCredentialTokenResultInvalid
+		}
+		return accessToken, nil
 	}
-	accessToken, ok := result.(string)
-	if !ok {
-		return "", errCredentialTokenResultInvalid
-	}
-	return accessToken, nil
 }
 
 func (s *CredentialTokenSource) cachedAccessToken() (string, bool) {

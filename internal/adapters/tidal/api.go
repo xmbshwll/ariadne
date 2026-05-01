@@ -12,7 +12,6 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 const (
@@ -124,11 +123,11 @@ func normalizeCountryCode(value string) string {
 }
 
 func metadataQuery(album model.CanonicalAlbum) string {
-	return normalize.SearchPrimaryQuery(album.Title, album.Artists)
+	return adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
 }
 
 func songMetadataQuery(song model.CanonicalSong) string {
-	return normalize.SearchPrimaryQuery(song.Title, song.Artists)
+	return adapterutil.PrimaryMetadataQuery(song.Title, song.Artists)
 }
 
 func firstDataResource(document apiDocument) (apiResource, bool, error) {

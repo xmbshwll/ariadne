@@ -226,13 +226,17 @@ func stubAlbumTwo() model.CandidateAlbum {
 func newBlockingTargetAdapter(service model.ServiceName, started chan<- struct{}, release <-chan struct{}) TargetAdapter {
 	return newAlbumTargetFixture(albumTargetFixture{
 		service: service,
-		byMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+		byMetadata: func(ctx context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 			select {
 			case started <- struct{}{}:
 			default:
 			}
-			<-release
-			return nil, nil
+			select {
+			case <-release:
+				return nil, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		},
 	})
 }

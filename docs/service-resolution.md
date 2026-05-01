@@ -85,7 +85,7 @@ Ariadne tests source adapters in a fixed order. First adapter that parses the UR
 8. Bandcamp
 ```
 
-Amazon Music album and song URLs can parse, but runtime fetch is deferred and returns `ErrAmazonMusicDeferred`. YouTube Music song URLs can parse, but song fetch is also deferred and returns `ErrYouTubeMusicDeferred`.
+Amazon Music album and song URLs can parse, but runtime fetch is deferred and returns `ErrRuntimeDeferred` plus `ErrAmazonMusicDeferred`. YouTube Music song URLs can parse, but song fetch is also deferred and returns `ErrRuntimeDeferred` plus `ErrYouTubeMusicDeferred`.
 
 ## Album resolution order
 
@@ -147,7 +147,10 @@ Initial album target searches complete
   |              |-- SearchByISRC(enriched track ISRCs)
   |              |-- SearchByMetadata(enriched source)
   |              |-- score and rank using enriched source
-  |              `-- replace appleMusic match
+  |              `-- compare rerun Best with initial Apple Music Best
+  |                    |-- rerun Best is nil       -> keep initial Apple Music result
+  |                    |-- score is lower / equal -> keep initial Apple Music result
+  |                    `-- score is higher        -> replace appleMusic match
   |
   `-- final album matches
 ```
@@ -218,7 +221,7 @@ ResolveSong(url)
 
 Song resolution does not currently run the Apple Music cascade pass.
 
-YouTube Music and Amazon Music song URLs are recognized by the song parser, but their source fetch path is parse-only today. If one of those URLs is selected as the song source, resolution stops with `ErrDeferredRuntimeAdapter` before target search.
+YouTube Music and Amazon Music song URLs are recognized by the song parser, but their source fetch path is parse-only today. If one of those URLs is selected as the song source, resolution stops before target search with `ErrRuntimeDeferred` plus `ErrYouTubeMusicDeferred` or `ErrAmazonMusicDeferred`.
 
 ## CLI output order
 

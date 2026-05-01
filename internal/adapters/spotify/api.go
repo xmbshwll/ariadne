@@ -14,6 +14,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
+const spotifyTokenRefreshTimeout = 30 * time.Second
+
 type spotifyAPIError struct {
 	StatusCode int
 	Message    string
@@ -64,6 +66,7 @@ func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
 		MissingCredentials: ErrCredentialsNotConfigured,
 		EmptyAccessToken:   errEmptySpotifyAccessToken,
 		Fetch:              a.fetchAccessToken,
+		RefreshTimeout:     spotifyTokenRefreshTimeout,
 		SingleflightKey:    "spotify-token",
 	})
 }

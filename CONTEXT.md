@@ -40,6 +40,14 @@ _Avoid_: auth blob, bearer cache
 The end-to-end pipeline that recognizes Source Input, performs Runtime Hydration, runs Target Search, and returns ranked matches for one music entity shape.
 _Avoid_: resolver orchestration, flow glue
 
+**Score Signal**:
+A weighted matching clue used to rank Target Search candidates, explain match quality, and expose structured evidence for resolver decisions.
+_Avoid_: scoring helper, reason string
+
+**Metadata Query**:
+An ordered title/artist search string used when Target Search falls back from identifiers to source metadata.
+_Avoid_: query helper, search text
+
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
@@ -50,6 +58,8 @@ _Avoid_: resolver orchestration, flow glue
 - **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
 - A **Credential Token** is required only by Music Services whose source or target **Capabilities** need credentialed network access.
 - **Entity Resolution** composes Source Input recognition, Runtime Hydration, Target Search, and optional Identifier Enrichment.
+- **Target Search** can use identifiers first, then one or more **Metadata Queries** when identifiers are missing or insufficient.
+- **Target Search** candidates are ranked by **Score Signals** before **Entity Resolution** returns matches.
 
 ## Example dialogue
 

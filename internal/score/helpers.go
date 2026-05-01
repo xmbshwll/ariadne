@@ -86,23 +86,6 @@ func coreTitle(raw string, normalized string) string {
 	return strings.Join(cleaned, " ")
 }
 
-func normalizeArtistNames(values []string) []string {
-	items := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		normalized := normalizedOrDerived(value, "")
-		if normalized == "" {
-			continue
-		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		items = append(items, normalized)
-	}
-	return items
-}
-
 func artistOverlap(left []string, right []string) bool {
 	seen := make(map[string]struct{}, len(left))
 	for _, value := range left {

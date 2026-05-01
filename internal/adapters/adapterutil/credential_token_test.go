@@ -18,6 +18,11 @@ var (
 	errCredentialTokenFetch   = errors.New("credential token fetch failed")
 )
 
+type accessTokenResult struct {
+	accessToken string
+	err         error
+}
+
 func TestCredentialTokenSourceRequiresCredentials(t *testing.T) {
 	var fetchCalled bool
 	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
@@ -117,6 +122,56 @@ func TestCredentialTokenSourceSerializesConcurrentRefresh(t *testing.T) {
 	for err := range errCh {
 		require.NoError(t, err)
 	}
+	assert.EqualValues(t, 1, fetches.Load())
+}
+
+func TestCredentialTokenSourceCallerCancellationDoesNotCancelSharedRefresh(t *testing.T) {
+	started := make(chan struct{}, 1)
+	allowResponse := make(chan struct{})
+	var fetches atomic.Int32
+	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
+		Credentials: func() ClientCredentials {
+			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+		},
+		MissingCredentials: errCredentialTokenMissing,
+		EmptyAccessToken:   errCredentialTokenEmpty,
+		Fetch: func(ctx context.Context, _ ClientCredentials) (CredentialToken, error) {
+			fetches.Add(1)
+			started <- struct{}{}
+			select {
+			case <-allowResponse:
+				return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
+			case <-ctx.Done():
+				return CredentialToken{}, ctx.Err()
+			}
+		},
+	})
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	firstErrCh := make(chan error, 1)
+	go func() {
+		_, err := source.AccessToken(cancelledCtx)
+		firstErrCh <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "timed out waiting for token refresh")
+	}
+	cancel()
+	require.ErrorIs(t, <-firstErrCh, context.Canceled)
+
+	secondResultCh := make(chan accessTokenResult, 1)
+	go func() {
+		accessToken, err := source.AccessToken(context.Background())
+		secondResultCh <- accessTokenResult{accessToken: accessToken, err: err}
+	}()
+
+	close(allowResponse)
+	secondResult := <-secondResultCh
+	require.NoError(t, secondResult.err)
+	assert.Equal(t, "token", secondResult.accessToken)
 	assert.EqualValues(t, 1, fetches.Load())
 }
 
