@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parseutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 var (
@@ -48,7 +48,7 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		return nil, fmt.Errorf("%w: %s", errUnsupportedAppleMusicHost, parsed.Host)
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	if len(segments) != 4 {
 		return nil, fmt.Errorf("%w: %s", errInvalidAppleMusicAlbumPath, parsed.Path)
 	}

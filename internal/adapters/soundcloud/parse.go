@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parseutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 var (
@@ -24,7 +24,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		return nil, err
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	if len(segments) != 3 || segments[1] != "sets" {
 		return nil, fmt.Errorf("%w: %s", errSoundCloudNotAlbumURL, raw)
 	}
@@ -51,7 +51,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 		return nil, err
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	if len(segments) != 2 {
 		return nil, fmt.Errorf("%w: %s", errSoundCloudNotSongURL, raw)
 	}

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parseutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 var (
@@ -40,14 +40,14 @@ func parseEntityURL(raw string, pathSegment string, entityType string, notEntity
 		return nil, fmt.Errorf("%w: %s", errUnsupportedDeezerHost, parsed.Host)
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	if len(segments) == 0 {
 		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
 	}
 
 	regionHint := ""
 	index := 0
-	if parseutil.IsRegionSegment(segments[0]) {
+	if adapterutil.IsRegionSegment(segments[0]) {
 		regionHint = segments[0]
 		index++
 	}

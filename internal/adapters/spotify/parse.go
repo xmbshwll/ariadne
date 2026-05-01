@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parseutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 var (
@@ -39,7 +39,7 @@ func parseEntityURL(raw string, pathSegment string, entityType string, notEntity
 		return nil, fmt.Errorf("%w: %s", errUnsupportedSpotifyHost, parsed.Host)
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	if len(segments) != 2 || segments[0] != pathSegment {
 		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}

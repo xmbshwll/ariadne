@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parseutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
 var (
@@ -25,7 +25,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		return nil, err
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	switch {
 	case len(segments) == 2 && segments[0] == "browse":
 		browseID := strings.TrimSpace(segments[1])
@@ -62,7 +62,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 		return nil, err
 	}
 
-	segments := parseutil.PathSegments(parsed.Path)
+	segments := adapterutil.PathSegments(parsed.Path)
 	if len(segments) != 1 || segments[0] != "watch" {
 		return nil, fmt.Errorf("%w: %s", errYouTubeMusicNotSongURL, raw)
 	}
