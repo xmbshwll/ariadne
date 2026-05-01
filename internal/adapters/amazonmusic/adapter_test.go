@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestAdapter(t *testing.T) {
@@ -30,7 +31,5 @@ func TestAdapter(t *testing.T) {
 	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
 	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
 
-	upcResults, err := adapter.SearchByUPC(context.Background(), "123")
-	require.NoError(t, err)
-	assert.Empty(t, upcResults)
+	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
 }

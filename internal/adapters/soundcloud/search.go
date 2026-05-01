@@ -11,14 +11,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a *Adapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	query := metadataQuery(album)
 	if query == "" {
@@ -38,10 +30,6 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("collect soundcloud album candidates: %w", err)
 	}
 	return results, nil
-}
-
-func (a *Adapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
-	return nil, nil
 }
 
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {

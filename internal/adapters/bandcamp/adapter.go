@@ -1,7 +1,6 @@
 package bandcamp
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"regexp"
@@ -62,19 +61,4 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 // ParseSongURL parses a Bandcamp track URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	return ParseSongURL(raw)
-}
-
-// SearchByUPC is not supported for Bandcamp.
-func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-// SearchByISRC is not supported for Bandcamp.
-func (a *Adapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-// SearchSongByISRC is not supported for Bandcamp.
-func (a *Adapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
-	return nil, nil
 }

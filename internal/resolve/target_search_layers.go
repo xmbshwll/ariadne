@@ -39,33 +39,41 @@ func collectAlbumTargetCandidates(ctx context.Context, target TargetAdapter, sou
 }
 
 func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) []targetSearchLayer[model.CandidateAlbum] {
-	isrcs := collectISRCs(source)
-	return []targetSearchLayer[model.CandidateAlbum]{
-		{
+	layers := make([]targetSearchLayer[model.CandidateAlbum], 0, 3)
+	if searcher, ok := target.(UPCSearcher); ok {
+		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
 			name:    "SearchByUPC",
 			enabled: source.UPC != "",
 			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByUPC(ctx, source.UPC)
+				return searcher.SearchByUPC(ctx, source.UPC)
 			},
-		},
-		{
+		})
+	}
+
+	if searcher, ok := target.(ISRCSearcher); ok {
+		isrcs := collectISRCs(source)
+		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
 			name:    "SearchByISRC",
 			enabled: len(isrcs) > 0,
 			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByISRC(ctx, isrcs)
+				return searcher.SearchByISRC(ctx, isrcs)
 			},
-		},
-		{
+		})
+	}
+
+	if searcher, ok := target.(MetadataSearcher); ok {
+		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
 			name:    "SearchByMetadata",
 			enabled: true,
 			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
-				return target.SearchByMetadata(ctx, source)
+				return searcher.SearchByMetadata(ctx, source)
 			},
 			filter: func(candidates []model.CandidateAlbum) []model.CandidateAlbum {
 				return filterAppleMusicMetadataFallbackCandidates(target.Service(), source, candidates, weights)
 			},
-		},
+		})
 	}
+	return layers
 }
 
 func collectSongTargetCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
@@ -73,20 +81,24 @@ func collectSongTargetCandidates(ctx context.Context, target SongTargetAdapter, 
 }
 
 func songTargetSearchLayers(target SongTargetAdapter, source model.CanonicalSong) []targetSearchLayer[model.CandidateSong] {
-	return []targetSearchLayer[model.CandidateSong]{
-		{
+	layers := make([]targetSearchLayer[model.CandidateSong], 0, 2)
+	if searcher, ok := target.(SongISRCSearcher); ok {
+		layers = append(layers, targetSearchLayer[model.CandidateSong]{
 			name:    "SearchSongByISRC",
 			enabled: source.ISRC != "",
 			search: func(ctx context.Context) ([]model.CandidateSong, error) {
-				return target.SearchSongByISRC(ctx, source.ISRC)
+				return searcher.SearchSongByISRC(ctx, source.ISRC)
 			},
-		},
-		{
+		})
+	}
+	if searcher, ok := target.(SongMetadataSearcher); ok {
+		layers = append(layers, targetSearchLayer[model.CandidateSong]{
 			name:    "SearchSongByMetadata",
 			enabled: true,
 			search: func(ctx context.Context) ([]model.CandidateSong, error) {
-				return target.SearchSongByMetadata(ctx, source)
+				return searcher.SearchSongByMetadata(ctx, source)
 			},
-		},
+		})
 	}
+	return layers
 }

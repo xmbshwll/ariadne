@@ -14,10 +14,18 @@ type SongSourceAdapter interface {
 	FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error)
 }
 
-// SongTargetAdapter searches one target service for matching songs.
+// SongTargetAdapter identifies one song target Music Service.
 type SongTargetAdapter interface {
 	Service() model.ServiceName
+}
+
+// SongISRCSearcher searches song targets by ISRC.
+type SongISRCSearcher interface {
 	SearchSongByISRC(ctx context.Context, isrc string) ([]model.CandidateSong, error)
+}
+
+// SongMetadataSearcher searches song targets by canonical metadata.
+type SongMetadataSearcher interface {
 	SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error)
 }
 

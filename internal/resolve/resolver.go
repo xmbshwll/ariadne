@@ -24,11 +24,23 @@ type SourceAdapter interface {
 	FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error)
 }
 
-// TargetAdapter searches one target service for matching albums.
+// TargetAdapter identifies one album target Music Service.
 type TargetAdapter interface {
 	Service() model.ServiceName
+}
+
+// UPCSearcher searches album targets by UPC.
+type UPCSearcher interface {
 	SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error)
+}
+
+// ISRCSearcher searches album targets by track ISRCs.
+type ISRCSearcher interface {
 	SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error)
+}
+
+// MetadataSearcher searches album targets by canonical metadata.
+type MetadataSearcher interface {
 	SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error)
 }
 

@@ -1,7 +1,6 @@
 package youtubemusic
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"regexp"
@@ -69,12 +68,4 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
 	return ParseSongURL(raw)
-}
-
-func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a *Adapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
 }

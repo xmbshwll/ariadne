@@ -51,15 +51,3 @@ func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.C
 	//nolint:wrapcheck // Preserve the deferred-runtime sentinel for errors.Is callers.
 	return nil, adapterutil.NewRuntimeDeferredError(model.ServiceAmazonMusic, runtimeDeferredReason)
 }
-
-func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a *Adapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a *Adapter) SearchByMetadata(_ context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}

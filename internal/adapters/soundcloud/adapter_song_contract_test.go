@@ -11,14 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestIdentifierSongSearchIsUnsupported(t *testing.T) {
 	fixture := newTestFixture(t)
 
-	results, err := fixture.adapter.SearchSongByISRC(context.Background(), soundCloudTrackISRC)
-	require.NoError(t, err)
-	assert.Empty(t, results)
+	assert.NotImplements(t, (*resolve.SongISRCSearcher)(nil), fixture.adapter)
 }
 
 func TestSearchSongByMetadataSkipsMalformedHits(t *testing.T) {

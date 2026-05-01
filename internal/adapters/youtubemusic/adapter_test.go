@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestFetchAlbum(t *testing.T) {
@@ -49,13 +50,8 @@ func TestParseSongURLAndDeferredFetch(t *testing.T) {
 func TestUnsupportedIdentifierSearches(t *testing.T) {
 	adapter := New(nil)
 
-	upcResults, err := adapter.SearchByUPC(context.Background(), "123")
-	require.NoError(t, err)
-	assert.Empty(t, upcResults)
-
-	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"ABC"})
-	require.NoError(t, err)
-	assert.Empty(t, isrcResults)
+	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
+	assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), adapter)
 }
 
 func TestExtractTrackTitlesPreservesRepeatedTitles(t *testing.T) {
