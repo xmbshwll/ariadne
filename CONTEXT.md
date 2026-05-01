@@ -9,7 +9,7 @@ An external music platform Ariadne can recognize, hydrate from, or search agains
 _Avoid_: provider, backend
 
 **Provider Catalog**:
-The authoritative catalog of Ariadne's built-in Music Services, their capabilities, runtime constraints, ordering, and Adapter wiring.
+The authoritative catalog of Ariadne's built-in Music Services, their capabilities, runtime constraints, ordering, request validation, and Adapter wiring.
 _Avoid_: registry, service list
 
 **Capability**:
@@ -52,6 +52,10 @@ _Avoid_: scoring helper, reason string
 An ordered title/artist search string used when Target Search falls back from identifiers to source metadata.
 _Avoid_: query helper, search text
 
+**Target Service Request**:
+A user or config request to include a Music Service in Target Search, validated against Provider Catalog capability, credential, and parse-only constraints.
+_Avoid_: service flag validation, CLI service parsing
+
 **Conversion Semantics**:
 Rules for translating between Ariadne's public API types and internal model types, including field mapping, nil/empty container shape, and deep-copy ownership.
 _Avoid_: mapper glue, conversion helper
@@ -59,6 +63,7 @@ _Avoid_: mapper glue, conversion helper
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
+- A **Provider Catalog** validates each **Target Service Request** before **Entity Resolution** builds target Adapters.
 - A **Music Service** exposes zero or more **Capabilities**.
 - A **Source Input** resolves to at most one **Music Service** before **Runtime Hydration** starts.
 - **Runtime Hydration** is required for source **Capabilities** but can be intentionally deferred for parse-only **Music Services**.

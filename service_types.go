@@ -51,3 +51,25 @@ type ServiceCapabilities struct {
 	// SupportsRuntimeSongInputURL reports whether the built-in runtime song pipeline can parse song URLs for this service.
 	SupportsRuntimeSongInputURL bool
 }
+
+// TargetServiceRequestStatus explains whether a requested target service can be used under a Config.
+type TargetServiceRequestStatus string
+
+const (
+	// TargetServiceRequestAvailable means the service can be used as requested.
+	TargetServiceRequestAvailable TargetServiceRequestStatus = "available"
+	// TargetServiceRequestUnknown means the requested service name or alias is not known.
+	TargetServiceRequestUnknown TargetServiceRequestStatus = "unknown"
+	// TargetServiceRequestUnsupported means the service is known but does not support the requested target role.
+	TargetServiceRequestUnsupported TargetServiceRequestStatus = "unsupported"
+	// TargetServiceRequestParseOnly means the service can parse URLs but has no runtime target search capability.
+	TargetServiceRequestParseOnly TargetServiceRequestStatus = "parseOnly"
+	// TargetServiceRequestCredentialsRequired means the target role needs missing credentials.
+	TargetServiceRequestCredentialsRequired TargetServiceRequestStatus = "credentialsRequired"
+)
+
+// TargetServiceRequestDecision reports Provider Catalog validation for one requested target service.
+type TargetServiceRequestDecision struct {
+	Service ServiceName
+	Status  TargetServiceRequestStatus
+}

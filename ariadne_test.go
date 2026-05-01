@@ -200,6 +200,48 @@ func TestSupportedServiceLists(t *testing.T) {
 	}, SupportedSongTargetServices())
 }
 
+func TestProviderCatalogTargetServiceRequests(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Config
+		raw    string
+		want   TargetServiceRequestDecision
+	}{
+		{name: "available alias", raw: "apple-music", want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
+		{name: "unknown", raw: "unknown", want: TargetServiceRequestDecision{Status: TargetServiceRequestUnknown}},
+		{name: "parse only", raw: "amazonMusic", want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly}},
+		{name: "credentials required", raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestCredentialsRequired}},
+		{name: "credentials configured", config: Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestAvailable}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, EvaluateTargetServiceRequest(tt.config, tt.raw))
+		})
+	}
+}
+
+func TestProviderCatalogSongTargetServiceRequests(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  Config
+		service ServiceName
+		want    TargetServiceRequestDecision
+	}{
+		{name: "available", service: ServiceAppleMusic, want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
+		{name: "unsupported song target", service: ServiceYouTubeMusic, want: TargetServiceRequestDecision{Service: ServiceYouTubeMusic, Status: TargetServiceRequestUnsupported}},
+		{name: "parse only", service: ServiceAmazonMusic, want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly}},
+		{name: "credentials required", service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestCredentialsRequired}},
+		{name: "credentials configured", config: Config{TIDAL: TIDALConfig{ClientID: "id", ClientSecret: "secret"}}, service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestAvailable}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, EvaluateSongTargetService(tt.config, tt.service))
+		})
+	}
+}
+
 func TestEnabledServiceLists(t *testing.T) {
 	assert.Equal(t, []ServiceName{
 		ServiceAppleMusic,

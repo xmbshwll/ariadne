@@ -25,6 +25,21 @@ func DescribeEnabledService(config Config, service ServiceName) (ServiceCapabili
 	return defaultProviderCatalog.describeEnabledService(config, service)
 }
 
+// EvaluateTargetServiceRequest reports whether a requested service can be used for target search under config.
+func EvaluateTargetServiceRequest(config Config, raw string) TargetServiceRequestDecision {
+	return defaultProviderCatalog.lookupTargetServiceRequest(config, raw)
+}
+
+// EvaluateConfiguredTargetService reports whether a canonical service can be used for target search under config.
+func EvaluateConfiguredTargetService(config Config, service ServiceName) TargetServiceRequestDecision {
+	return defaultProviderCatalog.targetServiceRequest(config, service)
+}
+
+// EvaluateSongTargetService reports whether a canonical service can be used for song target search under config.
+func EvaluateSongTargetService(config Config, service ServiceName) TargetServiceRequestDecision {
+	return defaultProviderCatalog.songTargetServiceRequest(config, service)
+}
+
 // SupportsSongTarget reports whether the service has built-in song target support.
 func SupportsSongTarget(service ServiceName) bool {
 	return defaultProviderCatalog.supportsSongTarget(service)

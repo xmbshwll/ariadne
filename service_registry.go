@@ -200,6 +200,45 @@ func (c providerCatalog) describeEnabledService(config Config, service ServiceNa
 	return capability.describe(), true
 }
 
+func (c providerCatalog) targetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
+	return c.targetCapabilityRequest(config, service, supportsAnyTarget)
+}
+
+func (c providerCatalog) lookupTargetServiceRequest(config Config, raw string) TargetServiceRequestDecision {
+	service, ok := LookupServiceName(raw)
+	if !ok {
+		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown}
+	}
+	return c.targetServiceRequest(config, service)
+}
+
+func (c providerCatalog) songTargetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
+	return c.targetCapabilityRequest(config, service, func(capability serviceCapability) bool {
+		return capability.supportsSongTarget
+	})
+}
+
+func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceName, supports func(serviceCapability) bool) TargetServiceRequestDecision {
+	capability, ok := c.serviceCapability(service)
+	if !ok {
+		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestUnknown}
+	}
+	if !supports(capability) {
+		return TargetServiceRequestDecision{Service: service, Status: targetServiceUnavailableStatus(service, capability)}
+	}
+	if !supports(capability.enabled(config)) {
+		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestCredentialsRequired}
+	}
+	return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestAvailable}
+}
+
+func targetServiceUnavailableStatus(service ServiceName, capability serviceCapability) TargetServiceRequestStatus {
+	if service == ServiceAmazonMusic && !supportsAnyTarget(capability) {
+		return TargetServiceRequestParseOnly
+	}
+	return TargetServiceRequestUnsupported
+}
+
 func (c providerCatalog) supportsSongTarget(service ServiceName) bool {
 	capability, ok := c.serviceCapability(service)
 	return ok && capability.supportsSongTarget

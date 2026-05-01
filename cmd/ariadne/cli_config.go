@@ -94,7 +94,8 @@ func validateResolveConfig(config resolveConfig) error {
 	}
 
 	for _, service := range config.resolverConfig.TargetServices {
-		if ariadne.SupportsEnabledSongTarget(config.resolverConfig, service) {
+		decision := ariadne.EvaluateSongTargetService(config.resolverConfig, service)
+		if decision.Status == ariadne.TargetServiceRequestAvailable {
 			continue
 		}
 		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, enabledSongTargetServicesUsage(config.resolverConfig))

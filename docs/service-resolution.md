@@ -24,9 +24,13 @@ ariadne resolve <url>
   |     |-- --album    -> force album resolver
   |     `-- neither    -> auto resolver
   |
+  |-- validate target service requests through the Provider Catalog
+  |     |-- reject unknown / unsupported / parse-only targets
+  |     `-- reject credential-gated targets when credentials are missing
+  |
   |-- build default resolver
   |     |-- build one adapter set per service
-  |     |-- include target adapters allowed by --services / config
+  |     |-- include target adapters allowed by validated --services / config
   |     |-- include Spotify targets only when Spotify credentials exist
   |     `-- include TIDAL targets only when TIDAL credentials exist
   |
@@ -458,6 +462,8 @@ Apple Music target  -> MusicKit for UPC / ISRC when configured; public iTunes se
 Deezer target       -> public UPC / ISRC lookup + public metadata search
 TIDAL target        -> catalog API; credentials required
 ```
+
+The Provider Catalog validates requested target services before resolver construction. A request can be available, unknown, unsupported for the target role, parse-only, or credential-gated.
 
 ### Metadata-first album targets
 

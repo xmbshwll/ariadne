@@ -25,13 +25,11 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 		if part == "" {
 			continue
 		}
-		service, err := normalizeRequestedService(part)
-		if err != nil {
+		decision := ariadne.EvaluateTargetServiceRequest(appConfig, part)
+		if err := targetServiceRequestError(part, decision); err != nil {
 			return nil, err
 		}
-		if err := validateRequestedService(service, appConfig); err != nil {
-			return nil, err
-		}
+		service := decision.Service
 		if _, ok := seen[service]; ok {
 			continue
 		}
@@ -44,22 +42,20 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 	return services, nil
 }
 
-func normalizeRequestedService(raw string) (ariadne.ServiceName, error) {
+func targetServiceRequestError(raw string, decision ariadne.TargetServiceRequestDecision) error {
 	if strings.TrimSpace(raw) == "" {
-		return "", errNoTargetServicesSelected
+		return errNoTargetServicesSelected
 	}
-
-	service, ok := ariadne.LookupServiceName(raw)
-	if !ok {
-		return "", unsupportedTargetServiceError(raw)
+	switch decision.Status {
+	case ariadne.TargetServiceRequestAvailable:
+		return nil
+	case ariadne.TargetServiceRequestParseOnly:
+		return errAmazonMusicTargetService
+	case ariadne.TargetServiceRequestCredentialsRequired:
+		return targetServiceCredentialError(decision.Service)
+	default:
+		return unsupportedTargetServiceError(raw)
 	}
-	if service == ariadne.ServiceAmazonMusic {
-		return "", errAmazonMusicTargetService
-	}
-	if !ariadne.SupportsTarget(service) {
-		return "", unsupportedTargetServiceError(raw)
-	}
-	return service, nil
 }
 
 func unsupportedTargetServiceError(raw string) error {
@@ -67,9 +63,11 @@ func unsupportedTargetServiceError(raw string) error {
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
-	if ariadne.SupportsEnabledTarget(appConfig, service) {
-		return nil
-	}
+	decision := ariadne.EvaluateConfiguredTargetService(appConfig, service)
+	return targetServiceRequestError(string(service), decision)
+}
+
+func targetServiceCredentialError(service ariadne.ServiceName) error {
 	switch service {
 	case ariadne.ServiceSpotify:
 		return errSpotifyTargetCredentials
