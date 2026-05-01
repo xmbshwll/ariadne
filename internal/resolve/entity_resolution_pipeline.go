@@ -7,6 +7,10 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
+type serviceAdapter interface {
+	Service() model.ServiceName
+}
+
 type entityResolution[P any, Entity any, Match any] struct {
 	InputURL string
 	Parsed   P
@@ -14,7 +18,7 @@ type entityResolution[P any, Entity any, Match any] struct {
 	Matches  map[model.ServiceName]Match
 }
 
-type entityResolutionPipeline[SourceAdapter interface{ Service() model.ServiceName }, TargetAdapter interface{ Service() model.ServiceName }, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
+type entityResolutionPipeline[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
 	sources []SourceAdapter
 	targets []TargetAdapter
 
@@ -34,7 +38,28 @@ type entityResolutionPipeline[SourceAdapter interface{ Service() model.ServiceNa
 	afterTargetsErrLabel string
 }
 
-func resolveEntity[SourceAdapter interface{ Service() model.ServiceName }, TargetAdapter interface{ Service() model.ServiceName }, Parsed any, Entity any, Candidate any, Ranking any, Match any](
+type entityResolver[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
+	pipeline entityResolutionPipeline[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match]
+}
+
+func newEntityResolver[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any](
+	sources []SourceAdapter,
+	targets []TargetAdapter,
+	pipeline entityResolutionPipeline[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match],
+) entityResolver[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match] {
+	pipeline.sources = append([]SourceAdapter(nil), sources...)
+	pipeline.targets = append([]TargetAdapter(nil), targets...)
+	return entityResolver[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match]{pipeline: pipeline}
+}
+
+func (r entityResolver[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match]) resolve(
+	ctx context.Context,
+	inputURL string,
+) (entityResolution[Parsed, Entity, Match], error) {
+	return resolveEntity(ctx, inputURL, r.pipeline)
+}
+
+func resolveEntity[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any](
 	ctx context.Context,
 	inputURL string,
 	pipeline entityResolutionPipeline[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match],

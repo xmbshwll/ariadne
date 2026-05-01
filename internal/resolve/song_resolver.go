@@ -54,26 +54,34 @@ type SongResolution struct {
 
 // SongResolver coordinates source parsing, source fetching, and layered target search for songs.
 type SongResolver struct {
-	sources []SongSourceAdapter
-	targets []SongTargetAdapter
-	weights score.SongWeights
+	core entityResolver[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult]
 }
 
 // NewSongs creates a song resolver from registered source and target adapters.
 func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights score.SongWeights) *SongResolver {
 	return &SongResolver{
-		sources: append([]SongSourceAdapter(nil), sources...),
-		targets: append([]SongTargetAdapter(nil), targets...),
-		weights: weights,
+		core: newEntityResolver(sources, targets, songResolutionPipeline(weights)),
 	}
 }
 
 // ResolveSong parses an input song URL, fetches the canonical source song,
 // then collects and ranks candidates from every target adapter except the source service.
 func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
-	result, err := resolveEntity(ctx, inputURL, entityResolutionPipeline[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult]{
-		sources: r.sources,
-		targets: r.targets,
+	result, err := r.core.resolve(ctx, inputURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SongResolution{
+		InputURL: result.InputURL,
+		Parsed:   result.Parsed,
+		Source:   result.Source,
+		Matches:  result.Matches,
+	}, nil
+}
+
+func songResolutionPipeline(weights score.SongWeights) entityResolutionPipeline[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult] {
+	return entityResolutionPipeline[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult]{
 		parse: func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
 			return source.ParseSongURL(raw)
 		},
@@ -85,24 +93,14 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 		},
 		collect: collectSongTargetCandidates,
 		rank: func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
-			return score.RankSongs(source, candidates, r.weights)
+			return score.RankSongs(source, candidates, weights)
 		},
 		result:         songMatchResultFromRanking,
 		entityLabel:    "song",
 		nilEntityErr:   errNilSourceSong,
 		candidateLabel: "song candidates",
 		targetErrLabel: "resolve song target searches",
-	})
-	if err != nil {
-		return nil, err
 	}
-
-	return &SongResolution{
-		InputURL: result.InputURL,
-		Parsed:   result.Parsed,
-		Source:   result.Source,
-		Matches:  result.Matches,
-	}, nil
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {
