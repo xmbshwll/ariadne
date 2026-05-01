@@ -49,7 +49,7 @@ func parseEntityURL(raw string, pathSegment string, entityType string, notEntity
 	if segments[0] == "browse" {
 		index++
 	}
-	if len(segments[index:]) < 2 || segments[index] != pathSegment {
+	if len(segments[index:]) != 2 || segments[index] != pathSegment {
 		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}
 

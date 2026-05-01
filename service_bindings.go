@@ -182,12 +182,10 @@ func amazonMusicServiceBinding() serviceBinding {
 		capability: serviceCapability{
 			name:                 ServiceAmazonMusic,
 			aliases:              builtinServiceAliases(ServiceAmazonMusic),
-			supportsAlbumSource:  true,
 			runtimeSongURLParser: amazonmusicadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
-			adapter := amazonmusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter}
+			return serviceAdapterSet{}
 		},
 	}
 }

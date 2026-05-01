@@ -134,7 +134,7 @@ func extractFirstGroup(pattern *regexp.Regexp, body []byte) string {
 	if err != nil {
 		return ""
 	}
-	return html.UnescapeString(string(value))
+	return string(value)
 }
 
 func nonEmptyArtistList(artist string) []string {

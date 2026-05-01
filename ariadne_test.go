@@ -156,7 +156,7 @@ func TestDescribeService(t *testing.T) {
 
 	amazon, ok := DescribeService(ServiceAmazonMusic)
 	require.True(t, ok)
-	assert.True(t, amazon.SupportsAlbumSource)
+	assert.False(t, amazon.SupportsAlbumSource)
 	assert.False(t, amazon.SupportsAlbumTarget)
 	assert.False(t, amazon.SupportsSongSource)
 	assert.False(t, amazon.SupportsSongTarget)
@@ -376,15 +376,19 @@ func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testi
 	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
 }
 
-func TestResolveAlbumReturnsPublicDeferredRuntimeSentinels(t *testing.T) {
+func TestResolveAlbumReturnsUnsupportedURLForParseOnlyServices(t *testing.T) {
 	resolver := New(DefaultConfig())
+
+	// Amazon Music album URLs are parseable but not a registered album source,
+	// so ResolveAlbum returns ErrUnsupportedURL.
+	// (SupportsRuntimeSongInputURL is for song URLs, not album URLs.)
+	assert.False(t, SupportsRuntimeSongInputURL("https://music.amazon.com/albums/B0064UPU4G"))
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://music.amazon.com/albums/B0064UPU4G")
 	require.Error(t, err)
 	assert.Nil(t, resolution)
-	assert.ErrorIs(t, err, ErrRuntimeDeferred)
-	assert.ErrorIs(t, err, ErrAmazonMusicDeferred)
-	assert.False(t, errors.Is(err, ErrYouTubeMusicDeferred))
+	assert.ErrorIs(t, err, ErrUnsupportedURL)
+	assert.False(t, errors.Is(err, ErrAmazonMusicDeferred))
 }
 
 func TestResolveSongReturnsUnsupportedURLForParseOnlyServices(t *testing.T) {

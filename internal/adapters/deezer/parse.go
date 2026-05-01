@@ -65,6 +65,9 @@ func parseEntityURL(raw string, pathSegment string, entityType string, notEntity
 	if id == "" {
 		return nil, missingIDErr
 	}
+	if len(segments) != index+2 {
+		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
+	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,

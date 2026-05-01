@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -58,7 +59,16 @@ type SongResolver struct {
 }
 
 // NewSongs creates a song resolver from registered source and target adapters.
+// Adapters that implement neither SongISRCSearcher nor SongMetadataSearcher
+// cannot participate in target search and will cause a panic.
 func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights score.SongWeights) *SongResolver {
+	for i, t := range targets {
+		if _, okISRC := t.(SongISRCSearcher); !okISRC {
+			if _, okMeta := t.(SongMetadataSearcher); !okMeta {
+				panic(fmt.Sprintf("song target adapter at index %d (%s) implements neither SongISRCSearcher nor SongMetadataSearcher", i, t.Service()))
+			}
+		}
+	}
 	return &SongResolver{
 		core: newEntityResolver(sources, targets, songResolutionPipeline(weights)),
 	}
