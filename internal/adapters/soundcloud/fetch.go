@@ -42,88 +42,66 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
-	return adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
-		RequestSpec: adapterutil.RequestSpec{
-			Client:       a.client,
-			URL:          requestURL,
-			UserAgent:    adapterutil.BrowserUserAgent,
-			BuildError:   "build soundcloud request",
-			ExecuteError: "execute soundcloud request",
-			StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
+	request := adapterutil.PageRequest{
+		BytesRequest: adapterutil.BytesRequest{
+			RequestSpec: adapterutil.RequestSpec{
+				Client:       a.client,
+				URL:          requestURL,
+				UserAgent:    adapterutil.BrowserUserAgent,
+				BuildError:   "build soundcloud request",
+				ExecuteError: "execute soundcloud request",
+				StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
+			},
+			ReadError: "read soundcloud response",
 		},
-		ReadError: "read soundcloud response",
-	})
+	}
+	//nolint:wrapcheck // Page extraction spec supplies request/status/read context.
+	return adapterutil.FetchPage(ctx, request)
 }
 
 func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {
-	entries, err := extractHydrationEntries(body)
-	if err != nil {
-		return nil, err
-	}
-	var firstDecodeErr error
-	for _, entry := range entries {
-		if entry.Hydratable != "playlist" {
-			continue
-		}
-		var playlist soundPlaylist
-		if err := json.Unmarshal(entry.Data, &playlist); err != nil {
-			if firstDecodeErr == nil {
-				firstDecodeErr = fmt.Errorf("decode soundcloud playlist hydration: %w", err)
-			}
-			continue
-		}
-		if playlist.PermalinkURL == "" {
-			continue
-		}
-		if canonicalizeSoundCloudURL(playlist.PermalinkURL) == canonicalURL {
-			return &playlist, nil
-		}
-	}
-	if firstDecodeErr != nil {
-		return nil, firstDecodeErr
-	}
-	return nil, errSoundCloudPlaylistNotFound
+	return extractHydrationEntity(body, canonicalURL, "playlist", errSoundCloudPlaylistNotFound, "decode soundcloud playlist hydration", func(playlist soundPlaylist) string {
+		return playlist.PermalinkURL
+	})
 }
 
 func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error) {
+	return extractHydrationEntity(body, canonicalURL, "sound", errSoundCloudTrackNotFound, "decode soundcloud track hydration", func(track soundTrack) string {
+		return track.PermalinkURL
+	})
+}
+
+func extractHydrationEntity[T any](body []byte, canonicalURL string, hydratable string, notFound error, decodeError string, permalinkURL func(T) string) (*T, error) {
 	entries, err := extractHydrationEntries(body)
 	if err != nil {
 		return nil, err
 	}
 	var firstDecodeErr error
 	for _, entry := range entries {
-		if entry.Hydratable != "sound" {
+		if entry.Hydratable != hydratable {
 			continue
 		}
-		var track soundTrack
-		if err := json.Unmarshal(entry.Data, &track); err != nil {
+		var entity T
+		if err := json.Unmarshal(entry.Data, &entity); err != nil {
 			if firstDecodeErr == nil {
-				firstDecodeErr = fmt.Errorf("decode soundcloud track hydration: %w", err)
+				firstDecodeErr = fmt.Errorf("%s: %w", decodeError, err)
 			}
 			continue
 		}
-		if track.PermalinkURL == "" {
+		url := permalinkURL(entity)
+		if url == "" {
 			continue
 		}
-		if canonicalizeSoundCloudURL(track.PermalinkURL) == canonicalURL {
-			return &track, nil
+		if canonicalizeSoundCloudURL(url) == canonicalURL {
+			return &entity, nil
 		}
 	}
 	if firstDecodeErr != nil {
 		return nil, firstDecodeErr
 	}
-	return nil, errSoundCloudTrackNotFound
+	return nil, notFound
 }
 
 func extractHydrationEntries(body []byte) ([]hydrationEnvelope, error) {
-	matches := hydrationPattern.FindSubmatch(body)
-	if len(matches) != 2 {
-		return nil, errSoundCloudHydrationNotFound
-	}
-	var entries []hydrationEnvelope
-	if err := json.Unmarshal(matches[1], &entries); err != nil {
-		return nil, fmt.Errorf("decode soundcloud hydration payload: %w", err)
-	}
-	return entries, nil
+	return adapterutil.DecodeJSONBlock[[]hydrationEnvelope](body, hydrationPattern, errSoundCloudHydrationNotFound, "decode soundcloud hydration payload", nil)
 }

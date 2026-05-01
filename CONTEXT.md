@@ -24,6 +24,10 @@ _Avoid_: raw URL, input string
 The network-backed step that turns a parsed Music Service URL into canonical album or song metadata.
 _Avoid_: fetch, scrape
 
+**Page Extraction**:
+The part of public-page Runtime Hydration that fetches bounded page bytes and extracts embedded structured payloads before canonical mapping.
+_Avoid_: scrape helper, HTML plumbing
+
 **Target Search**:
 The step that searches a Music Service for candidates matching a hydrated source entity.
 _Avoid_: lookup, discovery
@@ -54,6 +58,7 @@ _Avoid_: query helper, search text
 - A **Music Service** exposes zero or more **Capabilities**.
 - A **Source Input** resolves to at most one **Music Service** before **Runtime Hydration** starts.
 - **Runtime Hydration** is required for source **Capabilities** but can be intentionally deferred for parse-only **Music Services**.
+- **Page Extraction** supports public-page Runtime Hydration before Music Service-specific canonical mapping.
 - **Target Search** is required for target **Capabilities**.
 - **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
 - A **Credential Token** is required only by Music Services whose source or target **Capabilities** need credentialed network access.

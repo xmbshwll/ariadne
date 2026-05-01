@@ -31,24 +31,20 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "album", parse.BandcampAlbumURL, func(parsed model.ParsedAlbumURL) string {
-		return parsed.CanonicalURL
-	}, toCanonicalAlbum)
+	return fetchCanonicalPage(a, ctx, rawURL, "album", parse.BandcampAlbumURL, toCanonicalAlbum)
 }
 
 func (a *Adapter) fetchSongPage(ctx context.Context, rawURL string) (*model.CanonicalSong, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "song", parse.BandcampSongURL, func(parsed model.ParsedURL) string {
-		return parsed.CanonicalURL
-	}, toCanonicalSong)
+	return fetchCanonicalPage(a, ctx, rawURL, "song", parse.BandcampSongURL, toCanonicalSong)
 }
 
-func fetchCanonicalPage[Parsed any, Canonical any](adapter *Adapter, ctx context.Context, rawURL, entity string, parseURL func(string) (*Parsed, error), canonicalURL func(Parsed) string, toCanonical func(Parsed, *schemaAlbum) *Canonical) (*Canonical, error) {
+func fetchCanonicalPage[Canonical any](adapter *Adapter, ctx context.Context, rawURL, entity string, parseURL func(string) (*model.ParsedURL, error), toCanonical func(model.ParsedURL, *schemaAlbum) *Canonical) (*Canonical, error) {
 	parsed, err := parseURL(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse bandcamp %s url: %w", entity, err)
 	}
 
-	body, err := adapter.fetchPage(ctx, canonicalURL(*parsed))
+	body, err := adapter.fetchPage(ctx, parsed.CanonicalURL)
 	if err != nil {
 		return nil, fmt.Errorf("fetch bandcamp %s page: %w", entity, err)
 	}
@@ -61,18 +57,21 @@ func fetchCanonicalPage[Parsed any, Canonical any](adapter *Adapter, ctx context
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
-	return adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
-		RequestSpec: adapterutil.RequestSpec{
-			Client:       a.client,
-			URL:          requestURL,
-			UserAgent:    adapterutil.DefaultUserAgent,
-			BuildError:   "build bandcamp request",
-			ExecuteError: "execute bandcamp request",
-			StatusError:  adapterutil.StatusError(errUnexpectedBandcampStatus),
+	request := adapterutil.PageRequest{
+		BytesRequest: adapterutil.BytesRequest{
+			RequestSpec: adapterutil.RequestSpec{
+				Client:       a.client,
+				URL:          requestURL,
+				UserAgent:    adapterutil.DefaultUserAgent,
+				BuildError:   "build bandcamp request",
+				ExecuteError: "execute bandcamp request",
+				StatusError:  adapterutil.StatusError(errUnexpectedBandcampStatus),
+			},
+			ReadError:     "read bandcamp response",
+			MaxBodyBytes:  maxBandcampResponseBytes,
+			TooLargeError: errBandcampResponseTooLarge,
 		},
-		ReadError:     "read bandcamp response",
-		MaxBodyBytes:  maxBandcampResponseBytes,
-		TooLargeError: errBandcampResponseTooLarge,
-	})
+	}
+	//nolint:wrapcheck // Page extraction spec supplies request/status/read context.
+	return adapterutil.FetchPage(ctx, request)
 }

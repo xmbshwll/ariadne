@@ -47,25 +47,23 @@ func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*m
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, youTubeMusicFetchTimeout)
-		defer cancel()
-	}
-
-	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
-	return adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
-		RequestSpec: adapterutil.RequestSpec{
-			Client:         a.client,
-			URL:            requestURL,
-			UserAgent:      adapterutil.BrowserUserAgent,
-			BuildError:     "build youtube music request",
-			ExecuteError:   "execute youtube music request",
-			StatusError:    adapterutil.StatusError(errUnexpectedYouTubeMusicStatus),
-			ErrorBodyLimit: maxYouTubeMusicErrorResponseBytes,
+	request := adapterutil.PageRequest{
+		BytesRequest: adapterutil.BytesRequest{
+			RequestSpec: adapterutil.RequestSpec{
+				Client:         a.client,
+				URL:            requestURL,
+				UserAgent:      adapterutil.BrowserUserAgent,
+				BuildError:     "build youtube music request",
+				ExecuteError:   "execute youtube music request",
+				StatusError:    adapterutil.StatusError(errUnexpectedYouTubeMusicStatus),
+				ErrorBodyLimit: maxYouTubeMusicErrorResponseBytes,
+			},
+			ReadError:     "read youtube music response",
+			MaxBodyBytes:  maxYouTubeMusicResponseBytes,
+			TooLargeError: errYouTubeMusicResponseTooLarge,
 		},
-		ReadError:     "read youtube music response",
-		MaxBodyBytes:  maxYouTubeMusicResponseBytes,
-		TooLargeError: errYouTubeMusicResponseTooLarge,
-	})
+		Timeout: youTubeMusicFetchTimeout,
+	}
+	//nolint:wrapcheck // Page extraction spec supplies request/status/read context.
+	return adapterutil.FetchPage(ctx, request)
 }

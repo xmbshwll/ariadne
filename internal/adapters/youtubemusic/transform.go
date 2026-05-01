@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 	"github.com/xmbshwll/ariadne/internal/parse"
@@ -130,11 +131,11 @@ func cleanAlbumTitle(value string) string {
 }
 
 func extractFirstGroup(pattern *regexp.Regexp, body []byte) string {
-	matches := pattern.FindSubmatch(body)
-	if len(matches) != 2 {
+	value, err := adapterutil.FirstRegexpGroup(body, pattern, nil)
+	if err != nil {
 		return ""
 	}
-	return html.UnescapeString(string(matches[1]))
+	return html.UnescapeString(string(value))
 }
 
 func nonEmptyArtistList(artist string) []string {
