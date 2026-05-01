@@ -9,7 +9,6 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 var (
@@ -191,7 +190,7 @@ func cleanSearchText(value string) string {
 
 func canonicalizeAlbumSearchURL(value string) string {
 	value = html.UnescapeString(value)
-	parsed, err := parse.BandcampAlbumURL(value)
+	parsed, err := ParseAlbumURL(value)
 	if err != nil {
 		return ""
 	}
@@ -200,7 +199,7 @@ func canonicalizeAlbumSearchURL(value string) string {
 
 func canonicalizeSongSearchURL(value string) string {
 	value = html.UnescapeString(value)
-	parsed, err := parse.BandcampSongURL(value)
+	parsed, err := ParseSongURL(value)
 	if err != nil {
 		return ""
 	}

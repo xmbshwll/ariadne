@@ -9,7 +9,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 type searchCandidate struct {
@@ -61,7 +60,7 @@ func extractAlbum(body []byte, fallbackURL string) (*model.CanonicalAlbum, error
 }
 
 func youTubeMusicAlbumSourceID(canonicalURL string) string {
-	parsed, _ := parse.YouTubeMusicAlbumURL(canonicalURL)
+	parsed, _ := ParseAlbumURL(canonicalURL)
 	if parsed == nil {
 		return canonicalURL
 	}

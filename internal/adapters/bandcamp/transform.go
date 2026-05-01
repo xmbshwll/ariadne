@@ -7,7 +7,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 func extractSchema(body []byte) (*schemaAlbum, error) {
@@ -57,7 +56,7 @@ func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.Canonica
 	artists := nonEmptyArtistList(track.ByArtist.Name)
 	albumArtists := nonEmptyArtistList(track.InAlbum.ByArtist.Name)
 	albumID := ""
-	if parsedAlbum, err := parse.BandcampAlbumURL(track.InAlbum.ID); err == nil {
+	if parsedAlbum, err := ParseAlbumURL(track.InAlbum.ID); err == nil {
 		albumID = parsedAlbum.ID
 	}
 	return &model.CanonicalSong{

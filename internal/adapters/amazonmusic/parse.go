@@ -1,21 +1,30 @@
-package parse
+package amazonmusic
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parseutil"
 )
 
-// AmazonMusicAlbumURL parses Amazon Music album URLs into the shared parsed representation.
-func AmazonMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+var (
+	errUnsupportedAmazonMusicHost = errors.New("unsupported amazon music host")
+	errAmazonMusicNotAlbumURL     = errors.New("amazon music url is not an album url")
+	errAmazonMusicNotSongURL      = errors.New("amazon music url is not a song url")
+	errMissingAmazonMusicAlbumID  = errors.New("missing amazon music album id")
+	errMissingAmazonMusicTrackID  = errors.New("missing amazon music track id")
+)
+
+func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parseAmazonMusicURL(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) != 2 || segments[0] != "albums" {
 		return nil, fmt.Errorf("%w: %s", errAmazonMusicNotAlbumURL, raw)
 	}
@@ -34,14 +43,13 @@ func AmazonMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}, nil
 }
 
-// AmazonMusicSongURL parses Amazon Music track URLs into the shared parsed representation.
-func AmazonMusicSongURL(raw string) (*model.ParsedURL, error) {
+func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parseAmazonMusicURL(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	asin := ""
 	switch {
 	case len(segments) == 2 && segments[0] == "tracks":

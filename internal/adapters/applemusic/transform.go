@@ -7,7 +7,6 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
@@ -219,7 +218,7 @@ func parseOfficialAlbumURL(raw string) *model.ParsedAlbumURL {
 	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
-	parsed, err := parse.AppleMusicAlbumURL(raw)
+	parsed, err := ParseAlbumURL(raw)
 	if err != nil {
 		return nil
 	}

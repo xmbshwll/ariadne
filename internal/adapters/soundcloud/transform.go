@@ -6,7 +6,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 func toCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
@@ -109,10 +108,10 @@ func songMetadataQuery(song model.CanonicalSong) string {
 }
 
 func canonicalizeSoundCloudURL(raw string) string {
-	if parsed, err := parse.SoundCloudAlbumURL(raw); err == nil {
+	if parsed, err := ParseAlbumURL(raw); err == nil {
 		return parsed.CanonicalURL
 	}
-	if parsed, err := parse.SoundCloudSongURL(raw); err == nil {
+	if parsed, err := ParseSongURL(raw); err == nil {
 		return parsed.CanonicalURL
 	}
 	return strings.TrimSpace(raw)
@@ -203,10 +202,10 @@ func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
 }
 
 func soundCloudSourceID(canonicalURL string) string {
-	if parsed, err := parse.SoundCloudAlbumURL(canonicalURL); err == nil {
+	if parsed, err := ParseAlbumURL(canonicalURL); err == nil {
 		return parsed.ID
 	}
-	if parsed, err := parse.SoundCloudSongURL(canonicalURL); err == nil {
+	if parsed, err := ParseSongURL(canonicalURL); err == nil {
 		return parsed.ID
 	}
 	return canonicalURL

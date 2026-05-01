@@ -11,7 +11,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/applemusicauth"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
+	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 )
 
 var (
@@ -75,7 +75,7 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("load apple music sample url: %w", err)
 	}
-	parsed, err := parse.AppleMusicAlbumURL(rawURL)
+	parsed, err := applemusicadapter.ParseAlbumURL(rawURL)
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("parse sample apple music album url: %w", err)
 	}

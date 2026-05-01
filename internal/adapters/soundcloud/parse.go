@@ -1,21 +1,30 @@
-package parse
+package soundcloud
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parseutil"
 )
 
-// SoundCloudAlbumURL parses SoundCloud album-like set URLs into the shared parsed representation.
-func SoundCloudAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+var (
+	errUnsupportedSoundCloudHost        = errors.New("unsupported soundcloud host")
+	errSoundCloudNotAlbumURL            = errors.New("soundcloud url is not an album-like set url")
+	errSoundCloudNotSongURL             = errors.New("soundcloud url is not a song url")
+	errMissingSoundCloudUserOrSetSlug   = errors.New("missing soundcloud user or set slug")
+	errMissingSoundCloudUserOrTrackSlug = errors.New("missing soundcloud user or track slug")
+)
+
+func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parseSoundCloudURL(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) != 3 || segments[1] != "sets" {
 		return nil, fmt.Errorf("%w: %s", errSoundCloudNotAlbumURL, raw)
 	}
@@ -36,14 +45,13 @@ func SoundCloudAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}, nil
 }
 
-// SoundCloudSongURL parses SoundCloud track URLs into the shared parsed representation.
-func SoundCloudSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parseSoundCloudURL(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) != 2 || segments[1] == "sets" {
 		return nil, fmt.Errorf("%w: %s", errSoundCloudNotSongURL, raw)
 	}
@@ -55,7 +63,7 @@ func SoundCloudSongURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 
 	canonicalURL := fmt.Sprintf("https://soundcloud.com/%s/%s", userSlug, trackSlug)
-	return &model.ParsedAlbumURL{
+	return &model.ParsedURL{
 		Service:      model.ServiceSoundCloud,
 		EntityType:   "song",
 		ID:           userSlug + "/" + trackSlug,

@@ -11,7 +11,6 @@ import (
 	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
 	tidaladapter "github.com/xmbshwll/ariadne/internal/adapters/tidal"
 	youtubemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 var defaultServiceBindings = []serviceBinding{
@@ -34,7 +33,7 @@ func appleMusicServiceBinding() serviceBinding {
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
 			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.AppleMusicSongURL,
+			runtimeSongURLParser: applemusicadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, config Config) serviceAdapterSet {
 			adapter := applemusicadapter.New(
@@ -65,7 +64,7 @@ func bandcampServiceBinding() serviceBinding {
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
 			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.BandcampSongURL,
+			runtimeSongURLParser: bandcampadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := bandcampadapter.New(client)
@@ -83,7 +82,7 @@ func deezerServiceBinding() serviceBinding {
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
 			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.DeezerSongURL,
+			runtimeSongURLParser: deezeradapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := deezeradapter.New(client)
@@ -101,7 +100,7 @@ func soundCloudServiceBinding() serviceBinding {
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
 			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.SoundCloudSongURL,
+			runtimeSongURLParser: soundcloudadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := soundcloudadapter.New(client)
@@ -119,7 +118,7 @@ func spotifyServiceBinding() serviceBinding {
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
 			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.SpotifySongURL,
+			runtimeSongURLParser: spotifyadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, config Config) serviceAdapterSet {
 			adapter := spotifyadapter.New(
@@ -145,7 +144,7 @@ func tidalServiceBinding() serviceBinding {
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
 			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.TIDALSongURL,
+			runtimeSongURLParser: tidaladapter.ParseSongURL,
 		},
 		build: func(client *http.Client, config Config) serviceAdapterSet {
 			adapter := tidaladapter.New(
@@ -170,7 +169,7 @@ func youTubeMusicServiceBinding() serviceBinding {
 			supportsAlbumSource:  true,
 			supportsAlbumTarget:  true,
 			supportsSongSource:   true,
-			runtimeSongURLParser: parse.YouTubeMusicSongURL,
+			runtimeSongURLParser: youtubemusicadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := youtubemusicadapter.New(client)
@@ -186,7 +185,7 @@ func amazonMusicServiceBinding() serviceBinding {
 			aliases:              builtinServiceAliases(ServiceAmazonMusic),
 			supportsAlbumSource:  true,
 			supportsSongSource:   true,
-			runtimeSongURLParser: parse.AmazonMusicSongURL,
+			runtimeSongURLParser: amazonmusicadapter.ParseSongURL,
 		},
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := amazonmusicadapter.New(client)

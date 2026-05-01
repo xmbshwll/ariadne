@@ -7,7 +7,6 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const maxBandcampResponseBytes = 10 << 20
@@ -31,11 +30,11 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "album", parse.BandcampAlbumURL, toCanonicalAlbum)
+	return fetchCanonicalPage(a, ctx, rawURL, "album", ParseAlbumURL, toCanonicalAlbum)
 }
 
 func (a *Adapter) fetchSongPage(ctx context.Context, rawURL string) (*model.CanonicalSong, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "song", parse.BandcampSongURL, toCanonicalSong)
+	return fetchCanonicalPage(a, ctx, rawURL, "song", ParseSongURL, toCanonicalSong)
 }
 
 func fetchCanonicalPage[Canonical any](adapter *Adapter, ctx context.Context, rawURL, entity string, parseURL func(string) (*model.ParsedURL, error), toCanonical func(model.ParsedURL, *schemaAlbum) *Canonical) (*Canonical, error) {

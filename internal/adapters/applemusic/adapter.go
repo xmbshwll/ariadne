@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
@@ -107,7 +106,7 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses an Apple Music album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parse.AppleMusicAlbumURL(raw)
+	parsed, err := ParseAlbumURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse apple music album url: %w", err)
 	}
@@ -116,7 +115,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 // ParseSongURL parses an Apple Music song URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := parse.AppleMusicSongURL(raw)
+	parsed, err := ParseSongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse apple music song url: %w", err)
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
@@ -84,7 +83,7 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parse.TIDALAlbumURL(raw)
+	parsed, err := ParseAlbumURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse tidal album url: %w", err)
 	}
@@ -92,7 +91,7 @@ func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 }
 
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := parse.TIDALSongURL(raw)
+	parsed, err := ParseSongURL(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse tidal song url: %w", err)
 	}

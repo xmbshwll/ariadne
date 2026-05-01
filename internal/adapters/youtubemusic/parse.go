@@ -1,21 +1,31 @@
-package parse
+package youtubemusic
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parseutil"
 )
 
-// YouTubeMusicAlbumURL parses YouTube Music album-like URLs into the shared parsed representation.
-func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+var (
+	errUnsupportedYouTubeMusicHost   = errors.New("unsupported youtube music host")
+	errMissingYouTubeMusicBrowseID   = errors.New("missing youtube music browse id")
+	errMissingYouTubeMusicPlaylistID = errors.New("missing youtube music playlist id")
+	errMissingYouTubeMusicVideoID    = errors.New("missing youtube music video id")
+	errYouTubeMusicNotAlbumURL       = errors.New("youtube music url is not an album url")
+	errYouTubeMusicNotSongURL        = errors.New("youtube music url is not a song url")
+)
+
+func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	parsed, err := parseYouTubeMusicURL(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	switch {
 	case len(segments) == 2 && segments[0] == "browse":
 		browseID := strings.TrimSpace(segments[1])
@@ -46,14 +56,13 @@ func YouTubeMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	}
 }
 
-// YouTubeMusicSongURL parses YouTube Music song URLs into the shared parsed representation.
-func YouTubeMusicSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parseYouTubeMusicURL(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) != 1 || segments[0] != "watch" {
 		return nil, fmt.Errorf("%w: %s", errYouTubeMusicNotSongURL, raw)
 	}
@@ -61,7 +70,7 @@ func YouTubeMusicSongURL(raw string) (*model.ParsedAlbumURL, error) {
 	if videoID == "" {
 		return nil, errMissingYouTubeMusicVideoID
 	}
-	return &model.ParsedAlbumURL{
+	return &model.ParsedURL{
 		Service:      model.ServiceYouTubeMusic,
 		EntityType:   "song",
 		ID:           videoID,

@@ -9,7 +9,7 @@ import (
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
+	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
 )
 
 var (
@@ -66,7 +66,7 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("load spotify sample url: %w", err)
 	}
-	parsed, err := parse.SpotifyAlbumURL(rawURL)
+	parsed, err := spotifyadapter.ParseAlbumURL(rawURL)
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("parse sample spotify album url: %w", err)
 	}

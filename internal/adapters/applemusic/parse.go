@@ -1,22 +1,28 @@
-package parse
+package applemusic
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parseutil"
 )
 
-const albumPathSegment = "album"
+var (
+	errUnsupportedAppleMusicHost            = errors.New("unsupported apple music host")
+	errInvalidAppleMusicAlbumPath           = errors.New("invalid apple music album path")
+	errAppleMusicNotAlbumURL                = errors.New("apple music url is not an album url")
+	errMissingAppleMusicStorefrontOrAlbumID = errors.New("missing storefront or album id")
+	errMissingAppleMusicTrackID             = errors.New("missing apple music track id")
+)
 
-// AppleMusicAlbumURL parses an Apple Music album URL into the shared parsed representation.
-func AppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return parseAppleMusicAlbumURL(raw)
 }
 
-// AppleMusicSongURL parses an Apple Music song URL into the shared parsed representation.
-func AppleMusicSongURL(raw string) (*model.ParsedAlbumURL, error) {
+func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	parsed, err := parseAppleMusicAlbumURL(raw)
 	if err != nil {
 		return nil, err
@@ -42,7 +48,7 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		return nil, fmt.Errorf("%w: %s", errUnsupportedAppleMusicHost, parsed.Host)
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) < 4 {
 		return nil, fmt.Errorf("%w: %s", errInvalidAppleMusicAlbumPath, parsed.Path)
 	}
@@ -75,3 +81,5 @@ func parsedQuery(raw string, key string) string {
 	}
 	return parsed.Query().Get(key)
 }
+
+const albumPathSegment = "album"

@@ -1,25 +1,34 @@
-package parse
+package bandcamp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parseutil"
 )
 
-// BandcampAlbumURL parses a Bandcamp album URL into the shared parsed representation.
-func BandcampAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return bandcampEntityURL(raw, albumPathSegment, "album", errBandcampNotAlbumURL)
+var (
+	errMissingBandcampHost     = errors.New("missing bandcamp host")
+	errUnsupportedBandcampHost = errors.New("unsupported bandcamp host")
+	errBandcampNotAlbumURL     = errors.New("bandcamp url is not an album url")
+	errBandcampNotSongURL      = errors.New("bandcamp url is not a song url")
+)
+
+func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	return parseEntityURL(raw, albumPathSegment, "album", errBandcampNotAlbumURL)
 }
 
-// BandcampSongURL parses a Bandcamp track URL into the shared parsed representation.
-func BandcampSongURL(raw string) (*model.ParsedAlbumURL, error) {
-	return bandcampEntityURL(raw, "track", "song", errBandcampNotSongURL)
+func ParseSongURL(raw string) (*model.ParsedURL, error) {
+	return parseEntityURL(raw, "track", "song", errBandcampNotSongURL)
 }
 
-func bandcampEntityURL(raw string, pathSegment string, entityType string, notEntityErr error) (*model.ParsedAlbumURL, error) {
+const albumPathSegment = "album"
+
+func parseEntityURL(raw string, pathSegment string, entityType string, notEntityErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse bandcamp url: %w", err)
@@ -33,7 +42,7 @@ func bandcampEntityURL(raw string, pathSegment string, entityType string, notEnt
 		return nil, fmt.Errorf("%w: %s", errUnsupportedBandcampHost, parsed.Host)
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) < 2 || segments[0] != pathSegment {
 		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}

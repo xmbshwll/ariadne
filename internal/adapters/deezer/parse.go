@@ -1,24 +1,35 @@
-package parse
+package deezer
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/parseutil"
 )
 
-// DeezerAlbumURL parses a Deezer album URL into the shared parsed representation.
-func DeezerAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return deezerEntityURL(raw, albumPathSegment, "album", errDeezerNotAlbumURL, errMissingDeezerAlbumID)
+var (
+	errUnsupportedDeezerHost = errors.New("unsupported deezer host")
+	errInvalidDeezerPath     = errors.New("invalid deezer path")
+	errDeezerNotAlbumURL     = errors.New("deezer url is not an album url")
+	errDeezerNotSongURL      = errors.New("deezer url is not a song url")
+	errMissingDeezerAlbumID  = errors.New("missing deezer album id")
+	errMissingDeezerTrackID  = errors.New("missing deezer track id")
+)
+
+func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
+	return parseEntityURL(raw, albumPathSegment, "album", errDeezerNotAlbumURL, errMissingDeezerAlbumID)
 }
 
-// DeezerSongURL parses a Deezer track URL into the shared parsed representation.
-func DeezerSongURL(raw string) (*model.ParsedAlbumURL, error) {
-	return deezerEntityURL(raw, "track", "song", errDeezerNotSongURL, errMissingDeezerTrackID)
+func ParseSongURL(raw string) (*model.ParsedURL, error) {
+	return parseEntityURL(raw, "track", "song", errDeezerNotSongURL, errMissingDeezerTrackID)
 }
 
-func deezerEntityURL(raw string, pathSegment string, entityType string, notEntityErr error, missingIDErr error) (*model.ParsedAlbumURL, error) {
+const albumPathSegment = "album"
+
+func parseEntityURL(raw string, pathSegment string, entityType string, notEntityErr error, missingIDErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse deezer url: %w", err)
@@ -29,14 +40,14 @@ func deezerEntityURL(raw string, pathSegment string, entityType string, notEntit
 		return nil, fmt.Errorf("%w: %s", errUnsupportedDeezerHost, parsed.Host)
 	}
 
-	segments := pathSegments(parsed.Path)
+	segments := parseutil.PathSegments(parsed.Path)
 	if len(segments) == 0 {
 		return nil, fmt.Errorf("%w: %s", errInvalidDeezerPath, parsed.Path)
 	}
 
 	regionHint := ""
 	index := 0
-	if isRegionSegment(segments[0]) {
+	if parseutil.IsRegionSegment(segments[0]) {
 		regionHint = segments[0]
 		index++
 	}
@@ -63,24 +74,4 @@ func deezerEntityURL(raw string, pathSegment string, entityType string, notEntit
 		RegionHint:   regionHint,
 		RawURL:       raw,
 	}, nil
-}
-
-func pathSegments(path string) []string {
-	trimmed := strings.Trim(path, "/")
-	if trimmed == "" {
-		return nil
-	}
-	return strings.Split(trimmed, "/")
-}
-
-func isRegionSegment(segment string) bool {
-	if len(segment) != 2 {
-		return false
-	}
-	for _, r := range segment {
-		if r < 'a' || r > 'z' {
-			return false
-		}
-	}
-	return true
 }
