@@ -3,6 +3,7 @@ package bandcamp
 import (
 	"html"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -220,9 +221,9 @@ func parseReleasedText(value string) string {
 	if len(parts) < 3 {
 		return ""
 	}
-	for i := len(parts) - 1; i >= 0; i-- {
-		if len(parts[i]) == 4 {
-			return parts[i]
+	for _, v := range slices.Backward(parts) {
+		if len(v) == 4 {
+			return v
 		}
 	}
 	return ""

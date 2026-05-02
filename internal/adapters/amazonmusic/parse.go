@@ -36,7 +36,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceAmazonMusic,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           asin,
 		CanonicalURL: "https://music.amazon.com/albums/" + asin,
 		RawURL:       raw,
@@ -65,7 +65,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 
 	return &model.ParsedURL{
 		Service:      model.ServiceAmazonMusic,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           asin,
 		CanonicalURL: "https://music.amazon.com/tracks/" + asin,
 		RawURL:       raw,
