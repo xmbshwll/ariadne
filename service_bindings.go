@@ -55,14 +55,14 @@ type sourceRuntimeAdapter interface {
 	resolve.SongSourceAdapter
 }
 
-func serviceBindingFor(service ServiceName, roles serviceRoles, parser songURLParser, build func(*http.Client, Config) serviceAdapterSet) serviceBinding {
+func serviceBindingFor(service ServiceName, roles serviceRoles, parser songURLParser, build serviceAdapterBuilder) serviceBinding {
 	return serviceBinding{
 		capability: serviceCapabilityFor(service, roles, parser),
 		build:      build,
 	}
 }
 
-func credentialedTargetServiceBinding(service ServiceName, roles serviceRoles, parser songURLParser, targetSearchEnabled func(Config) bool, build func(*http.Client, Config) serviceAdapterSet) serviceBinding {
+func credentialedTargetServiceBinding(service ServiceName, roles serviceRoles, parser songURLParser, targetSearchEnabled func(Config) bool, build serviceAdapterBuilder) serviceBinding {
 	binding := serviceBindingFor(service, roles, parser, build)
 	binding.capability = binding.capability.withTargetSearchEnabled(targetSearchEnabled)
 	return binding

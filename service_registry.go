@@ -59,9 +59,11 @@ type serviceAdapterSet struct {
 // metadata is config-independent and feeds the Supported* helpers, while build
 // applies Config-specific credential gating to the adapter set used by the
 // Enabled* helpers and default resolver wiring.
+type serviceAdapterBuilder func(client *http.Client, config Config) serviceAdapterSet
+
 type serviceBinding struct {
 	capability serviceCapability
-	build      func(client *http.Client, config Config) serviceAdapterSet
+	build      serviceAdapterBuilder
 }
 
 type serviceOrder struct {
