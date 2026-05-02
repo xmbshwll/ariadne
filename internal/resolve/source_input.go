@@ -9,9 +9,35 @@ import (
 )
 
 var (
-	errNilSourceAlbum = errors.New("fetch source album returned nil")
-	errNilSourceSong  = errors.New("fetch source song returned nil")
+	// ErrSourceAdapterReturnedNilParsedURL indicates that a source adapter returned nil parsed URL instead of a value or error.
+	ErrSourceAdapterReturnedNilParsedURL = errors.New("source adapter returned nil parsed url")
+	// ErrSourceAdapterReturnedNilAlbum indicates that an album source adapter returned nil album without an error.
+	ErrSourceAdapterReturnedNilAlbum = errors.New("source adapter returned nil album")
+	// ErrSourceAdapterReturnedNilSong indicates that a song source adapter returned nil song without an error.
+	ErrSourceAdapterReturnedNilSong = errors.New("source adapter returned nil song")
+
+	errNilSourceAlbum = sourceAdapterContractError{
+		message: "fetch source album returned nil",
+		target:  ErrSourceAdapterReturnedNilAlbum,
+	}
+	errNilSourceSong = sourceAdapterContractError{
+		message: "fetch source song returned nil",
+		target:  ErrSourceAdapterReturnedNilSong,
+	}
 )
+
+type sourceAdapterContractError struct {
+	message string
+	target  error
+}
+
+func (e sourceAdapterContractError) Error() string {
+	return e.message
+}
+
+func (e sourceAdapterContractError) Is(target error) bool {
+	return target == e.target
+}
 
 type sourceInput[P any, Entity any] struct {
 	Parsed P
@@ -64,7 +90,7 @@ func recognizeSourceInput[S any, P any](sources []S, inputURL string, parse func
 			continue
 		}
 		if parsed == nil {
-			continue
+			return zero, nil, ErrSourceAdapterReturnedNilParsedURL
 		}
 		return source, parsed, nil
 	}

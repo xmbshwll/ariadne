@@ -46,34 +46,34 @@ func serviceNameSet(services []ServiceName) map[ServiceName]struct{} {
 	return allowed
 }
 
-func wrapSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
-	wrapped := make([]resolve.SourceAdapter, 0, len(sources))
+func resolveSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
+	adapters := make([]resolve.SourceAdapter, 0, len(sources))
 	for _, source := range sources {
-		wrapped = append(wrapped, sourceAdapterBridge{source: source})
+		adapters = append(adapters, source)
 	}
-	return wrapped
+	return adapters
 }
 
-func wrapSongSourceAdapters(sources []SongSourceAdapter) []resolve.SongSourceAdapter {
-	wrapped := make([]resolve.SongSourceAdapter, 0, len(sources))
+func resolveSongSourceAdapters(sources []SongSourceAdapter) []resolve.SongSourceAdapter {
+	adapters := make([]resolve.SongSourceAdapter, 0, len(sources))
 	for _, source := range sources {
-		wrapped = append(wrapped, songSourceAdapterBridge{source: source})
+		adapters = append(adapters, source)
 	}
-	return wrapped
+	return adapters
 }
 
-func wrapTargetAdapters(targets []TargetAdapter) []resolve.TargetAdapter {
-	wrapped := make([]resolve.TargetAdapter, 0, len(targets))
+func resolveTargetAdapters(targets []TargetAdapter) []resolve.TargetAdapter {
+	adapters := make([]resolve.TargetAdapter, 0, len(targets))
 	for _, target := range targets {
-		wrapped = append(wrapped, targetAdapterBridge{target: target})
+		adapters = append(adapters, target)
 	}
-	return wrapped
+	return adapters
 }
 
-func wrapSongTargetAdapters(targets []SongTargetAdapter) []resolve.SongTargetAdapter {
-	wrapped := make([]resolve.SongTargetAdapter, 0, len(targets))
+func resolveSongTargetAdapters(targets []SongTargetAdapter) []resolve.SongTargetAdapter {
+	adapters := make([]resolve.SongTargetAdapter, 0, len(targets))
 	for _, target := range targets {
-		wrapped = append(wrapped, songTargetAdapterBridge{target: target})
+		adapters = append(adapters, target)
 	}
-	return wrapped
+	return adapters
 }

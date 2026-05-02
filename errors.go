@@ -32,9 +32,9 @@ var (
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
 	// ErrSourceAdapterReturnedNilParsedURL indicates that a caller-provided source adapter returned a nil parsed URL instead of either a parsed value or an error.
-	ErrSourceAdapterReturnedNilParsedURL = errors.New("source adapter returned nil parsed url")
+	ErrSourceAdapterReturnedNilParsedURL = resolve.ErrSourceAdapterReturnedNilParsedURL
 	// ErrSourceAdapterReturnedNilAlbum indicates that a caller-provided album source adapter returned a nil album without an error.
-	ErrSourceAdapterReturnedNilAlbum = errors.New("source adapter returned nil album")
+	ErrSourceAdapterReturnedNilAlbum = resolve.ErrSourceAdapterReturnedNilAlbum
 	// ErrSourceAdapterReturnedNilSong indicates that a caller-provided song source adapter returned a nil song without an error.
-	ErrSourceAdapterReturnedNilSong = errors.New("source adapter returned nil song")
+	ErrSourceAdapterReturnedNilSong = resolve.ErrSourceAdapterReturnedNilSong
 )

@@ -56,10 +56,6 @@ _Avoid_: query helper, search text
 A user or config request to include a Music Service in Target Search, validated against Provider Catalog capability, credential, and parse-only constraints.
 _Avoid_: service flag validation, CLI service parsing
 
-**Conversion Semantics**:
-Rules for translating between Ariadne's public API types and internal model types, including field mapping, nil/empty container shape, and deep-copy ownership.
-_Avoid_: mapper glue, conversion helper
-
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
@@ -74,7 +70,6 @@ _Avoid_: mapper glue, conversion helper
 - **Entity Resolution** composes Source Input recognition, Runtime Hydration, Target Search, and optional Identifier Enrichment.
 - **Target Search** can use identifiers first, then one or more **Metadata Queries** when identifiers are missing or insufficient.
 - **Target Search** candidates are ranked by **Score Signals** before **Entity Resolution** returns matches.
-- **Conversion Semantics** keep public **Entity Resolution** outputs isolated from internal model mutation.
 
 ## Example dialogue
 

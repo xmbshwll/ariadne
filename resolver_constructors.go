@@ -77,10 +77,10 @@ func NewWithEntityAdapters(albumSources []SourceAdapter, albumTargets []TargetAd
 // NewWithEntityAdaptersAndWeights builds a Resolver from caller-provided album and song adapters and explicit ranking weights.
 func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter, albumWeights ScoreWeights, songWeights SongScoreWeights) *Resolver {
 	return newResolver(
-		wrapSourceAdapters(albumSources),
-		wrapTargetAdapters(albumTargets),
-		wrapSongSourceAdapters(songSources),
-		wrapSongTargetAdapters(songTargets),
+		resolveSourceAdapters(albumSources),
+		resolveTargetAdapters(albumTargets),
+		resolveSongSourceAdapters(songSources),
+		resolveSongTargetAdapters(songTargets),
 		albumWeights,
 		songWeights,
 	)
