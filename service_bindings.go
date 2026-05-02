@@ -35,6 +35,7 @@ type serviceRoles struct {
 var (
 	allRuntimeRoles   = serviceRoles{albumSource: true, albumTarget: true, songSource: true, songTarget: true}
 	albumRuntimeRoles = serviceRoles{albumSource: true, albumTarget: true}
+	albumSourceOnlyRoles = serviceRoles{albumSource: true, songSource: true}
 	parseOnlyRoles    = serviceRoles{}
 )
 
@@ -166,7 +167,7 @@ func youTubeMusicServiceBinding() serviceBinding {
 }
 
 func amazonMusicServiceBinding() serviceBinding {
-	return serviceBindingFor(ServiceAmazonMusic, parseOnlyRoles, amazonmusicadapter.ParseSongURL, func(*http.Client, Config) serviceAdapterSet {
-		return serviceAdapterSet{}
+	return serviceBindingFor(ServiceAmazonMusic, albumSourceOnlyRoles, amazonmusicadapter.ParseSongURL, func(*http.Client, Config) serviceAdapterSet {
+		return sourceRuntimeAdapterSet(amazonmusicadapter.New(nil))
 	})
 }
