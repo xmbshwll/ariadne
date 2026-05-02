@@ -15,7 +15,7 @@ func TestFetchSongFromHydration(t *testing.T) {
 
 	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedURL{
 		Service:      model.ServiceSoundCloud,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           "evidence-official/the-liner-notes-feat-aloe-1",
 		CanonicalURL: fixture.server.URL + "/track",
 		RawURL:       fixture.server.URL + "/track",

@@ -38,7 +38,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           albumID,
 		CanonicalURL: canonicalURL,
 		RegionHint:   a.storefrontFor(storefront),

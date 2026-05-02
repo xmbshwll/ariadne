@@ -69,7 +69,7 @@ func newAlbumSourceFixture(fixture albumSourceFixture) SourceAdapter {
 		if raw != fixture.inputURL {
 			return nil, errUnsupportedTestSource
 		}
-		return &model.ParsedURL{Service: fixture.service, EntityType: "album", ID: fixture.album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
+		return &model.ParsedURL{Service: fixture.service, EntityType: model.EntityTypeAlbum, ID: fixture.album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
 		if fixture.nilAlbum {
@@ -113,7 +113,7 @@ func newSongSourceFixture(fixture songSourceFixture) SongSourceAdapter {
 		if raw != fixture.inputURL {
 			return nil, errUnsupportedTestSource
 		}
-		return &model.ParsedURL{Service: fixture.service, EntityType: "song", ID: fixture.song.SourceID, CanonicalURL: raw, RawURL: raw}, nil
+		return &model.ParsedURL{Service: fixture.service, EntityType: model.EntityTypeSong, ID: fixture.song.SourceID, CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchSong(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
 		if fixture.nilSong {
@@ -261,7 +261,7 @@ func newFixtureSourceAdapter(albumsByURL map[string]model.CanonicalAlbum) Source
 		if !ok {
 			return nil, errUnsupportedTestSource
 		}
-		return &model.ParsedURL{Service: album.Service, EntityType: "album", ID: album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
+		return &model.ParsedURL{Service: album.Service, EntityType: model.EntityTypeAlbum, ID: album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
 		album, ok := albumsByURL[parsed.RawURL]

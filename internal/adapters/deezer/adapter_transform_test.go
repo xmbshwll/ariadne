@@ -22,7 +22,7 @@ func TestToCanonicalAlbum(t *testing.T) {
 	adapter := New(nil)
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           "12047952",
 		CanonicalURL: "https://www.deezer.com/album/12047952",
 		RawURL:       "https://www.deezer.com/album/12047952",

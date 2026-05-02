@@ -36,7 +36,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 
 	return &model.ParsedURL{
 		Service:    model.ServiceAppleMusic,
-		EntityType: "song",
+		EntityType: model.EntityTypeSong,
 		ID:         trackID,
 		CanonicalURL: fmt.Sprintf(
 			"https://music.apple.com/%s/%s/%s/%s?i=%s",
@@ -101,7 +101,7 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           id,
 		CanonicalURL: canonicalURL,
 		RegionHint:   storefront,

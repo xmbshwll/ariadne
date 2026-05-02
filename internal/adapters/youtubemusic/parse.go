@@ -34,7 +34,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		}
 		return &model.ParsedAlbumURL{
 			Service:      model.ServiceYouTubeMusic,
-			EntityType:   "album",
+			EntityType:   model.EntityTypeAlbum,
 			ID:           browseID,
 			CanonicalURL: "https://music.youtube.com/browse/" + browseID,
 			RawURL:       raw,
@@ -46,7 +46,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		}
 		return &model.ParsedAlbumURL{
 			Service:      model.ServiceYouTubeMusic,
-			EntityType:   "album",
+			EntityType:   model.EntityTypeAlbum,
 			ID:           playlistID,
 			CanonicalURL: "https://music.youtube.com/playlist?list=" + playlistID,
 			RawURL:       raw,
@@ -72,7 +72,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	}
 	return &model.ParsedURL{
 		Service:      model.ServiceYouTubeMusic,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           videoID,
 		CanonicalURL: "https://music.youtube.com/watch?v=" + videoID,
 		RawURL:       raw,

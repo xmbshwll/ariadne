@@ -38,7 +38,7 @@ func TestResolveSourceInputHydratesRecognizedSource(t *testing.T) {
 		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
 		func(sourceInputTestAdapter, string) (*model.ParsedURL, error) {
-			return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: "album", ID: "1"}, nil
+			return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "1"}, nil
 		},
 		func(_ context.Context, source sourceInputTestAdapter, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
 			return &model.CanonicalAlbum{Service: source.Service(), SourceID: parsed.ID}, nil
@@ -81,7 +81,7 @@ func TestResolveSourceInputReportsNilHydration(t *testing.T) {
 		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
 		func(sourceInputTestAdapter, string) (*model.ParsedURL, error) {
-			return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: "album", ID: "1"}, nil
+			return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "1"}, nil
 		},
 		func(context.Context, sourceInputTestAdapter, model.ParsedURL) (*model.CanonicalAlbum, error) {
 			return nil, nil //nolint:nilnil // Exercise source input nil hydration outcome.

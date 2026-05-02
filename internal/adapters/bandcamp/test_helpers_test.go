@@ -44,7 +44,7 @@ func newBandcampAlbumSource(baseURL, slug string) model.ParsedAlbumURL {
 	path := "/album/" + slug
 	return model.ParsedAlbumURL{
 		Service:      model.ServiceBandcamp,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           slug,
 		CanonicalURL: baseURL + path,
 		RawURL:       baseURL + path,
@@ -55,7 +55,7 @@ func newBandcampSongSource(baseURL, slug string) model.ParsedURL {
 	path := "/track/" + slug
 	return model.ParsedURL{
 		Service:      model.ServiceBandcamp,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           slug,
 		CanonicalURL: baseURL + path,
 		RawURL:       baseURL + path,

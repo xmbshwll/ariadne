@@ -31,7 +31,7 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string) (*model.CanonicalAlbum, error) {
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           albumID,
 		CanonicalURL: canonicalAlbumURLString(albumID),
 		RawURL:       canonicalAlbumURLString(albumID),
@@ -77,7 +77,7 @@ func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parse
 
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceDeezer,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           strconv.Itoa(album.ID),
 		CanonicalURL: canonicalAlbumURL(album.ID),
 		RawURL:       canonicalAlbumURL(album.ID),

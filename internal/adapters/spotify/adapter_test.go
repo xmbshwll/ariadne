@@ -26,7 +26,7 @@ func TestFetchAlbumViaBootstrap(t *testing.T) {
 	adapter := New(server.Client(), WithWebBaseURL(server.URL))
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceSpotify,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           "0ETFjACtuP2ADo6LFhL6HN",
 		CanonicalURL: "https://open.spotify.com/album/0ETFjACtuP2ADo6LFhL6HN",
 		RawURL:       "https://open.spotify.com/album/0ETFjACtuP2ADo6LFhL6HN",

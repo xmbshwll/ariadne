@@ -38,7 +38,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	canonicalURL := fmt.Sprintf("https://soundcloud.com/%s/sets/%s", userSlug, setSlug)
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceSoundCloud,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           userSlug + "/sets/" + setSlug,
 		CanonicalURL: canonicalURL,
 		RawURL:       raw,
@@ -68,7 +68,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	canonicalURL := fmt.Sprintf("https://soundcloud.com/%s/%s", userSlug, trackSlug)
 	return &model.ParsedURL{
 		Service:      model.ServiceSoundCloud,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           userSlug + "/" + trackSlug,
 		CanonicalURL: canonicalURL,
 		RawURL:       raw,

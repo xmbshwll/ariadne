@@ -22,7 +22,7 @@ func TestFetchAlbumBootstrapMapsNotFoundStatus(t *testing.T) {
 	adapter := New(server.Client(), WithWebBaseURL(server.URL))
 	_, err := adapter.fetchAlbumBootstrap(context.Background(), model.ParsedAlbumURL{
 		Service:      model.ServiceSpotify,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           "missing",
 		CanonicalURL: "https://open.spotify.com/album/missing",
 	})
@@ -79,7 +79,7 @@ func TestFetchAlbumHydratesTracksViaSingleTrackEndpointInParallel(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	album, err := adapter.FetchAlbum(ctx, model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "album", ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"})
+	album, err := adapter.FetchAlbum(ctx, model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"})
 	require.NoError(t, err)
 	require.NotNil(t, album)
 	require.Len(t, album.Tracks, 2)
