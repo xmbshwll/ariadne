@@ -219,17 +219,23 @@ func (c providerCatalog) songTargetServiceRequest(config Config, service Service
 }
 
 func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceName, supports func(serviceCapability) bool, message string) TargetServiceRequestDecision {
+	decision := TargetServiceRequestDecision{Service: service, Message: message}
 	capability, ok := c.serviceCapability(service)
 	if !ok {
-		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestUnknown, Message: message}
+		decision.Status = TargetServiceRequestUnknown
+		return decision
 	}
 	if !supports(capability) {
-		return TargetServiceRequestDecision{Service: service, Status: targetServiceUnavailableStatus(service, capability), Message: message}
+		decision.Status = targetServiceUnavailableStatus(service, capability)
+		return decision
 	}
 	if !supports(capability.enabled(config)) {
-		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestCredentialsRequired, Message: message}
+		decision.Status = TargetServiceRequestCredentialsRequired
+		return decision
 	}
-	return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestAvailable}
+	decision.Status = TargetServiceRequestAvailable
+	decision.Message = ""
+	return decision
 }
 
 func (c providerCatalog) unavailableTargetServiceMessage(raw string) string {
