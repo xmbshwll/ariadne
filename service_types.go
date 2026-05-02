@@ -77,4 +77,6 @@ const (
 type TargetServiceRequestDecision struct {
 	Service ServiceName
 	Status  TargetServiceRequestStatus
+	// Message is a human-readable explanation for unavailable decisions.
+	Message string
 }

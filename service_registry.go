@@ -1,7 +1,9 @@
 package ariadne
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/resolve"
@@ -196,35 +198,61 @@ func (c providerCatalog) describeEnabledService(config Config, service ServiceNa
 }
 
 func (c providerCatalog) targetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, service, supportsAnyTarget)
+	return c.targetCapabilityRequest(config, string(service), service, supportsAnyTarget, c.unavailableTargetServiceMessage)
 }
 
 func (c providerCatalog) lookupTargetServiceRequest(config Config, raw string) TargetServiceRequestDecision {
 	service, ok := LookupServiceName(raw)
 	if !ok {
-		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown}
+		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: c.unavailableTargetServiceMessage(raw)}
 	}
-	return c.targetServiceRequest(config, service)
+	return c.targetCapabilityRequest(config, raw, service, supportsAnyTarget, c.unavailableTargetServiceMessage)
 }
 
 func (c providerCatalog) songTargetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, service, func(capability serviceCapability) bool {
+	return c.targetCapabilityRequest(config, string(service), service, func(capability serviceCapability) bool {
 		return capability.supportsSongTarget
+	}, func(string) string {
+		return c.unavailableSongTargetServiceMessage(config, service)
 	})
 }
 
-func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceName, supports func(serviceCapability) bool) TargetServiceRequestDecision {
+func (c providerCatalog) targetCapabilityRequest(config Config, raw string, service ServiceName, supports func(serviceCapability) bool, unavailableMessage func(string) string) TargetServiceRequestDecision {
 	capability, ok := c.serviceCapability(service)
 	if !ok {
-		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestUnknown}
+		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestUnknown, Message: unavailableMessage(raw)}
 	}
 	if !supports(capability) {
-		return TargetServiceRequestDecision{Service: service, Status: targetServiceUnavailableStatus(service, capability)}
+		return TargetServiceRequestDecision{Service: service, Status: targetServiceUnavailableStatus(service, capability), Message: unavailableMessage(raw)}
 	}
 	if !supports(capability.enabled(config)) {
-		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestCredentialsRequired}
+		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestCredentialsRequired, Message: unavailableMessage(raw)}
 	}
 	return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestAvailable}
+}
+
+func (c providerCatalog) unavailableTargetServiceMessage(raw string) string {
+	return fmt.Sprintf("%q (expected one of the supported target services: %s)", raw, strings.Join(serviceNameStrings(c.supportedTargetServices()), ", "))
+}
+
+func (c providerCatalog) unavailableSongTargetServiceMessage(config Config, service ServiceName) string {
+	return fmt.Sprintf("%q (%s)", service, c.enabledSongTargetServicesUsage(config))
+}
+
+func (c providerCatalog) enabledSongTargetServicesUsage(config Config) string {
+	names := serviceNameStrings(c.enabledSongTargetServices(config))
+	if len(names) == 0 {
+		return "enabled for songs: none"
+	}
+	return "enabled for songs: " + strings.Join(names, ", ")
+}
+
+func serviceNameStrings(services []ServiceName) []string {
+	names := make([]string, 0, len(services))
+	for _, service := range services {
+		names = append(names, string(service))
+	}
+	return names
 }
 
 func targetServiceUnavailableStatus(service ServiceName, capability serviceCapability) TargetServiceRequestStatus {

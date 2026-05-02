@@ -61,13 +61,13 @@ An ordered title/artist search string used when Target Search falls back from id
 _Avoid_: query helper, search text
 
 **Target Service Request**:
-A user or config request to include a Music Service in Target Search, validated against Provider Catalog capability, credential, and parse-only constraints.
+A user or config request to include a Music Service in Target Search, validated and explained by Provider Catalog capability, credential, and parse-only constraints.
 _Avoid_: service flag validation, CLI service parsing
 
 ## Relationships
 
 - A **Provider Catalog** contains one entry per built-in **Music Service**.
-- A **Provider Catalog** validates each **Target Service Request** before **Entity Resolution** builds target Adapters.
+- A **Provider Catalog** validates and explains each **Target Service Request** before **Entity Resolution** builds target Adapters.
 - A **Music Service** exposes zero or more **Capabilities**.
 - A **Source Input** resolves to at most one **Music Service** before **Runtime Hydration** starts.
 - **Runtime Hydration** is required for source **Capabilities** but can be intentionally deferred for parse-only **Music Services**.

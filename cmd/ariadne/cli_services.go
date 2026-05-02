@@ -50,16 +50,24 @@ func targetServiceRequestError(raw string, decision ariadne.TargetServiceRequest
 	case ariadne.TargetServiceRequestAvailable:
 		return nil
 	case ariadne.TargetServiceRequestParseOnly:
-		return errAmazonMusicTargetService
+		return targetServiceDecisionError(errAmazonMusicTargetService, decision)
 	case ariadne.TargetServiceRequestCredentialsRequired:
 		return targetServiceCredentialError(decision.Service)
 	default:
-		return unsupportedTargetServiceError(raw)
+		return targetServiceDecisionError(errUnsupportedTargetService, decision)
 	}
 }
 
+func targetServiceDecisionError(sentinel error, decision ariadne.TargetServiceRequestDecision) error {
+	if decision.Message == "" {
+		return sentinel
+	}
+	return fmt.Errorf("%w %s", sentinel, decision.Message)
+}
+
 func unsupportedTargetServiceError(raw string) error {
-	return fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
+	decision := ariadne.EvaluateTargetServiceRequest(ariadne.Config{}, raw)
+	return targetServiceDecisionError(errUnsupportedTargetService, decision)
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {

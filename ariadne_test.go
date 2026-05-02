@@ -202,9 +202,9 @@ func TestProviderCatalogTargetServiceRequests(t *testing.T) {
 		want   TargetServiceRequestDecision
 	}{
 		{name: "available alias", raw: "apple-music", want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
-		{name: "unknown", raw: "unknown", want: TargetServiceRequestDecision{Status: TargetServiceRequestUnknown}},
-		{name: "parse only", raw: "amazonMusic", want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly}},
-		{name: "credentials required", raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestCredentialsRequired}},
+		{name: "unknown", raw: "unknown", want: TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: "\"unknown\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"}},
+		{name: "parse only", raw: "amazonMusic", want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly, Message: "\"amazonMusic\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"}},
+		{name: "credentials required", raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestCredentialsRequired, Message: "\"spotify\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"}},
 		{name: "credentials configured", config: Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestAvailable}},
 	}
 
@@ -223,9 +223,9 @@ func TestProviderCatalogSongTargetServiceRequests(t *testing.T) {
 		want    TargetServiceRequestDecision
 	}{
 		{name: "available", service: ServiceAppleMusic, want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
-		{name: "unsupported song target", service: ServiceYouTubeMusic, want: TargetServiceRequestDecision{Service: ServiceYouTubeMusic, Status: TargetServiceRequestUnsupported}},
-		{name: "parse only", service: ServiceAmazonMusic, want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly}},
-		{name: "credentials required", service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestCredentialsRequired}},
+		{name: "unsupported song target", service: ServiceYouTubeMusic, want: TargetServiceRequestDecision{Service: ServiceYouTubeMusic, Status: TargetServiceRequestUnsupported, Message: "\"youtubeMusic\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"}},
+		{name: "parse only", service: ServiceAmazonMusic, want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly, Message: "\"amazonMusic\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"}},
+		{name: "credentials required", service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestCredentialsRequired, Message: "\"tidal\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"}},
 		{name: "credentials configured", config: Config{TIDAL: TIDALConfig{ClientID: "id", ClientSecret: "secret"}}, service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestAvailable}},
 	}
 
