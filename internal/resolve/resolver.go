@@ -67,6 +67,8 @@ type Resolution struct {
 	Matches  map[model.ServiceName]MatchResult
 }
 
+const albumEntityLabel = "album"
+
 // Resolver coordinates source parsing, source fetching, and layered target search.
 type Resolver struct {
 	core entityResolver[SourceAdapter, TargetAdapter, model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]
@@ -107,7 +109,7 @@ func albumResolutionPipeline(weights score.Weights) entityResolutionPipeline[Sou
 			sourceService: func(source model.CanonicalAlbum) model.ServiceName {
 				return source.Service
 			},
-			entityLabel:  "album",
+			entityLabel:  albumEntityLabel,
 			nilEntityErr: errNilSourceAlbum,
 		},
 		target: entityTargetPolicy[TargetAdapter, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]{

@@ -12,6 +12,12 @@ import (
 
 var errTargetSearchLayerBoom = errors.New("target search layer boom")
 
+const (
+	targetSearchAlbum1 = "album-1"
+	targetSearchAlbum2 = "album-2"
+	targetSearchAlbum3 = "album-3"
+)
+
 func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
 	plan := targetSearchPlan[model.CandidateAlbum]{
 		target:  newStubTargetAdapter(),
@@ -30,8 +36,8 @@ func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
 				enabled: true,
 				search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return []model.CandidateAlbum{
-						{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-						{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+						{CandidateID: targetSearchAlbum1, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+						{CandidateID: targetSearchAlbum2, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
 					}, nil
 				},
 			},
@@ -40,8 +46,8 @@ func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
 				enabled: true,
 				search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return []model.CandidateAlbum{
-						{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-						{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+						{CandidateID: targetSearchAlbum2, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+						{CandidateID: targetSearchAlbum3, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
 					}, nil
 				},
 			},
@@ -52,9 +58,9 @@ func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, candidates, 3)
-	assert.Equal(t, "album-1", candidates[0].CandidateID)
-	assert.Equal(t, "album-2", candidates[1].CandidateID)
-	assert.Equal(t, "album-3", candidates[2].CandidateID)
+	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
+	assert.Equal(t, targetSearchAlbum2, candidates[1].CandidateID)
+	assert.Equal(t, targetSearchAlbum3, candidates[2].CandidateID)
 }
 
 func TestTargetSearchPlanWrapsLayerErrors(t *testing.T) {

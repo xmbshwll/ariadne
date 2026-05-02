@@ -76,7 +76,7 @@ func testEntityResolutionPipeline(
 				if !strings.HasPrefix(raw, "spotify:") {
 					return nil, errUnsupportedTestSource
 				}
-				return &model.ParsedURL{Service: source.Service(), EntityType: "album", ID: "1"}, nil
+				return &model.ParsedURL{Service: source.Service(), EntityType: albumEntityLabel, ID: "1"}, nil
 			},
 			hydrate: func(_ context.Context, source entityResolutionPipelineAdapter, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
 				return &model.CanonicalAlbum{Service: source.Service(), SourceID: parsed.ID, Title: "Source"}, nil
@@ -84,7 +84,7 @@ func testEntityResolutionPipeline(
 			sourceService: func(source model.CanonicalAlbum) model.ServiceName {
 				return source.Service
 			},
-			entityLabel:  "album",
+			entityLabel:  albumEntityLabel,
 			nilEntityErr: errNilSourceAlbum,
 		},
 		target: entityTargetPolicy[entityResolutionPipelineAdapter, model.CanonicalAlbum, string, []string, string]{
