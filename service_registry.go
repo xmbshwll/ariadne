@@ -198,35 +198,34 @@ func (c providerCatalog) describeEnabledService(config Config, service ServiceNa
 }
 
 func (c providerCatalog) targetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, string(service), service, supportsAnyTarget, c.unavailableTargetServiceMessage)
+	return c.targetCapabilityRequest(config, service, supportsAnyTarget, c.unavailableTargetServiceMessage(string(service)))
 }
 
 func (c providerCatalog) lookupTargetServiceRequest(config Config, raw string) TargetServiceRequestDecision {
+	message := c.unavailableTargetServiceMessage(raw)
 	service, ok := LookupServiceName(raw)
 	if !ok {
-		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: c.unavailableTargetServiceMessage(raw)}
+		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: message}
 	}
-	return c.targetCapabilityRequest(config, raw, service, supportsAnyTarget, c.unavailableTargetServiceMessage)
+	return c.targetCapabilityRequest(config, service, supportsAnyTarget, message)
 }
 
 func (c providerCatalog) songTargetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, string(service), service, func(capability serviceCapability) bool {
+	return c.targetCapabilityRequest(config, service, func(capability serviceCapability) bool {
 		return capability.supportsSongTarget
-	}, func(string) string {
-		return c.unavailableSongTargetServiceMessage(config, service)
-	})
+	}, c.unavailableSongTargetServiceMessage(config, service))
 }
 
-func (c providerCatalog) targetCapabilityRequest(config Config, raw string, service ServiceName, supports func(serviceCapability) bool, unavailableMessage func(string) string) TargetServiceRequestDecision {
+func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceName, supports func(serviceCapability) bool, message string) TargetServiceRequestDecision {
 	capability, ok := c.serviceCapability(service)
 	if !ok {
-		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestUnknown, Message: unavailableMessage(raw)}
+		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestUnknown, Message: message}
 	}
 	if !supports(capability) {
-		return TargetServiceRequestDecision{Service: service, Status: targetServiceUnavailableStatus(service, capability), Message: unavailableMessage(raw)}
+		return TargetServiceRequestDecision{Service: service, Status: targetServiceUnavailableStatus(service, capability), Message: message}
 	}
 	if !supports(capability.enabled(config)) {
-		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestCredentialsRequired, Message: unavailableMessage(raw)}
+		return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestCredentialsRequired, Message: message}
 	}
 	return TargetServiceRequestDecision{Service: service, Status: TargetServiceRequestAvailable}
 }
