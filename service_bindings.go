@@ -33,10 +33,17 @@ type serviceRoles struct {
 }
 
 var (
+<<<<<<< HEAD
 	allRuntimeRoles   = serviceRoles{albumSource: true, albumTarget: true, songSource: true, songTarget: true}
 	albumRuntimeRoles = serviceRoles{albumSource: true, albumTarget: true}
 	albumSourceOnlyRoles = serviceRoles{albumSource: true, songSource: true}
 	parseOnlyRoles    = serviceRoles{}
+=======
+	allRuntimeRoles      = serviceRoles{albumSource: true, albumTarget: true, songSource: true, songTarget: true}
+	albumRuntimeRoles    = serviceRoles{albumSource: true, albumTarget: true}
+	albumSourceOnlyRoles = serviceRoles{albumSource: true, songSource: true}
+	parseOnlyRoles       = serviceRoles{}
+>>>>>>> 93c9ade (fix(resolve): register Amazon Music as source adapter with deferred errors)
 )
 
 type fullRuntimeAdapter interface {

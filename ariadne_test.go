@@ -379,8 +379,6 @@ func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testi
 	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
 }
 
-
-
 func TestResolveSongReturnsUnsupportedURLForParseOnlyServices(t *testing.T) {
 	resolver := New(DefaultConfig())
 
