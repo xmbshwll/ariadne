@@ -35,12 +35,19 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 	}
 
 	return &model.ParsedURL{
-		Service:      model.ServiceAppleMusic,
-		EntityType:   "song",
-		ID:           trackID,
-		CanonicalURL: fmt.Sprintf("https://music.apple.com/%s/%s/%s/%s?i=%s", storefront, albumPathSegment, segments[2], segments[3], url.QueryEscape(trackID)),
-		RegionHint:   storefront,
-		RawURL:       raw,
+		Service:    model.ServiceAppleMusic,
+		EntityType: "song",
+		ID:         trackID,
+		CanonicalURL: fmt.Sprintf(
+			"https://music.apple.com/%s/%s/%s/%s?i=%s",
+			storefront,
+			url.PathEscape(albumPathSegment),
+			url.PathEscape(segments[2]),
+			url.PathEscape(segments[3]),
+			url.QueryEscape(trackID),
+		),
+		RegionHint: storefront,
+		RawURL:     raw,
 	}, nil
 }
 
@@ -62,6 +69,9 @@ func parseAppleMusicURL(raw string) (*url.URL, []string, error) {
 	if len(segments) != 4 {
 		return nil, nil, fmt.Errorf("%w: %s", errInvalidAppleMusicAlbumPath, parsed.Path)
 	}
+	if !adapterutil.IsRegionSegment(segments[0]) {
+		return nil, nil, fmt.Errorf("%w: %s", errInvalidAppleMusicAlbumPath, parsed.Path)
+	}
 	if segments[1] != albumPathSegment {
 		return nil, nil, fmt.Errorf("%w: %s", errAppleMusicNotAlbumURL, raw)
 	}
@@ -81,7 +91,13 @@ func parseAppleMusicAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		return nil, errMissingAppleMusicStorefrontOrAlbumID
 	}
 
-	canonicalURL := fmt.Sprintf("https://music.apple.com/%s/%s/%s/%s", storefront, albumPathSegment, segments[2], id)
+	canonicalURL := fmt.Sprintf(
+		"https://music.apple.com/%s/%s/%s/%s",
+		storefront,
+		url.PathEscape(albumPathSegment),
+		url.PathEscape(segments[2]),
+		url.PathEscape(id),
+	)
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceAppleMusic,

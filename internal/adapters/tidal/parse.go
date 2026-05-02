@@ -15,21 +15,19 @@ var (
 	errInvalidTIDALPath     = errors.New("invalid tidal path")
 	errTIDALNotAlbumURL     = errors.New("tidal url is not an album url")
 	errTIDALNotSongURL      = errors.New("tidal url is not a song url")
-	errMissingTIDALAlbumID  = errors.New("missing tidal album id")
-	errMissingTIDALTrackID  = errors.New("missing tidal track id")
 )
 
 func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	return parseEntityURL(raw, albumPathSegment, "album", errTIDALNotAlbumURL, errMissingTIDALAlbumID)
+	return parseEntityURL(raw, albumPathSegment, "album", errTIDALNotAlbumURL)
 }
 
 func ParseSongURL(raw string) (*model.ParsedURL, error) {
-	return parseEntityURL(raw, "track", "song", errTIDALNotSongURL, errMissingTIDALTrackID)
+	return parseEntityURL(raw, "track", "song", errTIDALNotSongURL)
 }
 
 const albumPathSegment = "album"
 
-func parseEntityURL(raw string, pathSegment string, entityType string, notEntityErr error, missingIDErr error) (*model.ParsedAlbumURL, error) {
+func parseEntityURL(raw string, pathSegment string, entityType string, notEntityErr error) (*model.ParsedAlbumURL, error) {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return nil, fmt.Errorf("parse tidal url: %w", err)
@@ -54,9 +52,6 @@ func parseEntityURL(raw string, pathSegment string, entityType string, notEntity
 	}
 
 	id := segments[index+1]
-	if id == "" {
-		return nil, missingIDErr
-	}
 
 	return &model.ParsedAlbumURL{
 		Service:      model.ServiceTIDAL,
