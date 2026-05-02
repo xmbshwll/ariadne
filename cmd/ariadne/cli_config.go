@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"io"
-	"strings"
 
 	"github.com/spf13/pflag"
 
