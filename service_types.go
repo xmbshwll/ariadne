@@ -1,8 +1,11 @@
 package ariadne
 
-// ServiceName identifies a music service known to the library.
-type ServiceName string
+import "github.com/xmbshwll/ariadne/internal/model"
 
+// ServiceName identifies a music service known to the library.
+type ServiceName = model.ServiceName
+
+// Re-export service name constants so callers don't need to import internal/model.
 const (
 	// ServiceSpotify identifies Spotify.
 	ServiceSpotify ServiceName = "spotify"
@@ -25,6 +28,7 @@ const (
 // MatchStrength buckets raw scores into user-facing confidence bands.
 type MatchStrength string
 
+// Re-export match strength constants.
 const (
 	// MatchStrengthVeryWeak indicates a low-confidence match.
 	MatchStrengthVeryWeak MatchStrength = "very_weak"
@@ -50,4 +54,29 @@ type ServiceCapabilities struct {
 	SupportsSongTarget bool
 	// SupportsRuntimeSongInputURL reports whether the built-in runtime song pipeline can parse song URLs for this service.
 	SupportsRuntimeSongInputURL bool
+}
+
+// TargetServiceRequestStatus explains whether a requested target service can be used under a Config.
+type TargetServiceRequestStatus string
+
+// Re-export target service request status constants.
+const (
+	// TargetServiceRequestAvailable means the service can be used as requested.
+	TargetServiceRequestAvailable TargetServiceRequestStatus = "available"
+	// TargetServiceRequestUnknown means the requested service name or alias is not known.
+	TargetServiceRequestUnknown TargetServiceRequestStatus = "unknown"
+	// TargetServiceRequestUnsupported means the service is known but does not support the requested target role.
+	TargetServiceRequestUnsupported TargetServiceRequestStatus = "unsupported"
+	// TargetServiceRequestParseOnly means the service can parse URLs but has no runtime target search capability.
+	TargetServiceRequestParseOnly TargetServiceRequestStatus = "parseOnly"
+	// TargetServiceRequestCredentialsRequired means the target role needs missing credentials.
+	TargetServiceRequestCredentialsRequired TargetServiceRequestStatus = "credentialsRequired"
+)
+
+// TargetServiceRequestDecision reports Provider Catalog validation for one requested target service.
+type TargetServiceRequestDecision struct {
+	Service ServiceName
+	Status  TargetServiceRequestStatus
+	// Message is a human-readable explanation for unavailable decisions.
+	Message string
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestAlbumAdapter(t *testing.T) {
@@ -49,10 +50,9 @@ func TestAlbumAdapter(t *testing.T) {
 		assert.Contains(t, results[0].MatchURL, "/album/l-n-abaty-abbey-road")
 	})
 
-	t.Run("search by upc unsupported", func(t *testing.T) {
-		results, err := adapter.SearchByUPC(context.Background(), "123")
-		require.NoError(t, err)
-		assert.Empty(t, results)
+	t.Run("identifier search unsupported", func(t *testing.T) {
+		assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
+		assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), adapter)
 	})
 }
 

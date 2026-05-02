@@ -2,11 +2,9 @@ package deezer
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
@@ -51,18 +49,10 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Deezer album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parse.DeezerAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse deezer album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 // ParseSongURL parses a Deezer track URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := parse.DeezerSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse deezer song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }

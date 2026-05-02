@@ -3,13 +3,13 @@ package bandcamp
 import (
 	"html"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 var (
@@ -191,7 +191,7 @@ func cleanSearchText(value string) string {
 
 func canonicalizeAlbumSearchURL(value string) string {
 	value = html.UnescapeString(value)
-	parsed, err := parse.BandcampAlbumURL(value)
+	parsed, err := ParseAlbumURL(value)
 	if err != nil {
 		return ""
 	}
@@ -200,7 +200,7 @@ func canonicalizeAlbumSearchURL(value string) string {
 
 func canonicalizeSongSearchURL(value string) string {
 	value = html.UnescapeString(value)
-	parsed, err := parse.BandcampSongURL(value)
+	parsed, err := ParseSongURL(value)
 	if err != nil {
 		return ""
 	}
@@ -221,9 +221,9 @@ func parseReleasedText(value string) string {
 	if len(parts) < 3 {
 		return ""
 	}
-	for i := len(parts) - 1; i >= 0; i-- {
-		if len(parts[i]) == 4 {
-			return parts[i]
+	for _, v := range slices.Backward(parts) {
+		if len(v) == 4 {
+			return v
 		}
 	}
 	return ""

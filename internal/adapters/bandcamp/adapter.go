@@ -1,15 +1,12 @@
 package bandcamp
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 var (
@@ -58,33 +55,10 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Bandcamp album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parse.BandcampAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse bandcamp album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 // ParseSongURL parses a Bandcamp track URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := parse.BandcampSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse bandcamp song url: %w", err)
-	}
-	return parsed, nil
-}
-
-// SearchByUPC is not supported for Bandcamp.
-func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-// SearchByISRC is not supported for Bandcamp.
-func (a *Adapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-// SearchSongByISRC is not supported for Bandcamp.
-func (a *Adapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
-	return nil, nil
+	return ParseSongURL(raw)
 }

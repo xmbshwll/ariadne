@@ -11,7 +11,7 @@ import (
 	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
 	tidaladapter "github.com/xmbshwll/ariadne/internal/adapters/tidal"
 	youtubemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
-	"github.com/xmbshwll/ariadne/internal/parse"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 var defaultServiceBindings = []serviceBinding{
@@ -25,168 +25,148 @@ var defaultServiceBindings = []serviceBinding{
 	amazonMusicServiceBinding(),
 }
 
-func appleMusicServiceBinding() serviceBinding {
+type serviceRoles struct {
+	albumSource bool
+	albumTarget bool
+	songSource  bool
+	songTarget  bool
+}
+
+var (
+	allRuntimeRoles      = serviceRoles{albumSource: true, albumTarget: true, songSource: true, songTarget: true}
+	albumRuntimeRoles    = serviceRoles{albumSource: true, albumTarget: true}
+	albumSourceOnlyRoles = serviceRoles{albumSource: true, songSource: true}
+)
+
+type fullRuntimeAdapter interface {
+	resolve.SourceAdapter
+	resolve.TargetAdapter
+	resolve.SongSourceAdapter
+	resolve.SongTargetAdapter
+}
+
+type albumRuntimeAdapter interface {
+	resolve.SourceAdapter
+	resolve.TargetAdapter
+}
+
+type sourceRuntimeAdapter interface {
+	resolve.SourceAdapter
+	resolve.SongSourceAdapter
+}
+
+func serviceBindingFor(service ServiceName, roles serviceRoles, parser songURLParser, build serviceAdapterBuilder) serviceBinding {
 	return serviceBinding{
-		capability: serviceCapability{
-			name:                 ServiceAppleMusic,
-			aliases:              builtinServiceAliases(ServiceAppleMusic),
-			supportsAlbumSource:  true,
-			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
-			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.AppleMusicSongURL,
-		},
-		build: func(client *http.Client, config Config) serviceAdapterSet {
-			adapter := applemusicadapter.New(
-				client,
-				applemusicadapter.WithDefaultStorefront(config.AppleMusicStorefront),
-				applemusicadapter.WithDeveloperTokenAuth(
-					config.AppleMusic.KeyID,
-					config.AppleMusic.TeamID,
-					config.AppleMusic.PrivateKeyPath,
-				),
-			)
-			return serviceAdapterSet{
-				albumSource: adapter,
-				albumTarget: adapter,
-				songSource:  adapter,
-				songTarget:  adapter,
-			}
-		},
+		capability: serviceCapabilityFor(service, roles, parser),
+		build:      build,
 	}
+}
+
+func credentialedTargetServiceBinding(service ServiceName, roles serviceRoles, parser songURLParser, targetSearchEnabled func(Config) bool, build serviceAdapterBuilder) serviceBinding {
+	binding := serviceBindingFor(service, roles, parser, build)
+	binding.capability = binding.capability.withTargetSearchEnabled(targetSearchEnabled)
+	return binding
+}
+
+func serviceCapabilityFor(service ServiceName, roles serviceRoles, parser songURLParser) serviceCapability {
+	return serviceCapability{
+		name:                 service,
+		aliases:              builtinServiceAliases(service),
+		supportsAlbumSource:  roles.albumSource,
+		supportsAlbumTarget:  roles.albumTarget,
+		supportsSongSource:   roles.songSource,
+		supportsSongTarget:   roles.songTarget,
+		runtimeSongURLParser: parser,
+	}
+}
+
+func fullRuntimeAdapterSet(adapter fullRuntimeAdapter) serviceAdapterSet {
+	return serviceAdapterSet{
+		albumSource: adapter,
+		albumTarget: adapter,
+		songSource:  adapter,
+		songTarget:  adapter,
+	}
+}
+
+func albumRuntimeAdapterSet(adapter albumRuntimeAdapter) serviceAdapterSet {
+	return serviceAdapterSet{albumSource: adapter, albumTarget: adapter}
+}
+
+func sourceRuntimeAdapterSet(adapter sourceRuntimeAdapter) serviceAdapterSet {
+	return serviceAdapterSet{albumSource: adapter, songSource: adapter}
+}
+
+func credentialedFullRuntimeAdapterSet(adapter fullRuntimeAdapter, targetSearchEnabled bool) serviceAdapterSet {
+	set := sourceRuntimeAdapterSet(adapter)
+	if targetSearchEnabled {
+		set.albumTarget = adapter
+		set.songTarget = adapter
+	}
+	return set
+}
+
+func appleMusicServiceBinding() serviceBinding {
+	return serviceBindingFor(ServiceAppleMusic, allRuntimeRoles, applemusicadapter.ParseSongURL, func(client *http.Client, config Config) serviceAdapterSet {
+		adapter := applemusicadapter.New(
+			client,
+			applemusicadapter.WithDefaultStorefront(config.AppleMusicStorefront),
+			applemusicadapter.WithDeveloperTokenAuth(
+				config.AppleMusic.KeyID,
+				config.AppleMusic.TeamID,
+				config.AppleMusic.PrivateKeyPath,
+			),
+		)
+		return fullRuntimeAdapterSet(adapter)
+	})
 }
 
 func bandcampServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                 ServiceBandcamp,
-			aliases:              builtinServiceAliases(ServiceBandcamp),
-			supportsAlbumSource:  true,
-			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
-			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.BandcampSongURL,
-		},
-		build: func(client *http.Client, _ Config) serviceAdapterSet {
-			adapter := bandcampadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter, songSource: adapter, songTarget: adapter}
-		},
-	}
+	return serviceBindingFor(ServiceBandcamp, allRuntimeRoles, bandcampadapter.ParseSongURL, func(client *http.Client, _ Config) serviceAdapterSet {
+		return fullRuntimeAdapterSet(bandcampadapter.New(client))
+	})
 }
 
 func deezerServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                 ServiceDeezer,
-			aliases:              builtinServiceAliases(ServiceDeezer),
-			supportsAlbumSource:  true,
-			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
-			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.DeezerSongURL,
-		},
-		build: func(client *http.Client, _ Config) serviceAdapterSet {
-			adapter := deezeradapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter, songSource: adapter, songTarget: adapter}
-		},
-	}
+	return serviceBindingFor(ServiceDeezer, allRuntimeRoles, deezeradapter.ParseSongURL, func(client *http.Client, _ Config) serviceAdapterSet {
+		return fullRuntimeAdapterSet(deezeradapter.New(client))
+	})
 }
 
 func soundCloudServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                 ServiceSoundCloud,
-			aliases:              builtinServiceAliases(ServiceSoundCloud),
-			supportsAlbumSource:  true,
-			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
-			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.SoundCloudSongURL,
-		},
-		build: func(client *http.Client, _ Config) serviceAdapterSet {
-			adapter := soundcloudadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter, songSource: adapter, songTarget: adapter}
-		},
-	}
+	return serviceBindingFor(ServiceSoundCloud, allRuntimeRoles, soundcloudadapter.ParseSongURL, func(client *http.Client, _ Config) serviceAdapterSet {
+		return fullRuntimeAdapterSet(soundcloudadapter.New(client))
+	})
 }
 
 func spotifyServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                 ServiceSpotify,
-			aliases:              builtinServiceAliases(ServiceSpotify),
-			supportsAlbumSource:  true,
-			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
-			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.SpotifySongURL,
-		},
-		build: func(client *http.Client, config Config) serviceAdapterSet {
-			adapter := spotifyadapter.New(
-				client,
-				spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret),
-			)
-			set := serviceAdapterSet{albumSource: adapter, songSource: adapter}
-			if config.SpotifyEnabled() {
-				set.albumTarget = adapter
-				set.songTarget = adapter
-			}
-			return set
-		},
-	}
+	return credentialedTargetServiceBinding(ServiceSpotify, allRuntimeRoles, spotifyadapter.ParseSongURL, Config.SpotifyEnabled, func(client *http.Client, config Config) serviceAdapterSet {
+		adapter := spotifyadapter.New(
+			client,
+			spotifyadapter.WithCredentials(config.Spotify.ClientID, config.Spotify.ClientSecret),
+		)
+		return credentialedFullRuntimeAdapterSet(adapter, config.SpotifyEnabled())
+	})
 }
 
 func tidalServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                 ServiceTIDAL,
-			aliases:              builtinServiceAliases(ServiceTIDAL),
-			supportsAlbumSource:  true,
-			supportsAlbumTarget:  true,
-			supportsSongSource:   true,
-			supportsSongTarget:   true,
-			runtimeSongURLParser: parse.TIDALSongURL,
-		},
-		build: func(client *http.Client, config Config) serviceAdapterSet {
-			adapter := tidaladapter.New(
-				client,
-				tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret),
-			)
-			set := serviceAdapterSet{albumSource: adapter, songSource: adapter}
-			if config.TIDALEnabled() {
-				set.albumTarget = adapter
-				set.songTarget = adapter
-			}
-			return set
-		},
-	}
+	return credentialedTargetServiceBinding(ServiceTIDAL, allRuntimeRoles, tidaladapter.ParseSongURL, Config.TIDALEnabled, func(client *http.Client, config Config) serviceAdapterSet {
+		adapter := tidaladapter.New(
+			client,
+			tidaladapter.WithCredentials(config.TIDAL.ClientID, config.TIDAL.ClientSecret),
+		)
+		return credentialedFullRuntimeAdapterSet(adapter, config.TIDALEnabled())
+	})
 }
 
 func youTubeMusicServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                ServiceYouTubeMusic,
-			aliases:             builtinServiceAliases(ServiceYouTubeMusic),
-			supportsAlbumSource: true,
-			supportsAlbumTarget: true,
-		},
-		build: func(client *http.Client, _ Config) serviceAdapterSet {
-			adapter := youtubemusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter, albumTarget: adapter}
-		},
-	}
+	return serviceBindingFor(ServiceYouTubeMusic, albumRuntimeRoles, youtubemusicadapter.ParseSongURL, func(client *http.Client, _ Config) serviceAdapterSet {
+		return albumRuntimeAdapterSet(youtubemusicadapter.New(client))
+	})
 }
 
 func amazonMusicServiceBinding() serviceBinding {
-	return serviceBinding{
-		capability: serviceCapability{
-			name:                ServiceAmazonMusic,
-			aliases:             builtinServiceAliases(ServiceAmazonMusic),
-			supportsAlbumSource: true,
-		},
-		build: func(client *http.Client, _ Config) serviceAdapterSet {
-			adapter := amazonmusicadapter.New(client)
-			return serviceAdapterSet{albumSource: adapter}
-		},
-	}
+	return serviceBindingFor(ServiceAmazonMusic, albumSourceOnlyRoles, amazonmusicadapter.ParseSongURL, func(*http.Client, Config) serviceAdapterSet {
+		return sourceRuntimeAdapterSet(amazonmusicadapter.New(nil))
+	})
 }

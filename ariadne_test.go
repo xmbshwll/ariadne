@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 const testLibrarySourceURL = "https://fixture.test/source"
@@ -131,11 +130,6 @@ func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
 	}
 }
 
-func TestFromInternalServiceNamesPreservesNilVsEmpty(t *testing.T) {
-	assert.Nil(t, fromInternalServiceNames(nil))
-	assert.Equal(t, []ServiceName{}, fromInternalServiceNames([]model.ServiceName{}))
-}
-
 func TestDescribeService(t *testing.T) {
 	spotify, ok := DescribeService(ServiceSpotify)
 	require.True(t, ok)
@@ -146,13 +140,21 @@ func TestDescribeService(t *testing.T) {
 	assert.True(t, spotify.SupportsSongTarget)
 	assert.True(t, spotify.SupportsRuntimeSongInputURL)
 
+	youTubeMusic, ok := DescribeService(ServiceYouTubeMusic)
+	require.True(t, ok)
+	assert.True(t, youTubeMusic.SupportsAlbumSource)
+	assert.True(t, youTubeMusic.SupportsAlbumTarget)
+	assert.False(t, youTubeMusic.SupportsSongSource)
+	assert.False(t, youTubeMusic.SupportsSongTarget)
+	assert.True(t, youTubeMusic.SupportsRuntimeSongInputURL)
+
 	amazon, ok := DescribeService(ServiceAmazonMusic)
 	require.True(t, ok)
 	assert.True(t, amazon.SupportsAlbumSource)
 	assert.False(t, amazon.SupportsAlbumTarget)
-	assert.False(t, amazon.SupportsSongSource)
+	assert.True(t, amazon.SupportsSongSource)
 	assert.False(t, amazon.SupportsSongTarget)
-	assert.False(t, amazon.SupportsRuntimeSongInputURL)
+	assert.True(t, amazon.SupportsRuntimeSongInputURL)
 }
 
 func TestDescribeEnabledService(t *testing.T) {
@@ -190,6 +192,57 @@ func TestSupportedServiceLists(t *testing.T) {
 		ServiceSpotify,
 		ServiceTIDAL,
 	}, SupportedSongTargetServices())
+}
+
+const (
+	unknownTargetServiceMessage     = "\"unknown\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"
+	amazonMusicTargetServiceMessage = "\"amazonMusic\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"
+	spotifyTargetServiceMessage     = "\"spotify\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"
+	youTubeMusicSongTargetMessage   = "\"youtubeMusic\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"
+	amazonMusicSongTargetMessage    = "\"amazonMusic\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"
+	tidalSongTargetMessage          = "\"tidal\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"
+)
+
+func TestProviderCatalogTargetServiceRequests(t *testing.T) {
+	tests := []struct {
+		name   string
+		config Config
+		raw    string
+		want   TargetServiceRequestDecision
+	}{
+		{name: "available alias", raw: "apple-music", want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
+		{name: "unknown", raw: "unknown", want: TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: unknownTargetServiceMessage}},
+		{name: "parse only", raw: "amazonMusic", want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly, Message: amazonMusicTargetServiceMessage}},
+		{name: "credentials required", raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestCredentialsRequired, Message: spotifyTargetServiceMessage}},
+		{name: "credentials configured", config: Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestAvailable}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, EvaluateTargetServiceRequest(tt.config, tt.raw))
+		})
+	}
+}
+
+func TestProviderCatalogSongTargetServiceRequests(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  Config
+		service ServiceName
+		want    TargetServiceRequestDecision
+	}{
+		{name: "available", service: ServiceAppleMusic, want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
+		{name: "unsupported song target", service: ServiceYouTubeMusic, want: TargetServiceRequestDecision{Service: ServiceYouTubeMusic, Status: TargetServiceRequestUnsupported, Message: youTubeMusicSongTargetMessage}},
+		{name: "parse only", service: ServiceAmazonMusic, want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly, Message: amazonMusicSongTargetMessage}},
+		{name: "credentials required", service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestCredentialsRequired, Message: tidalSongTargetMessage}},
+		{name: "credentials configured", config: Config{TIDAL: TIDALConfig{ClientID: "id", ClientSecret: "secret"}}, service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestAvailable}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, EvaluateSongTargetService(tt.config, tt.service))
+		})
+	}
 }
 
 func TestEnabledServiceLists(t *testing.T) {
@@ -324,6 +377,20 @@ func TestResolveSongReturnsPublicSentinelWhenCustomSourceReturnsNilSong(t *testi
 	require.Error(t, err)
 	assert.Nil(t, resolution)
 	assert.ErrorIs(t, err, ErrSourceAdapterReturnedNilSong)
+}
+
+func TestResolveSongReturnsUnsupportedURLForParseOnlyServices(t *testing.T) {
+	resolver := New(DefaultConfig())
+
+	// YouTube Music song URLs are parse-only: SupportsRuntimeSongInputURL returns true,
+	// but ResolveSong returns ErrUnsupportedURL because there is no songSource adapter.
+	assert.True(t, SupportsRuntimeSongInputURL("https://music.youtube.com/watch?v=dQw4w9WgXcQ"))
+
+	resolution, err := resolver.ResolveSong(context.Background(), "https://music.youtube.com/watch?v=dQw4w9WgXcQ")
+	require.Error(t, err)
+	assert.Nil(t, resolution)
+	assert.ErrorIs(t, err, ErrUnsupportedURL)
+	assert.False(t, errors.Is(err, ErrYouTubeMusicDeferred))
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {

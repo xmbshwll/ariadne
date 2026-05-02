@@ -1,3 +1,4 @@
+// Package ariadne defines adapter interfaces.
 package ariadne
 
 import "context"

@@ -70,7 +70,7 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 		})
 	})
 
-	parsed := model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: "album", ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"}
+	parsed := model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"}
 	album, err := adapter.FetchAlbum(context.Background(), parsed)
 	require.NoError(t, err)
 	require.NotNil(t, album)
@@ -92,7 +92,7 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 	require.Len(t, metadataResults, 2)
 	assert.Equal(t, "album-good", metadataResults[0].CandidateID)
 
-	song, err := adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceSpotify, EntityType: "song", ID: "track-1", CanonicalURL: "https://open.spotify.com/track/track-1"})
+	song, err := adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeSong, ID: "track-1", CanonicalURL: "https://open.spotify.com/track/track-1"})
 	require.NoError(t, err)
 	require.NotNil(t, song)
 	require.NotEmpty(t, song.ISRC)

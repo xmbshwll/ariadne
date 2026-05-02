@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestFetchAlbum(t *testing.T) {
@@ -32,16 +34,24 @@ func TestFetchAlbum(t *testing.T) {
 	assert.NotEmpty(t, album.ArtworkURL)
 }
 
+func TestParseSongURLAndDeferredFetch(t *testing.T) {
+	adapter := New(nil)
+
+	parsed, err := adapter.ParseSongURL("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ")
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, "dQw4w9WgXcQ", parsed.ID)
+
+	_, err = adapter.FetchSong(context.Background(), *parsed)
+	assert.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
+	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
+}
+
 func TestUnsupportedIdentifierSearches(t *testing.T) {
 	adapter := New(nil)
 
-	upcResults, err := adapter.SearchByUPC(context.Background(), "123")
-	require.NoError(t, err)
-	assert.Empty(t, upcResults)
-
-	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"ABC"})
-	require.NoError(t, err)
-	assert.Empty(t, isrcResults)
+	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
+	assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), adapter)
 }
 
 func TestExtractTrackTitlesPreservesRepeatedTitles(t *testing.T) {

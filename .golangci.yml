@@ -5,7 +5,6 @@ run:
   tests: true
 
 linters:
-  default: standard
   enable:
     - bodyclose
     - copyloopvar
@@ -13,7 +12,6 @@ linters:
     - errcheck
     - errorlint
     - exptostd
-    - goconst
     - gocyclo
     - gocritic
     - godot

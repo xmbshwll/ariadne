@@ -10,46 +10,10 @@ import (
 )
 
 // ScoreWeights configures how ranking signals contribute to match scores.
-type ScoreWeights struct {
-	// UPCExact is added for an exact UPC match.
-	UPCExact int
-	// ISRCStrongOverlap is added when ISRC overlap is strong.
-	ISRCStrongOverlap int
-	// ISRCPartialScale scales partial ISRC overlap scores.
-	ISRCPartialScale int
-	// TrackTitleStrong is added when track-title overlap is strong.
-	TrackTitleStrong int
-	// TrackTitlePartial scales partial track-title overlap scores.
-	TrackTitlePartial int
-	// TitleExact is added for an exact normalized title match.
-	TitleExact int
-	// CoreTitleExact is added for a core-title match after edition markers are removed.
-	CoreTitleExact int
-	// PrimaryArtistExact is added for an exact primary artist match.
-	PrimaryArtistExact int
-	// ArtistOverlap is added for any non-primary artist overlap.
-	ArtistOverlap int
-	// TrackCountExact is added for an exact track-count match.
-	TrackCountExact int
-	// TrackCountNear is added when track counts differ by one.
-	TrackCountNear int
-	// TrackCountMismatch is applied when track counts differ significantly.
-	TrackCountMismatch int
-	// ReleaseDateExact is added for an exact release-date match.
-	ReleaseDateExact int
-	// ReleaseYearExact is added for a same-year release-date match.
-	ReleaseYearExact int
-	// DurationNear is added when total durations are close.
-	DurationNear int
-	// LabelExact is added for an exact normalized label match.
-	LabelExact int
-	// ExplicitMismatch is applied when explicit flags differ.
-	ExplicitMismatch int
-	// EditionMismatch is applied when edition hints disagree.
-	EditionMismatch int
-	// EditionMarkerPenalty is applied per unmatched edition marker in the title.
-	EditionMarkerPenalty int
-}
+type ScoreWeights = score.Weights
+
+// SongScoreWeights configures how ranking signals contribute to song match scores.
+type SongScoreWeights = score.SongWeights
 
 // Config configures the default library resolver.
 type Config struct {
@@ -115,29 +79,12 @@ func (c Config) TIDALEnabled() bool {
 
 // DefaultScoreWeights returns the built-in album ranking weights.
 func DefaultScoreWeights() ScoreWeights {
-	return fromInternalScoreWeights(score.DefaultWeights())
-}
-
-// SongScoreWeights configures how ranking signals contribute to song match scores.
-type SongScoreWeights struct {
-	ISRCExact            int
-	TitleExact           int
-	CoreTitleExact       int
-	PrimaryArtistExact   int
-	ArtistOverlap        int
-	DurationNear         int
-	AlbumTitleExact      int
-	ReleaseDateExact     int
-	ReleaseYearExact     int
-	TrackNumberExact     int
-	ExplicitMismatch     int
-	EditionMismatch      int
-	EditionMarkerPenalty int
+	return score.DefaultWeights()
 }
 
 // DefaultSongScoreWeights returns the built-in song ranking weights.
 func DefaultSongScoreWeights() SongScoreWeights {
-	return fromInternalSongScoreWeights(score.DefaultSongWeights())
+	return score.DefaultSongWeights()
 }
 
 const (
@@ -149,7 +96,7 @@ const (
 	MatchScoreWeak = 50
 )
 
-// MatchStrengthForScore maps a raw score into a confidence band.
+// MatchStrengthForScore maps a raw score to a user-facing confidence band.
 func MatchStrengthForScore(score int) MatchStrength {
 	switch {
 	case score >= MatchScoreStrong:
@@ -163,7 +110,7 @@ func MatchStrengthForScore(score int) MatchStrength {
 	}
 }
 
-// DefaultConfig returns the library defaults without reading the environment.
+// DefaultConfig returns a Config with built-in defaults applied.
 func DefaultConfig() Config {
 	return Config{
 		AppleMusicStorefront: "us",
@@ -173,12 +120,12 @@ func DefaultConfig() Config {
 	}
 }
 
-// LoadConfig loads library configuration from the current environment.
+// LoadConfig loads configuration from the default sources.
 func LoadConfig() Config {
 	return configFromInternal(internalconfig.Load())
 }
 
-// LoadConfigFromEnv loads library configuration from a caller-provided getenv function.
+// LoadConfigFromEnv loads configuration using the supplied getenv function.
 func LoadConfigFromEnv(getenv func(string) string) Config {
 	return configFromInternal(internalconfig.LoadFromEnv(getenv))
 }
@@ -200,7 +147,7 @@ func configFromInternal(cfg internalconfig.Config) Config {
 		},
 		AppleMusicStorefront: cfg.AppleMusic.Storefront,
 		HTTPTimeout:          cfg.HTTPTimeout,
-		TargetServices:       fromInternalServiceNames(cfg.TargetServices),
+		TargetServices:       cfg.TargetServices,
 	})
 }
 

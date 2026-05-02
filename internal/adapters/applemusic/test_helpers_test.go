@@ -257,7 +257,7 @@ func newTestFixture(t *testing.T, payloads testPayloads) testFixture {
 		),
 		parsed: model.ParsedAlbumURL{
 			Service:      model.ServiceAppleMusic,
-			EntityType:   "album",
+			EntityType:   model.EntityTypeAlbum,
 			ID:           "1441164426",
 			CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426",
 			RegionHint:   "us",

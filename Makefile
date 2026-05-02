@@ -1,7 +1,8 @@
-.PHONY: help build run validate-spotify-auth validate-apple-music-official validate-tidal-official test test-race test-release lint lint-fix fmt verify verify-release deps clean
+.PHONY: help build run validate-spotify-auth validate-apple-music-official validate-tidal-official test test-race test-release lint lint-fix fmt mocks verify verify-release deps clean
 
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
+MOCKERY ?= mockery
 GOLANGCI_LINT_CONFIG ?= .golangci.yml
 BINARY ?= ariadne
 CMD_MODULE_DIR ?= cmd
@@ -23,6 +24,7 @@ help:
 	@echo "  lint       Run golangci-lint with project config"
 	@echo "  lint-fix   Run golangci-lint with autofix enabled"
 	@echo "  fmt        Format Go code with gofmt"
+	@echo "  mocks      Regenerate mockery test mocks"
 	@echo "  verify     Run fmt, lint, and race tests"
 	@echo "  verify-release  Run release-oriented module verification"
 	@echo "  deps       Tidy module dependencies"
@@ -74,6 +76,9 @@ lint-fix:
 
 fmt:
 	gofmt -w .
+
+mocks:
+	$(MOCKERY) --log-level=""
 
 verify: fmt lint test-race
 

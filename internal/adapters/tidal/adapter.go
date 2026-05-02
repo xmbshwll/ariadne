@@ -2,16 +2,11 @@ package tidal
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
-	"golang.org/x/sync/singleflight"
-
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
@@ -54,12 +49,6 @@ func WithAuthBaseURL(baseURL string) Option {
 	}
 }
 
-func WithDefaultCountryCode(countryCode string) Option {
-	return func(adapter *Adapter) {
-		adapter.defaultCountryCode = normalizeCountryCode(countryCode)
-	}
-}
-
 type Adapter struct {
 	client             *http.Client
 	clientID           string
@@ -68,14 +57,7 @@ type Adapter struct {
 	authBaseURL        string
 	defaultCountryCode string
 
-	tokenMu    sync.Mutex
-	token      cachedToken
-	tokenGroup singleflight.Group
-}
-
-type cachedToken struct {
-	accessToken string
-	expiresAt   time.Time
+	tokenSource *adapterutil.CredentialTokenSource
 }
 
 func New(client *http.Client, opts ...Option) *Adapter {
@@ -91,6 +73,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	for _, opt := range opts {
 		opt(adapter)
 	}
+	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
 }
 
@@ -99,17 +82,9 @@ func (a *Adapter) Service() model.ServiceName {
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parse.TIDALAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse tidal album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := parse.TIDALSongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse tidal song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }

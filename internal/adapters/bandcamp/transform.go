@@ -1,26 +1,18 @@
 package bandcamp
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 func extractSchema(body []byte) (*schemaAlbum, error) {
-	matches := jsonLDPattern.FindSubmatch(body)
-	if len(matches) != 2 {
-		return nil, errBandcampJSONLDNotFound
-	}
-
-	var schema schemaAlbum
-	if err := json.Unmarshal(matches[1], &schema); err != nil {
-		return nil, errors.Join(errMalformedBandcampJSONLD, fmt.Errorf("unmarshal bandcamp json-ld: %w", err))
+	schema, err := adapterutil.DecodeJSONBlock[schemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", errMalformedBandcampJSONLD)
+	if err != nil {
+		return nil, err
 	}
 	return &schema, nil
 }
@@ -64,7 +56,7 @@ func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.Canonica
 	artists := nonEmptyArtistList(track.ByArtist.Name)
 	albumArtists := nonEmptyArtistList(track.InAlbum.ByArtist.Name)
 	albumID := ""
-	if parsedAlbum, err := parse.BandcampAlbumURL(track.InAlbum.ID); err == nil {
+	if parsedAlbum, err := ParseAlbumURL(track.InAlbum.ID); err == nil {
 		albumID = parsedAlbum.ID
 	}
 	return &model.CanonicalSong{

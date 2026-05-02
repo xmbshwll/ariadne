@@ -2,25 +2,14 @@ package soundcloud
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
-
-func (a *Adapter) SearchByUPC(_ context.Context, _ string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (a *Adapter) SearchByISRC(_ context.Context, _ []string) ([]model.CandidateAlbum, error) {
-	return nil, nil
-}
 
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	query := metadataQuery(album)
@@ -41,10 +30,6 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("collect soundcloud album candidates: %w", err)
 	}
 	return results, nil
-}
-
-func (a *Adapter) SearchSongByISRC(_ context.Context, _ string) ([]model.CandidateSong, error) {
-	return nil, nil
 }
 
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
@@ -147,24 +132,18 @@ func isSoundCloudClientIDError(err error) bool {
 }
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return fmt.Errorf("build soundcloud api request: %w", err)
-	}
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute soundcloud api request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("%w %d: %s", errUnexpectedSoundCloudAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
-		return fmt.Errorf("decode soundcloud api response: %w", err)
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       a.client,
+			URL:          requestURL,
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build soundcloud api request",
+			ExecuteError: "execute soundcloud api request",
+			StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudAPIStatus),
+		},
+		DecodeError: "decode soundcloud api response",
+	}, target)
 }
 
 func (a *Adapter) clientIdentifier(ctx context.Context) (string, error) {

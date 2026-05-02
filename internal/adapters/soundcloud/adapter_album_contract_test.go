@@ -10,18 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestIdentifierAlbumSearchIsUnsupported(t *testing.T) {
 	fixture := newTestFixture(t)
 
-	upcResults, err := fixture.adapter.SearchByUPC(context.Background(), "826257014467")
-	require.NoError(t, err)
-	assert.Empty(t, upcResults)
-
-	isrcResults, err := fixture.adapter.SearchByISRC(context.Background(), []string{soundCloudTrackISRC})
-	require.NoError(t, err)
-	assert.Empty(t, isrcResults)
+	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), fixture.adapter)
+	assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), fixture.adapter)
 }
 
 func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/xmbshwll/ariadne/internal/model"
+
 	"context"
 	"errors"
 	"testing"
@@ -30,7 +32,7 @@ func (a fixtureSourceAdapterForCLI) ParseAlbumURL(raw string) (*ariadne.ParsedAl
 	if !ok {
 		return nil, errUnsupportedCLIFixture
 	}
-	return &ariadne.ParsedAlbumURL{Service: album.Service, EntityType: "album", ID: album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
+	return &ariadne.ParsedAlbumURL{Service: album.Service, EntityType: model.EntityTypeAlbum, ID: album.SourceID, CanonicalURL: raw, RawURL: raw}, nil
 }
 
 func (a fixtureSourceAdapterForCLI) FetchAlbum(_ context.Context, parsed ariadne.ParsedAlbumURL) (*ariadne.CanonicalAlbum, error) {
@@ -94,7 +96,7 @@ func (a fixtureSongSourceAdapterForCLI) ParseSongURL(raw string) (*ariadne.Parse
 	if !ok {
 		return nil, errUnsupportedCLIFixture
 	}
-	return &ariadne.ParsedURL{Service: song.Service, EntityType: "song", ID: song.SourceID, CanonicalURL: raw, RawURL: raw}, nil
+	return &ariadne.ParsedURL{Service: song.Service, EntityType: model.EntityTypeSong, ID: song.SourceID, CanonicalURL: raw, RawURL: raw}, nil
 }
 
 func (a fixtureSongSourceAdapterForCLI) FetchSong(_ context.Context, parsed ariadne.ParsedURL) (*ariadne.CanonicalSong, error) {

@@ -47,7 +47,7 @@ func newYouTubeMusicTestAdapter(server *httptest.Server) *Adapter {
 func newYouTubeMusicAlbumSource(baseURL string) model.ParsedAlbumURL {
 	return model.ParsedAlbumURL{
 		Service:      model.ServiceYouTubeMusic,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           "MPREb_tQfaWH32ovE",
 		CanonicalURL: baseURL + youtubeMusicBrowsePath,
 	}

@@ -15,7 +15,7 @@ func TestFetchAlbumFromHydration(t *testing.T) {
 
 	album, err := fixture.adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{
 		Service:      model.ServiceSoundCloud,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           "evidence-official/sets/cats-dogs-6",
 		CanonicalURL: fixture.server.URL + "/album",
 		RawURL:       fixture.server.URL + "/album",

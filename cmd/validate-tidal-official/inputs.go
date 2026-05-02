@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
+	tidaladapter "github.com/xmbshwll/ariadne/internal/adapters/tidal"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 var (
@@ -66,7 +66,7 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("load tidal sample url: %w", err)
 	}
-	parsed, err := parse.TIDALAlbumURL(rawURL)
+	parsed, err := tidaladapter.ParseAlbumURL(rawURL)
 	if err != nil {
 		return validationInputs{}, fmt.Errorf("parse sample tidal album url: %w", err)
 	}

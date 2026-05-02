@@ -5,40 +5,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
-func defaultSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SourceAdapter {
-	return orderedAdapters(
-		sets,
-		defaultServiceOrder.albumSources,
-		func(set serviceAdapterSet) resolve.SourceAdapter { return set.albumSource },
-	)
-}
-
-func defaultTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.TargetAdapter {
-	targets := orderedAdapters(
-		sets,
-		defaultServiceOrder.albumTargets,
-		func(set serviceAdapterSet) resolve.TargetAdapter { return set.albumTarget },
-	)
-	return filterAdaptersByServiceName(targets, services)
-}
-
-func defaultSongSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SongSourceAdapter {
-	return orderedAdapters(
-		sets,
-		defaultServiceOrder.songSources,
-		func(set serviceAdapterSet) resolve.SongSourceAdapter { return set.songSource },
-	)
-}
-
-func defaultSongTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.SongTargetAdapter {
-	targets := orderedAdapters(
-		sets,
-		defaultServiceOrder.songTargets,
-		func(set serviceAdapterSet) resolve.SongTargetAdapter { return set.songTarget },
-	)
-	return filterAdaptersByServiceName(targets, services)
-}
-
 func orderedAdapters[T comparable](sets map[ServiceName]serviceAdapterSet, services []ServiceName, pick func(serviceAdapterSet) T) []T {
 	adapters := make([]T, 0, len(services))
 	var zero T
@@ -60,7 +26,7 @@ func filterAdaptersByServiceName[T interface{ Service() model.ServiceName }](ada
 
 	filtered := make([]T, 0, len(adapters))
 	for _, adapter := range adapters {
-		if _, ok := allowed[fromInternalServiceName(adapter.Service())]; !ok {
+		if _, ok := allowed[adapter.Service()]; !ok {
 			continue
 		}
 		filtered = append(filtered, adapter)
@@ -80,34 +46,34 @@ func serviceNameSet(services []ServiceName) map[ServiceName]struct{} {
 	return allowed
 }
 
-func wrapSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
-	wrapped := make([]resolve.SourceAdapter, 0, len(sources))
+func resolveSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
+	adapters := make([]resolve.SourceAdapter, 0, len(sources))
 	for _, source := range sources {
-		wrapped = append(wrapped, sourceAdapterBridge{source: source})
+		adapters = append(adapters, source)
 	}
-	return wrapped
+	return adapters
 }
 
-func wrapSongSourceAdapters(sources []SongSourceAdapter) []resolve.SongSourceAdapter {
-	wrapped := make([]resolve.SongSourceAdapter, 0, len(sources))
+func resolveSongSourceAdapters(sources []SongSourceAdapter) []resolve.SongSourceAdapter {
+	adapters := make([]resolve.SongSourceAdapter, 0, len(sources))
 	for _, source := range sources {
-		wrapped = append(wrapped, songSourceAdapterBridge{source: source})
+		adapters = append(adapters, source)
 	}
-	return wrapped
+	return adapters
 }
 
-func wrapTargetAdapters(targets []TargetAdapter) []resolve.TargetAdapter {
-	wrapped := make([]resolve.TargetAdapter, 0, len(targets))
+func resolveTargetAdapters(targets []TargetAdapter) []resolve.TargetAdapter {
+	adapters := make([]resolve.TargetAdapter, 0, len(targets))
 	for _, target := range targets {
-		wrapped = append(wrapped, targetAdapterBridge{target: target})
+		adapters = append(adapters, target)
 	}
-	return wrapped
+	return adapters
 }
 
-func wrapSongTargetAdapters(targets []SongTargetAdapter) []resolve.SongTargetAdapter {
-	wrapped := make([]resolve.SongTargetAdapter, 0, len(targets))
+func resolveSongTargetAdapters(targets []SongTargetAdapter) []resolve.SongTargetAdapter {
+	adapters := make([]resolve.SongTargetAdapter, 0, len(targets))
 	for _, target := range targets {
-		wrapped = append(wrapped, songTargetAdapterBridge{target: target})
+		adapters = append(adapters, target)
 	}
-	return wrapped
+	return adapters
 }

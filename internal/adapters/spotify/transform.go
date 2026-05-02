@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -207,39 +208,11 @@ func songMetadataQueries(song model.CanonicalSong) []string {
 }
 
 func buildMetadataQueries(prefix string, title string, artists []string) []string {
-	if strings.TrimSpace(title) == "" {
-		return nil
-	}
-
-	queries := make([]string, 0, 8)
-	seen := make(map[string]struct{}, 8)
-	appendUnique := func(query string) {
-		query = strings.TrimSpace(query)
-		if query == "" {
-			return
-		}
-		key := normalize.Text(query)
-		if key == "" {
-			return
-		}
-		if _, ok := seen[key]; ok {
-			return
-		}
-		seen[key] = struct{}{}
-		queries = append(queries, query)
-	}
-
-	titleVariants := normalize.SearchTitleVariants(title)
-	artistVariants := normalize.SearchArtistVariants(artists)
-	for _, titleVariant := range titleVariants {
-		for _, artistVariant := range artistVariants {
-			appendUnique(strings.Join([]string{prefix + ":" + titleVariant, "artist:" + artistVariant}, " "))
-		}
-	}
-	for _, titleVariant := range titleVariants {
-		appendUnique(prefix + ":" + titleVariant)
-	}
-	return queries
+	return adapterutil.FormattedMetadataQueries(title, artists, func(titleVariant string, artistVariant string) string {
+		return strings.Join([]string{prefix + ":" + titleVariant, "artist:" + artistVariant}, " ")
+	}, func(titleVariant string) string {
+		return prefix + ":" + titleVariant
+	})
 }
 
 func albumIDsToSummaries(ids []string) []apiAlbumSummary {

@@ -1,12 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"io"
-	"strings"
 
 	"github.com/spf13/pflag"
-
 	"github.com/xmbshwll/ariadne"
 )
 
@@ -94,10 +91,11 @@ func validateResolveConfig(config resolveConfig) error {
 	}
 
 	for _, service := range config.resolverConfig.TargetServices {
-		if ariadne.SupportsEnabledSongTarget(config.resolverConfig, service) {
+		decision := ariadne.EvaluateSongTargetService(config.resolverConfig, service)
+		if decision.Status == ariadne.TargetServiceRequestAvailable {
 			continue
 		}
-		return fmt.Errorf("%w %q (%s)", errUnsupportedSongService, service, enabledSongTargetServicesUsage(config.resolverConfig))
+		return targetServiceDecisionError(errUnsupportedSongService, decision)
 	}
 	return nil
 }
@@ -111,14 +109,6 @@ func requiresSongTargetValidation(config resolveConfig) bool {
 	default:
 		return false
 	}
-}
-
-func enabledSongTargetServicesUsage(config ariadne.Config) string {
-	names := serviceNames(ariadne.EnabledSongTargetServices(config))
-	if len(names) == 0 {
-		return "enabled for songs: none"
-	}
-	return "enabled for songs: " + strings.Join(names, ", ")
 }
 
 func resolveModeFromConfig(config resolveConfig) resolveMode {

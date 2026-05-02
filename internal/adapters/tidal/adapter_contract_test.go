@@ -100,7 +100,7 @@ func TestAccessTokenSerializesConcurrentRefresh(t *testing.T) {
 	errCh := make(chan error, 8)
 	for range 8 {
 		go func() {
-			_, err := adapter.accessToken()
+			_, err := adapter.accessToken(context.Background())
 			errCh <- err
 		}()
 	}

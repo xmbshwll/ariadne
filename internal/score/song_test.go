@@ -77,4 +77,6 @@ func TestRankSongs(t *testing.T) {
 	assert.Equal(t, "best", ranking.Best.Candidate.CandidateID)
 	assert.Greater(t, ranking.Ranked[0].Score, ranking.Ranked[1].Score)
 	assert.NotEmpty(t, ranking.Best.Reasons)
+	assert.True(t, ranking.Best.Evidence.Title)
+	assert.True(t, ranking.Best.Evidence.Artist)
 }

@@ -25,13 +25,11 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 		if part == "" {
 			continue
 		}
-		service, err := normalizeRequestedService(part)
-		if err != nil {
+		decision := ariadne.EvaluateTargetServiceRequest(appConfig, part)
+		if err := targetServiceRequestError(part, decision); err != nil {
 			return nil, err
 		}
-		if err := validateRequestedService(service, appConfig); err != nil {
-			return nil, err
-		}
+		service := decision.Service
 		if _, ok := seen[service]; ok {
 			continue
 		}
@@ -44,40 +42,48 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 	return services, nil
 }
 
-func normalizeRequestedService(raw string) (ariadne.ServiceName, error) {
+func targetServiceRequestError(raw string, decision ariadne.TargetServiceRequestDecision) error {
 	if strings.TrimSpace(raw) == "" {
-		return "", errNoTargetServicesSelected
+		return errNoTargetServicesSelected
 	}
+	switch decision.Status {
+	case ariadne.TargetServiceRequestAvailable:
+		return nil
+	case ariadne.TargetServiceRequestParseOnly:
+		return targetServiceDecisionError(errAmazonMusicTargetService, decision)
+	case ariadne.TargetServiceRequestCredentialsRequired:
+		return targetServiceCredentialError(decision.Service)
+	default:
+		return targetServiceDecisionError(errUnsupportedTargetService, decision)
+	}
+}
 
-	service, ok := ariadne.LookupServiceName(raw)
-	if !ok {
-		return "", unsupportedTargetServiceError(raw)
+func targetServiceDecisionError(sentinel error, decision ariadne.TargetServiceRequestDecision) error {
+	if decision.Message == "" {
+		return sentinel
 	}
-	if service == ariadne.ServiceAmazonMusic {
-		return "", errAmazonMusicTargetService
-	}
-	if !ariadne.SupportsTarget(service) {
-		return "", unsupportedTargetServiceError(raw)
-	}
-	return service, nil
+	return fmt.Errorf("%w %s", sentinel, decision.Message)
 }
 
 func unsupportedTargetServiceError(raw string) error {
-	return fmt.Errorf("%w %q (expected one of the supported target services: %s)", errUnsupportedTargetService, raw, strings.Join(serviceNames(ariadne.SupportedTargetServices()), ", "))
+	decision := ariadne.EvaluateTargetServiceRequest(ariadne.Config{}, raw)
+	return targetServiceDecisionError(errUnsupportedTargetService, decision)
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
+	decision := ariadne.EvaluateConfiguredTargetService(appConfig, service)
+	return targetServiceRequestError(string(service), decision)
+}
+
+func targetServiceCredentialError(service ariadne.ServiceName) error {
 	switch service {
 	case ariadne.ServiceSpotify:
-		if !appConfig.SpotifyEnabled() {
-			return errSpotifyTargetCredentials
-		}
+		return errSpotifyTargetCredentials
 	case ariadne.ServiceTIDAL:
-		if !appConfig.TIDALEnabled() {
-			return errTIDALTargetCredentials
-		}
+		return errTIDALTargetCredentials
+	default:
+		return unsupportedTargetServiceError(string(service))
 	}
-	return nil
 }
 
 func normalizeOutputFormat(raw string) (string, error) {

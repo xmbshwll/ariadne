@@ -2,14 +2,12 @@ package spotify
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/parse"
 )
 
 const (
@@ -78,8 +76,7 @@ type Adapter struct {
 	authBaseURL  string
 	webBaseURL   string
 
-	tokenMu sync.Mutex
-	token   cachedToken
+	tokenSource *adapterutil.CredentialTokenSource
 }
 
 // New creates a Spotify adapter.
@@ -96,6 +93,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	for _, opt := range opts {
 		opt(adapter)
 	}
+	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
 }
 
@@ -106,18 +104,10 @@ func (a *Adapter) Service() model.ServiceName {
 
 // ParseAlbumURL parses a Spotify album URL.
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
-	parsed, err := parse.SpotifyAlbumURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse spotify album url: %w", err)
-	}
-	return parsed, nil
+	return ParseAlbumURL(raw)
 }
 
 // ParseSongURL parses a Spotify track URL.
 func (a *Adapter) ParseSongURL(raw string) (*model.ParsedURL, error) {
-	parsed, err := parse.SpotifySongURL(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parse spotify song url: %w", err)
-	}
-	return parsed, nil
+	return ParseSongURL(raw)
 }

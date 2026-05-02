@@ -19,7 +19,7 @@ func TestFetchSong(t *testing.T) {
 
 	song, err := adapter.FetchSong(context.Background(), model.ParsedURL{
 		Service:      model.ServiceDeezer,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           "116348128",
 		CanonicalURL: "https://www.deezer.com/track/116348128",
 	})
