@@ -92,24 +92,28 @@ func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongR
 
 func songResolutionPipeline(weights score.SongWeights) entityResolutionPipeline[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult] {
 	return entityResolutionPipeline[SongSourceAdapter, SongTargetAdapter, model.ParsedURL, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult]{
-		parse: func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
-			return source.ParseSongURL(raw)
+		source: entitySourcePolicy[SongSourceAdapter, model.ParsedURL, model.CanonicalSong]{
+			parse: func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
+				return source.ParseSongURL(raw)
+			},
+			hydrate: func(ctx context.Context, source SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
+				return source.FetchSong(ctx, parsed)
+			},
+			sourceService: func(source model.CanonicalSong) model.ServiceName {
+				return source.Service
+			},
+			entityLabel:  "song",
+			nilEntityErr: errNilSourceSong,
 		},
-		hydrate: func(ctx context.Context, source SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
-			return source.FetchSong(ctx, parsed)
+		target: entityTargetPolicy[SongTargetAdapter, model.CanonicalSong, model.CandidateSong, score.SongRanking, SongMatchResult]{
+			collect: collectSongTargetCandidates,
+			rank: func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
+				return score.RankSongs(source, candidates, weights)
+			},
+			result:         songMatchResultFromRanking,
+			candidateLabel: "song candidates",
+			errLabel:       "resolve song target searches",
 		},
-		sourceService: func(source model.CanonicalSong) model.ServiceName {
-			return source.Service
-		},
-		collect: collectSongTargetCandidates,
-		rank: func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
-			return score.RankSongs(source, candidates, weights)
-		},
-		result:         songMatchResultFromRanking,
-		entityLabel:    "song",
-		nilEntityErr:   errNilSourceSong,
-		candidateLabel: "song candidates",
-		targetErrLabel: "resolve song target searches",
 	}
 }
 

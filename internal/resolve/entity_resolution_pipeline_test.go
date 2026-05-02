@@ -25,46 +25,23 @@ func (a entityResolutionPipelineAdapter) Service() model.ServiceName {
 func TestResolveEntityPipelineExcludesSourceTargetAndRunsAfterHook(t *testing.T) {
 	var collectedMu sync.Mutex
 	collectedServices := []model.ServiceName{}
-
-	result, err := resolveEntity(context.Background(), "spotify:album:1", entityResolutionPipeline[entityResolutionPipelineAdapter, entityResolutionPipelineAdapter, model.ParsedURL, model.CanonicalAlbum, string, []string, string]{
-		sources: []entityResolutionPipelineAdapter{{service: model.ServiceSpotify}},
-		targets: []entityResolutionPipelineAdapter{{service: model.ServiceSpotify}, {service: model.ServiceAppleMusic}},
-		parse: func(source entityResolutionPipelineAdapter, raw string) (*model.ParsedURL, error) {
-			if !strings.HasPrefix(raw, "spotify:") {
-				return nil, errUnsupportedTestSource
-			}
-			return &model.ParsedURL{Service: source.Service(), EntityType: "album", ID: "1"}, nil
-		},
-		hydrate: func(_ context.Context, source entityResolutionPipelineAdapter, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
-			return &model.CanonicalAlbum{Service: source.Service(), SourceID: parsed.ID, Title: "Source"}, nil
-		},
-		sourceService: func(source model.CanonicalAlbum) model.ServiceName {
-			return source.Service
-		},
-		collect: func(_ context.Context, target entityResolutionPipelineAdapter, _ model.CanonicalAlbum) ([]string, error) {
-			collectedMu.Lock()
-			collectedServices = append(collectedServices, target.Service())
-			collectedMu.Unlock()
-			return []string{"candidate"}, nil
-		},
-		rank: func(_ model.CanonicalAlbum, candidates []string) []string {
-			return candidates
-		},
-		result: func(service model.ServiceName, ranking []string) string {
-			return string(service) + ":" + strings.Join(ranking, ",")
-		},
-		entityLabel:    "album",
-		nilEntityErr:   errNilSourceAlbum,
-		candidateLabel: "candidates",
-		targetErrLabel: "resolve target searches",
-		afterTargets: func(_ context.Context, targets []entityResolutionPipelineAdapter, _ model.CanonicalAlbum, matches map[model.ServiceName]string) error {
+	pipeline := testEntityResolutionPipeline(func(_ context.Context, target entityResolutionPipelineAdapter, _ model.CanonicalAlbum) ([]string, error) {
+		collectedMu.Lock()
+		collectedServices = append(collectedServices, target.Service())
+		collectedMu.Unlock()
+		return []string{"candidate"}, nil
+	})
+	pipeline.after = entityAfterTargetsPolicy[entityResolutionPipelineAdapter, model.CanonicalAlbum, string]{
+		errLabel: "resolve after targets",
+		run: func(_ context.Context, targets []entityResolutionPipelineAdapter, _ model.CanonicalAlbum, matches map[model.ServiceName]string) error {
 			require.Len(t, targets, 1)
 			assert.Equal(t, model.ServiceAppleMusic, targets[0].Service())
 			matches[model.ServiceBandcamp] = "after-targets"
 			return nil
 		},
-		afterTargetsErrLabel: "resolve after targets",
-	})
+	}
+
+	result, err := resolveEntity(context.Background(), "spotify:album:1", pipeline)
 
 	require.NoError(t, err)
 	assert.Equal(t, "spotify:album:1", result.InputURL)
@@ -77,34 +54,49 @@ func TestResolveEntityPipelineExcludesSourceTargetAndRunsAfterHook(t *testing.T)
 }
 
 func TestResolveEntityPipelineWrapsTargetErrors(t *testing.T) {
-	_, err := resolveEntity(context.Background(), "spotify:album:1", entityResolutionPipeline[entityResolutionPipelineAdapter, entityResolutionPipelineAdapter, model.ParsedURL, model.CanonicalAlbum, string, []string, string]{
-		sources: []entityResolutionPipelineAdapter{{service: model.ServiceSpotify}},
-		targets: []entityResolutionPipelineAdapter{{service: model.ServiceAppleMusic}},
-		parse: func(source entityResolutionPipelineAdapter, _ string) (*model.ParsedURL, error) {
-			return &model.ParsedURL{Service: source.Service(), EntityType: "album", ID: "1"}, nil
-		},
-		hydrate: func(_ context.Context, source entityResolutionPipelineAdapter, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
-			return &model.CanonicalAlbum{Service: source.Service(), SourceID: parsed.ID}, nil
-		},
-		sourceService: func(source model.CanonicalAlbum) model.ServiceName {
-			return source.Service
-		},
-		collect: func(context.Context, entityResolutionPipelineAdapter, model.CanonicalAlbum) ([]string, error) {
-			return nil, errEntityResolutionPipelineCollect
-		},
-		rank: func(_ model.CanonicalAlbum, candidates []string) []string {
-			return candidates
-		},
-		result: func(service model.ServiceName, _ []string) string {
-			return string(service)
-		},
-		entityLabel:    "album",
-		nilEntityErr:   errNilSourceAlbum,
-		candidateLabel: "candidates",
-		targetErrLabel: "resolve target searches",
+	pipeline := testEntityResolutionPipeline(func(context.Context, entityResolutionPipelineAdapter, model.CanonicalAlbum) ([]string, error) {
+		return nil, errEntityResolutionPipelineCollect
 	})
+
+	_, err := resolveEntity(context.Background(), "spotify:album:1", pipeline)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errEntityResolutionPipelineCollect)
 	assert.Contains(t, err.Error(), "resolve target searches: collect candidates from appleMusic")
+}
+
+func testEntityResolutionPipeline(
+	collect func(context.Context, entityResolutionPipelineAdapter, model.CanonicalAlbum) ([]string, error),
+) entityResolutionPipeline[entityResolutionPipelineAdapter, entityResolutionPipelineAdapter, model.ParsedURL, model.CanonicalAlbum, string, []string, string] {
+	return entityResolutionPipeline[entityResolutionPipelineAdapter, entityResolutionPipelineAdapter, model.ParsedURL, model.CanonicalAlbum, string, []string, string]{
+		sources: []entityResolutionPipelineAdapter{{service: model.ServiceSpotify}},
+		targets: []entityResolutionPipelineAdapter{{service: model.ServiceSpotify}, {service: model.ServiceAppleMusic}},
+		source: entitySourcePolicy[entityResolutionPipelineAdapter, model.ParsedURL, model.CanonicalAlbum]{
+			parse: func(source entityResolutionPipelineAdapter, raw string) (*model.ParsedURL, error) {
+				if !strings.HasPrefix(raw, "spotify:") {
+					return nil, errUnsupportedTestSource
+				}
+				return &model.ParsedURL{Service: source.Service(), EntityType: "album", ID: "1"}, nil
+			},
+			hydrate: func(_ context.Context, source entityResolutionPipelineAdapter, parsed model.ParsedURL) (*model.CanonicalAlbum, error) {
+				return &model.CanonicalAlbum{Service: source.Service(), SourceID: parsed.ID, Title: "Source"}, nil
+			},
+			sourceService: func(source model.CanonicalAlbum) model.ServiceName {
+				return source.Service
+			},
+			entityLabel:  "album",
+			nilEntityErr: errNilSourceAlbum,
+		},
+		target: entityTargetPolicy[entityResolutionPipelineAdapter, model.CanonicalAlbum, string, []string, string]{
+			collect: collect,
+			rank: func(_ model.CanonicalAlbum, candidates []string) []string {
+				return candidates
+			},
+			result: func(service model.ServiceName, ranking []string) string {
+				return string(service) + ":" + strings.Join(ranking, ",")
+			},
+			candidateLabel: "candidates",
+			errLabel:       "resolve target searches",
+		},
+	}
 }

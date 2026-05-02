@@ -97,29 +97,35 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 
 func albumResolutionPipeline(weights score.Weights) entityResolutionPipeline[SourceAdapter, TargetAdapter, model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult] {
 	return entityResolutionPipeline[SourceAdapter, TargetAdapter, model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]{
-		parse: func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
-			return source.ParseAlbumURL(raw)
+		source: entitySourcePolicy[SourceAdapter, model.ParsedAlbumURL, model.CanonicalAlbum]{
+			parse: func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
+				return source.ParseAlbumURL(raw)
+			},
+			hydrate: func(ctx context.Context, source SourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
+				return source.FetchAlbum(ctx, parsed)
+			},
+			sourceService: func(source model.CanonicalAlbum) model.ServiceName {
+				return source.Service
+			},
+			entityLabel:  "album",
+			nilEntityErr: errNilSourceAlbum,
 		},
-		hydrate: func(ctx context.Context, source SourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-			return source.FetchAlbum(ctx, parsed)
+		target: entityTargetPolicy[TargetAdapter, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]{
+			collect: func(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+				return collectAlbumTargetCandidates(ctx, target, source, weights)
+			},
+			rank: func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
+				return score.RankAlbums(source, candidates, weights)
+			},
+			result:         albumMatchResultFromRanking,
+			candidateLabel: "candidates",
+			errLabel:       "resolve target searches",
 		},
-		sourceService: func(source model.CanonicalAlbum) model.ServiceName {
-			return source.Service
-		},
-		collect: func(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-			return collectAlbumTargetCandidates(ctx, target, source, weights)
-		},
-		rank: func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
-			return score.RankAlbums(source, candidates, weights)
-		},
-		result:               albumMatchResultFromRanking,
-		entityLabel:          "album",
-		nilEntityErr:         errNilSourceAlbum,
-		candidateLabel:       "candidates",
-		targetErrLabel:       "resolve target searches",
-		afterTargetsErrLabel: "resolve apple music cascaded search",
-		afterTargets: func(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) error {
-			return newAppleMusicEnrichmentPolicy(weights).apply(ctx, targets, source, matches)
+		after: entityAfterTargetsPolicy[TargetAdapter, model.CanonicalAlbum, MatchResult]{
+			errLabel: "resolve apple music cascaded search",
+			run: func(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) error {
+				return newAppleMusicEnrichmentPolicy(weights).apply(ctx, targets, source, matches)
+			},
 		},
 	}
 }

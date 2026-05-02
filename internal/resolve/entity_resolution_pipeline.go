@@ -18,24 +18,33 @@ type entityResolution[P any, Entity any, Match any] struct {
 	Matches  map[model.ServiceName]Match
 }
 
-type entityResolutionPipeline[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
-	sources []SourceAdapter
-	targets []TargetAdapter
-
+type entitySourcePolicy[SourceAdapter serviceAdapter, Parsed any, Entity any] struct {
 	parse         func(SourceAdapter, string) (*Parsed, error)
 	hydrate       func(context.Context, SourceAdapter, Parsed) (*Entity, error)
 	sourceService func(Entity) model.ServiceName
-	collect       func(context.Context, TargetAdapter, Entity) ([]Candidate, error)
-	rank          func(Entity, []Candidate) Ranking
-	result        func(model.ServiceName, Ranking) Match
+	entityLabel   string
+	nilEntityErr  error
+}
 
-	entityLabel    string
-	nilEntityErr   error
+type entityTargetPolicy[TargetAdapter serviceAdapter, Entity any, Candidate any, Ranking any, Match any] struct {
+	collect        func(context.Context, TargetAdapter, Entity) ([]Candidate, error)
+	rank           func(Entity, []Candidate) Ranking
+	result         func(model.ServiceName, Ranking) Match
 	candidateLabel string
-	targetErrLabel string
+	errLabel       string
+}
 
-	afterTargets         func(context.Context, []TargetAdapter, Entity, map[model.ServiceName]Match) error
-	afterTargetsErrLabel string
+type entityAfterTargetsPolicy[TargetAdapter serviceAdapter, Entity any, Match any] struct {
+	run      func(context.Context, []TargetAdapter, Entity, map[model.ServiceName]Match) error
+	errLabel string
+}
+
+type entityResolutionPipeline[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
+	sources []SourceAdapter
+	targets []TargetAdapter
+	source  entitySourcePolicy[SourceAdapter, Parsed, Entity]
+	target  entityTargetPolicy[TargetAdapter, Entity, Candidate, Ranking, Match]
+	after   entityAfterTargetsPolicy[TargetAdapter, Entity, Match]
 }
 
 type entityResolver[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
@@ -69,32 +78,32 @@ func resolveEntity[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, P
 		ctx,
 		pipeline.sources,
 		inputURL,
-		pipeline.parse,
-		pipeline.hydrate,
-		pipeline.entityLabel,
-		pipeline.nilEntityErr,
+		pipeline.source.parse,
+		pipeline.source.hydrate,
+		pipeline.source.entityLabel,
+		pipeline.source.nilEntityErr,
 	)
 	if err != nil {
 		return zero, err
 	}
 
-	targets := excludeTargetService(pipeline.targets, pipeline.sourceService(source.Entity))
+	targets := excludeTargetService(pipeline.targets, pipeline.source.sourceService(source.Entity))
 	matches, err := resolveTargetMatches(
 		ctx,
 		targets,
 		source.Entity,
-		pipeline.collect,
-		pipeline.rank,
-		pipeline.result,
-		pipeline.candidateLabel,
+		pipeline.target.collect,
+		pipeline.target.rank,
+		pipeline.target.result,
+		pipeline.target.candidateLabel,
 	)
 	if err != nil {
-		return zero, fmt.Errorf("%s: %w", pipeline.targetErrLabel, err)
+		return zero, fmt.Errorf("%s: %w", pipeline.target.errLabel, err)
 	}
 
-	if pipeline.afterTargets != nil {
-		if err := pipeline.afterTargets(ctx, targets, source.Entity, matches); err != nil {
-			return zero, fmt.Errorf("%s: %w", pipeline.afterTargetsErrLabel, err)
+	if pipeline.after.run != nil {
+		if err := pipeline.after.run(ctx, targets, source.Entity, matches); err != nil {
+			return zero, fmt.Errorf("%s: %w", pipeline.after.errLabel, err)
 		}
 	}
 
