@@ -12,40 +12,43 @@ import (
 
 var errTargetSearchLayerBoom = errors.New("target search layer boom")
 
-func TestCollectTargetSearchLayersPreservesOrderAndDeduplicates(t *testing.T) {
-	candidates, err := collectTargetSearchLayers(
-		context.Background(),
-		newStubTargetAdapter(),
-		model.ServiceSpotify,
-		albumCandidateKey,
-		targetSearchLayer[model.CandidateAlbum]{
-			name:    "disabled",
-			enabled: false,
-			search: func(context.Context) ([]model.CandidateAlbum, error) {
-				return []model.CandidateAlbum{{CandidateID: "disabled", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}}}, nil
+func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
+	plan := targetSearchPlan[model.CandidateAlbum]{
+		target:  newStubTargetAdapter(),
+		service: model.ServiceSpotify,
+		keyFunc: albumCandidateKey,
+		layers: []targetSearchLayer[model.CandidateAlbum]{
+			{
+				name:    "disabled",
+				enabled: false,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return []model.CandidateAlbum{{CandidateID: "disabled", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}}}, nil
+				},
+			},
+			{
+				name:    "first",
+				enabled: true,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return []model.CandidateAlbum{
+						{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+						{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+					}, nil
+				},
+			},
+			{
+				name:    "second",
+				enabled: true,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return []model.CandidateAlbum{
+						{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+						{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
+					}, nil
+				},
 			},
 		},
-		targetSearchLayer[model.CandidateAlbum]{
-			name:    "first",
-			enabled: true,
-			search: func(context.Context) ([]model.CandidateAlbum, error) {
-				return []model.CandidateAlbum{
-					{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-					{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-				}, nil
-			},
-		},
-		targetSearchLayer[model.CandidateAlbum]{
-			name:    "second",
-			enabled: true,
-			search: func(context.Context) ([]model.CandidateAlbum, error) {
-				return []model.CandidateAlbum{
-					{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-					{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-				}, nil
-			},
-		},
-	)
+	}
+
+	candidates, err := plan.collect(context.Background())
 
 	require.NoError(t, err)
 	require.Len(t, candidates, 3)
@@ -54,20 +57,23 @@ func TestCollectTargetSearchLayersPreservesOrderAndDeduplicates(t *testing.T) {
 	assert.Equal(t, "album-3", candidates[2].CandidateID)
 }
 
-func TestCollectTargetSearchLayersWrapsLayerErrors(t *testing.T) {
-	_, err := collectTargetSearchLayers(
-		context.Background(),
-		newStubTargetAdapter(),
-		model.ServiceSpotify,
-		albumCandidateKey,
-		targetSearchLayer[model.CandidateAlbum]{
-			name:    "SearchByUPC",
-			enabled: true,
-			search: func(context.Context) ([]model.CandidateAlbum, error) {
-				return nil, errTargetSearchLayerBoom
+func TestTargetSearchPlanWrapsLayerErrors(t *testing.T) {
+	plan := targetSearchPlan[model.CandidateAlbum]{
+		target:  newStubTargetAdapter(),
+		service: model.ServiceSpotify,
+		keyFunc: albumCandidateKey,
+		layers: []targetSearchLayer[model.CandidateAlbum]{
+			{
+				name:    "SearchByUPC",
+				enabled: true,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return nil, errTargetSearchLayerBoom
+				},
 			},
 		},
-	)
+	}
+
+	_, err := plan.collect(context.Background())
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errTargetSearchLayerBoom)

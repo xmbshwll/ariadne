@@ -8,6 +8,13 @@ import (
 	"github.com/xmbshwll/ariadne/internal/score"
 )
 
+type targetSearchPlan[T any] struct {
+	target  any
+	service model.ServiceName
+	keyFunc func(T) string
+	layers  []targetSearchLayer[T]
+}
+
 type targetSearchLayer[T any] struct {
 	name    string
 	enabled bool
@@ -15,27 +22,36 @@ type targetSearchLayer[T any] struct {
 	filter  func([]T) []T
 }
 
-func collectTargetSearchLayers[T any](ctx context.Context, target any, service model.ServiceName, keyFunc func(T) string, layers ...targetSearchLayer[T]) ([]T, error) {
+func (p targetSearchPlan[T]) collect(ctx context.Context) ([]T, error) {
 	combined := []T{}
 	seen := map[string]struct{}{}
-	for _, layer := range layers {
+	for _, layer := range p.layers {
 		if !layer.enabled {
 			continue
 		}
 		candidates, err := layer.search(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("%s %s (%T) failed: %w", layer.name, service, target, err)
+			return nil, fmt.Errorf("%s %s (%T) failed: %w", layer.name, p.service, p.target, err)
 		}
 		if layer.filter != nil {
 			candidates = layer.filter(candidates)
 		}
-		combined = appendUniqueByKey(combined, seen, candidates, keyFunc)
+		combined = appendUniqueByKey(combined, seen, candidates, p.keyFunc)
 	}
 	return combined, nil
 }
 
 func collectAlbumTargetCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) ([]model.CandidateAlbum, error) {
-	return collectTargetSearchLayers(ctx, target, target.Service(), albumCandidateKey, albumTargetSearchLayers(target, source, weights)...)
+	return albumTargetSearchPlan(target, source, weights).collect(ctx)
+}
+
+func albumTargetSearchPlan(target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) targetSearchPlan[model.CandidateAlbum] {
+	return targetSearchPlan[model.CandidateAlbum]{
+		target:  target,
+		service: target.Service(),
+		keyFunc: albumCandidateKey,
+		layers:  albumTargetSearchLayers(target, source, weights),
+	}
 }
 
 func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) []targetSearchLayer[model.CandidateAlbum] {
@@ -77,7 +93,16 @@ func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, 
 }
 
 func collectSongTargetCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
-	return collectTargetSearchLayers(ctx, target, target.Service(), songCandidateKey, songTargetSearchLayers(target, source)...)
+	return songTargetSearchPlan(target, source).collect(ctx)
+}
+
+func songTargetSearchPlan(target SongTargetAdapter, source model.CanonicalSong) targetSearchPlan[model.CandidateSong] {
+	return targetSearchPlan[model.CandidateSong]{
+		target:  target,
+		service: target.Service(),
+		keyFunc: songCandidateKey,
+		layers:  songTargetSearchLayers(target, source),
+	}
 }
 
 func songTargetSearchLayers(target SongTargetAdapter, source model.CanonicalSong) []targetSearchLayer[model.CandidateSong] {

@@ -32,6 +32,10 @@ _Avoid_: scrape helper, HTML plumbing
 The step that searches a Music Service for candidates matching a hydrated source entity.
 _Avoid_: lookup, discovery
 
+**Target Search Plan**:
+The ordered search-layer plan for one Target Search, including identifier layers, metadata fallback, deduplication, filtering, and error context.
+_Avoid_: callback list, search plumbing
+
 **Identifier Enrichment**:
 The repair step that copies missing UPC or ISRC identifiers from strong intermediate matches into a source copy for a follow-up Target Search.
 _Avoid_: cascade hack, backfill
@@ -68,6 +72,7 @@ _Avoid_: service flag validation, CLI service parsing
 - **Identifier Enrichment** can trigger a follow-up **Target Search** for a **Music Service** whose metadata search needs stronger identifiers.
 - A **Credential Token** is required only by Music Services whose source or target **Capabilities** need credentialed network access.
 - **Entity Resolution** composes Source Input recognition, Runtime Hydration, Target Search, and optional Identifier Enrichment.
+- A **Target Search Plan** owns layer ordering, deduplication, filtering, and error context for one **Target Search**.
 - **Target Search** can use identifiers first, then one or more **Metadata Queries** when identifiers are missing or insufficient.
 - **Target Search** candidates are ranked by **Score Signals** before **Entity Resolution** returns matches.
 
