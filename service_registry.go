@@ -18,6 +18,7 @@ type serviceCapability struct {
 	supportsSongSource   bool
 	supportsSongTarget   bool
 	runtimeSongURLParser songURLParser
+	targetSearchEnabled  func(Config) bool
 }
 
 func (c serviceCapability) describe() ServiceCapabilities {
@@ -33,18 +34,15 @@ func (c serviceCapability) describe() ServiceCapabilities {
 
 func (c serviceCapability) enabled(config Config) serviceCapability {
 	config = normalizedConfig(config)
-	switch c.name {
-	case ServiceSpotify:
-		if !config.SpotifyEnabled() {
-			c.supportsAlbumTarget = false
-			c.supportsSongTarget = false
-		}
-	case ServiceTIDAL:
-		if !config.TIDALEnabled() {
-			c.supportsAlbumTarget = false
-			c.supportsSongTarget = false
-		}
+	if c.targetSearchEnabled != nil && !c.targetSearchEnabled(config) {
+		c.supportsAlbumTarget = false
+		c.supportsSongTarget = false
 	}
+	return c
+}
+
+func (c serviceCapability) withTargetSearchEnabled(enabled func(Config) bool) serviceCapability {
+	c.targetSearchEnabled = enabled
 	return c
 }
 
