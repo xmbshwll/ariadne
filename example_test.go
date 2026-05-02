@@ -1,6 +1,8 @@
 package ariadne_test
 
 import (
+	"github.com/xmbshwll/ariadne/internal/model"
+
 	"context"
 	"fmt"
 	"net/http"
@@ -161,7 +163,7 @@ func (exampleSourceAdapter) Service() ariadne.ServiceName {
 func (exampleSourceAdapter) ParseAlbumURL(raw string) (*ariadne.ParsedAlbumURL, error) {
 	return &ariadne.ParsedAlbumURL{
 		Service:      ariadne.ServiceDeezer,
-		EntityType:   "album",
+		EntityType:   model.EntityTypeAlbum,
 		ID:           "example-1",
 		CanonicalURL: raw,
 		RawURL:       raw,
@@ -224,7 +226,7 @@ func (exampleSongSourceAdapter) Service() ariadne.ServiceName {
 func (exampleSongSourceAdapter) ParseSongURL(raw string) (*ariadne.ParsedURL, error) {
 	return &ariadne.ParsedURL{
 		Service:      ariadne.ServiceSpotify,
-		EntityType:   "song",
+		EntityType:   model.EntityTypeSong,
 		ID:           "song-1",
 		CanonicalURL: raw,
 		RawURL:       raw,

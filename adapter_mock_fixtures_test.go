@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func newLibrarySourceAdapter() SourceAdapter {
@@ -13,7 +14,7 @@ func newLibrarySourceAdapter() SourceAdapter {
 		if raw != testLibrarySourceURL {
 			return nil, errUnsupportedLibrarySource
 		}
-		return &ParsedURL{Service: ServiceDeezer, EntityType: "album", ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
+		return &ParsedURL{Service: ServiceDeezer, EntityType: model.EntityTypeAlbum, ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed ParsedURL) (*CanonicalAlbum, error) {
 		return &CanonicalAlbum{
@@ -51,7 +52,7 @@ func newNilAlbumSourceAdapter() SourceAdapter {
 		if raw != testLibrarySourceURL {
 			return nil, errUnsupportedLibrarySource
 		}
-		return &ParsedURL{Service: ServiceDeezer, EntityType: "album", ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
+		return &ParsedURL{Service: ServiceDeezer, EntityType: model.EntityTypeAlbum, ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).Return(nil, nil)
 	return adapter
@@ -102,7 +103,7 @@ func newLibrarySongSourceAdapter() SongSourceAdapter {
 		if raw != "https://fixture.test/songs/1" {
 			return nil, errUnsupportedLibrarySource
 		}
-		return &ParsedURL{Service: ServiceSpotify, EntityType: "song", ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
+		return &ParsedURL{Service: ServiceSpotify, EntityType: model.EntityTypeSong, ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchSong(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed ParsedURL) (*CanonicalSong, error) {
 		return &CanonicalSong{
@@ -130,7 +131,7 @@ func newNilSongSourceAdapter() SongSourceAdapter {
 		if raw != "https://fixture.test/songs/1" {
 			return nil, errUnsupportedLibrarySource
 		}
-		return &ParsedURL{Service: ServiceSpotify, EntityType: "song", ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
+		return &ParsedURL{Service: ServiceSpotify, EntityType: model.EntityTypeSong, ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
 	})
 	adapter.EXPECT().FetchSong(mock.Anything, mock.Anything).Return(nil, nil)
 	return adapter
