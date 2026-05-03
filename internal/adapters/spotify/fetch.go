@@ -45,7 +45,7 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	endpoint := fmt.Sprintf("%s/search?q=%s&type=album&limit=%d", a.apiBaseURL, url.QueryEscape("upc:"+upc), searchLimit)
+	endpoint := a.searchEndpoint("upc:"+upc, "album", searchLimit)
 	var response apiAlbumSearchResponse
 	if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 		return nil, fmt.Errorf("spotify search by upc: %w", err)
@@ -67,7 +67,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	seen := make(map[string]struct{}, len(isrcs))
 	var firstErr error
 	for _, isrc := range isrcs {
-		endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape("isrc:"+isrc), 1)
+		endpoint := a.searchEndpoint("isrc:"+isrc, "track", 1)
 		var response apiTrackSearchResponse
 		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 			if firstErr == nil {
@@ -106,18 +106,23 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	items, err := collectSpotifySearchResults(
-		queries,
-		func(query string) ([]apiAlbumSummary, error) {
-			endpoint := fmt.Sprintf("%s/search?q=%s&type=album&limit=%d", a.apiBaseURL, url.QueryEscape(query), searchLimit)
+	collector := adapterutil.MetadataQueryCandidateCollector[apiAlbumSummary, apiAlbumSummary]{
+		Queries: queries,
+		Limit:   searchLimit,
+		Search: func(query string) ([]apiAlbumSummary, error) {
+			endpoint := a.searchEndpoint(query, "album", searchLimit)
 			var response apiAlbumSearchResponse
 			if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 				return nil, fmt.Errorf("spotify search by metadata %q: %w", query, err)
 			}
 			return response.Albums.Items, nil
 		},
-		func(item apiAlbumSummary) string { return item.ID },
-	)
+		ItemID: func(item apiAlbumSummary) string { return item.ID },
+		BuildCandidate: func(item apiAlbumSummary) (apiAlbumSummary, error) {
+			return item, nil
+		},
+	}
+	items, err := adapterutil.CollectMetadataQueryCandidates(collector)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +154,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape("isrc:"+strings.TrimSpace(isrc)), searchLimit)
+	endpoint := a.searchEndpoint("isrc:"+strings.TrimSpace(isrc), "track", searchLimit)
 	var response apiTrackSearchResponse
 	if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 		return nil, fmt.Errorf("spotify song search by isrc %s: %w", isrc, err)
@@ -167,55 +172,37 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	items, err := collectSpotifySearchResults(
-		queries,
-		func(query string) ([]apiTrackSearchItem, error) {
-			endpoint := fmt.Sprintf("%s/search?q=%s&type=track&limit=%d", a.apiBaseURL, url.QueryEscape(query), searchLimit)
+	collector := adapterutil.MetadataQueryCandidateCollector[apiTrackSearchItem, apiTrackSearchItem]{
+		Queries: queries,
+		Limit:   searchLimit,
+		Search: func(query string) ([]apiTrackSearchItem, error) {
+			endpoint := a.searchEndpoint(query, "track", searchLimit)
 			var response apiTrackSearchResponse
 			if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 				return nil, fmt.Errorf("spotify song search by metadata %q: %w", query, err)
 			}
 			return response.Tracks.Items, nil
 		},
-		func(item apiTrackSearchItem) string { return item.ID },
-	)
+		ItemID: func(item apiTrackSearchItem) string { return item.ID },
+		BuildCandidate: func(item apiTrackSearchItem) (apiTrackSearchItem, error) {
+			return item, nil
+		},
+	}
+	items, err := adapterutil.CollectMetadataQueryCandidates(collector)
 	if err != nil {
 		return nil, err
 	}
 	return a.hydrateSongCandidates(ctx, items)
 }
 
-func collectSpotifySearchResults[T any](queries []string, search func(string) ([]T, error), itemID func(T) string) ([]T, error) {
-	items := make([]T, 0, searchLimit)
-	seen := make(map[string]struct{}, searchLimit)
-	var firstErr error
-	for _, query := range queries {
-		results, err := search(query)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		for _, item := range results {
-			id := strings.TrimSpace(itemID(item))
-			if id == "" {
-				continue
-			}
-			if _, ok := seen[id]; ok {
-				continue
-			}
-			seen[id] = struct{}{}
-			items = append(items, item)
-			if len(items) >= searchLimit {
-				return items, nil
-			}
-		}
-	}
-	if len(items) == 0 && firstErr != nil {
-		return nil, firstErr
-	}
-	return items, nil
+func (a *Adapter) searchEndpoint(query string, entityType string, limit int) string {
+	return fmt.Sprintf(
+		"%s/search?q=%s&type=%s&limit=%d",
+		a.apiBaseURL,
+		url.QueryEscape(query),
+		entityType,
+		limit,
+	)
 }
 
 func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*apiAlbumResponse, error) {
@@ -389,7 +376,10 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 	return toCanonicalAlbumBootstrap(parsed, album), nil
 }
 
-func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, summaries []apiAlbumSummary) ([]model.CandidateAlbum, error) {
+func (a *Adapter) hydrateAlbumCandidates(
+	ctx context.Context,
+	summaries []apiAlbumSummary,
+) ([]model.CandidateAlbum, error) {
 	return hydrateSpotifyCandidates(
 		summaries,
 		func(summary apiAlbumSummary) string { return summary.ID },
@@ -408,7 +398,10 @@ func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, summaries []apiAlb
 	)
 }
 
-func (a *Adapter) hydrateSongCandidates(ctx context.Context, items []apiTrackSearchItem) ([]model.CandidateSong, error) {
+func (a *Adapter) hydrateSongCandidates(
+	ctx context.Context,
+	items []apiTrackSearchItem,
+) ([]model.CandidateSong, error) {
 	return hydrateSpotifyCandidates(
 		items,
 		func(item apiTrackSearchItem) string { return item.ID },
@@ -427,7 +420,11 @@ func (a *Adapter) hydrateSongCandidates(ctx context.Context, items []apiTrackSea
 	)
 }
 
-func hydrateSpotifyCandidates[Input any, Candidate any](items []Input, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+func hydrateSpotifyCandidates[Input any, Candidate any](
+	items []Input,
+	itemID func(Input) string,
+	fetch func(Input) (Candidate, error),
+) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
 	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
 }
