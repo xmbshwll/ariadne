@@ -98,6 +98,7 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 }
 
 func albumResolutionPipeline(weights score.Weights) entityResolutionPipeline[SourceAdapter, TargetAdapter, model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult] {
+	appleMusicPolicy := newAppleMusicEnrichmentPolicy(weights)
 	return entityResolutionPipeline[SourceAdapter, TargetAdapter, model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]{
 		source: entitySourcePolicy[SourceAdapter, model.ParsedAlbumURL, model.CanonicalAlbum]{
 			parse: func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
@@ -113,9 +114,7 @@ func albumResolutionPipeline(weights score.Weights) entityResolutionPipeline[Sou
 			nilEntityErr: errNilSourceAlbum,
 		},
 		target: entityTargetPolicy[TargetAdapter, model.CanonicalAlbum, model.CandidateAlbum, score.Ranking, MatchResult]{
-			collect: func(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-				return collectAlbumTargetCandidates(ctx, target, source, weights)
-			},
+			collect: appleMusicPolicy.collectTargetCandidates,
 			rank: func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
 				return score.RankAlbums(source, candidates, weights)
 			},
@@ -125,9 +124,7 @@ func albumResolutionPipeline(weights score.Weights) entityResolutionPipeline[Sou
 		},
 		after: entityAfterTargetsPolicy[TargetAdapter, model.CanonicalAlbum, MatchResult]{
 			errLabel: "resolve apple music cascaded search",
-			run: func(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) error {
-				return newAppleMusicEnrichmentPolicy(weights).apply(ctx, targets, source, matches)
-			},
+			run:      appleMusicPolicy.apply,
 		},
 	}
 }

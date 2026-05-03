@@ -21,6 +21,17 @@ func newAppleMusicEnrichmentPolicy(weights score.Weights) appleMusicEnrichmentPo
 	return appleMusicEnrichmentPolicy{weights: weights}
 }
 
+func (p appleMusicEnrichmentPolicy) collectTargetCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	if target.Service() != model.ServiceAppleMusic {
+		return collectAlbumTargetCandidates(ctx, target, source)
+	}
+
+	metadataFilter := func(candidates []model.CandidateAlbum) []model.CandidateAlbum {
+		return p.filterMetadataFallbackCandidates(source, candidates)
+	}
+	return collectAlbumTargetCandidatesWithMetadataFilter(ctx, target, source, metadataFilter)
+}
+
 func (p appleMusicEnrichmentPolicy) apply(
 	ctx context.Context,
 	targets []TargetAdapter,
@@ -64,7 +75,7 @@ func (p appleMusicEnrichmentPolicy) enrichedSource(source model.CanonicalAlbum, 
 }
 
 func (p appleMusicEnrichmentPolicy) resolveTarget(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) (MatchResult, error) {
-	candidates, err := collectAlbumTargetCandidates(ctx, target, source, p.weights)
+	candidates, err := p.collectTargetCandidates(ctx, target, source)
 	if err != nil {
 		return MatchResult{}, err
 	}
@@ -166,19 +177,14 @@ func cloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
 	return clone
 }
 
-func filterAppleMusicMetadataFallbackCandidates(
-	targetService model.ServiceName,
-	source model.CanonicalAlbum,
-	candidates []model.CandidateAlbum,
-	weights score.Weights,
-) []model.CandidateAlbum {
-	if targetService != model.ServiceAppleMusic || len(candidates) == 0 {
+func (p appleMusicEnrichmentPolicy) filterMetadataFallbackCandidates(source model.CanonicalAlbum, candidates []model.CandidateAlbum) []model.CandidateAlbum {
+	if len(candidates) == 0 {
 		return candidates
 	}
 
 	filtered := make([]model.CandidateAlbum, 0, len(candidates))
 	for _, candidate := range candidates {
-		ranking := score.RankAlbums(source, []model.CandidateAlbum{candidate}, weights)
+		ranking := score.RankAlbums(source, []model.CandidateAlbum{candidate}, p.weights)
 		if len(ranking.Ranked) == 0 {
 			continue
 		}

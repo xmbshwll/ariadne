@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/score"
 )
 
 type targetSearchPlan[T any] struct {
@@ -41,20 +40,31 @@ func (p targetSearchPlan[T]) collect(ctx context.Context) ([]T, error) {
 	return combined, nil
 }
 
-func collectAlbumTargetCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) ([]model.CandidateAlbum, error) {
-	return albumTargetSearchPlan(target, source, weights).collect(ctx)
+type albumMetadataCandidateFilter func([]model.CandidateAlbum) []model.CandidateAlbum
+
+func collectAlbumTargetCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	return collectAlbumTargetCandidatesWithMetadataFilter(ctx, target, source, nil)
 }
 
-func albumTargetSearchPlan(target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) targetSearchPlan[model.CandidateAlbum] {
+func collectAlbumTargetCandidatesWithMetadataFilter(
+	ctx context.Context,
+	target TargetAdapter,
+	source model.CanonicalAlbum,
+	metadataFilter albumMetadataCandidateFilter,
+) ([]model.CandidateAlbum, error) {
+	return albumTargetSearchPlan(target, source, metadataFilter).collect(ctx)
+}
+
+func albumTargetSearchPlan(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) targetSearchPlan[model.CandidateAlbum] {
 	return targetSearchPlan[model.CandidateAlbum]{
 		target:  target,
 		service: target.Service(),
 		keyFunc: albumCandidateKey,
-		layers:  albumTargetSearchLayers(target, source, weights),
+		layers:  albumTargetSearchLayers(target, source, metadataFilter),
 	}
 }
 
-func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, weights score.Weights) []targetSearchLayer[model.CandidateAlbum] {
+func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) []targetSearchLayer[model.CandidateAlbum] {
 	layers := make([]targetSearchLayer[model.CandidateAlbum], 0, 3)
 	if searcher, ok := target.(UPCSearcher); ok {
 		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
@@ -84,9 +94,7 @@ func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, 
 			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
 				return searcher.SearchByMetadata(ctx, source)
 			},
-			filter: func(candidates []model.CandidateAlbum) []model.CandidateAlbum {
-				return filterAppleMusicMetadataFallbackCandidates(target.Service(), source, candidates, weights)
-			},
+			filter: metadataFilter,
 		})
 	}
 	return layers
