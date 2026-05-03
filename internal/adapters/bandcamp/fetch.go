@@ -37,7 +37,14 @@ func (a *Adapter) fetchSongPage(ctx context.Context, rawURL string) (*model.Cano
 	return fetchCanonicalPage(a, ctx, rawURL, "song", ParseSongURL, toCanonicalSong)
 }
 
-func fetchCanonicalPage[Canonical any](adapter *Adapter, ctx context.Context, rawURL, entity string, parseURL func(string) (*model.ParsedURL, error), toCanonical func(model.ParsedURL, *schemaAlbum) *Canonical) (*Canonical, error) {
+func fetchCanonicalPage[Canonical any](
+	adapter *Adapter,
+	ctx context.Context,
+	rawURL string,
+	entity string,
+	parseURL func(string) (*model.ParsedURL, error),
+	toCanonical func(model.ParsedURL, *schemaAlbum) *Canonical,
+) (*Canonical, error) {
 	parsed, err := parseURL(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse bandcamp %s url: %w", entity, err)
@@ -56,21 +63,15 @@ func fetchCanonicalPage[Canonical any](adapter *Adapter, ctx context.Context, ra
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	request := adapterutil.PageRequest{
-		BytesRequest: adapterutil.BytesRequest{
-			RequestSpec: adapterutil.RequestSpec{
-				Client:       a.client,
-				URL:          requestURL,
-				UserAgent:    adapterutil.DefaultUserAgent,
-				BuildError:   "build bandcamp request",
-				ExecuteError: "execute bandcamp request",
-				StatusError:  adapterutil.StatusError(errUnexpectedBandcampStatus),
-			},
-			ReadError:     "read bandcamp response",
-			MaxBodyBytes:  maxBandcampResponseBytes,
-			TooLargeError: errBandcampResponseTooLarge,
-		},
-	}
-	//nolint:wrapcheck // Page extraction spec supplies request/status/read context.
-	return adapterutil.FetchPage(ctx, request)
+	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
+	return adapterutil.PageFetcher{
+		Client:        a.client,
+		UserAgent:     adapterutil.DefaultUserAgent,
+		BuildError:    "build bandcamp request",
+		ExecuteError:  "execute bandcamp request",
+		StatusError:   adapterutil.StatusError(errUnexpectedBandcampStatus),
+		ReadError:     "read bandcamp response",
+		MaxBodyBytes:  maxBandcampResponseBytes,
+		TooLargeError: errBandcampResponseTooLarge,
+	}.Fetch(ctx, requestURL)
 }

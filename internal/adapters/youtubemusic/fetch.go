@@ -47,23 +47,17 @@ func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*m
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	request := adapterutil.PageRequest{
-		BytesRequest: adapterutil.BytesRequest{
-			RequestSpec: adapterutil.RequestSpec{
-				Client:         a.client,
-				URL:            requestURL,
-				UserAgent:      adapterutil.BrowserUserAgent,
-				BuildError:     "build youtube music request",
-				ExecuteError:   "execute youtube music request",
-				StatusError:    adapterutil.StatusError(errUnexpectedYouTubeMusicStatus),
-				ErrorBodyLimit: maxYouTubeMusicErrorResponseBytes,
-			},
-			ReadError:     "read youtube music response",
-			MaxBodyBytes:  maxYouTubeMusicResponseBytes,
-			TooLargeError: errYouTubeMusicResponseTooLarge,
-		},
-		Timeout: youTubeMusicFetchTimeout,
-	}
-	//nolint:wrapcheck // Page extraction spec supplies request/status/read context.
-	return adapterutil.FetchPage(ctx, request)
+	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
+	return adapterutil.PageFetcher{
+		Client:         a.client,
+		UserAgent:      adapterutil.BrowserUserAgent,
+		BuildError:     "build youtube music request",
+		ExecuteError:   "execute youtube music request",
+		StatusError:    adapterutil.StatusError(errUnexpectedYouTubeMusicStatus),
+		ErrorBodyLimit: maxYouTubeMusicErrorResponseBytes,
+		ReadError:      "read youtube music response",
+		MaxBodyBytes:   maxYouTubeMusicResponseBytes,
+		TooLargeError:  errYouTubeMusicResponseTooLarge,
+		Timeout:        youTubeMusicFetchTimeout,
+	}.Fetch(ctx, requestURL)
 }

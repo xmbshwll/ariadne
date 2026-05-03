@@ -42,36 +42,51 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
-	request := adapterutil.PageRequest{
-		BytesRequest: adapterutil.BytesRequest{
-			RequestSpec: adapterutil.RequestSpec{
-				Client:       a.client,
-				URL:          requestURL,
-				UserAgent:    adapterutil.BrowserUserAgent,
-				BuildError:   "build soundcloud request",
-				ExecuteError: "execute soundcloud request",
-				StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
-			},
-			ReadError: "read soundcloud response",
-		},
-	}
-	//nolint:wrapcheck // Page extraction spec supplies request/status/read context.
-	return adapterutil.FetchPage(ctx, request)
+	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
+	return adapterutil.PageFetcher{
+		Client:       a.client,
+		UserAgent:    adapterutil.BrowserUserAgent,
+		BuildError:   "build soundcloud request",
+		ExecuteError: "execute soundcloud request",
+		StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
+		ReadError:    "read soundcloud response",
+	}.Fetch(ctx, requestURL)
 }
 
 func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {
-	return extractHydrationEntity(body, canonicalURL, "playlist", errSoundCloudPlaylistNotFound, "decode soundcloud playlist hydration", func(playlist soundPlaylist) string {
-		return playlist.PermalinkURL
-	})
+	return extractHydrationEntity(
+		body,
+		canonicalURL,
+		"playlist",
+		errSoundCloudPlaylistNotFound,
+		"decode soundcloud playlist hydration",
+		func(playlist soundPlaylist) string {
+			return playlist.PermalinkURL
+		},
+	)
 }
 
 func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error) {
-	return extractHydrationEntity(body, canonicalURL, "sound", errSoundCloudTrackNotFound, "decode soundcloud track hydration", func(track soundTrack) string {
-		return track.PermalinkURL
-	})
+	return extractHydrationEntity(
+		body,
+		canonicalURL,
+		"sound",
+		errSoundCloudTrackNotFound,
+		"decode soundcloud track hydration",
+		func(track soundTrack) string {
+			return track.PermalinkURL
+		},
+	)
 }
 
-func extractHydrationEntity[T any](body []byte, canonicalURL string, hydratable string, notFound error, decodeError string, permalinkURL func(T) string) (*T, error) {
+func extractHydrationEntity[T any](
+	body []byte,
+	canonicalURL string,
+	hydratable string,
+	notFound error,
+	decodeError string,
+	permalinkURL func(T) string,
+) (*T, error) {
 	entries, err := extractHydrationEntries(body)
 	if err != nil {
 		return nil, err
@@ -103,5 +118,11 @@ func extractHydrationEntity[T any](body []byte, canonicalURL string, hydratable 
 }
 
 func extractHydrationEntries(body []byte) ([]hydrationEnvelope, error) {
-	return adapterutil.DecodeJSONBlock[[]hydrationEnvelope](body, hydrationPattern, errSoundCloudHydrationNotFound, "decode soundcloud hydration payload", nil)
+	return adapterutil.DecodeJSONBlock[[]hydrationEnvelope](
+		body,
+		hydrationPattern,
+		errSoundCloudHydrationNotFound,
+		"decode soundcloud hydration payload",
+		nil,
+	)
 }

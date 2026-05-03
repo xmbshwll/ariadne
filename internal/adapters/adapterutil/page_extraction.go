@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"time"
 )
@@ -14,6 +15,41 @@ var errRegexpGroupNotFound = errors.New("regexp group not found")
 type PageRequest struct {
 	BytesRequest
 	Timeout time.Duration
+}
+
+type PageFetcher struct {
+	Client         *http.Client
+	UserAgent      string
+	BuildError     string
+	ExecuteError   string
+	StatusError    StatusErrorFunc
+	ErrorBodyLimit int64
+	ReadError      string
+	MaxBodyBytes   int64
+	TooLargeError  error
+	TooLarge       TooLargeErrorFunc
+	Timeout        time.Duration
+}
+
+func (f PageFetcher) Fetch(ctx context.Context, requestURL string) ([]byte, error) {
+	return FetchPage(ctx, PageRequest{
+		BytesRequest: BytesRequest{
+			RequestSpec: RequestSpec{
+				Client:         f.Client,
+				URL:            requestURL,
+				UserAgent:      f.UserAgent,
+				BuildError:     f.BuildError,
+				ExecuteError:   f.ExecuteError,
+				StatusError:    f.StatusError,
+				ErrorBodyLimit: f.ErrorBodyLimit,
+			},
+			ReadError:     f.ReadError,
+			MaxBodyBytes:  f.MaxBodyBytes,
+			TooLargeError: f.TooLargeError,
+			TooLarge:      f.TooLarge,
+		},
+		Timeout: f.Timeout,
+	})
 }
 
 func FetchPage(ctx context.Context, spec PageRequest) ([]byte, error) {
@@ -45,7 +81,13 @@ func FirstRegexpGroup(body []byte, pattern *regexp.Regexp, notFound error) ([]by
 	return matches[1], nil
 }
 
-func DecodeJSONBlock[T any](body []byte, pattern *regexp.Regexp, notFound error, decodeError string, malformed error) (T, error) {
+func DecodeJSONBlock[T any](
+	body []byte,
+	pattern *regexp.Regexp,
+	notFound error,
+	decodeError string,
+	malformed error,
+) (T, error) {
 	var target T
 	payload, err := FirstRegexpGroup(body, pattern, notFound)
 	if err != nil {
