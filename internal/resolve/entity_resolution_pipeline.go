@@ -39,6 +39,61 @@ type entityAfterTargetsPolicy[TargetAdapter serviceAdapter, Entity any, Match an
 	errLabel string
 }
 
+func (p entitySourcePolicy[SourceAdapter, Parsed, Entity]) resolve(
+	ctx context.Context,
+	sources []SourceAdapter,
+	inputURL string,
+) (sourceInput[Parsed, Entity], error) {
+	return resolveSourceInput(
+		ctx,
+		sources,
+		inputURL,
+		p.parse,
+		p.hydrate,
+		p.entityLabel,
+		p.nilEntityErr,
+	)
+}
+
+func (p entitySourcePolicy[SourceAdapter, Parsed, Entity]) service(entity Entity) model.ServiceName {
+	return p.sourceService(entity)
+}
+
+func (p entityTargetPolicy[TargetAdapter, Entity, Candidate, Ranking, Match]) resolve(
+	ctx context.Context,
+	targets []TargetAdapter,
+	source Entity,
+) (map[model.ServiceName]Match, error) {
+	matches, err := resolveTargetMatches(
+		ctx,
+		targets,
+		source,
+		p.collect,
+		p.rank,
+		p.result,
+		p.candidateLabel,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", p.errLabel, err)
+	}
+	return matches, nil
+}
+
+func (p entityAfterTargetsPolicy[TargetAdapter, Entity, Match]) apply(
+	ctx context.Context,
+	targets []TargetAdapter,
+	source Entity,
+	matches map[model.ServiceName]Match,
+) error {
+	if p.run == nil {
+		return nil
+	}
+	if err := p.run(ctx, targets, source, matches); err != nil {
+		return fmt.Errorf("%s: %w", p.errLabel, err)
+	}
+	return nil
+}
+
 type entityResolutionPipeline[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, Parsed any, Entity any, Candidate any, Ranking any, Match any] struct {
 	sources []SourceAdapter
 	targets []TargetAdapter
@@ -74,37 +129,19 @@ func resolveEntity[SourceAdapter serviceAdapter, TargetAdapter serviceAdapter, P
 	pipeline entityResolutionPipeline[SourceAdapter, TargetAdapter, Parsed, Entity, Candidate, Ranking, Match],
 ) (entityResolution[Parsed, Entity, Match], error) {
 	var zero entityResolution[Parsed, Entity, Match]
-	source, err := resolveSourceInput(
-		ctx,
-		pipeline.sources,
-		inputURL,
-		pipeline.source.parse,
-		pipeline.source.hydrate,
-		pipeline.source.entityLabel,
-		pipeline.source.nilEntityErr,
-	)
+	source, err := pipeline.source.resolve(ctx, pipeline.sources, inputURL)
 	if err != nil {
 		return zero, err
 	}
 
-	targets := excludeTargetService(pipeline.targets, pipeline.source.sourceService(source.Entity))
-	matches, err := resolveTargetMatches(
-		ctx,
-		targets,
-		source.Entity,
-		pipeline.target.collect,
-		pipeline.target.rank,
-		pipeline.target.result,
-		pipeline.target.candidateLabel,
-	)
+	targets := excludeTargetService(pipeline.targets, pipeline.source.service(source.Entity))
+	matches, err := pipeline.target.resolve(ctx, targets, source.Entity)
 	if err != nil {
-		return zero, fmt.Errorf("%s: %w", pipeline.target.errLabel, err)
+		return zero, err
 	}
 
-	if pipeline.after.run != nil {
-		if err := pipeline.after.run(ctx, targets, source.Entity, matches); err != nil {
-			return zero, fmt.Errorf("%s: %w", pipeline.after.errLabel, err)
-		}
+	if err := pipeline.after.apply(ctx, targets, source.Entity, matches); err != nil {
+		return zero, err
 	}
 
 	return entityResolution[Parsed, Entity, Match]{
