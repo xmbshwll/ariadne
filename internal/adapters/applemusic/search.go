@@ -44,7 +44,11 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
-	return adapterutil.CollectMetadataQueryCandidates(collector)
+	results, err := adapterutil.CollectMetadataQueryCandidates(collector)
+	if err != nil {
+		return nil, fmt.Errorf("collect apple music metadata candidates: %w", err)
+	}
+	return results, nil
 }
 
 // SearchSongByMetadata searches Apple Music songs by title and artist metadata via the public search API.
@@ -81,7 +85,11 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
-	return adapterutil.CollectMetadataQueryCandidates(collector)
+	results, err := adapterutil.CollectMetadataQueryCandidates(collector)
+	if err != nil {
+		return nil, fmt.Errorf("collect apple music song metadata candidates: %w", err)
+	}
+	return results, nil
 }
 
 func (a *Adapter) metadataSearchURL(query string, entity string, storefront string) string {

@@ -124,7 +124,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 	items, err := adapterutil.CollectMetadataQueryCandidates(collector)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("collect spotify metadata results: %w", err)
 	}
 	return a.hydrateAlbumCandidates(ctx, items)
 }
@@ -190,7 +190,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 	items, err := adapterutil.CollectMetadataQueryCandidates(collector)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("collect spotify song metadata results: %w", err)
 	}
 	return a.hydrateSongCandidates(ctx, items)
 }

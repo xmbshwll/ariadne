@@ -8,6 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errMetadataQueryFirstSearch  = errors.New("first search failed")
+	errMetadataQuerySecondSearch = errors.New("second search failed")
+	errMetadataQuerySearch       = errors.New("search failed")
+	errMetadataQueryCandidate    = errors.New("candidate failed")
+)
+
 type metadataQueryTestItem struct {
 	ID    string
 	Value string
@@ -48,17 +55,14 @@ func TestCollectMetadataQueryCandidatesDeduplicatesAndStopsAtLimit(t *testing.T)
 }
 
 func TestCollectMetadataQueryCandidatesReturnsFirstSearchErrorWhenNothingCollected(t *testing.T) {
-	errFirst := errors.New("first search failed")
-	errSecond := errors.New("second search failed")
-
 	_, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   2,
 		Search: func(query string) ([]metadataQueryTestItem, error) {
 			if query == "first" {
-				return nil, errFirst
+				return nil, errMetadataQueryFirstSearch
 			}
-			return nil, errSecond
+			return nil, errMetadataQuerySecondSearch
 		},
 		ItemID: func(item metadataQueryTestItem) string {
 			return item.ID
@@ -68,17 +72,15 @@ func TestCollectMetadataQueryCandidatesReturnsFirstSearchErrorWhenNothingCollect
 		},
 	})
 
-	assert.ErrorIs(t, err, errFirst)
+	assert.ErrorIs(t, err, errMetadataQueryFirstSearch)
 }
 
 func TestCollectMetadataQueryCandidatesCanStopAfterSearchError(t *testing.T) {
-	errSearch := errors.New("search failed")
-
 	_, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   2,
 		Search: func(string) ([]metadataQueryTestItem, error) {
-			return nil, errSearch
+			return nil, errMetadataQuerySearch
 		},
 		ItemID: func(item metadataQueryTestItem) string {
 			return item.ID
@@ -91,12 +93,10 @@ func TestCollectMetadataQueryCandidatesCanStopAfterSearchError(t *testing.T) {
 		},
 	})
 
-	assert.ErrorIs(t, err, errSearch)
+	assert.ErrorIs(t, err, errMetadataQuerySearch)
 }
 
 func TestCollectMetadataQueryCandidatesReturnsFirstCandidateErrorWhenNothingBuilds(t *testing.T) {
-	errCandidate := errors.New("candidate failed")
-
 	_, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
 		Queries: []string{"first"},
 		Limit:   2,
@@ -107,9 +107,9 @@ func TestCollectMetadataQueryCandidatesReturnsFirstCandidateErrorWhenNothingBuil
 			return item.ID
 		},
 		BuildCandidate: func(metadataQueryTestItem) (string, error) {
-			return "", errCandidate
+			return "", errMetadataQueryCandidate
 		},
 	})
 
-	assert.ErrorIs(t, err, errCandidate)
+	assert.ErrorIs(t, err, errMetadataQueryCandidate)
 }

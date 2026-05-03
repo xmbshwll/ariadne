@@ -4,9 +4,28 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.5.0 - 2026-05-03
+
 ### Added
 
 - public `ErrRuntimeDeferred` sentinel for parseable services whose runtime hydration is intentionally deferred, with service-specific Amazon Music and YouTube Music sentinels for narrower `errors.Is` branches
+- Provider Catalog request-decision APIs that distinguish available, unknown, unsupported, parse-only, and credential-gated target service requests
+
+### Changed
+
+- CLI target-service parsing and song-target validation now use Provider Catalog decisions, keeping alias lookup, credential checks, parse-only handling, and unsupported-target errors aligned
+- internal resolver orchestration now runs through shared Entity Resolution Policy, Source Input, Target Search Plan, Identifier Enrichment, and Score Signal modules for stronger locality without changing public resolution behavior
+- Music Service adapters now share Metadata Query collection, Page Extraction, HTTP exchange, Credential Token, and URL-path helpers while keeping service-specific search, hydration, and canonical mapping logic local
+- built-in Music Service support is declared through a clearer Provider Catalog binding grammar that keeps capabilities, runtime URL parsing, credential gating, and Adapter wiring together
+- public model and result types now use focused type-alias files instead of generated bridge conversions, preserving exported names while removing pass-through conversion layers
+
+### Fixed
+
+- Amazon Music Source Input now registers as a deferred Runtime Hydration source, returning `ErrRuntimeDeferred` / `ErrAmazonMusicDeferred` instead of `ErrUnsupportedURL`
+- Apple Music URL parsing now validates storefront path segments and escapes path components for non-ASCII or reserved characters
+- Page Extraction regex helpers now accept patterns with multiple capture groups while preserving not-found behavior when no group exists
+- shared HTTP exchange now accepts all successful 2xx responses instead of only `200 OK`
+- Apple Music Identifier Enrichment now preserves source track fields while copying only missing UPC/ISRC identifiers, and keeps stronger existing Apple Music matches when cascaded search is weaker
 
 ## v0.4.4 - 2026-04-23
 
