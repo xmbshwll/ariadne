@@ -43,11 +43,6 @@ func (c serviceCapability) enabled(config Config) serviceCapability {
 	return c
 }
 
-func (c serviceCapability) withTargetSearchEnabled(enabled func(Config) bool) serviceCapability {
-	c.targetSearchEnabled = enabled
-	return c
-}
-
 type serviceAdapterSet struct {
 	albumSource resolve.SourceAdapter
 	albumTarget resolve.TargetAdapter
