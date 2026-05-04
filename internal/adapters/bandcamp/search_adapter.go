@@ -154,7 +154,7 @@ func fetchBandcampAutocompleteCandidates(ctx context.Context, adapter *Adapter, 
 		DecodeError:       "decode bandcamp autocomplete response",
 		MalformedResponse: errMalformedBandcampSearchResponse,
 	}, &response); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bandcamp autocomplete: %w", err)
 	}
 	return extract(response), nil
 }
