@@ -10,11 +10,12 @@ import (
 )
 
 var (
-	jsonLDPattern                = regexp.MustCompile(`(?s)<script type="application/ld\+json">\s*(\{.*?\})\s*</script>`)
-	errUnexpectedBandcampService = errors.New("unexpected bandcamp service")
-	errUnexpectedBandcampStatus  = errors.New("unexpected bandcamp status")
-	errBandcampJSONLDNotFound    = errors.New("bandcamp json-ld not found")
-	errMalformedBandcampJSONLD   = errors.New("malformed bandcamp json-ld")
+	jsonLDPattern                      = regexp.MustCompile(`(?s)<script type="application/ld\+json">\s*(\{.*?\})\s*</script>`)
+	errUnexpectedBandcampService       = errors.New("unexpected bandcamp service")
+	errUnexpectedBandcampStatus        = errors.New("unexpected bandcamp status")
+	errBandcampJSONLDNotFound          = errors.New("bandcamp json-ld not found")
+	errMalformedBandcampJSONLD         = errors.New("malformed bandcamp json-ld")
+	errMalformedBandcampSearchResponse = errors.New("malformed bandcamp search response")
 )
 
 // Option configures the Bandcamp adapter.
@@ -27,7 +28,7 @@ func WithSearchBaseURL(baseURL string) Option {
 	}
 }
 
-// Adapter implements Bandcamp source and metadata target operations via HTML scraping.
+// Adapter implements Bandcamp source and metadata target operations.
 type Adapter struct {
 	client        *http.Client
 	searchBaseURL string

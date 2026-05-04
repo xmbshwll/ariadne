@@ -63,6 +63,60 @@ func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
 	assert.Equal(t, targetSearchAlbum3, candidates[2].CandidateID)
 }
 
+func TestTargetSearchPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.T) {
+	plan := targetSearchPlan[model.CandidateAlbum]{
+		target:  newStubTargetAdapter(),
+		service: model.ServiceSpotify,
+		keyFunc: albumCandidateKey,
+		layers: []targetSearchLayer[model.CandidateAlbum]{
+			{
+				name:    "SearchByUPC",
+				enabled: true,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return nil, context.DeadlineExceeded
+				},
+			},
+			{
+				name:    "SearchByMetadata",
+				enabled: true,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return []model.CandidateAlbum{{CandidateID: targetSearchAlbum1, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}}}, nil
+				},
+			},
+		},
+	}
+
+	candidates, err := plan.collect(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
+}
+
+func TestTargetSearchPlanKeepsParentContextDeadlineFatal(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	plan := targetSearchPlan[model.CandidateAlbum]{
+		target:  newStubTargetAdapter(),
+		service: model.ServiceSpotify,
+		keyFunc: albumCandidateKey,
+		layers: []targetSearchLayer[model.CandidateAlbum]{
+			{
+				name:    "SearchByMetadata",
+				enabled: true,
+				search: func(context.Context) ([]model.CandidateAlbum, error) {
+					return nil, context.DeadlineExceeded
+				},
+			},
+		},
+	}
+
+	_, err := plan.collect(ctx)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
 func TestTargetSearchPlanWrapsLayerErrors(t *testing.T) {
 	plan := targetSearchPlan[model.CandidateAlbum]{
 		target:  newStubTargetAdapter(),

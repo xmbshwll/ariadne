@@ -10,6 +10,7 @@ CLI_PACKAGE ?= ./ariadne
 BUILD_DIR ?= bin
 RELEASE_TEST_MODFILE ?= go.release.test.mod
 RELEASE_TEST_SUMFILE ?= go.release.test.sum
+RELEASE_MOD_FLAGS ?= -mod=mod -modfile=$(RELEASE_TEST_MODFILE)
 
 help:
 	@echo "Available targets:"
@@ -62,7 +63,7 @@ test-release:
 		cp go.mod $(RELEASE_TEST_MODFILE) && \
 		if [ -f go.sum ]; then cp go.sum $(RELEASE_TEST_SUMFILE); fi && \
 		$(GO) mod edit -modfile=$(RELEASE_TEST_MODFILE) -replace=github.com/xmbshwll/ariadne=.. && \
-		GOWORK=off $(GO) test -modfile=$(RELEASE_TEST_MODFILE) ./... && \
+		GOWORK=off $(GO) test $(RELEASE_MOD_FLAGS) ./... && \
 		rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE) && \
 		trap - EXIT
 
@@ -89,7 +90,7 @@ verify-release: test-release
 		cp go.mod $(RELEASE_TEST_MODFILE) && \
 		if [ -f go.sum ]; then cp go.sum $(RELEASE_TEST_SUMFILE); fi && \
 		$(GO) mod edit -modfile=$(RELEASE_TEST_MODFILE) -replace=github.com/xmbshwll/ariadne=.. && \
-		GOWORK=off $(GO) build -modfile=$(RELEASE_TEST_MODFILE) ./... && \
+		GOWORK=off $(GO) build $(RELEASE_MOD_FLAGS) ./... && \
 		rm -f $(RELEASE_TEST_MODFILE) $(RELEASE_TEST_SUMFILE) && \
 		trap - EXIT
 

@@ -82,6 +82,17 @@ func TestSearchSongByMetadataFindsClientIDInLaterScriptAsset(t *testing.T) {
 	assert.Equal(t, server.URL+"/artist/good-track", results[0].MatchURL)
 }
 
+func TestSearchSongByMetadataReturnsNoResultsWhenClientIDUnavailable(t *testing.T) {
+	server := newSoundCloudServerWithoutClientID()
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "FENIAN", Artists: []string{"KNEECAP"}})
+
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
 func TestToCanonicalSongLeavesAlbumArtistsEmptyWithoutAlbumTitle(t *testing.T) {
 	song := toCanonicalSong(soundTrack{
 		Title:        "Loose Track",

@@ -182,7 +182,7 @@ For detailed runtime behavior by service, see [`docs/service-resolution.md`](./d
 | Spotify | Yes | Yes | Yes | Yes | Target search needs `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` | supported |
 | Apple Music | Yes | Yes | Yes | Yes | UPC and ISRC target search need Apple Music key material | supported |
 | Deezer | Yes | Yes | Yes | Yes | No credentials required | supported |
-| Bandcamp | Yes | Yes | Yes | Yes | Metadata-first, scraping-based | experimental |
+| Bandcamp | Yes | Yes | Yes | Yes | Metadata-first, autocomplete API + JSON-LD hydration | experimental |
 | SoundCloud | Yes | Yes | Yes | Yes | Metadata-first, public page and API extraction | experimental |
 | YouTube Music | Yes | Yes | Parse only | No | Album public HTML extraction; song hydration deferred | experimental |
 | TIDAL | Yes | Yes | Yes | Yes | Needs `TIDAL_CLIENT_ID` and `TIDAL_CLIENT_SECRET` | experimental |

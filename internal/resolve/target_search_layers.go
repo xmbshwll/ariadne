@@ -2,7 +2,9 @@ package resolve
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -30,6 +32,9 @@ func (p targetSearchPlan[T]) collect(ctx context.Context) ([]T, error) {
 		}
 		candidates, err := layer.search(ctx)
 		if err != nil {
+			if isRecoverableTargetTimeout(ctx, err) {
+				continue
+			}
 			return nil, fmt.Errorf("%s %s (%T) failed: %w", layer.name, p.service, p.target, err)
 		}
 		if layer.filter != nil {
@@ -38,6 +43,17 @@ func (p targetSearchPlan[T]) collect(ctx context.Context) ([]T, error) {
 		combined = appendUniqueByKey(combined, seen, candidates, p.keyFunc)
 	}
 	return combined, nil
+}
+
+func isRecoverableTargetTimeout(ctx context.Context, err error) bool {
+	if err == nil || ctx.Err() != nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 type albumMetadataCandidateFilter func([]model.CandidateAlbum) []model.CandidateAlbum

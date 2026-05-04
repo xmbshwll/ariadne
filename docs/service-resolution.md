@@ -130,6 +130,8 @@ ResolveAlbum(url)
 
 Inside one target, search layers run in order. Across targets, searches run concurrently, so no target can depend on another target until the optional Apple Music cascade pass.
 
+Per-request target timeouts are recoverable while the overall resolution context is still active. The timed-out layer is skipped, later layers and other targets continue, and the service may return `not_found`. The overall resolution timeout remains fatal.
+
 ## Apple Music album cascade pass
 
 Apple Music public metadata search can miss albums that exist in the Apple catalog. To recover those cases, Ariadne can learn identifiers from other strong target matches and re-run Apple Music.
@@ -467,7 +469,7 @@ The Provider Catalog validates requested target services before resolver constru
 
 ### Metadata-first album targets
 
-Bandcamp, SoundCloud, and YouTube Music rely on metadata search.
+Bandcamp, SoundCloud, and YouTube Music rely on metadata search. Bandcamp target search uses the public fuzzy autocomplete API for candidate discovery, then hydrates matched album or track pages from schema.org JSON-LD.
 
 ```text
 Target album search
@@ -539,7 +541,7 @@ Ranking sorts candidates by descending score. Equal album scores break by candid
 | Spotify | Yes | Yes | Yes | Yes | album: UPC + ISRC + metadata; song: ISRC + metadata | target search and song source need Spotify credentials |
 | Deezer | Yes | Yes | Yes | Yes | album: UPC + ISRC + metadata; song: ISRC + metadata | no credentials required |
 | TIDAL | Yes | Yes | Yes | Yes | album: UPC + ISRC + metadata; song: ISRC + metadata | source and target need TIDAL credentials |
-| Bandcamp | Yes | Yes | Yes | Yes | metadata only | HTML / JSON-LD based |
+| Bandcamp | Yes | Yes | Yes | Yes | metadata only | autocomplete API + JSON-LD based |
 | SoundCloud | Yes | Yes | Yes | Yes | metadata only | public page / API-v2 based |
 | YouTube Music | Yes | Yes | Parse only | No | album metadata only | song fetch matches `ErrRuntimeDeferred` + `ErrYouTubeMusicDeferred` |
 | Amazon Music | Parse only | No | Parse only | No | none | runtime fetch matches `ErrRuntimeDeferred` + `ErrAmazonMusicDeferred` |

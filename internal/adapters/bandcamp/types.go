@@ -1,5 +1,16 @@
 package bandcamp
 
+type fuzzySearchResponse struct {
+	Results []fuzzySearchResult `json:"results"`
+}
+
+type fuzzySearchResult struct {
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	BandName string `json:"band_name"`
+	URL      string `json:"url"`
+}
+
 type schemaAlbum struct {
 	ID            string              `json:"@id"`
 	Type          string              `json:"@type"`

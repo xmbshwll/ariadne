@@ -18,6 +18,9 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 	var payload searchResponse
 	if err := a.getSearchJSON(ctx, "/search/playlists", query, &payload); err != nil {
+		if soundCloudSearchUnavailable(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
 	results, err := adapterutil.CollectCandidates(
@@ -39,6 +42,9 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 	var payload trackSearchResponse
 	if err := a.getSearchJSON(ctx, "/search/tracks", query, &payload); err != nil {
+		if soundCloudSearchUnavailable(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
 	results, err := adapterutil.CollectCandidates(
@@ -51,6 +57,10 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("collect soundcloud song candidates: %w", err)
 	}
 	return results, nil
+}
+
+func soundCloudSearchUnavailable(err error) bool {
+	return errors.Is(err, errSoundCloudClientIDNotFound)
 }
 
 func validSoundCloudPlaylistSearchHit(playlist soundPlaylist) bool {

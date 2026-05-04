@@ -15,12 +15,15 @@ const (
 	searchHydrationLimit = 8
 )
 
-// SearchByMetadata searches Bandcamp HTML results and hydrates matching album pages.
+// SearchByMetadata searches Bandcamp metadata results and hydrates matching album pages.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	results, err := searchBandcampCandidates(
 		ctx,
 		a,
 		adapterutil.TitleAndFirstArtistQuery(album.Title, album.Artists),
+		func(response fuzzySearchResponse) []searchCandidate {
+			return rankSearchCandidates(album, extractAutocompleteAlbumSearchCandidates(response))
+		},
 		func(body []byte) []searchCandidate {
 			return rankSearchCandidates(album, extractSearchCandidates(body))
 		},
@@ -37,12 +40,15 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}), nil
 }
 
-// SearchSongByMetadata searches Bandcamp HTML results and hydrates matching track pages.
+// SearchSongByMetadata searches Bandcamp metadata results and hydrates matching track pages.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
 	results, err := searchBandcampCandidates(
 		ctx,
 		a,
 		adapterutil.TitleAndFirstArtistQuery(song.Title, song.Artists),
+		func(response fuzzySearchResponse) []searchCandidate {
+			return rankSongSearchCandidates(song, extractAutocompleteSongSearchCandidates(response))
+		},
 		func(body []byte) []searchCandidate {
 			return rankSongSearchCandidates(song, extractSongSearchCandidates(body))
 		},
@@ -87,20 +93,30 @@ func (a *Adapter) hydrateBandcampSongSearchCandidate(ctx context.Context, candid
 	}, nil
 }
 
-func searchBandcampCandidates[Candidate any](ctx context.Context, adapter *Adapter, query string, extract func([]byte) []searchCandidate, hydrate func(context.Context, searchCandidate) (Candidate, error), collectErr string) ([]Candidate, error) {
+func searchBandcampCandidates[Candidate any](
+	ctx context.Context,
+	adapter *Adapter,
+	query string,
+	extractAutocomplete func(fuzzySearchResponse) []searchCandidate,
+	extractHTML func([]byte) []searchCandidate,
+	hydrate func(context.Context, searchCandidate) (Candidate, error),
+	collectErr string,
+) ([]Candidate, error) {
 	if query == "" {
 		return nil, nil
 	}
 
-	searchURL := fmt.Sprintf("%s/search?q=%s", adapter.searchBaseURL, url.QueryEscape(query))
-	body, err := adapter.fetchPage(ctx, searchURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetch bandcamp search page: %w", err)
+	candidates, err := fetchBandcampAutocompleteCandidates(ctx, adapter, query, extractAutocomplete)
+	if err != nil || len(candidates) == 0 {
+		candidates, err = fetchBandcampHTMLCandidates(ctx, adapter, query, extractHTML)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	results, err := adapterutil.CollectCandidatesWithContext(
 		ctx,
-		extract(body),
+		candidates,
 		searchHydrationLimit,
 		bandcampSearchCandidateURL,
 		hydrate,
@@ -112,6 +128,35 @@ func searchBandcampCandidates[Candidate any](ctx context.Context, adapter *Adapt
 		return nil, nil
 	}
 	return results, nil
+}
+
+func fetchBandcampHTMLCandidates(ctx context.Context, adapter *Adapter, query string, extract func([]byte) []searchCandidate) ([]searchCandidate, error) {
+	searchURL := fmt.Sprintf("%s/search?q=%s", adapter.searchBaseURL, url.QueryEscape(query))
+	body, err := adapter.fetchPage(ctx, searchURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetch bandcamp search page: %w", err)
+	}
+	return extract(body), nil
+}
+
+func fetchBandcampAutocompleteCandidates(ctx context.Context, adapter *Adapter, query string, extract func(fuzzySearchResponse) []searchCandidate) ([]searchCandidate, error) {
+	searchURL := fmt.Sprintf("%s/api/fuzzysearch/1/app_autocomplete?q=%s", adapter.searchBaseURL, url.QueryEscape(query))
+	var response fuzzySearchResponse
+	if err := adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
+		RequestSpec: adapterutil.RequestSpec{
+			Client:       adapter.client,
+			URL:          searchURL,
+			UserAgent:    adapterutil.DefaultUserAgent,
+			BuildError:   "build bandcamp autocomplete request",
+			ExecuteError: "execute bandcamp autocomplete request",
+			StatusError:  adapterutil.StatusError(errUnexpectedBandcampStatus),
+		},
+		DecodeError:       "decode bandcamp autocomplete response",
+		MalformedResponse: errMalformedBandcampSearchResponse,
+	}, &response); err != nil {
+		return nil, err
+	}
+	return extract(response), nil
 }
 
 func topRankedCandidates[Ranked any, Candidate any](ranked []Ranked, candidate func(Ranked) Candidate) []Candidate {
