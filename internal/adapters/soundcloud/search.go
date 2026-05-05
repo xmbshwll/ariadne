@@ -9,6 +9,7 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
@@ -18,7 +19,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 	var payload searchResponse
 	if err := a.getSearchJSON(ctx, "/search/playlists", query, &payload); err != nil {
-		if soundCloudSearchUnavailable(err) {
+		if targetsearch.IsUnavailable(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
@@ -42,7 +43,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 	var payload trackSearchResponse
 	if err := a.getSearchJSON(ctx, "/search/tracks", query, &payload); err != nil {
-		if soundCloudSearchUnavailable(err) {
+		if targetsearch.IsUnavailable(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
@@ -57,10 +58,6 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("collect soundcloud song candidates: %w", err)
 	}
 	return results, nil
-}
-
-func soundCloudSearchUnavailable(err error) bool {
-	return errors.Is(err, errSoundCloudClientIDNotFound)
 }
 
 func validSoundCloudPlaylistSearchHit(playlist soundPlaylist) bool {
@@ -106,10 +103,9 @@ func soundCloudSongSearchCandidate(track soundTrack) (model.CandidateSong, error
 func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, target any) error {
 	clientID, err := a.clientIdentifier(ctx)
 	if err != nil {
-		return err
+		return classifySoundCloudTargetSearchError(err)
 	}
-	requestURL := a.searchURL(path, query, clientID)
-	if err := a.getJSON(ctx, requestURL, target); err == nil {
+	if err := a.getSearchJSONWithClientID(ctx, path, query, clientID, target); err == nil {
 		return nil
 	} else if !isSoundCloudClientIDError(err) {
 		return err
@@ -117,9 +113,20 @@ func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, 
 
 	clientID, err = a.refreshClientIdentifier(ctx)
 	if err != nil {
-		return err
+		return classifySoundCloudTargetSearchError(err)
 	}
+	return a.getSearchJSONWithClientID(ctx, path, query, clientID, target)
+}
+
+func (a *Adapter) getSearchJSONWithClientID(ctx context.Context, path string, query string, clientID string, target any) error {
 	return a.getJSON(ctx, a.searchURL(path, query, clientID), target)
+}
+
+func classifySoundCloudTargetSearchError(err error) error {
+	if errors.Is(err, errSoundCloudClientIDNotFound) {
+		return fmt.Errorf("soundcloud target search unavailable: %w", targetsearch.Unavailable(err))
+	}
+	return err
 }
 
 func (a *Adapter) searchURL(path string, query string, clientID string) string {
