@@ -8,21 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewWithClientBuildsDefaultServiceAdaptersOnce(t *testing.T) {
+func TestNewWithProviderCatalogBuildsServiceAdaptersOnce(t *testing.T) {
 	buildCount := 0
-	originalCatalog := defaultProviderCatalog
-	defaultProviderCatalog = newProviderCatalog([]serviceBinding{{
+	catalog := newProviderCatalog([]serviceBinding{{
 		capability: serviceCapability{name: ServiceName("fixture")},
 		build: func(*http.Client, Config) serviceAdapterSet {
 			buildCount++
 			return serviceAdapterSet{}
 		},
 	}}, serviceOrder{})
-	t.Cleanup(func() {
-		defaultProviderCatalog = originalCatalog
-	})
 
-	resolver := NewWithClient(&http.Client{}, DefaultConfig())
+	resolver := newWithProviderCatalog(&http.Client{}, DefaultConfig(), catalog)
 	require.NotNil(t, resolver)
 	assert.Equal(t, 1, buildCount)
 }

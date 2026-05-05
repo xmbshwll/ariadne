@@ -37,11 +37,15 @@ func New(config Config) *Resolver {
 
 // NewWithClient builds a Resolver with the default adapter set and a caller-provided HTTP client.
 func NewWithClient(client *http.Client, config Config) *Resolver {
+	return newWithProviderCatalog(client, config, defaultProviderCatalog)
+}
+
+func newWithProviderCatalog(client *http.Client, config Config, catalog providerCatalog) *Resolver {
 	config = normalizedConfig(config)
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
-	adapters := defaultProviderCatalog.resolverAdapters(client, config)
+	adapters := catalog.resolverAdapters(client, config)
 	return newResolver(
 		adapters.albumSources,
 		adapters.albumTargets,
@@ -77,10 +81,10 @@ func NewWithEntityAdapters(albumSources []SourceAdapter, albumTargets []TargetAd
 // NewWithEntityAdaptersAndWeights builds a Resolver from caller-provided album and song adapters and explicit ranking weights.
 func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter, albumWeights ScoreWeights, songWeights SongScoreWeights) *Resolver {
 	return newResolver(
-		resolveSourceAdapters(albumSources),
-		resolveTargetAdapters(albumTargets),
-		resolveSongSourceAdapters(songSources),
-		resolveSongTargetAdapters(songTargets),
+		albumSources,
+		albumTargets,
+		songSources,
+		songTargets,
 		albumWeights,
 		songWeights,
 	)

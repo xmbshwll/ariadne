@@ -76,46 +76,51 @@ type serviceAdapter interface {
 
 // Resolver coordinates album Source Input, Runtime Hydration, Target Search, and Identifier Enrichment.
 type Resolver struct {
-	sources          []SourceAdapter
-	targets          []TargetAdapter
+	policy albumEntityResolutionPolicy
+}
+
+type albumEntityResolutionPolicy struct {
+	sourceAdapters   []SourceAdapter
+	targetAdapters   []TargetAdapter
 	weights          score.Weights
 	appleMusicPolicy appleMusicEnrichmentPolicy
 }
 
-// New creates a resolver from registered source and target adapters.
-func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) *Resolver {
-	return &Resolver{
-		sources:          append([]SourceAdapter(nil), sources...),
-		targets:          append([]TargetAdapter(nil), targets...),
+func newAlbumEntityResolutionPolicy(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) albumEntityResolutionPolicy {
+	return albumEntityResolutionPolicy{
+		sourceAdapters:   append([]SourceAdapter(nil), sources...),
+		targetAdapters:   append([]TargetAdapter(nil), targets...),
 		weights:          weights,
 		appleMusicPolicy: newAppleMusicEnrichmentPolicy(weights),
 	}
 }
 
+// New creates a resolver from registered source and target adapters.
+func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) *Resolver {
+	return &Resolver{policy: newAlbumEntityResolutionPolicy(sources, targets, weights)}
+}
+
 // ResolveAlbum parses an input album URL, fetches the canonical source album,
 // then collects and ranks candidates from every target adapter except the source service.
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
-	source, err := resolveAlbumSourceInput(ctx, r.sources, inputURL)
-	if err != nil {
-		return nil, err
-	}
+	return r.policy.resolve(ctx, inputURL)
+}
 
-	targets := excludeTargetService(r.targets, source.Entity.Service)
-	matches, err := r.resolveAlbumTargets(ctx, targets, source.Entity)
-	if err != nil {
-		return nil, fmt.Errorf("resolve target searches: %w", err)
-	}
+func (p albumEntityResolutionPolicy) resolve(ctx context.Context, inputURL string) (*Resolution, error) {
+	return resolveEntity[model.ParsedAlbumURL, model.CanonicalAlbum, TargetAdapter, MatchResult, Resolution](
+		ctx,
+		inputURL,
+		p.resolveSourceInput,
+		p.sourceService,
+		p.targetAdapters,
+		p.resolveTargetMatches,
+		p.afterTargetMatches,
+		p.resolution,
+	)
+}
 
-	if err := r.appleMusicPolicy.apply(ctx, targets, source.Entity, matches); err != nil {
-		return nil, fmt.Errorf("resolve apple music cascaded search: %w", err)
-	}
-
-	return &Resolution{
-		InputURL: inputURL,
-		Parsed:   source.Parsed,
-		Source:   source.Entity,
-		Matches:  matches,
-	}, nil
+func (p albumEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], error) {
+	return resolveAlbumSourceInput(ctx, p.sourceAdapters, inputURL)
 }
 
 func resolveAlbumSourceInput(ctx context.Context, sources []SourceAdapter, inputURL string) (sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], error) {
@@ -134,18 +139,42 @@ func resolveAlbumSourceInput(ctx context.Context, sources []SourceAdapter, input
 	)
 }
 
-func (r *Resolver) resolveAlbumTargets(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum) (map[model.ServiceName]MatchResult, error) {
-	return resolveTargetMatches(
+func (p albumEntityResolutionPolicy) sourceService(source model.CanonicalAlbum) model.ServiceName {
+	return source.Service
+}
+
+func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum) (map[model.ServiceName]MatchResult, error) {
+	matches, err := resolveTargetMatches(
 		ctx,
 		targets,
 		source,
-		r.appleMusicPolicy.collectTargetCandidates,
+		p.appleMusicPolicy.collectTargetCandidates,
 		func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
-			return score.RankAlbums(source, candidates, r.weights)
+			return score.RankAlbums(source, candidates, p.weights)
 		},
 		albumMatchResultFromRanking,
 		"candidates",
 	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve target searches: %w", err)
+	}
+	return matches, nil
+}
+
+func (p albumEntityResolutionPolicy) afterTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) error {
+	if err := p.appleMusicPolicy.apply(ctx, targets, source, matches); err != nil {
+		return fmt.Errorf("resolve apple music cascaded search: %w", err)
+	}
+	return nil
+}
+
+func (p albumEntityResolutionPolicy) resolution(inputURL string, source sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], matches map[model.ServiceName]MatchResult) *Resolution {
+	return &Resolution{
+		InputURL: inputURL,
+		Parsed:   source.Parsed,
+		Source:   source.Entity,
+		Matches:  matches,
+	}
 }
 
 func excludeTargetService[T serviceAdapter](targets []T, sourceService model.ServiceName) []T {

@@ -1,13 +1,12 @@
 package main
 
 import (
-	"github.com/xmbshwll/ariadne/internal/model"
-
 	"context"
 	"errors"
 	"testing"
 
 	"github.com/xmbshwll/ariadne"
+	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 var (
@@ -47,7 +46,6 @@ func (a fixtureSourceAdapterForCLI) FetchAlbum(_ context.Context, parsed ariadne
 type fixtureTargetAdapterForCLI struct {
 	service     ariadne.ServiceName
 	upcResults  []ariadne.CandidateAlbum
-	isrcResults []ariadne.CandidateAlbum
 	metaResults []ariadne.CandidateAlbum
 	metadataErr error
 }
@@ -64,12 +62,9 @@ func (a fixtureTargetAdapterForCLI) Service() ariadne.ServiceName {
 	return a.service
 }
 
+//nolint:unparam // Test fixture implements UPCSearcher; no test needs UPC search errors.
 func (a fixtureTargetAdapterForCLI) SearchByUPC(_ context.Context, _ string) ([]ariadne.CandidateAlbum, error) {
 	return append([]ariadne.CandidateAlbum(nil), a.upcResults...), nil
-}
-
-func (a fixtureTargetAdapterForCLI) SearchByISRC(_ context.Context, _ []string) ([]ariadne.CandidateAlbum, error) {
-	return append([]ariadne.CandidateAlbum(nil), a.isrcResults...), nil
 }
 
 func (a fixtureTargetAdapterForCLI) SearchByMetadata(_ context.Context, _ ariadne.CanonicalAlbum) ([]ariadne.CandidateAlbum, error) {
@@ -127,6 +122,7 @@ func (a fixtureSongTargetAdapterForCLI) Service() ariadne.ServiceName {
 	return a.service
 }
 
+//nolint:unparam // Test fixture implements SongISRCSearcher; no test needs ISRC search errors.
 func (a fixtureSongTargetAdapterForCLI) SearchSongByISRC(_ context.Context, _ string) ([]ariadne.CandidateSong, error) {
 	return append([]ariadne.CandidateSong(nil), a.isrcResults...), nil
 }
