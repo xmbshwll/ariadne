@@ -87,19 +87,21 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, nil
 	}
 
-	var searchResults albumSearchResponse
-	endpoint := a.baseURL + "/search/album?q=" + url.QueryEscape(query)
-	if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
-		return nil, fmt.Errorf("search deezer by metadata %q: %w", query, err)
+	targetSearch := adapterutil.MetadataQueryTargetSearch[albumResponse, model.CandidateAlbum]{
+		Queries: []string{query},
+		Limit:   metadataSearchLimit,
+		Search: func(ctx context.Context, query string) ([]albumResponse, error) {
+			var searchResults albumSearchResponse
+			endpoint := a.baseURL + "/search/album?q=" + url.QueryEscape(query)
+			if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
+				return nil, fmt.Errorf("search deezer by metadata %q: %w", query, err)
+			}
+			return searchResults.Data, nil
+		},
+		ItemID:         deezerAlbumSearchCandidateID,
+		BuildCandidate: a.hydrateDeezerAlbumSearchCandidate,
 	}
-
-	results, err := adapterutil.CollectCandidatesWithContext(
-		ctx,
-		searchResults.Data,
-		metadataSearchLimit,
-		deezerAlbumSearchCandidateID,
-		a.hydrateDeezerAlbumSearchCandidate,
-	)
+	results, err := targetSearch.Collect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("collect deezer album candidates: %w", err)
 	}
@@ -130,19 +132,21 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, nil
 	}
 
-	var searchResults tracksResponse
-	endpoint := a.baseURL + "/search/track?q=" + url.QueryEscape(query)
-	if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
-		return nil, fmt.Errorf("search deezer song by metadata %q: %w", query, err)
+	targetSearch := adapterutil.MetadataQueryTargetSearch[trackResponse, model.CandidateSong]{
+		Queries: []string{query},
+		Limit:   metadataSearchLimit,
+		Search: func(ctx context.Context, query string) ([]trackResponse, error) {
+			var searchResults tracksResponse
+			endpoint := a.baseURL + "/search/track?q=" + url.QueryEscape(query)
+			if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
+				return nil, fmt.Errorf("search deezer song by metadata %q: %w", query, err)
+			}
+			return searchResults.Data, nil
+		},
+		ItemID:         deezerSongSearchCandidateID,
+		BuildCandidate: a.hydrateDeezerSongSearchCandidate,
 	}
-
-	results, err := adapterutil.CollectCandidatesWithContext(
-		ctx,
-		searchResults.Data,
-		metadataSearchLimit,
-		deezerSongSearchCandidateID,
-		a.hydrateDeezerSongSearchCandidate,
-	)
+	results, err := targetSearch.Collect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("collect deezer song candidates: %w", err)
 	}

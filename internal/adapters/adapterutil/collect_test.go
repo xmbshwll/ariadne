@@ -1,6 +1,7 @@
 package adapterutil
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -18,6 +19,33 @@ var (
 type metadataQueryTestItem struct {
 	ID    string
 	Value string
+}
+
+type metadataQueryContextKey struct{}
+
+func TestMetadataQueryTargetSearchPassesContextToSearchAndBuildCandidate(t *testing.T) {
+	ctx := context.WithValue(context.Background(), metadataQueryContextKey{}, "metadata-context")
+	targetSearch := MetadataQueryTargetSearch[metadataQueryTestItem, string]{
+		Queries: []string{"first"},
+		Limit:   1,
+		Search: func(ctx context.Context, query string) ([]metadataQueryTestItem, error) {
+			assert.Equal(t, "metadata-context", ctx.Value(metadataQueryContextKey{}))
+			assert.Equal(t, "first", query)
+			return []metadataQueryTestItem{{ID: "a", Value: "A"}}, nil
+		},
+		ItemID: func(item metadataQueryTestItem) string {
+			return item.ID
+		},
+		BuildCandidate: func(ctx context.Context, item metadataQueryTestItem) (string, error) {
+			assert.Equal(t, "metadata-context", ctx.Value(metadataQueryContextKey{}))
+			return item.Value, nil
+		},
+	}
+
+	candidates, err := targetSearch.Collect(ctx)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"A"}, candidates)
 }
 
 func TestCollectMetadataQueryCandidatesDeduplicatesAndStopsAtLimit(t *testing.T) {

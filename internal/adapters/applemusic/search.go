@@ -18,10 +18,10 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 
 	storefront := a.storefrontFor(album.RegionHint)
-	collector := adapterutil.MetadataQueryCandidateCollector[lookupItem, model.CandidateAlbum]{
+	targetSearch := adapterutil.MetadataQueryTargetSearch[lookupItem, model.CandidateAlbum]{
 		Queries: queries,
 		Limit:   searchLimit,
-		Search: func(query string) ([]lookupItem, error) {
+		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
 			searchURL := a.metadataSearchURL(query, "album", storefront)
 			var payload lookupResponse
 			if err := a.getJSON(ctx, searchURL, &payload); err != nil {
@@ -30,7 +30,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 			return payload.Results, nil
 		},
 		ItemID: appleMusicAlbumSearchItemID,
-		BuildCandidate: func(item lookupItem) (model.CandidateAlbum, error) {
+		BuildCandidate: func(ctx context.Context, item lookupItem) (model.CandidateAlbum, error) {
 			canonical, err := a.fetchAlbumByID(
 				ctx,
 				strconv.FormatInt(item.CollectionID, 10),
@@ -44,7 +44,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
-	results, err := adapterutil.CollectMetadataQueryCandidates(collector)
+	results, err := targetSearch.Collect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("collect apple music metadata candidates: %w", err)
 	}
@@ -59,10 +59,10 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 
 	storefront := a.storefrontFor(song.RegionHint)
-	collector := adapterutil.MetadataQueryCandidateCollector[lookupItem, model.CandidateSong]{
+	targetSearch := adapterutil.MetadataQueryTargetSearch[lookupItem, model.CandidateSong]{
 		Queries: queries,
 		Limit:   searchLimit,
-		Search: func(query string) ([]lookupItem, error) {
+		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
 			searchURL := a.metadataSearchURL(query, entitySong, storefront)
 			var payload lookupResponse
 			if err := a.getJSON(ctx, searchURL, &payload); err != nil {
@@ -71,7 +71,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 			return payload.Results, nil
 		},
 		ItemID: appleMusicSongSearchItemID,
-		BuildCandidate: func(item lookupItem) (model.CandidateSong, error) {
+		BuildCandidate: func(ctx context.Context, item lookupItem) (model.CandidateSong, error) {
 			canonical, err := a.fetchSongByID(
 				ctx,
 				strconv.FormatInt(item.TrackID, 10),
@@ -85,7 +85,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
-	results, err := adapterutil.CollectMetadataQueryCandidates(collector)
+	results, err := targetSearch.Collect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("collect apple music song metadata candidates: %w", err)
 	}

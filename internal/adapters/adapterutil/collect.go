@@ -70,6 +70,35 @@ func CollectCandidatesWithContext[Input any, Candidate any](
 	})
 }
 
+type MetadataQueryTargetSearch[Item any, Candidate any] struct {
+	Queries                  []string
+	Limit                    int
+	Search                   func(context.Context, string) ([]Item, error)
+	ItemID                   func(Item) string
+	BuildCandidate           func(context.Context, Item) (Candidate, error)
+	ContinueAfterSearchError func(collected int) bool
+}
+
+func (search MetadataQueryTargetSearch[Item, Candidate]) Collect(ctx context.Context) ([]Candidate, error) {
+	if len(search.Queries) == 0 {
+		return nil, nil
+	}
+
+	collector := MetadataQueryCandidateCollector[Item, Candidate]{
+		Queries: search.Queries,
+		Limit:   search.Limit,
+		Search: func(query string) ([]Item, error) {
+			return search.Search(ctx, query)
+		},
+		ItemID: search.ItemID,
+		BuildCandidate: func(item Item) (Candidate, error) {
+			return search.BuildCandidate(ctx, item)
+		},
+		ContinueAfterSearchError: search.ContinueAfterSearchError,
+	}
+	return CollectMetadataQueryCandidates(collector)
+}
+
 type MetadataQueryCandidateCollector[Item any, Candidate any] struct {
 	Queries                  []string
 	Limit                    int
