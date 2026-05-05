@@ -81,7 +81,7 @@ type MetadataQueryTargetSearch[Item any, Candidate any] struct {
 
 func (search MetadataQueryTargetSearch[Item, Candidate]) Collect(ctx context.Context) ([]Candidate, error) {
 	if len(search.Queries) == 0 {
-		return nil, nil
+		return []Candidate{}, nil
 	}
 
 	collector := MetadataQueryCandidateCollector[Item, Candidate]{

@@ -75,7 +75,7 @@ func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.
 	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
 }
 
-func TestSearchBandcampCandidatesFallsBackToHTMLWhenAutocompleteYieldsNoHydratedResults(t *testing.T) {
+func TestSearchBandcampCandidatesFallsBackToHTMLWhenAutocompleteYieldsNoCandidates(t *testing.T) {
 	server := newBandcampTestServer(func(string) map[string][]byte {
 		return map[string][]byte{
 			"/api/fuzzysearch/1/app_autocomplete": []byte(`{"results":[]}`),
@@ -86,11 +86,9 @@ func TestSearchBandcampCandidatesFallsBackToHTMLWhenAutocompleteYieldsNoHydrated
 
 	adapter := newBandcampTestAdapter(server)
 	search := bandcampTargetSearch[model.CandidateAlbum]{
-		adapter: adapter,
-		query:   "Fenian Kneecap",
-		autocompleteCandidates: func(fuzzySearchResponse) []searchCandidate {
-			return []searchCandidate{{Title: "Fenian"}}
-		},
+		adapter:                adapter,
+		query:                  "Fenian Kneecap",
+		autocompleteCandidates: extractAutocompleteAlbumSearchCandidates,
 		htmlCandidates: func([]byte) []searchCandidate {
 			return []searchCandidate{{URL: server.URL + "/album/fenian", Title: "Fenian"}}
 		},

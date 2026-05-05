@@ -61,27 +61,13 @@ type SongResolver struct {
 }
 
 // NewSongs creates a song resolver from registered source and target adapters.
-// Adapters that implement neither SongISRCSearcher nor SongMetadataSearcher
-// cannot participate in target search and will cause a panic.
+// Adapters that implement no song search interfaces produce no target search layers.
 func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights score.SongWeights) *SongResolver {
-	for i, target := range targets {
-		if !searchableSongTarget(target) {
-			panic(fmt.Sprintf("song target adapter at index %d (%s) implements neither SongISRCSearcher nor SongMetadataSearcher", i, target.Service()))
-		}
-	}
 	return &SongResolver{
 		sources: append([]SongSourceAdapter(nil), sources...),
 		targets: append([]SongTargetAdapter(nil), targets...),
 		weights: weights,
 	}
-}
-
-func searchableSongTarget(target SongTargetAdapter) bool {
-	if _, ok := target.(SongISRCSearcher); ok {
-		return true
-	}
-	_, ok := target.(SongMetadataSearcher)
-	return ok
 }
 
 // ResolveSong parses an input song URL, fetches the canonical source song,

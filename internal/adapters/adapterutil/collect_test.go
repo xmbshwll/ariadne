@@ -23,6 +23,14 @@ type metadataQueryTestItem struct {
 
 type metadataQueryContextKey struct{}
 
+func TestMetadataQueryTargetSearchReturnsEmptySliceForNoQueries(t *testing.T) {
+	candidates, err := (MetadataQueryTargetSearch[metadataQueryTestItem, string]{}).Collect(context.Background())
+
+	require.NoError(t, err)
+	assert.NotNil(t, candidates)
+	assert.Empty(t, candidates)
+}
+
 func TestMetadataQueryTargetSearchPassesContextToSearchAndBuildCandidate(t *testing.T) {
 	ctx := context.WithValue(context.Background(), metadataQueryContextKey{}, "metadata-context")
 	targetSearch := MetadataQueryTargetSearch[metadataQueryTestItem, string]{
