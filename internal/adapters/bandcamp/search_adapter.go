@@ -106,14 +106,37 @@ func searchBandcampCandidates[Candidate any](
 		return nil, nil
 	}
 
+	triedHTML := false
 	candidates, err := fetchBandcampAutocompleteCandidates(ctx, adapter, query, extractAutocomplete)
 	if err != nil || len(candidates) == 0 {
 		candidates, err = fetchBandcampHTMLCandidates(ctx, adapter, query, extractHTML)
 		if err != nil {
 			return nil, err
 		}
+		triedHTML = true
 	}
 
+	results, err := collectBandcampCandidates(ctx, candidates, hydrate, collectErr)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 && !triedHTML {
+		candidates, err = fetchBandcampHTMLCandidates(ctx, adapter, query, extractHTML)
+		if err != nil {
+			return nil, err
+		}
+		results, err = collectBandcampCandidates(ctx, candidates, hydrate, collectErr)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+	return results, nil
+}
+
+func collectBandcampCandidates[Candidate any](ctx context.Context, candidates []searchCandidate, hydrate func(context.Context, searchCandidate) (Candidate, error), collectErr string) ([]Candidate, error) {
 	results, err := adapterutil.CollectCandidatesWithContext(
 		ctx,
 		candidates,
@@ -123,9 +146,6 @@ func searchBandcampCandidates[Candidate any](
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", collectErr, err)
-	}
-	if len(results) == 0 {
-		return nil, nil
 	}
 	return results, nil
 }

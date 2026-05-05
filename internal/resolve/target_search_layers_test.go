@@ -3,6 +3,8 @@ package resolve
 import (
 	"context"
 	"errors"
+	"net"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +13,11 @@ import (
 )
 
 var errTargetSearchLayerBoom = errors.New("target search layer boom")
+
+type targetSearchTimeoutError struct{}
+
+func (targetSearchTimeoutError) Error() string { return "target search timeout" }
+func (targetSearchTimeoutError) Timeout() bool { return true }
 
 const (
 	targetSearchAlbum1 = "album-1"
@@ -64,7 +71,31 @@ func TestTargetSearchPlanPreservesOrderAndDeduplicates(t *testing.T) {
 }
 
 func TestTargetSearchPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.T) {
-	plan := targetSearchPlan[model.CandidateAlbum]{
+	plan := targetSearchPlanWithRecoverableTimeout(context.DeadlineExceeded)
+
+	candidates, err := plan.collect(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
+}
+
+func TestTargetSearchPlanSkipsNetErrorTimeoutsWhenParentContextIsActive(t *testing.T) {
+	plan := targetSearchPlanWithRecoverableTimeout(&url.Error{
+		Op:  "Get",
+		URL: "https://api.example.test/albums",
+		Err: &net.OpError{Op: "dial", Net: "tcp", Err: targetSearchTimeoutError{}},
+	})
+
+	candidates, err := plan.collect(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
+}
+
+func targetSearchPlanWithRecoverableTimeout(err error) targetSearchPlan[model.CandidateAlbum] {
+	return targetSearchPlan[model.CandidateAlbum]{
 		target:  newStubTargetAdapter(),
 		service: model.ServiceSpotify,
 		keyFunc: albumCandidateKey,
@@ -73,7 +104,7 @@ func TestTargetSearchPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.
 				name:    "SearchByUPC",
 				enabled: true,
 				search: func(context.Context) ([]model.CandidateAlbum, error) {
-					return nil, context.DeadlineExceeded
+					return nil, err
 				},
 			},
 			{
@@ -85,12 +116,6 @@ func TestTargetSearchPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.
 			},
 		},
 	}
-
-	candidates, err := plan.collect(context.Background())
-
-	require.NoError(t, err)
-	require.Len(t, candidates, 1)
-	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
 }
 
 func TestTargetSearchPlanKeepsParentContextDeadlineFatal(t *testing.T) {

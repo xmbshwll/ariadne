@@ -60,7 +60,7 @@ func TestSearchByMetadataUsesAutocompleteWhenHTMLSearchIsChallenged(t *testing.T
 	albumPage := mustBandcampAlbumPage(t, "FENIAN", "KNEECAP", "2025-05-05", []string{"Smugglers & Scholars", "Carnival"})
 	server := newBandcampTestServer(func(baseURL string) map[string][]byte {
 		autocomplete := strings.ReplaceAll(
-			`{"results":[{"type":"a","name":"FENIAN","band_name":"KNEECAP","url":"{{BASE_URL}}{{BASE_URL}}/album/fenian"}]}`,
+			`{"results":[{"type":"a","name":"FENIAN","band_name":"KNEECAP","url":"{{BASE_URL}}/album/fenian"}]}`,
 			bandcampBaseURLPlaceholder,
 			baseURL,
 		)
