@@ -85,21 +85,21 @@ func TestSearchBandcampCandidatesFallsBackToHTMLWhenAutocompleteYieldsNoHydrated
 	defer server.Close()
 
 	adapter := newBandcampTestAdapter(server)
-	results, err := searchBandcampCandidates(
-		context.Background(),
-		adapter,
-		"Fenian Kneecap",
-		func(fuzzySearchResponse) []searchCandidate {
+	search := bandcampTargetSearch[model.CandidateAlbum]{
+		adapter: adapter,
+		query:   "Fenian Kneecap",
+		autocompleteCandidates: func(fuzzySearchResponse) []searchCandidate {
 			return []searchCandidate{{Title: "Fenian"}}
 		},
-		func([]byte) []searchCandidate {
+		htmlCandidates: func([]byte) []searchCandidate {
 			return []searchCandidate{{URL: server.URL + "/album/fenian", Title: "Fenian"}}
 		},
-		func(_ context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
+		hydrate: func(_ context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
 			return model.CandidateAlbum{CandidateID: "fenian", MatchURL: candidate.URL}, nil
 		},
-		"collect bandcamp album candidates",
-	)
+		collectErr: "collect bandcamp album candidates",
+	}
+	results, err := search.run(context.Background())
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)
