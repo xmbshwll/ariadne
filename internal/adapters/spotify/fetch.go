@@ -306,7 +306,7 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		group.Go(func() error {
 			track, err := a.fetchTrackAPI(groupCtx, trackID)
 			if err != nil {
-				if multiTrackFetch && errors.Is(err, errSpotifyTrackNotFound) {
+				if multiTrackFetch && shouldSkipSpotifyTrackDetailError(err) {
 					return nil
 				}
 				return err
@@ -328,6 +328,10 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		tracks = append(tracks, *track)
 	}
 	return tracks, nil
+}
+
+func shouldSkipSpotifyTrackDetailError(err error) bool {
+	return errors.Is(err, errSpotifyTrackNotFound) || shouldRetrySpotifyAPIError(err)
 }
 
 func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {

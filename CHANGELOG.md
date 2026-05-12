@@ -4,6 +4,12 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.6.1 - 2026-05-12
+
+### Fixed
+
+- Spotify album source hydration now retries transient Web API `502` / `503` / `504` responses and skips transient per-track detail failures instead of failing the whole album when optional ISRC enrichment is flaky
+
 ## v0.6.0 - 2026-05-12
 
 ### Added

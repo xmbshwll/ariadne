@@ -87,6 +87,79 @@ func TestFetchAlbumHydratesTracksViaSingleTrackEndpointInParallel(t *testing.T) 
 	assert.Equal(t, "GBAYE0601691", album.Tracks[1].ISRC)
 }
 
+func TestFetchAlbumSkipsTransientTrackDetailFailures(t *testing.T) {
+	adapter := newSpotifyAPIAdapter(t, func(mux *http.ServeMux) {
+		mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
+			requireSpotifyBearerAuth(t, r)
+			writeJSON(t, w, apiAlbumResponse{
+				ID:          "album-good",
+				Name:        "Abbey Road (Remastered)",
+				ReleaseDate: "1969-09-26",
+				TotalTracks: 2,
+				Artists:     []apiArtist{{Name: "The Beatles"}},
+				Tracks: apiTrackPage{Items: []apiTrack{
+					{ID: "track-good", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, Artists: []apiArtist{{Name: "The Beatles"}}},
+					{ID: "track-flaky", Name: "Something", TrackNumber: 2, DiscNumber: 1, DurationMS: 182293, Artists: []apiArtist{{Name: "The Beatles"}}},
+				}},
+			})
+		})
+		registerSpotifyTrackHandler(t, mux, func(w http.ResponseWriter, r *http.Request, trackID string) {
+			if trackID == "track-flaky" {
+				http.Error(w, "temporary spotify failure", http.StatusBadGateway)
+				return
+			}
+			writeJSON(t, w, apiTrack{ID: "track-good", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}})
+		})
+	})
+
+	album, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"})
+
+	require.NoError(t, err)
+	require.NotNil(t, album)
+	require.Len(t, album.Tracks, 2)
+	assert.Equal(t, "GBAYE0601690", album.Tracks[0].ISRC)
+	assert.Empty(t, album.Tracks[1].ISRC)
+}
+
+func TestFetchAlbumRetriesTransientSpotifyAPIStatus(t *testing.T) {
+	albumRequests := 0
+	adapter := newSpotifyAPIAdapter(t, func(mux *http.ServeMux) {
+		mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
+			requireSpotifyBearerAuth(t, r)
+			albumRequests++
+			if albumRequests == 1 {
+				http.Error(w, "temporary spotify failure", http.StatusBadGateway)
+				return
+			}
+			writeJSON(t, w, apiAlbumResponse{
+				ID:          "album-good",
+				Name:        "Abbey Road (Remastered)",
+				ReleaseDate: "1969-09-26",
+				TotalTracks: 1,
+				Artists:     []apiArtist{{Name: "The Beatles"}},
+				Tracks: apiTrackPage{Items: []apiTrack{{
+					ID:          "track-1",
+					Name:        "Come Together",
+					TrackNumber: 1,
+					DiscNumber:  1,
+					DurationMS:  258947,
+					Artists:     []apiArtist{{Name: "The Beatles"}},
+				}}},
+			})
+		})
+		registerSpotifyTrackEndpoint(t, mux, map[string]apiTrack{
+			"track-1": {ID: "track-1", Name: "Come Together", TrackNumber: 1, DiscNumber: 1, DurationMS: 258947, ExternalIDs: apiExternalIDs{ISRC: "GBAYE0601690"}, Artists: []apiArtist{{Name: "The Beatles"}}, Album: apiTrackAlbum{ID: "album-good", Name: "Abbey Road (Remastered)", ReleaseDate: "1969-09-26", Artists: []apiArtist{{Name: "The Beatles"}}}},
+		})
+	})
+
+	album, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "album-good", CanonicalURL: "https://open.spotify.com/album/album-good"})
+
+	require.NoError(t, err)
+	require.NotNil(t, album)
+	assert.Equal(t, "album-good", album.SourceID)
+	assert.Equal(t, 2, albumRequests)
+}
+
 func TestSearchByMetadataSkipsAlbumsThatDisappearDuringHydration(t *testing.T) {
 	adapter := newSpotifyAPIAdapter(t, func(mux *http.ServeMux) {
 		mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {

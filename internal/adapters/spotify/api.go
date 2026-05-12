@@ -14,7 +14,10 @@ import (
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 )
 
-const spotifyTokenRefreshTimeout = 30 * time.Second
+const (
+	spotifyTokenRefreshTimeout = 30 * time.Second
+	spotifyAPIMaxAttempts      = 6
+)
 
 type spotifyAPIError struct {
 	StatusCode int
@@ -30,6 +33,23 @@ func (e *spotifyAPIError) Is(target error) bool {
 }
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
+	var lastErr error
+	for attempt := range spotifyAPIMaxAttempts {
+		lastErr = a.getAPIJSONOnce(ctx, endpoint, target)
+		if lastErr == nil {
+			return nil
+		}
+		if attempt == spotifyAPIMaxAttempts-1 || !shouldRetrySpotifyAPIError(lastErr) {
+			return lastErr
+		}
+		if err := waitForSpotifyAPIRetry(ctx, attempt); err != nil {
+			return err
+		}
+	}
+	return lastErr
+}
+
+func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target any) error {
 	token, err := a.accessToken(ctx)
 	if err != nil {
 		return err
@@ -51,6 +71,24 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 		DecodeError:       "decode api response",
 		MalformedResponse: errMalformedSpotifyAPIResponse,
 	}, target)
+}
+
+func shouldRetrySpotifyAPIError(err error) bool {
+	var apiErr *spotifyAPIError
+	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusBadGateway || apiErr.StatusCode == http.StatusServiceUnavailable || apiErr.StatusCode == http.StatusGatewayTimeout)
+}
+
+func waitForSpotifyAPIRetry(ctx context.Context, attempt int) error {
+	delay := 250 * time.Millisecond * time.Duration(1<<attempt)
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (a *Adapter) accessToken(ctx context.Context) (string, error) {
