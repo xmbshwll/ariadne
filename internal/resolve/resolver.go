@@ -199,18 +199,6 @@ func resolveTargetsConcurrently[T serviceAdapter](ctx context.Context, targets [
 	return group.Wait()
 }
 
-func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {
-	for _, item := range items {
-		key := keyFunc(item)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		dst = append(dst, item)
-	}
-	return dst
-}
-
 func collectISRCs(album model.CanonicalAlbum) []string {
 	isrcs := make([]string, 0, len(album.Tracks))
 	seen := make(map[string]struct{}, len(album.Tracks))
