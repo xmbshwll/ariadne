@@ -112,6 +112,18 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestRunHelpRendersConfigDefaultAndTargetServiceValues(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	err := run([]string{"help"}, &stdout, &stderr)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "    Default: .env")
+	assert.Contains(t, stdout.String(), "    Values: comma-separated list drawn from appleMusic, applemusic, bandcamp, deezer, soundcloud, youtubeMusic, youtubemusic, ytmusic, spotify, tidal.")
+	assert.Empty(t, stderr.String())
+}
+
 func TestRunHelpIgnoresMalformedConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), ".env")
 	require.NoError(t, os.WriteFile(configPath, []byte("ARIADNE_HTTP_TIMEOUT=not-a-duration\n"), 0o600))

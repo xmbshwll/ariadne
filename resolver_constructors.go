@@ -37,15 +37,15 @@ func New(config Config) *Resolver {
 
 // NewWithClient builds a Resolver with the default adapter set and a caller-provided HTTP client.
 func NewWithClient(client *http.Client, config Config) *Resolver {
-	return newWithProviderCatalog(client, config, defaultProviderCatalog)
+	return newWithProviderCatalog(client, config)
 }
 
-func newWithProviderCatalog(client *http.Client, config Config, catalog providerCatalog) *Resolver {
+func newWithProviderCatalog(client *http.Client, config Config) *Resolver {
 	config = normalizedConfig(config)
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
-	adapters := catalog.resolverAdapters(client, config)
+	adapters := buildResolverAdapters(client, config, defaultServiceBindings, defaultServiceOrder, config.TargetServices)
 	return newResolver(
 		adapters.albumSources,
 		adapters.albumTargets,

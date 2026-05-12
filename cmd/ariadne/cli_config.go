@@ -23,7 +23,7 @@ func bindResolveFlags(fs *pflag.FlagSet, config *resolveConfig) {
 	fs.BoolVar(&config.forceAlbum, "album", false, "force album resolution for the input URL")
 	fs.BoolVarP(&config.verbose, "verbose", "v", false, "print full resolution details (values: true or false; false emits compact links, true emits metadata, scores, reasons, and alternates)")
 	fs.StringVar(&config.format, "format", config.format, "output format (values: json for structured output, yaml for YAML, csv for spreadsheet-friendly export)")
-	fs.StringVar(&config.requestedServices, "services", "", "comma-separated target services (values: appleMusic, bandcamp, deezer, soundcloud, spotify, tidal, youtubeMusic, ytmusic; ytmusic aliases youtubeMusic)")
+	fs.StringVar(&config.requestedServices, "services", "", "comma-separated target services (values: "+targetServiceNamesUsage()+")")
 	fs.StringVar(&config.minStrengthName, "min-strength", config.minStrengthName, "minimum match strength (values: very_weak, weak, probable, strong; filters weaker results out of the final output)")
 	fs.DurationVar(&config.resolverConfig.HTTPTimeout, "http-timeout", config.resolverConfig.HTTPTimeout, "per-request HTTP timeout (values: Go durations such as 5s, 15s, 30s, 1m; applies to Ariadne's default client)")
 	fs.DurationVar(&config.resolutionTimeout, "resolution-timeout", config.resolutionTimeout, "overall resolution timeout (values: Go durations such as 20s, 30s, 1m, 2m; bounds the full resolve operation across all services)")

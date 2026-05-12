@@ -4,6 +4,10 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Credential token refresh now retries transient HTTP `502` / `503` / `504` responses from token endpoints with exponential backoff (3 attempts, 250ms initial). Prevents "context deadline exceeded" or "unexpected token status" errors when auth APIs are temporarily unavailable.
+
 ## v0.6.1 - 2026-05-12
 
 ### Fixed

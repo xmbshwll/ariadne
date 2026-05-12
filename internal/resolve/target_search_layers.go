@@ -8,57 +8,20 @@ import (
 	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
-type targetSearchPlan[T any] struct {
-	target  any
-	service model.ServiceName
-	keyFunc func(T) string
-	layers  []targetSearchLayer[T]
-}
-
-type targetSearchLayer[T any] struct {
-	name    string
-	enabled bool
-	search  func(context.Context) ([]T, error)
-	filter  func([]T) []T
-}
-
-type targetSearchLayerOutcome[T any] struct {
-	candidates []T
-	err        error
-}
-
-func (p targetSearchPlan[T]) collect(ctx context.Context) ([]T, error) {
-	combined := []T{}
-	seen := map[string]struct{}{}
-	for _, layer := range p.layers {
-		outcome := p.runLayer(ctx, layer)
-		if outcome.err != nil {
-			return nil, outcome.err
-		}
-		combined = appendUniqueByKey(combined, seen, outcome.candidates, p.keyFunc)
-	}
-	return combined, nil
-}
-
-func (p targetSearchPlan[T]) runLayer(ctx context.Context, layer targetSearchLayer[T]) targetSearchLayerOutcome[T] {
-	if !layer.enabled {
-		return targetSearchLayerOutcome[T]{}
-	}
-
-	candidates, err := layer.search(ctx)
-	if err != nil {
-		if targetsearch.IsRecoverableTimeout(ctx, err) {
-			return targetSearchLayerOutcome[T]{}
-		}
-		return targetSearchLayerOutcome[T]{err: fmt.Errorf("%s %s (%T) failed: %w", layer.name, p.service, p.target, err)}
-	}
-	if layer.filter != nil {
-		candidates = layer.filter(candidates)
-	}
-	return targetSearchLayerOutcome[T]{candidates: candidates}
-}
-
 type albumMetadataCandidateFilter func([]model.CandidateAlbum) []model.CandidateAlbum
+
+func newTargetSearchPlan[Candidate any](
+	target serviceAdapter,
+	keyFunc func(Candidate) string,
+	layers []targetsearch.Layer[Candidate],
+) targetsearch.Plan[Candidate] {
+	return targetsearch.Plan[Candidate]{
+		Target:       target,
+		Service:      string(target.Service()),
+		CandidateKey: keyFunc,
+		Layers:       layers,
+	}
+}
 
 func collectAlbumTargetCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	return collectAlbumTargetCandidatesWithMetadataFilter(ctx, target, source, nil)
@@ -70,25 +33,24 @@ func collectAlbumTargetCandidatesWithMetadataFilter(
 	source model.CanonicalAlbum,
 	metadataFilter albumMetadataCandidateFilter,
 ) ([]model.CandidateAlbum, error) {
-	return albumTargetSearchPlan(target, source, metadataFilter).collect(ctx)
-}
-
-func albumTargetSearchPlan(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) targetSearchPlan[model.CandidateAlbum] {
-	return targetSearchPlan[model.CandidateAlbum]{
-		target:  target,
-		service: target.Service(),
-		keyFunc: albumCandidateKey,
-		layers:  albumTargetSearchLayers(target, source, metadataFilter),
+	candidates, err := albumTargetSearchPlan(target, source, metadataFilter).Collect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("collect album target candidates: %w", err)
 	}
+	return candidates, nil
 }
 
-func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) []targetSearchLayer[model.CandidateAlbum] {
-	layers := make([]targetSearchLayer[model.CandidateAlbum], 0, 3)
+func albumTargetSearchPlan(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) targetsearch.Plan[model.CandidateAlbum] {
+	return newTargetSearchPlan(target, albumCandidateKey, albumTargetSearchLayers(target, source, metadataFilter))
+}
+
+func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) []targetsearch.Layer[model.CandidateAlbum] {
+	layers := make([]targetsearch.Layer[model.CandidateAlbum], 0, 3)
 	if searcher, ok := target.(UPCSearcher); ok {
-		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
-			name:    "SearchByUPC",
-			enabled: source.UPC != "",
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
+		layers = append(layers, targetsearch.Layer[model.CandidateAlbum]{
+			Name:    "SearchByUPC",
+			Enabled: source.UPC != "",
+			Search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
 				return searcher.SearchByUPC(ctx, source.UPC)
 			},
 		})
@@ -96,57 +58,56 @@ func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, 
 
 	if searcher, ok := target.(ISRCSearcher); ok {
 		isrcs := collectISRCs(source)
-		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
-			name:    "SearchByISRC",
-			enabled: len(isrcs) > 0,
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
+		layers = append(layers, targetsearch.Layer[model.CandidateAlbum]{
+			Name:    "SearchByISRC",
+			Enabled: len(isrcs) > 0,
+			Search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
 				return searcher.SearchByISRC(ctx, isrcs)
 			},
 		})
 	}
 
 	if searcher, ok := target.(MetadataSearcher); ok {
-		layers = append(layers, targetSearchLayer[model.CandidateAlbum]{
-			name:    "SearchByMetadata",
-			enabled: true,
-			search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
+		layers = append(layers, targetsearch.Layer[model.CandidateAlbum]{
+			Name:    "SearchByMetadata",
+			Enabled: true,
+			Search: func(ctx context.Context) ([]model.CandidateAlbum, error) {
 				return searcher.SearchByMetadata(ctx, source)
 			},
-			filter: metadataFilter,
+			Filter: metadataFilter,
 		})
 	}
 	return layers
 }
 
 func collectSongTargetCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
-	return songTargetSearchPlan(target, source).collect(ctx)
-}
-
-func songTargetSearchPlan(target SongTargetAdapter, source model.CanonicalSong) targetSearchPlan[model.CandidateSong] {
-	return targetSearchPlan[model.CandidateSong]{
-		target:  target,
-		service: target.Service(),
-		keyFunc: songCandidateKey,
-		layers:  songTargetSearchLayers(target, source),
+	candidates, err := songTargetSearchPlan(target, source).Collect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("collect song target candidates: %w", err)
 	}
+	return candidates, nil
 }
 
-func songTargetSearchLayers(target SongTargetAdapter, source model.CanonicalSong) []targetSearchLayer[model.CandidateSong] {
-	layers := make([]targetSearchLayer[model.CandidateSong], 0, 2)
+func songTargetSearchPlan(target SongTargetAdapter, source model.CanonicalSong) targetsearch.Plan[model.CandidateSong] {
+	return newTargetSearchPlan(target, songCandidateKey, songTargetSearchLayers(target, source))
+}
+
+func songTargetSearchLayers(target SongTargetAdapter, source model.CanonicalSong) []targetsearch.Layer[model.CandidateSong] {
+	layers := make([]targetsearch.Layer[model.CandidateSong], 0, 2)
 	if searcher, ok := target.(SongISRCSearcher); ok {
-		layers = append(layers, targetSearchLayer[model.CandidateSong]{
-			name:    "SearchSongByISRC",
-			enabled: source.ISRC != "",
-			search: func(ctx context.Context) ([]model.CandidateSong, error) {
+		layers = append(layers, targetsearch.Layer[model.CandidateSong]{
+			Name:    "SearchSongByISRC",
+			Enabled: source.ISRC != "",
+			Search: func(ctx context.Context) ([]model.CandidateSong, error) {
 				return searcher.SearchSongByISRC(ctx, source.ISRC)
 			},
 		})
 	}
 	if searcher, ok := target.(SongMetadataSearcher); ok {
-		layers = append(layers, targetSearchLayer[model.CandidateSong]{
-			name:    "SearchSongByMetadata",
-			enabled: true,
-			search: func(ctx context.Context) ([]model.CandidateSong, error) {
+		layers = append(layers, targetsearch.Layer[model.CandidateSong]{
+			Name:    "SearchSongByMetadata",
+			Enabled: true,
+			Search: func(ctx context.Context) ([]model.CandidateSong, error) {
 				return searcher.SearchSongByMetadata(ctx, source)
 			},
 		})

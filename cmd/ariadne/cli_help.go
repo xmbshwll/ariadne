@@ -59,8 +59,7 @@ Flags:
     Default: json.
 
   --services
-    Values: comma-separated list drawn from appleMusic, bandcamp, deezer, soundcloud, spotify, tidal, youtubeMusic, ytmusic.
-    ytmusic is an alias for youtubeMusic.
+    Values: comma-separated list drawn from %s.
     Use this to limit which target services are searched.
     Caveats:
       spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.
@@ -109,6 +108,7 @@ func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 		resolveHelpText,
 		defaultResolveCommandUse,
 		helpConfigPath(configPath),
+		targetServiceNamesUsage(),
 		helpStorefrontDefault(baseConfig),
 		baseConfig.HTTPTimeout,
 		defaultResolveTimeout,

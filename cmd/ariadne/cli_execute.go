@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+func runResolveConfig(config resolveConfig, stdout io.Writer, logger *cliLogger) error {
+	return executeResolve(config, stdout, logger, resolveModeFromConfig(config))
+}
+
 func runResolve(args []string, stdout io.Writer) error {
 	baseConfig, err := loadCLIConfigWithLogger(configPathFromArgs(args), nil)
 	if err != nil {
@@ -16,7 +20,7 @@ func runResolve(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return executeResolve(config, stdout, nil, resolveModeFromConfig(config))
+	return runResolveConfig(config, stdout, nil)
 }
 
 func executeResolve(config resolveConfig, stdout io.Writer, logger *cliLogger, mode resolveMode) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -141,11 +142,18 @@ func (a *Adapter) refreshClientIdentifier(ctx context.Context) (string, error) {
 }
 
 func isSoundCloudClientIDError(err error) bool {
+	var statusErr adapterutil.HTTPStatusError
+	if errors.As(err, &statusErr) {
+		switch statusErr.HTTPStatusCode() {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return true
+		}
+	}
 	if !errors.Is(err, errUnexpectedSoundCloudAPIStatus) {
 		return false
 	}
 	message := strings.ToLower(err.Error())
-	return strings.Contains(message, " 401:") || strings.Contains(message, " 403:") || strings.Contains(message, "client_id") || strings.Contains(message, "client id")
+	return strings.Contains(message, "client_id") || strings.Contains(message, "client id")
 }
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {

@@ -80,18 +80,21 @@ type Resolver struct {
 }
 
 type albumEntityResolutionPolicy struct {
-	sourceAdapters   []SourceAdapter
-	targetAdapters   []TargetAdapter
-	weights          score.Weights
-	appleMusicPolicy appleMusicEnrichmentPolicy
+	sourceAdapters          []SourceAdapter
+	targetAdapters          []TargetAdapter
+	weights                 score.Weights
+	collectTargetCandidates func(context.Context, TargetAdapter, model.CanonicalAlbum) ([]model.CandidateAlbum, error)
+	afterTargetMatches      func(context.Context, []TargetAdapter, model.CanonicalAlbum, map[model.ServiceName]MatchResult) error
 }
 
 func newAlbumEntityResolutionPolicy(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) albumEntityResolutionPolicy {
+	enrichment := newAppleMusicEnrichmentPolicy(weights)
 	return albumEntityResolutionPolicy{
-		sourceAdapters:   append([]SourceAdapter(nil), sources...),
-		targetAdapters:   append([]TargetAdapter(nil), targets...),
-		weights:          weights,
-		appleMusicPolicy: newAppleMusicEnrichmentPolicy(weights),
+		sourceAdapters:          append([]SourceAdapter(nil), sources...),
+		targetAdapters:          append([]TargetAdapter(nil), targets...),
+		weights:                 weights,
+		collectTargetCandidates: enrichment.collectTargetCandidates,
+		afterTargetMatches:      enrichment.apply,
 	}
 }
 
@@ -148,7 +151,7 @@ func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, t
 		ctx,
 		targets,
 		source,
-		p.appleMusicPolicy.collectTargetCandidates,
+		p.collectTargetCandidates,
 		func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
 			return score.RankAlbums(source, candidates, p.weights)
 		},
@@ -159,13 +162,6 @@ func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, t
 		return nil, fmt.Errorf("resolve target searches: %w", err)
 	}
 	return matches, nil
-}
-
-func (p albumEntityResolutionPolicy) afterTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) error {
-	if err := p.appleMusicPolicy.apply(ctx, targets, source, matches); err != nil {
-		return fmt.Errorf("resolve apple music cascaded search: %w", err)
-	}
-	return nil
 }
 
 func (p albumEntityResolutionPolicy) resolution(inputURL string, source sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], matches map[model.ServiceName]MatchResult) *Resolution {
@@ -197,18 +193,6 @@ func resolveTargetsConcurrently[T serviceAdapter](ctx context.Context, targets [
 	}
 	//nolint:wrapcheck // Preserve worker errors without adding another wrapper layer.
 	return group.Wait()
-}
-
-func appendUniqueByKey[T any](dst []T, seen map[string]struct{}, items []T, keyFunc func(T) string) []T {
-	for _, item := range items {
-		key := keyFunc(item)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		dst = append(dst, item)
-	}
-	return dst
 }
 
 func collectISRCs(album model.CanonicalAlbum) []string {

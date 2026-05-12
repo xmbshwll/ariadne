@@ -147,7 +147,7 @@ func configFromInternal(cfg internalconfig.Config) Config {
 		},
 		AppleMusicStorefront: cfg.AppleMusic.Storefront,
 		HTTPTimeout:          cfg.HTTPTimeout,
-		TargetServices:       cfg.TargetServices,
+		TargetServices:       targetServicesFromConfigValue(cfg.TargetServicesRaw),
 	})
 }
 
@@ -181,6 +181,18 @@ func normalizeHTTPTimeout(timeout time.Duration) time.Duration {
 	return timeout
 }
 
+func targetServicesFromConfigValue(value string) []ServiceName {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	services := make([]ServiceName, 0)
+	for part := range strings.SplitSeq(value, ",") {
+		services = append(services, ServiceName(part))
+	}
+	return normalizedTargetServices(services)
+}
+
 func normalizedTargetServices(services []ServiceName) []ServiceName {
 	if len(services) == 0 {
 		return nil
@@ -189,8 +201,8 @@ func normalizedTargetServices(services []ServiceName) []ServiceName {
 	normalized := make([]ServiceName, 0, len(services))
 	seen := make(map[ServiceName]struct{}, len(services))
 	for _, service := range services {
-		service = ServiceName(strings.TrimSpace(string(service)))
-		if service == "" {
+		service, ok := defaultProviderCatalog.lookupSupportedTargetService(string(service))
+		if !ok {
 			continue
 		}
 		if _, ok := seen[service]; ok {

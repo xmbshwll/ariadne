@@ -48,9 +48,51 @@ type BytesRequest struct {
 	TooLarge      TooLargeErrorFunc
 }
 
+// HTTPStatusError is an error that carries an HTTP response status code.
+type HTTPStatusError interface {
+	error
+	HTTPStatusCode() int
+}
+
+// IsTransientHTTPError reports whether err carries an HTTP status code
+// matching StatusBadGateway, StatusServiceUnavailable, or StatusGatewayTimeout.
+func IsTransientHTTPError(err error) bool {
+	var statusErr HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		return false
+	}
+	switch statusErr.HTTPStatusCode() {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
+
+type httpStatusError struct {
+	sentinel   error
+	statusCode int
+	body       string
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("%s %d: %s", e.sentinel, e.statusCode, e.body)
+}
+
+func (e *httpStatusError) Unwrap() error {
+	return e.sentinel
+}
+
+func (e *httpStatusError) HTTPStatusCode() int {
+	return e.statusCode
+}
+
 func StatusError(sentinel error) StatusErrorFunc {
 	return func(statusCode int, body string) error {
-		return fmt.Errorf("%w %d: %s", sentinel, statusCode, body)
+		return &httpStatusError{
+			sentinel:   sentinel,
+			statusCode: statusCode,
+			body:       body,
+		}
 	}
 }
 
@@ -140,5 +182,9 @@ func statusError(resp *http.Response, spec RequestSpec) error {
 	if spec.StatusError != nil {
 		return spec.StatusError(resp.StatusCode, message)
 	}
-	return fmt.Errorf("%w %d: %s", errUnexpectedHTTPStatus, resp.StatusCode, message)
+	return &httpStatusError{
+		sentinel:   errUnexpectedHTTPStatus,
+		statusCode: resp.StatusCode,
+		body:       message,
+	}
 }

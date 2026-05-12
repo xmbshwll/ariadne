@@ -94,7 +94,7 @@ func newResolveCmd(baseConfig ariadne.Config, configPath string, logger *cliLogg
 			if err != nil {
 				return err
 			}
-			return executeResolve(normalized, cmd.OutOrStdout(), logger, resolveModeFromConfig(normalized))
+			return runResolveConfig(normalized, cmd.OutOrStdout(), logger)
 		},
 	}
 

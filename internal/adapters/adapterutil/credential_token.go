@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -11,7 +12,11 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-const defaultCredentialTokenRefreshMargin = 30 * time.Second
+const (
+	defaultCredentialTokenRefreshMargin = 30 * time.Second
+	defaultMaxRefreshAttempts           = 3
+	defaultRefreshRetryBackoff          = 250 * time.Millisecond
+)
 
 var (
 	errCredentialTokenSourceNotConfigured = errors.New("credential token source not configured")
@@ -48,6 +53,14 @@ type CredentialTokenSourceConfig struct {
 	RefreshTimeout     time.Duration
 	SingleflightKey    string
 	Now                func() time.Time
+	// MaxRefreshAttempts is the maximum number of fetch attempts for token refresh.
+	// Transient HTTP errors (StatusBadGateway, StatusServiceUnavailable, StatusGatewayTimeout)
+	// trigger retries with exponential backoff.
+	// When zero or negative, defaults to 3.
+	MaxRefreshAttempts int
+	// RefreshRetryBackoff is the initial backoff between retry attempts, doubled each attempt.
+	// When zero or negative, defaults to 250ms.
+	RefreshRetryBackoff time.Duration
 }
 
 type CredentialTokenSource struct {
@@ -74,6 +87,12 @@ func NewCredentialTokenSource(config CredentialTokenSourceConfig) *CredentialTok
 	}
 	if config.IsEmptyAccessToken == nil {
 		config.IsEmptyAccessToken = func(accessToken string) bool { return accessToken == "" }
+	}
+	if config.MaxRefreshAttempts <= 0 {
+		config.MaxRefreshAttempts = defaultMaxRefreshAttempts
+	}
+	if config.RefreshRetryBackoff <= 0 {
+		config.RefreshRetryBackoff = defaultRefreshRetryBackoff
 	}
 	return &CredentialTokenSource{config: config}
 }
@@ -139,6 +158,24 @@ func (s *CredentialTokenSource) cachedAccessToken() (string, bool) {
 }
 
 func (s *CredentialTokenSource) refreshAccessToken(ctx context.Context, credentials ClientCredentials) (string, error) {
+	var lastErr error
+	for attempt := range s.config.MaxRefreshAttempts {
+		token, err := s.fetchAndCacheToken(ctx, credentials)
+		if err == nil {
+			return token, nil
+		}
+		lastErr = err
+		if attempt == s.config.MaxRefreshAttempts-1 || !IsTransientHTTPError(err) {
+			break
+		}
+		if waitErr := waitForRefreshRetry(ctx, attempt, s.config.RefreshRetryBackoff); waitErr != nil {
+			return "", waitErr
+		}
+	}
+	return "", lastErr
+}
+
+func (s *CredentialTokenSource) fetchAndCacheToken(ctx context.Context, credentials ClientCredentials) (string, error) {
 	refreshCtx, cancel := s.refreshContext(ctx)
 	defer cancel()
 
@@ -158,6 +195,19 @@ func (s *CredentialTokenSource) refreshAccessToken(ctx context.Context, credenti
 	}
 	s.cached = cachedCredentialToken{accessToken: token.AccessToken, expiresAt: expiresAt}
 	return s.cached.accessToken, nil
+}
+
+func waitForRefreshRetry(ctx context.Context, attempt int, baseBackoff time.Duration) error {
+	delay := baseBackoff * time.Duration(1<<attempt)
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait for credential token refresh retry: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (s *CredentialTokenSource) refreshContext(ctx context.Context) (context.Context, context.CancelFunc) {

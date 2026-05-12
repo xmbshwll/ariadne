@@ -57,6 +57,17 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	assert.Equal(t, []ServiceName{ServiceSpotify, ServiceAppleMusic}, config.TargetServices)
 }
 
+func TestLoadConfigFromEnvCanonicalizesTargetServiceAliases(t *testing.T) {
+	config := LoadConfigFromEnv(func(key string) string {
+		if key == "ARIADNE_TARGET_SERVICES" {
+			return " spotify , ytmusic , amazonMusic , unknown "
+		}
+		return ""
+	})
+
+	assert.Equal(t, []ServiceName{ServiceSpotify, ServiceYouTubeMusic}, config.TargetServices)
+}
+
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 	assert.Equal(t, "us", config.AppleMusicStorefront)

@@ -3,6 +3,7 @@ package adapterutil
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -217,6 +218,54 @@ func TestCredentialTokenSourceRejectsEmptyToken(t *testing.T) {
 	_, err := source.AccessToken(context.Background())
 
 	require.ErrorIs(t, err, errCredentialTokenEmpty)
+}
+
+var errTestTokenSentinel = errors.New("test token error")
+
+func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
+	var fetches int
+	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
+		Credentials: func() ClientCredentials {
+			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+		},
+		MissingCredentials:  errCredentialTokenMissing,
+		EmptyAccessToken:    errCredentialTokenEmpty,
+		MaxRefreshAttempts:  3,
+		RefreshRetryBackoff: time.Millisecond,
+		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+			fetches++
+			if fetches < 3 {
+				return CredentialToken{}, StatusError(errTestTokenSentinel)(http.StatusServiceUnavailable, "temporarily_unavailable")
+			}
+			return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
+		},
+	})
+
+	token, err := source.AccessToken(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "token", token)
+	assert.Equal(t, 3, fetches)
+}
+
+func TestCredentialTokenSourceDoesNotRetryNonTransientErrors(t *testing.T) {
+	var fetches int
+	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
+		Credentials: func() ClientCredentials {
+			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+		},
+		MissingCredentials:  errCredentialTokenMissing,
+		EmptyAccessToken:    errCredentialTokenEmpty,
+		MaxRefreshAttempts:  3,
+		RefreshRetryBackoff: time.Millisecond,
+		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+			fetches++
+			return CredentialToken{}, StatusError(errTestTokenSentinel)(http.StatusUnauthorized, "unauthorized")
+		},
+	})
+
+	_, err := source.AccessToken(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, 1, fetches)
 }
 
 func TestClientCredentialsBasicAuthorization(t *testing.T) {
