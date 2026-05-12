@@ -8,17 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewWithProviderCatalogBuildsServiceAdaptersOnce(t *testing.T) {
+func TestBuildResolverAdaptersBuildsServiceAdapterSetsOnce(t *testing.T) {
 	buildCount := 0
-	catalog := newProviderCatalog([]serviceBinding{{
+	bindings := []serviceBinding{{
 		capability: serviceCapability{name: ServiceName("fixture")},
 		build: func(*http.Client, Config) serviceAdapterSet {
 			buildCount++
 			return serviceAdapterSet{}
 		},
-	}}, serviceOrder{})
+	}}
 
-	resolver := newWithProviderCatalog(&http.Client{}, DefaultConfig(), catalog)
-	require.NotNil(t, resolver)
+	sets := buildServiceAdapterSets(&http.Client{}, DefaultConfig(), bindings)
+	require.NotNil(t, sets)
 	assert.Equal(t, 1, buildCount)
 }

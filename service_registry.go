@@ -78,7 +78,7 @@ func (o serviceOrder) clone() serviceOrder {
 
 // providerCatalog is Ariadne's Provider Catalog: one Module owns built-in Music
 // Service capabilities, default ordering, credential gating, runtime URL parsing,
-// and Adapter construction.
+// and service name resolution.
 type providerCatalog struct {
 	bindings              []serviceBinding
 	order                 serviceOrder
@@ -365,59 +365,6 @@ func (c providerCatalog) enabledServices(config Config, order []ServiceName, sup
 		services = append(services, service)
 	}
 	return services
-}
-
-func (c providerCatalog) resolverAdapters(client *http.Client, config Config) providerResolverAdapters {
-	sets := c.buildAdapters(client, config)
-	return providerResolverAdapters{
-		albumSources: c.albumSourceAdapters(sets),
-		albumTargets: c.albumTargetAdapters(sets, config.TargetServices),
-		songSources:  c.songSourceAdapters(sets),
-		songTargets:  c.songTargetAdapters(sets, config.TargetServices),
-	}
-}
-
-func (c providerCatalog) buildAdapters(client *http.Client, config Config) map[ServiceName]serviceAdapterSet {
-	sets := make(map[ServiceName]serviceAdapterSet, len(c.bindings))
-	for _, binding := range c.bindings {
-		service := binding.capability.name
-		sets[service] = binding.build(client, config)
-	}
-	return sets
-}
-
-func (c providerCatalog) albumSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SourceAdapter {
-	return orderedAdapters(
-		sets,
-		c.order.albumSources,
-		func(set serviceAdapterSet) resolve.SourceAdapter { return set.albumSource },
-	)
-}
-
-func (c providerCatalog) albumTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.TargetAdapter {
-	targets := orderedAdapters(
-		sets,
-		c.order.albumTargets,
-		func(set serviceAdapterSet) resolve.TargetAdapter { return set.albumTarget },
-	)
-	return filterAdaptersByServiceName(targets, services)
-}
-
-func (c providerCatalog) songSourceAdapters(sets map[ServiceName]serviceAdapterSet) []resolve.SongSourceAdapter {
-	return orderedAdapters(
-		sets,
-		c.order.songSources,
-		func(set serviceAdapterSet) resolve.SongSourceAdapter { return set.songSource },
-	)
-}
-
-func (c providerCatalog) songTargetAdapters(sets map[ServiceName]serviceAdapterSet, services []ServiceName) []resolve.SongTargetAdapter {
-	targets := orderedAdapters(
-		sets,
-		c.order.songTargets,
-		func(set serviceAdapterSet) resolve.SongTargetAdapter { return set.songTarget },
-	)
-	return filterAdaptersByServiceName(targets, services)
 }
 
 func supportsSongTargetCapability(capability serviceCapability) bool {
