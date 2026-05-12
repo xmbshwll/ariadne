@@ -3,6 +3,7 @@ package adapterutil
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -234,7 +235,7 @@ func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
 			fetches++
 			if fetches < 3 {
-				return CredentialToken{}, StatusError(errTestTokenSentinel)(503, "temporarily_unavailable")
+				return CredentialToken{}, StatusError(errTestTokenSentinel)(http.StatusServiceUnavailable, "temporarily_unavailable")
 			}
 			return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 		},
@@ -258,7 +259,7 @@ func TestCredentialTokenSourceDoesNotRetryNonTransientErrors(t *testing.T) {
 		RefreshRetryBackoff: time.Millisecond,
 		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
 			fetches++
-			return CredentialToken{}, StatusError(errTestTokenSentinel)(401, "unauthorized")
+			return CredentialToken{}, StatusError(errTestTokenSentinel)(http.StatusUnauthorized, "unauthorized")
 		},
 	})
 

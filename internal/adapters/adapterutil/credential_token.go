@@ -54,7 +54,8 @@ type CredentialTokenSourceConfig struct {
 	SingleflightKey    string
 	Now                func() time.Time
 	// MaxRefreshAttempts is the maximum number of fetch attempts for token refresh.
-	// Transient HTTP errors (502, 503, 504) trigger retries with exponential backoff.
+	// Transient HTTP errors (StatusBadGateway, StatusServiceUnavailable, StatusGatewayTimeout)
+	// trigger retries with exponential backoff.
 	// When zero or negative, defaults to 3.
 	MaxRefreshAttempts int
 	// RefreshRetryBackoff is the initial backoff between retry attempts, doubled each attempt.

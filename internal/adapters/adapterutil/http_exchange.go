@@ -54,8 +54,8 @@ type HTTPStatusError interface {
 	HTTPStatusCode() int
 }
 
-// IsTransientHTTPError reports whether err is an HTTP error with a retryable
-// status code (502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout).
+// IsTransientHTTPError reports whether err carries an HTTP status code
+// matching StatusBadGateway, StatusServiceUnavailable, or StatusGatewayTimeout.
 func IsTransientHTTPError(err error) bool {
 	var statusErr HTTPStatusError
 	if !errors.As(err, &statusErr) {
@@ -66,16 +66,6 @@ func IsTransientHTTPError(err error) bool {
 		return true
 	}
 	return false
-}
-
-func StatusError(sentinel error) StatusErrorFunc {
-	return func(statusCode int, body string) error {
-		return &httpStatusError{
-			sentinel:   sentinel,
-			statusCode: statusCode,
-			body:       body,
-		}
-	}
 }
 
 type httpStatusError struct {
@@ -94,6 +84,16 @@ func (e *httpStatusError) Unwrap() error {
 
 func (e *httpStatusError) HTTPStatusCode() int {
 	return e.statusCode
+}
+
+func StatusError(sentinel error) StatusErrorFunc {
+	return func(statusCode int, body string) error {
+		return &httpStatusError{
+			sentinel:   sentinel,
+			statusCode: statusCode,
+			body:       body,
+		}
+	}
 }
 
 func GetJSON(ctx context.Context, spec JSONRequest, target any) error {
