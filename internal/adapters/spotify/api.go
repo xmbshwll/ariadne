@@ -85,7 +85,7 @@ func waitForSpotifyAPIRetry(ctx context.Context, attempt int) error {
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("wait for spotify api retry: %w", ctx.Err())
 	case <-timer.C:
 		return nil
 	}

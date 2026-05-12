@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/targetsearch"
@@ -32,7 +33,11 @@ func collectAlbumTargetCandidatesWithMetadataFilter(
 	source model.CanonicalAlbum,
 	metadataFilter albumMetadataCandidateFilter,
 ) ([]model.CandidateAlbum, error) {
-	return albumTargetSearchPlan(target, source, metadataFilter).Collect(ctx)
+	candidates, err := albumTargetSearchPlan(target, source, metadataFilter).Collect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("collect album target candidates: %w", err)
+	}
+	return candidates, nil
 }
 
 func albumTargetSearchPlan(target TargetAdapter, source model.CanonicalAlbum, metadataFilter albumMetadataCandidateFilter) targetsearch.Plan[model.CandidateAlbum] {
@@ -76,7 +81,11 @@ func albumTargetSearchLayers(target TargetAdapter, source model.CanonicalAlbum, 
 }
 
 func collectSongTargetCandidates(ctx context.Context, target SongTargetAdapter, source model.CanonicalSong) ([]model.CandidateSong, error) {
-	return songTargetSearchPlan(target, source).Collect(ctx)
+	candidates, err := songTargetSearchPlan(target, source).Collect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("collect song target candidates: %w", err)
+	}
+	return candidates, nil
 }
 
 func songTargetSearchPlan(target SongTargetAdapter, source model.CanonicalSong) targetsearch.Plan[model.CandidateSong] {
