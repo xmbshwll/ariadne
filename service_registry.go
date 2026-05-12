@@ -192,6 +192,14 @@ func (c providerCatalog) lookupServiceName(raw string) (ServiceName, bool) {
 	return service, ok
 }
 
+func (c providerCatalog) lookupSupportedTargetService(raw string) (ServiceName, bool) {
+	service, ok := c.lookupServiceName(raw)
+	if !ok || !c.supportsTarget(service) {
+		return "", false
+	}
+	return service, true
+}
+
 func (c providerCatalog) serviceCapability(service ServiceName) (serviceCapability, bool) {
 	capability, ok := c.capabilitiesByService[service]
 	return capability, ok

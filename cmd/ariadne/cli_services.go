@@ -120,3 +120,30 @@ func serviceNames(services []ariadne.ServiceName) []string {
 	}
 	return names
 }
+
+func targetServiceNamesUsage() string {
+	names := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, service := range ariadne.SupportedTargetServices() {
+		names = appendUniqueServiceName(names, seen, string(service))
+		capabilities, ok := ariadne.DescribeService(service)
+		if !ok {
+			continue
+		}
+		for _, alias := range capabilities.Aliases {
+			names = appendUniqueServiceName(names, seen, alias)
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
+func appendUniqueServiceName(names []string, seen map[string]struct{}, name string) []string {
+	if name == "" {
+		return names
+	}
+	if _, ok := seen[name]; ok {
+		return names
+	}
+	seen[name] = struct{}{}
+	return append(names, name)
+}

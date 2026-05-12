@@ -6,18 +6,16 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/internal/httpx"
-	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/services"
 )
 
 const defaultAppleMusicStorefront = "us"
 
 type Config struct {
-	Spotify        Spotify
-	AppleMusic     AppleMusic
-	TIDAL          TIDAL
-	HTTPTimeout    time.Duration
-	TargetServices []model.ServiceName
+	Spotify           Spotify
+	AppleMusic        AppleMusic
+	TIDAL             TIDAL
+	HTTPTimeout       time.Duration
+	TargetServicesRaw string
 }
 
 type Spotify struct {
@@ -81,8 +79,8 @@ func LoadFromLookup(lookup func(string) string) Config {
 			ClientID:     trimmed("TIDAL_CLIENT_ID"),
 			ClientSecret: trimmed("TIDAL_CLIENT_SECRET"),
 		},
-		HTTPTimeout:    normalizedHTTPTimeout(trimmed("ARIADNE_HTTP_TIMEOUT")),
-		TargetServices: normalizedTargetServices(trimmed("ARIADNE_TARGET_SERVICES")),
+		HTTPTimeout:       normalizedHTTPTimeout(trimmed("ARIADNE_HTTP_TIMEOUT")),
+		TargetServicesRaw: trimmed("ARIADNE_TARGET_SERVICES"),
 	}
 }
 
@@ -104,28 +102,4 @@ func normalizedHTTPTimeout(value string) time.Duration {
 		return httpx.DefaultTimeout()
 	}
 	return timeout
-}
-
-func normalizedTargetServices(value string) []model.ServiceName {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-
-	resolved := make([]model.ServiceName, 0)
-	seen := make(map[model.ServiceName]struct{})
-	for part := range strings.SplitSeq(value, ",") {
-		service, ok := services.LookupTarget(part)
-		if !ok {
-			continue
-		}
-		if _, ok := seen[service]; ok {
-			continue
-		}
-		seen[service] = struct{}{}
-		resolved = append(resolved, service)
-	}
-	if len(resolved) == 0 {
-		return nil
-	}
-	return resolved
 }
