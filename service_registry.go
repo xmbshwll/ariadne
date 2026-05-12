@@ -117,7 +117,21 @@ func newProviderCatalog(bindings []serviceBinding, order serviceOrder) providerC
 			catalog.runtimeSongURLParsers = append(catalog.runtimeSongURLParsers, binding.capability.runtimeSongURLParser)
 		}
 	}
+
+	catalog.validateOrder(catalog.order.albumSources)
+	catalog.validateOrder(catalog.order.albumTargets)
+	catalog.validateOrder(catalog.order.songSources)
+	catalog.validateOrder(catalog.order.songTargets)
+
 	return catalog
+}
+
+func (c providerCatalog) validateOrder(order []ServiceName) {
+	for _, service := range order {
+		if _, ok := c.capabilitiesByService[service]; !ok {
+			panic("service order references missing binding: " + string(service))
+		}
+	}
 }
 
 var serviceLookupKeyNormalizer = strings.NewReplacer("-", "", "_", "")
