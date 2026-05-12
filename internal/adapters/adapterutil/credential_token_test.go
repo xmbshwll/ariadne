@@ -228,10 +228,10 @@ func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 		Credentials: func() ClientCredentials {
 			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
-		MissingCredentials:   errCredentialTokenMissing,
-		EmptyAccessToken:     errCredentialTokenEmpty,
-		MaxRefreshAttempts:   3,
-		RefreshRetryBackoff:  time.Millisecond,
+		MissingCredentials:  errCredentialTokenMissing,
+		EmptyAccessToken:    errCredentialTokenEmpty,
+		MaxRefreshAttempts:  3,
+		RefreshRetryBackoff: time.Millisecond,
 		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
 			fetches++
 			if fetches < 3 {
