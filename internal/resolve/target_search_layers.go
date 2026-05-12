@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 type targetSearchPlan[T any] struct {
@@ -21,23 +22,40 @@ type targetSearchLayer[T any] struct {
 	filter  func([]T) []T
 }
 
+type targetSearchLayerOutcome[T any] struct {
+	candidates []T
+	err        error
+}
+
 func (p targetSearchPlan[T]) collect(ctx context.Context) ([]T, error) {
 	combined := []T{}
 	seen := map[string]struct{}{}
 	for _, layer := range p.layers {
-		if !layer.enabled {
-			continue
+		outcome := p.runLayer(ctx, layer)
+		if outcome.err != nil {
+			return nil, outcome.err
 		}
-		candidates, err := layer.search(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("%s %s (%T) failed: %w", layer.name, p.service, p.target, err)
-		}
-		if layer.filter != nil {
-			candidates = layer.filter(candidates)
-		}
-		combined = appendUniqueByKey(combined, seen, candidates, p.keyFunc)
+		combined = appendUniqueByKey(combined, seen, outcome.candidates, p.keyFunc)
 	}
 	return combined, nil
+}
+
+func (p targetSearchPlan[T]) runLayer(ctx context.Context, layer targetSearchLayer[T]) targetSearchLayerOutcome[T] {
+	if !layer.enabled {
+		return targetSearchLayerOutcome[T]{}
+	}
+
+	candidates, err := layer.search(ctx)
+	if err != nil {
+		if targetsearch.IsRecoverableTimeout(ctx, err) {
+			return targetSearchLayerOutcome[T]{}
+		}
+		return targetSearchLayerOutcome[T]{err: fmt.Errorf("%s %s (%T) failed: %w", layer.name, p.service, p.target, err)}
+	}
+	if layer.filter != nil {
+		candidates = layer.filter(candidates)
+	}
+	return targetSearchLayerOutcome[T]{candidates: candidates}
 }
 
 type albumMetadataCandidateFilter func([]model.CandidateAlbum) []model.CandidateAlbum

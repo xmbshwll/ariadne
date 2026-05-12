@@ -7,7 +7,6 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/resolve"
-	"github.com/xmbshwll/ariadne/internal/services"
 )
 
 type songURLParser func(string) (*model.ParsedURL, error)
@@ -50,12 +49,12 @@ type serviceAdapterSet struct {
 	songTarget  resolve.SongTargetAdapter
 }
 
+type serviceAdapterBuilder func(client *http.Client, config Config) serviceAdapterSet
+
 // serviceBinding describes Ariadne's built-in service support. The capability
 // metadata is config-independent and feeds the Supported* helpers, while build
 // applies Config-specific credential gating to the adapter set used by the
 // Enabled* helpers and default resolver wiring.
-type serviceAdapterBuilder func(client *http.Client, config Config) serviceAdapterSet
-
 type serviceBinding struct {
 	capability serviceCapability
 	build      serviceAdapterBuilder
@@ -84,6 +83,7 @@ type providerCatalog struct {
 	bindings              []serviceBinding
 	order                 serviceOrder
 	capabilitiesByService map[ServiceName]serviceCapability
+	servicesByLookupKey   map[string]ServiceName
 	runtimeSongURLParsers []songURLParser
 }
 
@@ -99,6 +99,7 @@ func newProviderCatalog(bindings []serviceBinding, order serviceOrder) providerC
 		bindings:              append([]serviceBinding(nil), bindings...),
 		order:                 order.clone(),
 		capabilitiesByService: make(map[ServiceName]serviceCapability, len(bindings)),
+		servicesByLookupKey:   make(map[string]ServiceName, len(bindings)*3),
 		runtimeSongURLParsers: make([]songURLParser, 0, len(bindings)),
 	}
 
@@ -108,6 +109,10 @@ func newProviderCatalog(bindings []serviceBinding, order serviceOrder) providerC
 			panic("duplicate default service binding: " + string(service))
 		}
 		catalog.capabilitiesByService[service] = binding.capability
+		catalog.addServiceLookup(service, string(service))
+		for _, alias := range binding.capability.aliases {
+			catalog.addServiceLookup(service, alias)
+		}
 		if binding.capability.runtimeSongURLParser != nil {
 			catalog.runtimeSongURLParsers = append(catalog.runtimeSongURLParsers, binding.capability.runtimeSongURLParser)
 		}
@@ -115,16 +120,31 @@ func newProviderCatalog(bindings []serviceBinding, order serviceOrder) providerC
 	return catalog
 }
 
-func builtinServiceAliases(service ServiceName) []string {
-	return services.AliasesFor(service)
+var serviceLookupKeyNormalizer = strings.NewReplacer("-", "", "_", "")
+
+func (c providerCatalog) addServiceLookup(service ServiceName, raw string) {
+	key := normalizeServiceLookupKey(raw)
+	if key == "" {
+		return
+	}
+	if existing, exists := c.servicesByLookupKey[key]; exists && existing != service {
+		panic(fmt.Sprintf("duplicate service lookup key %q for %s and %s", key, existing, service))
+	}
+	c.servicesByLookupKey[key] = service
+}
+
+func normalizeServiceLookupKey(raw string) string {
+	return serviceLookupKeyNormalizer.Replace(strings.ToLower(strings.TrimSpace(raw)))
 }
 
 // defaultServiceOrder preserves intentional priority differences between
 // supported service lists and enabled runtime wiring. Amazon Music appears in
 // albumSources because its album URLs parse, while runtime fetch remains
-// deferred. YouTube Music appears in album sources and album targets; song URLs
-// are parse-only. Spotify and TIDAL stay behind the public-web targets in target
-// ordering because their official APIs are credential-gated in the Enabled* view.
+// deferred. YouTube Music and Amazon Music appear in songSources so parse-only
+// song Source Input reaches the deferred Runtime Hydration sentinel instead of
+// falling through as unsupported. Spotify and TIDAL stay behind the public-web
+// targets in target ordering because their official APIs are credential-gated in
+// the Enabled* view.
 var defaultServiceOrder = serviceOrder{
 	albumSources: []ServiceName{
 		ServiceAppleMusic,
@@ -152,6 +172,8 @@ var defaultServiceOrder = serviceOrder{
 		ServiceSoundCloud,
 		ServiceSpotify,
 		ServiceTIDAL,
+		ServiceYouTubeMusic,
+		ServiceAmazonMusic,
 	},
 	songTargets: []ServiceName{
 		ServiceAppleMusic,
@@ -164,6 +186,11 @@ var defaultServiceOrder = serviceOrder{
 }
 
 var defaultProviderCatalog = newProviderCatalog(defaultServiceBindings, defaultServiceOrder)
+
+func (c providerCatalog) lookupServiceName(raw string) (ServiceName, bool) {
+	service, ok := c.servicesByLookupKey[normalizeServiceLookupKey(raw)]
+	return service, ok
+}
 
 func (c providerCatalog) serviceCapability(service ServiceName) (serviceCapability, bool) {
 	capability, ok := c.capabilitiesByService[service]
@@ -200,7 +227,7 @@ func (c providerCatalog) targetServiceRequest(config Config, service ServiceName
 
 func (c providerCatalog) lookupTargetServiceRequest(config Config, raw string) TargetServiceRequestDecision {
 	message := c.unavailableTargetServiceMessage(raw)
-	service, ok := LookupServiceName(raw)
+	service, ok := c.lookupServiceName(raw)
 	if !ok {
 		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: message}
 	}
@@ -208,9 +235,7 @@ func (c providerCatalog) lookupTargetServiceRequest(config Config, raw string) T
 }
 
 func (c providerCatalog) songTargetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, service, func(capability serviceCapability) bool {
-		return capability.supportsSongTarget
-	}, c.unavailableSongTargetServiceMessage(config, service))
+	return c.targetCapabilityRequest(config, service, supportsSongTargetCapability, c.unavailableSongTargetServiceMessage(config, service))
 }
 
 func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceName, supports func(serviceCapability) bool, message string) TargetServiceRequestDecision {
@@ -293,15 +318,11 @@ func (c providerCatalog) enabledTargetServices(config Config) []ServiceName {
 }
 
 func (c providerCatalog) supportedSongTargetServices() []ServiceName {
-	return c.supportedServices(c.order.songTargets, func(capability serviceCapability) bool {
-		return capability.supportsSongTarget
-	})
+	return c.supportedServices(c.order.songTargets, supportsSongTargetCapability)
 }
 
 func (c providerCatalog) enabledSongTargetServices(config Config) []ServiceName {
-	return c.enabledServices(config, c.order.songTargets, func(capability serviceCapability) bool {
-		return capability.supportsSongTarget
-	})
+	return c.enabledServices(config, c.order.songTargets, supportsSongTargetCapability)
 }
 
 func (c providerCatalog) supportsRuntimeSongInputURL(raw string) bool {
@@ -389,6 +410,10 @@ func (c providerCatalog) songTargetAdapters(sets map[ServiceName]serviceAdapterS
 		func(set serviceAdapterSet) resolve.SongTargetAdapter { return set.songTarget },
 	)
 	return filterAdaptersByServiceName(targets, services)
+}
+
+func supportsSongTargetCapability(capability serviceCapability) bool {
+	return capability.supportsSongTarget
 }
 
 func supportsAnyTarget(capability serviceCapability) bool {

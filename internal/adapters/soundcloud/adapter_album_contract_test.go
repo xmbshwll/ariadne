@@ -49,6 +49,30 @@ func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {
 	assert.Equal(t, server.URL+"/artist/sets/good-playlist", results[0].MatchURL)
 }
 
+func TestSearchAlbumByMetadataReturnsNoResultsWhenClientIDUnavailable(t *testing.T) {
+	server := newSoundCloudServerWithoutClientID()
+	defer server.Close()
+
+	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "FENIAN", Artists: []string{"KNEECAP"}})
+
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func newSoundCloudServerWithoutClientID() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = w.Write([]byte(`<html><body><script src="/assets/app.js"></script></body></html>`))
+		case "/assets/app.js":
+			_, _ = w.Write([]byte(`console.log("no public client id")`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
 func TestSearchAlbumByMetadataRefreshesRejectedClientID(t *testing.T) {
 	searchPayload := mustReadSoundCloudFixture(t, "testdata/search-results.json")
 	const staleClientID = "11111111111111111111111111111111"

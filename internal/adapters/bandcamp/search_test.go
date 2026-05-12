@@ -1,6 +1,7 @@
 package bandcamp
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,6 +73,36 @@ func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.
 
 	assert.Equal(t, "Something", candidates[1].Title)
 	assert.Equal(t, "https://comradiation.bandcamp.com/track/something", candidates[1].URL)
+}
+
+func TestSearchBandcampCandidatesFallsBackToHTMLWhenAutocompleteYieldsNoCandidates(t *testing.T) {
+	server := newBandcampTestServer(func(string) map[string][]byte {
+		return map[string][]byte{
+			"/api/fuzzysearch/1/app_autocomplete": []byte(`{"results":[]}`),
+			bandcampSearchPath:                    []byte("ignored"),
+		}
+	})
+	defer server.Close()
+
+	adapter := newBandcampTestAdapter(server)
+	search := bandcampTargetSearch[model.CandidateAlbum]{
+		adapter:                adapter,
+		query:                  "Fenian Kneecap",
+		autocompleteCandidates: extractAutocompleteAlbumSearchCandidates,
+		htmlCandidates: func([]byte) []searchCandidate {
+			return []searchCandidate{{URL: server.URL + "/album/fenian", Title: "Fenian"}}
+		},
+		hydrate: func(_ context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
+			return model.CandidateAlbum{CandidateID: "fenian", MatchURL: candidate.URL}, nil
+		},
+		collectErr: "collect bandcamp album candidates",
+	}
+	results, err := search.run(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "fenian", results[0].CandidateID)
+	assert.Equal(t, server.URL+"/album/fenian", results[0].MatchURL)
 }
 
 func TestTopRankedCandidatesPreservesNilForEmptyInput(t *testing.T) {

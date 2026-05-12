@@ -55,21 +55,49 @@ func extractSongSearchCandidates(body []byte) []searchCandidate {
 	})
 }
 
+func extractAutocompleteAlbumSearchCandidates(response fuzzySearchResponse) []searchCandidate {
+	return collectAutocompleteSearchCandidates(response, "a", canonicalizeAlbumSearchURL)
+}
+
+func extractAutocompleteSongSearchCandidates(response fuzzySearchResponse) []searchCandidate {
+	return collectAutocompleteSearchCandidates(response, "t", canonicalizeSongSearchURL)
+}
+
+func collectAutocompleteSearchCandidates(response fuzzySearchResponse, resultType string, canonicalize func(string) string) []searchCandidate {
+	results := make([]searchCandidate, 0, len(response.Results))
+	seen := make(map[string]struct{}, len(response.Results))
+	for _, result := range response.Results {
+		if result.Type != resultType {
+			continue
+		}
+		candidate := searchCandidate{
+			URL:    canonicalize(result.URL),
+			Title:  cleanSearchText(result.Name),
+			Artist: cleanSearchText(result.BandName),
+		}
+		results = appendUniqueSearchCandidate(results, seen, candidate)
+	}
+	return results
+}
+
 func collectSearchCandidates(matches [][][]byte, build func(match [][]byte) searchCandidate) []searchCandidate {
 	results := make([]searchCandidate, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
-		candidate := build(match)
-		if candidate.URL == "" {
-			continue
-		}
-		if _, ok := seen[candidate.URL]; ok {
-			continue
-		}
-		seen[candidate.URL] = struct{}{}
-		results = append(results, candidate)
+		results = appendUniqueSearchCandidate(results, seen, build(match))
 	}
 	return results
+}
+
+func appendUniqueSearchCandidate(results []searchCandidate, seen map[string]struct{}, candidate searchCandidate) []searchCandidate {
+	if candidate.URL == "" {
+		return results
+	}
+	if _, ok := seen[candidate.URL]; ok {
+		return results
+	}
+	seen[candidate.URL] = struct{}{}
+	return append(results, candidate)
 }
 
 func rankSearchCandidates(source model.CanonicalAlbum, candidates []searchCandidate) []searchCandidate {
@@ -190,7 +218,7 @@ func cleanSearchText(value string) string {
 }
 
 func canonicalizeAlbumSearchURL(value string) string {
-	value = html.UnescapeString(value)
+	value = cleanSearchURL(value)
 	parsed, err := ParseAlbumURL(value)
 	if err != nil {
 		return ""
@@ -199,12 +227,23 @@ func canonicalizeAlbumSearchURL(value string) string {
 }
 
 func canonicalizeSongSearchURL(value string) string {
-	value = html.UnescapeString(value)
+	value = cleanSearchURL(value)
 	parsed, err := ParseSongURL(value)
 	if err != nil {
 		return ""
 	}
 	return parsed.CanonicalURL
+}
+
+func cleanSearchURL(value string) string {
+	value = html.UnescapeString(strings.TrimSpace(value))
+	if index := strings.LastIndex(value, "https://"); index > 0 {
+		return value[index:]
+	}
+	if index := strings.LastIndex(value, "http://"); index > 0 {
+		return value[index:]
+	}
+	return value
 }
 
 func parseTrackCount(value string) int {

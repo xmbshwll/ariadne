@@ -4,15 +4,9 @@
 // gating is applied.
 package ariadne
 
-import "github.com/xmbshwll/ariadne/internal/services"
-
 // LookupServiceName normalizes a service name or alias into the canonical public service name.
 func LookupServiceName(raw string) (ServiceName, bool) {
-	service, ok := services.Lookup(raw)
-	if !ok {
-		return "", false
-	}
-	return service, true
+	return defaultProviderCatalog.lookupServiceName(raw)
 }
 
 // DescribeService reports Ariadne's built-in service support, independent of config.

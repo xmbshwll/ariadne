@@ -106,10 +106,10 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	collector := adapterutil.MetadataQueryCandidateCollector[apiAlbumSummary, apiAlbumSummary]{
+	targetSearch := adapterutil.MetadataQueryTargetSearch[apiAlbumSummary, apiAlbumSummary]{
 		Queries: queries,
 		Limit:   searchLimit,
-		Search: func(query string) ([]apiAlbumSummary, error) {
+		Search: func(ctx context.Context, query string) ([]apiAlbumSummary, error) {
 			endpoint := a.searchEndpoint(query, "album", searchLimit)
 			var response apiAlbumSearchResponse
 			if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
@@ -118,11 +118,11 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 			return response.Albums.Items, nil
 		},
 		ItemID: func(item apiAlbumSummary) string { return item.ID },
-		BuildCandidate: func(item apiAlbumSummary) (apiAlbumSummary, error) {
+		BuildCandidate: func(_ context.Context, item apiAlbumSummary) (apiAlbumSummary, error) {
 			return item, nil
 		},
 	}
-	items, err := adapterutil.CollectMetadataQueryCandidates(collector)
+	items, err := targetSearch.Collect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("collect spotify metadata results: %w", err)
 	}
@@ -172,10 +172,10 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	collector := adapterutil.MetadataQueryCandidateCollector[apiTrackSearchItem, apiTrackSearchItem]{
+	targetSearch := adapterutil.MetadataQueryTargetSearch[apiTrackSearchItem, apiTrackSearchItem]{
 		Queries: queries,
 		Limit:   searchLimit,
-		Search: func(query string) ([]apiTrackSearchItem, error) {
+		Search: func(ctx context.Context, query string) ([]apiTrackSearchItem, error) {
 			endpoint := a.searchEndpoint(query, "track", searchLimit)
 			var response apiTrackSearchResponse
 			if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
@@ -184,11 +184,11 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 			return response.Tracks.Items, nil
 		},
 		ItemID: func(item apiTrackSearchItem) string { return item.ID },
-		BuildCandidate: func(item apiTrackSearchItem) (apiTrackSearchItem, error) {
+		BuildCandidate: func(_ context.Context, item apiTrackSearchItem) (apiTrackSearchItem, error) {
 			return item, nil
 		},
 	}
-	items, err := adapterutil.CollectMetadataQueryCandidates(collector)
+	items, err := targetSearch.Collect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("collect spotify song metadata results: %w", err)
 	}

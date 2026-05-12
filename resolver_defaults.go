@@ -1,10 +1,5 @@
 package ariadne
 
-import (
-	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
-)
-
 func orderedAdapters[T comparable](sets map[ServiceName]serviceAdapterSet, services []ServiceName, pick func(serviceAdapterSet) T) []T {
 	adapters := make([]T, 0, len(services))
 	var zero T
@@ -18,7 +13,7 @@ func orderedAdapters[T comparable](sets map[ServiceName]serviceAdapterSet, servi
 	return adapters
 }
 
-func filterAdaptersByServiceName[T interface{ Service() model.ServiceName }](adapters []T, services []ServiceName) []T {
+func filterAdaptersByServiceName[T interface{ Service() ServiceName }](adapters []T, services []ServiceName) []T {
 	allowed := serviceNameSet(services)
 	if len(allowed) == 0 {
 		return adapters
@@ -44,36 +39,4 @@ func serviceNameSet(services []ServiceName) map[ServiceName]struct{} {
 		allowed[service] = struct{}{}
 	}
 	return allowed
-}
-
-func resolveSourceAdapters(sources []SourceAdapter) []resolve.SourceAdapter {
-	adapters := make([]resolve.SourceAdapter, 0, len(sources))
-	for _, source := range sources {
-		adapters = append(adapters, source)
-	}
-	return adapters
-}
-
-func resolveSongSourceAdapters(sources []SongSourceAdapter) []resolve.SongSourceAdapter {
-	adapters := make([]resolve.SongSourceAdapter, 0, len(sources))
-	for _, source := range sources {
-		adapters = append(adapters, source)
-	}
-	return adapters
-}
-
-func resolveTargetAdapters(targets []TargetAdapter) []resolve.TargetAdapter {
-	adapters := make([]resolve.TargetAdapter, 0, len(targets))
-	for _, target := range targets {
-		adapters = append(adapters, target)
-	}
-	return adapters
-}
-
-func resolveSongTargetAdapters(targets []SongTargetAdapter) []resolve.SongTargetAdapter {
-	adapters := make([]resolve.SongTargetAdapter, 0, len(targets))
-	for _, target := range targets {
-		adapters = append(adapters, target)
-	}
-	return adapters
 }

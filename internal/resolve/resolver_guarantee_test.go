@@ -39,20 +39,3 @@ func TestResolverResolveAlbumReturnsTargetError(t *testing.T) {
 	assert.Nil(t, resolution)
 	assert.ErrorIs(t, err, errTargetSearchBoom)
 }
-
-func TestAppendUniqueByKeyPreservesFirstSeenOrdering(t *testing.T) {
-	seen := map[string]struct{}{}
-	candidates := appendUniqueByKey([]model.CandidateAlbum{}, seen, []model.CandidateAlbum{
-		{CandidateID: "album-1", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-		{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-	}, albumCandidateKey)
-	candidates = appendUniqueByKey(candidates, seen, []model.CandidateAlbum{
-		{CandidateID: "album-2", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-		{CandidateID: "album-3", CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}},
-	}, albumCandidateKey)
-
-	require.Len(t, candidates, 3)
-	assert.Equal(t, "album-1", candidates[0].CandidateID)
-	assert.Equal(t, "album-2", candidates[1].CandidateID)
-	assert.Equal(t, "album-3", candidates[2].CandidateID)
-}

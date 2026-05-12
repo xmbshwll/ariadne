@@ -56,6 +56,33 @@ func TestAlbumAdapter(t *testing.T) {
 	})
 }
 
+func TestSearchByMetadataUsesAutocompleteWhenHTMLSearchIsChallenged(t *testing.T) {
+	albumPage := mustBandcampAlbumPage(t, "FENIAN", "KNEECAP", "2025-05-05", []string{"Smugglers & Scholars", "Carnival"})
+	server := newBandcampTestServer(func(baseURL string) map[string][]byte {
+		autocomplete := strings.ReplaceAll(
+			`{"results":[{"type":"a","name":"FENIAN","band_name":"KNEECAP","url":"{{BASE_URL}}/album/fenian"}]}`,
+			bandcampBaseURLPlaceholder,
+			baseURL,
+		)
+		return map[string][]byte{
+			"/api/fuzzysearch/1/app_autocomplete": []byte(autocomplete),
+			bandcampSearchPath:                    []byte(`<html><head><title>Client Challenge</title></head><body></body></html>`),
+			"/album/fenian":                       albumPage,
+		}
+	})
+	defer server.Close()
+
+	adapter := newBandcampTestAdapter(server)
+	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+		Title:   "Fenian",
+		Artists: []string{"Kneecap"},
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "fenian", results[0].CandidateID)
+	assert.Equal(t, server.URL+"/album/fenian", results[0].MatchURL)
+}
+
 func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 	source := model.CanonicalAlbum{
 		Title:      "Live at KEXP",
