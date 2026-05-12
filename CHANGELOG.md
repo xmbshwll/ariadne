@@ -4,6 +4,44 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.6.0 - 2026-05-12
+
+### Added
+
+- public adapter interface aliases `UPCSearcher`, `ISRCSearcher`, `MetadataSearcher`, `SongISRCSearcher`, and `SongMetadataSearcher` as exported type aliases for internal resolve types
+- `MetadataQueryTargetSearch` generic helper in `adapterutil` that owns query iteration, candidate identity, hydration, deduplication, limits, and continuation policy
+- explicit album and song Entity Resolution Policy modules behind the shared resolver core, unifying orchestration while keeping entity-specific Source Input, Target Search, ranking, result construction, and album Identifier Enrichment behavior local
+- dedicated `internal/targetsearch` package for Target Search error classification so adapter-specific availability failures and recoverable request timeouts share one vocabulary
+- Provider Catalog as source of truth for service aliases, capabilities, parse-only song input wiring, credential-gated adapter construction, and default resolver ordering
+- Bandcamp fuzzy autocomplete endpoint as first search attempt before HTML fallback, preserving resolution when public search page serves a client challenge
+- Amazon Music and YouTube Music registered as parse-only song sources so song Source Input reaches deferred Runtime Hydration sentinels instead of falling through as unsupported URLs
+- service lookup key normalization through `servicesByLookupKey` map in the Provider Catalog, enabling reliable alias-based service name resolution without external lookup helpers
+- default CLI module dependency on released `v0.5.0` library and workspace fixes for local development against the current root checkout
+
+### Changed
+
+- public adapter interfaces (`SourceAdapter`, `SongSourceAdapter`, `TargetAdapter`, `SongTargetAdapter`) changed to type aliases for their internal `resolve` counterparts, removing the public/internal adapter conversion bridge layer
+- Apple Music, Spotify, and Deezer metadata Target Search paths now share the `MetadataQueryTargetSearch` helper, keeping only service-specific search endpoint and hydration logic in each adapter
+- Bandcamp target search pipeline moved behind a small internal module so album and song metadata search share autocomplete discovery, HTML fallback, hydration, and collection instead of wiring callbacks at each call site
+- Target Search Plan collects per-layer results explicitly instead of mixing layer execution, recoverable timeout handling, filtering, fatal error wrapping, and deduplication in one loop
+- entity resolution callback pipeline replaced with explicit album and song flows; shared Source Input, Target Search Plan, concurrent search, and Apple Music Identifier Enrichment modules remain in place
+- `Resolver.New` constructor now takes adapter slices directly, eliminating `resolveSourceAdapters`, `resolveSongSourceAdapters`, `resolveTargetAdapters`, and `resolveSongTargetAdapters` conversion wrappers
+- removed placeholder `public_types.go` file; API types now live in focused files as documented
+- Deezer and Apple Music `Search`/`BuildCandidate` closure signatures accept `context.Context` for the shared metadata search path
+- SoundCloud `client_id` discovery failures now treated as unavailable search results instead of aborting multi-service resolution
+- private/global-heavy tests replaced with narrower behavior-level seams across adapter contract and resolver constructor tests
+- workspace `replace` directive removed from `go.work`; CLI module pinned to published library version `v0.5.0`
+
+### Fixed
+
+- Bandcamp album and song targets now resolve when the public search page serves a client challenge, by falling back to hydrated JSON-LD candidates from autocomplete results
+- Song targets stay non-fatal when target adapters do not implement song search interfaces; those adapters now produce zero Target Search layers instead of panicking during resolver construction
+- `MetadataQueryTargetSearch` returns an initialized empty slice for empty query sets, preserving caller expectations around nil-vs-initialized semantics
+- empty autocomplete responses genuinely exercise the HTML fallback path in Bandcamp search, covered by a focused regression test
+- Bandcamp autocomplete fetch errors wrapped before returning, satisfying `wrapcheck` lint enforcement
+- per-request target timeouts no longer abort overall resolution while the context remains active
+- release verification ignores stale vendor state when using the temporary replace modfile during release testing
+
 ## v0.5.0 - 2026-05-03
 
 ### Added
