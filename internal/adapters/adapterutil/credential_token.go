@@ -164,7 +164,7 @@ func (s *CredentialTokenSource) refreshAccessToken(ctx context.Context, credenti
 			return token, nil
 		}
 		lastErr = err
-		if attempt == s.config.MaxRefreshAttempts-1 || !isTransientHTTPStatusError(err) {
+		if attempt == s.config.MaxRefreshAttempts-1 || !IsTransientHTTPError(err) {
 			break
 		}
 		if waitErr := waitForRefreshRetry(ctx, attempt, s.config.RefreshRetryBackoff); waitErr != nil {
@@ -194,22 +194,6 @@ func (s *CredentialTokenSource) fetchAndCacheToken(ctx context.Context, credenti
 	}
 	s.cached = cachedCredentialToken{accessToken: token.AccessToken, expiresAt: expiresAt}
 	return s.cached.accessToken, nil
-}
-
-// isTransientHTTPStatusError reports whether err is an HTTP status error with a
-// retryable status code (502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout).
-// Relies on StatusError formatting: "sentinel code: body".
-func isTransientHTTPStatusError(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	for _, code := range []string{" 502", " 503", " 504"} {
-		if strings.Contains(msg, code) {
-			return true
-		}
-	}
-	return false
 }
 
 func waitForRefreshRetry(ctx context.Context, attempt int, baseBackoff time.Duration) error {

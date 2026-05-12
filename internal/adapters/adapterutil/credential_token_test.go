@@ -3,7 +3,6 @@ package adapterutil
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -220,7 +219,7 @@ func TestCredentialTokenSourceRejectsEmptyToken(t *testing.T) {
 	require.ErrorIs(t, err, errCredentialTokenEmpty)
 }
 
-var errCredentialTokenTransient503 = fmt.Errorf("fetch token: unexpected http status 503: temporarily_unavailable")
+var errTestTokenSentinel = errors.New("test token error")
 
 func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 	var fetches int
@@ -235,7 +234,7 @@ func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
 			fetches++
 			if fetches < 3 {
-				return CredentialToken{}, errCredentialTokenTransient503
+				return CredentialToken{}, StatusError(errTestTokenSentinel)(503, "temporarily_unavailable")
 			}
 			return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 		},
@@ -259,7 +258,7 @@ func TestCredentialTokenSourceDoesNotRetryNonTransientErrors(t *testing.T) {
 		RefreshRetryBackoff: time.Millisecond,
 		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
 			fetches++
-			return CredentialToken{}, fmt.Errorf("fetch token: unexpected http status 401: unauthorized")
+			return CredentialToken{}, StatusError(errTestTokenSentinel)(401, "unauthorized")
 		},
 	})
 

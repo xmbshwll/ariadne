@@ -32,6 +32,10 @@ func (e *spotifyAPIError) Is(target error) bool {
 	return target == errUnexpectedSpotifyAPIStatus
 }
 
+func (e *spotifyAPIError) HTTPStatusCode() int {
+	return e.StatusCode
+}
+
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
 	var lastErr error
 	for attempt := range spotifyAPIMaxAttempts {
@@ -74,8 +78,7 @@ func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target an
 }
 
 func shouldRetrySpotifyAPIError(err error) bool {
-	var apiErr *spotifyAPIError
-	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusBadGateway || apiErr.StatusCode == http.StatusServiceUnavailable || apiErr.StatusCode == http.StatusGatewayTimeout)
+	return adapterutil.IsTransientHTTPError(err)
 }
 
 func waitForSpotifyAPIRetry(ctx context.Context, attempt int) error {
