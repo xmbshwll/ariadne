@@ -4,9 +4,16 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.6.2 - 2026-05-12
+
 ### Fixed
 
 - Credential token refresh now retries transient HTTP `502` / `503` / `504` responses from token endpoints with exponential backoff (3 attempts, 250ms initial). Prevents "context deadline exceeded" or "unexpected token status" errors when auth APIs are temporarily unavailable.
+
+### Changed
+
+- HTTP status errors now carry a typed `HTTPStatusCode()` method via the `HTTPStatusError` interface, replacing fragile string-based status code matching with `errors.As` checks.
+- All raw HTTP status code integers and string-based status checks replaced with `net/http` constants (`http.StatusServiceUnavailable`, `http.StatusGatewayTimeout`, etc.).
 
 ## v0.6.1 - 2026-05-12
 
