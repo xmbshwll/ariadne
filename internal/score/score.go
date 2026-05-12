@@ -2,7 +2,6 @@ package score
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -76,20 +75,8 @@ func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, 
 	for _, candidate := range candidates {
 		ranked = append(ranked, scoreCandidate(source, candidate, weights))
 	}
-
-	sort.SliceStable(ranked, func(i, j int) bool {
-		if ranked[i].Score == ranked[j].Score {
-			return ranked[i].Candidate.CandidateID < ranked[j].Candidate.CandidateID
-		}
-		return ranked[i].Score > ranked[j].Score
-	})
-
-	ranking := Ranking{Ranked: ranked}
-	if len(ranked) > 0 {
-		best := ranked[0]
-		ranking.Best = &best
-	}
-	return ranking
+	ranked, best := finalizeRanking(ranked, func(r RankedCandidate) int { return r.Score }, func(r RankedCandidate) string { return r.Candidate.CandidateID })
+	return Ranking{Best: best, Ranked: ranked}
 }
 
 func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) RankedCandidate {
