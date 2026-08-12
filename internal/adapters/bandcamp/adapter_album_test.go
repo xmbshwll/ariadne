@@ -83,7 +83,7 @@ func TestSearchByMetadataUsesAutocompleteWhenHTMLSearchIsChallenged(t *testing.T
 	assert.Equal(t, server.URL+"/album/fenian", results[0].MatchURL)
 }
 
-func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
+func TestSearchByMetadataReturnsHydratedCandidatesUntruncated(t *testing.T) {
 	source := model.CanonicalAlbum{
 		Title:      "Live at KEXP",
 		Artists:    []string{"Sea Lemon"},
@@ -112,8 +112,11 @@ func TestSearchByMetadataReranksHydratedCandidates(t *testing.T) {
 	results, err := adapter.SearchByMetadata(context.Background(), source)
 	require.NoError(t, err)
 	require.Len(t, results, 2)
-	assert.Equal(t, "live-at-kexp-high", results[0].CandidateID)
-	assert.Equal(t, "live-at-kexp-low", results[1].CandidateID)
+	// The adapter no longer ranks by Score Signals; Entity Resolution owns
+	// ranking with the configured weights. Assert membership, not score order.
+	ids := []string{results[0].CandidateID, results[1].CandidateID}
+	assert.Contains(t, ids, "live-at-kexp-high")
+	assert.Contains(t, ids, "live-at-kexp-low")
 }
 
 func TestSearchByMetadataReturnsFirstHydrationErrorWhenNothingRecovers(t *testing.T) {

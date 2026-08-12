@@ -30,18 +30,28 @@ func (r *Resolver) songResolver() (*resolve.SongResolver, error) {
 	return r.songInner, nil
 }
 
-// New builds a Resolver with the default adapter set and a default HTTP client.
-func New(config Config) *Resolver {
-	return NewWithClient(nil, config)
+// Option customizes New. Most callers need no options.
+type Option func(*resolverOptions)
+
+type resolverOptions struct {
+	client *http.Client
 }
 
-// NewWithClient builds a Resolver with the default adapter set and a caller-provided HTTP client.
-func NewWithClient(client *http.Client, config Config) *Resolver {
-	return newWithProviderCatalog(client, config)
+// WithHTTPClient makes New use a caller-provided HTTP client for the default adapter set.
+func WithHTTPClient(client *http.Client) Option {
+	return func(options *resolverOptions) {
+		options.client = client
+	}
 }
 
-func newWithProviderCatalog(client *http.Client, config Config) *Resolver {
+// New builds a Resolver with the default adapter set from the Provider Catalog.
+func New(config Config, opts ...Option) *Resolver {
+	options := resolverOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
 	config = normalizedConfig(config)
+	client := options.client
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
@@ -56,36 +66,33 @@ func newWithProviderCatalog(client *http.Client, config Config) *Resolver {
 	)
 }
 
-// NewWithAdapters builds a Resolver from caller-provided album source and target adapters using the default ranking weights.
-func NewWithAdapters(sources []SourceAdapter, targets []TargetAdapter) *Resolver {
-	return NewWithAdaptersAndWeights(sources, targets, DefaultScoreWeights())
+// AdapterSet carries caller-provided adapters and ranking weights for
+// NewWithAdapters. Zero weights use the defaults.
+type AdapterSet struct {
+	AlbumSources []SourceAdapter
+	AlbumTargets []TargetAdapter
+	SongSources  []SongSourceAdapter
+	SongTargets  []SongTargetAdapter
+	Weights      ScoreWeights
+	SongWeights  SongScoreWeights
 }
 
-// NewWithAdaptersAndWeights builds a Resolver from caller-provided album source and target adapters and explicit ranking weights.
-func NewWithAdaptersAndWeights(sources []SourceAdapter, targets []TargetAdapter, weights ScoreWeights) *Resolver {
-	return NewWithEntityAdaptersAndWeights(sources, targets, nil, nil, weights, DefaultSongScoreWeights())
-}
-
-// NewWithEntityAdapters builds a Resolver from caller-provided album and song adapters using default ranking weights.
-func NewWithEntityAdapters(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter) *Resolver {
-	return NewWithEntityAdaptersAndWeights(
-		albumSources,
-		albumTargets,
-		songSources,
-		songTargets,
-		DefaultScoreWeights(),
-		DefaultSongScoreWeights(),
-	)
-}
-
-// NewWithEntityAdaptersAndWeights builds a Resolver from caller-provided album and song adapters and explicit ranking weights.
-func NewWithEntityAdaptersAndWeights(albumSources []SourceAdapter, albumTargets []TargetAdapter, songSources []SongSourceAdapter, songTargets []SongTargetAdapter, albumWeights ScoreWeights, songWeights SongScoreWeights) *Resolver {
+// NewWithAdapters builds a Resolver from a caller-provided AdapterSet.
+func NewWithAdapters(set AdapterSet) *Resolver {
+	weights := set.Weights
+	if weights == (ScoreWeights{}) {
+		weights = DefaultScoreWeights()
+	}
+	songWeights := set.SongWeights
+	if songWeights == (SongScoreWeights{}) {
+		songWeights = DefaultSongScoreWeights()
+	}
 	return newResolver(
-		albumSources,
-		albumTargets,
-		songSources,
-		songTargets,
-		albumWeights,
+		set.AlbumSources,
+		set.AlbumTargets,
+		set.SongSources,
+		set.SongTargets,
+		weights,
 		songWeights,
 	)
 }

@@ -202,8 +202,8 @@ func TestRunRejectsUnsupportedLogLevel(t *testing.T) {
 
 func TestRunResolveDebugLogIncludesSecretsFromConfig(t *testing.T) {
 	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
+		return ariadne.NewWithAdapters(ariadne.AdapterSet{
+			AlbumSources: []ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:           ariadne.ServiceDeezer,
 					SourceID:          "src-1",
@@ -216,8 +216,7 @@ func TestRunResolveDebugLogIncludesSecretsFromConfig(t *testing.T) {
 					UPC:               "123456789012",
 				},
 			})},
-			nil,
-		)
+		})
 	})
 
 	configPath := filepath.Join(t.TempDir(), ".env")
@@ -238,8 +237,8 @@ func TestRunResolveDebugLogIncludesSecretsFromConfig(t *testing.T) {
 
 func TestRunResolveInfoLogDoesNotPrintSecrets(t *testing.T) {
 	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
+		return ariadne.NewWithAdapters(ariadne.AdapterSet{
+			AlbumSources: []ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
 					Service:   ariadne.ServiceDeezer,
 					SourceID:  "src-1",
@@ -247,8 +246,7 @@ func TestRunResolveInfoLogDoesNotPrintSecrets(t *testing.T) {
 					Title:     "Fixture Album",
 				},
 			})},
-			nil,
-		)
+		})
 	})
 
 	configPath := filepath.Join(t.TempDir(), ".env")

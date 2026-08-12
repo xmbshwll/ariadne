@@ -7,38 +7,22 @@ import (
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/score"
 )
 
-const (
-	searchLimit          = 5
-	searchHydrationLimit = 8
-)
+const searchHydrationLimit = 8
 
 // SearchByMetadata searches Bandcamp metadata results and hydrates matching album pages.
+// Candidates return untruncated and unranked: Entity Resolution owns ranking
+// with the configured Score Signal weights.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	results, err := a.albumTargetSearch(album).run(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	ranking := score.RankAlbums(album, results, score.DefaultWeights())
-	return topRankedCandidates(ranking.Ranked, func(candidate score.RankedCandidate) model.CandidateAlbum {
-		return candidate.Candidate
-	}), nil
+	return a.albumTargetSearch(album).run(ctx)
 }
 
 // SearchSongByMetadata searches Bandcamp metadata results and hydrates matching track pages.
+// Candidates return untruncated and unranked: Entity Resolution owns ranking
+// with the configured Score Signal weights.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	results, err := a.songTargetSearch(song).run(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	ranking := score.RankSongs(song, results, score.DefaultSongWeights())
-	return topRankedCandidates(ranking.Ranked, func(candidate score.RankedSongCandidate) model.CandidateSong {
-		return candidate.Candidate
-	}), nil
+	return a.songTargetSearch(song).run(ctx)
 }
 
 type bandcampTargetSearch[Candidate any] struct {
@@ -181,18 +165,4 @@ func (s bandcampTargetSearch[Candidate]) autocomplete(ctx context.Context) ([]se
 		return nil, fmt.Errorf("bandcamp autocomplete: %w", err)
 	}
 	return s.autocompleteCandidates(response), nil
-}
-
-func topRankedCandidates[Ranked any, Candidate any](ranked []Ranked, candidate func(Ranked) Candidate) []Candidate {
-	if len(ranked) == 0 {
-		return nil
-	}
-	if len(ranked) > searchLimit {
-		ranked = ranked[:searchLimit]
-	}
-	ordered := make([]Candidate, 0, len(ranked))
-	for _, rankedCandidate := range ranked {
-		ordered = append(ordered, candidate(rankedCandidate))
-	}
-	return ordered
 }

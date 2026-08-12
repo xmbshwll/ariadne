@@ -25,7 +25,7 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 		if part == "" {
 			continue
 		}
-		decision := ariadne.EvaluateTargetServiceRequest(appConfig, part)
+		decision := ariadne.EvaluateTarget(appConfig, part, ariadne.EntityShapeAny)
 		if err := targetServiceRequestError(part, decision); err != nil {
 			return nil, err
 		}
@@ -66,12 +66,12 @@ func targetServiceDecisionError(sentinel error, decision ariadne.TargetServiceRe
 }
 
 func unsupportedTargetServiceError(raw string) error {
-	decision := ariadne.EvaluateTargetServiceRequest(ariadne.Config{}, raw)
+	decision := ariadne.EvaluateTarget(ariadne.Config{}, raw, ariadne.EntityShapeAny)
 	return targetServiceDecisionError(errUnsupportedTargetService, decision)
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
-	decision := ariadne.EvaluateConfiguredTargetService(appConfig, service)
+	decision := ariadne.EvaluateTarget(appConfig, string(service), ariadne.EntityShapeAny)
 	return targetServiceRequestError(string(service), decision)
 }
 
@@ -124,9 +124,9 @@ func serviceNames(services []ariadne.ServiceName) []string {
 func targetServiceNamesUsage() string {
 	names := make([]string, 0)
 	seen := map[string]struct{}{}
-	for _, service := range ariadne.SupportedTargetServices() {
+	for _, service := range ariadne.TargetServices(nil, ariadne.EntityShapeAny) {
 		names = appendUniqueServiceName(names, seen, string(service))
-		capabilities, ok := ariadne.DescribeService(service)
+		capabilities, ok := ariadne.Describe(service)
 		if !ok {
 			continue
 		}

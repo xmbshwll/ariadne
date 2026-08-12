@@ -91,7 +91,7 @@ func validateResolveConfig(config resolveConfig) error {
 	}
 
 	for _, service := range config.resolverConfig.TargetServices {
-		decision := ariadne.EvaluateSongTargetService(config.resolverConfig, service)
+		decision := ariadne.EvaluateTarget(config.resolverConfig, string(service), ariadne.EntityShapeSong)
 		if decision.Status == ariadne.TargetServiceRequestAvailable {
 			continue
 		}

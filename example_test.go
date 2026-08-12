@@ -68,8 +68,8 @@ func ExampleMatchStrengthForScore() {
 	// probable
 }
 
-func ExampleNewWithClient() {
-	resolver := ariadne.NewWithClient(&http.Client{}, ariadne.DefaultConfig())
+func ExampleNew_withHTTPClient() {
+	resolver := ariadne.New(ariadne.DefaultConfig(), ariadne.WithHTTPClient(&http.Client{}))
 
 	fmt.Println(resolver != nil)
 	// Output:
@@ -77,10 +77,10 @@ func ExampleNewWithClient() {
 }
 
 func ExampleResolver_ResolveAlbum() {
-	resolver := ariadne.NewWithAdapters(
-		[]ariadne.SourceAdapter{exampleSourceAdapter{}},
-		[]ariadne.TargetAdapter{exampleTargetAdapter{}},
-	)
+	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
+		AlbumSources: []ariadne.SourceAdapter{exampleSourceAdapter{}},
+		AlbumTargets: []ariadne.TargetAdapter{exampleTargetAdapter{}},
+	})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://example.test/albums/1")
 	if err != nil {
@@ -95,12 +95,10 @@ func ExampleResolver_ResolveAlbum() {
 }
 
 func ExampleResolver_ResolveSong() {
-	resolver := ariadne.NewWithEntityAdapters(
-		nil,
-		nil,
-		[]ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
-		[]ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
-	)
+	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
+		SongSources: []ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
+		SongTargets: []ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
+	})
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://example.test/songs/1")
 	if err != nil {
@@ -115,12 +113,12 @@ func ExampleResolver_ResolveSong() {
 }
 
 func ExampleResolver_Resolve() {
-	resolver := ariadne.NewWithEntityAdapters(
-		[]ariadne.SourceAdapter{exampleSourceAdapter{}},
-		[]ariadne.TargetAdapter{exampleTargetAdapter{}},
-		[]ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
-		[]ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
-	)
+	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
+		AlbumSources: []ariadne.SourceAdapter{exampleSourceAdapter{}},
+		AlbumTargets: []ariadne.TargetAdapter{exampleTargetAdapter{}},
+		SongSources:  []ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
+		SongTargets:  []ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
+	})
 
 	resolution, err := resolver.Resolve(context.Background(), "https://example.test/songs/1")
 	if err != nil {
@@ -134,15 +132,15 @@ func ExampleResolver_Resolve() {
 	// Example Song
 }
 
-func ExampleNewWithAdaptersAndWeights() {
+func ExampleNewWithAdapters_customWeights() {
 	weights := ariadne.DefaultScoreWeights()
 	weights.TrackTitleStrong = 40
 
-	resolver := ariadne.NewWithAdaptersAndWeights(
-		[]ariadne.SourceAdapter{exampleSourceAdapter{}},
-		[]ariadne.TargetAdapter{exampleTargetAdapter{}},
-		weights,
-	)
+	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
+		AlbumSources: []ariadne.SourceAdapter{exampleSourceAdapter{}},
+		AlbumTargets: []ariadne.TargetAdapter{exampleTargetAdapter{}},
+		Weights:      weights,
+	})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://example.test/albums/1")
 	if err != nil {

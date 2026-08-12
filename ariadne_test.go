@@ -141,7 +141,7 @@ func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
 	}
 }
 
-func TestDescribeService(t *testing.T) {
+func TestDescribe(t *testing.T) {
 	tests := []struct {
 		name                     string
 		service                  ServiceName
@@ -159,7 +159,7 @@ func TestDescribeService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			capabilities, ok := DescribeService(tt.service)
+			capabilities, ok := Describe(tt.service)
 			require.True(t, ok)
 			if tt.aliases != nil {
 				assert.Equal(t, tt.aliases, capabilities.Aliases)
@@ -173,7 +173,7 @@ func TestDescribeService(t *testing.T) {
 	}
 }
 
-func TestDescribeEnabledService(t *testing.T) {
+func TestDescribeEnabled(t *testing.T) {
 	tests := []struct {
 		name                string
 		config              Config
@@ -188,7 +188,7 @@ func TestDescribeEnabledService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			capabilities, ok := DescribeEnabledService(tt.config, tt.service)
+			capabilities, ok := DescribeEnabled(tt.config, tt.service)
 			require.True(t, ok)
 			assert.Equal(t, tt.supportsAlbumTarget, capabilities.SupportsAlbumTarget)
 			assert.Equal(t, tt.supportsSongTarget, capabilities.SupportsSongTarget)
@@ -205,7 +205,7 @@ func TestSupportedServiceLists(t *testing.T) {
 		ServiceYouTubeMusic,
 		ServiceSpotify,
 		ServiceTIDAL,
-	}, SupportedTargetServices())
+	}, TargetServices(nil, EntityShapeAny))
 	assert.Equal(t, []ServiceName{
 		ServiceAppleMusic,
 		ServiceBandcamp,
@@ -213,7 +213,7 @@ func TestSupportedServiceLists(t *testing.T) {
 		ServiceSoundCloud,
 		ServiceSpotify,
 		ServiceTIDAL,
-	}, SupportedSongTargetServices())
+	}, TargetServices(nil, EntityShapeSong))
 }
 
 const (
@@ -241,7 +241,7 @@ func TestProviderCatalogTargetServiceRequests(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, EvaluateTargetServiceRequest(tt.config, tt.raw))
+			assert.Equal(t, tt.want, EvaluateTarget(tt.config, tt.raw, EntityShapeAny))
 		})
 	}
 }
@@ -262,36 +262,46 @@ func TestProviderCatalogSongTargetServiceRequests(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, EvaluateSongTargetService(tt.config, tt.service))
+			assert.Equal(t, tt.want, EvaluateTarget(tt.config, string(tt.service), EntityShapeSong))
 		})
 	}
 }
 
 func TestEnabledServiceLists(t *testing.T) {
+	empty := Config{}
 	assert.Equal(t, []ServiceName{
 		ServiceAppleMusic,
 		ServiceBandcamp,
 		ServiceDeezer,
 		ServiceSoundCloud,
 		ServiceYouTubeMusic,
-	}, EnabledTargetServices(Config{}))
+	}, TargetServices(&empty, EntityShapeAny))
 	assert.Equal(t, []ServiceName{
 		ServiceAppleMusic,
 		ServiceBandcamp,
 		ServiceDeezer,
 		ServiceSoundCloud,
-	}, EnabledSongTargetServices(Config{}))
+	}, TargetServices(&empty, EntityShapeSong))
 
 	config := Config{
 		Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"},
 		TIDAL:   TIDALConfig{ClientID: "tidal-id", ClientSecret: "tidal-secret"},
 	}
-	assert.Equal(t, SupportedTargetServices(), EnabledTargetServices(config))
-	assert.Equal(t, SupportedSongTargetServices(), EnabledSongTargetServices(config))
-	assert.True(t, SupportsEnabledTarget(config, ServiceSpotify))
-	assert.True(t, SupportsEnabledSongTarget(config, ServiceTIDAL))
-	assert.False(t, SupportsEnabledTarget(Config{}, ServiceSpotify))
-	assert.False(t, SupportsEnabledSongTarget(Config{}, ServiceTIDAL))
+	assert.Equal(t, TargetServices(nil, EntityShapeAny), TargetServices(&config, EntityShapeAny))
+	assert.Equal(t, TargetServices(nil, EntityShapeSong), TargetServices(&config, EntityShapeSong))
+
+	spotify, ok := DescribeEnabled(config, ServiceSpotify)
+	require.True(t, ok)
+	assert.True(t, spotify.SupportsAlbumTarget)
+	tidal, ok := DescribeEnabled(config, ServiceTIDAL)
+	require.True(t, ok)
+	assert.True(t, tidal.SupportsSongTarget)
+	spotify, ok = DescribeEnabled(empty, ServiceSpotify)
+	require.True(t, ok)
+	assert.False(t, spotify.SupportsAlbumTarget)
+	tidal, ok = DescribeEnabled(empty, ServiceTIDAL)
+	require.True(t, ok)
+	assert.False(t, tidal.SupportsSongTarget)
 }
 
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
@@ -316,10 +326,10 @@ func TestMatchStrengthForScore(t *testing.T) {
 }
 
 func TestNewWithAdaptersResolveAlbum(t *testing.T) {
-	resolver := NewWithAdapters(
-		[]SourceAdapter{newLibrarySourceAdapter()},
-		[]TargetAdapter{newLibraryTargetAdapter()},
-	)
+	resolver := NewWithAdapters(AdapterSet{
+		AlbumSources: []SourceAdapter{newLibrarySourceAdapter()},
+		AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()},
+	})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
@@ -329,7 +339,7 @@ func TestNewWithAdaptersResolveAlbum(t *testing.T) {
 	assert.Equal(t, "spotify-1", match.Best.Candidate.CandidateID)
 }
 
-func TestNewWithEntityAdaptersResolveSong(t *testing.T) {
+func TestNewWithAdaptersResolveSong(t *testing.T) {
 	resolver := newTestEntityResolver()
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
@@ -387,17 +397,17 @@ func TestResolveReturnsPublicSentinelWhenCustomSourceViolatesContract(t *testing
 		sentinel error
 	}{
 		{name: "album source returns nil parsed url", sentinel: ErrSourceAdapterReturnedNilParsedURL, resolve: func() error {
-			resolver := NewWithAdapters([]SourceAdapter{newNilParsedSourceAdapter()}, []TargetAdapter{newLibraryTargetAdapter()})
+			resolver := NewWithAdapters(AdapterSet{AlbumSources: []SourceAdapter{newNilParsedSourceAdapter()}, AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
 		{name: "album source returns nil album", sentinel: ErrSourceAdapterReturnedNilAlbum, resolve: func() error {
-			resolver := NewWithAdapters([]SourceAdapter{newNilAlbumSourceAdapter()}, []TargetAdapter{newLibraryTargetAdapter()})
+			resolver := NewWithAdapters(AdapterSet{AlbumSources: []SourceAdapter{newNilAlbumSourceAdapter()}, AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
 		{name: "song source returns nil song", sentinel: ErrSourceAdapterReturnedNilSong, resolve: func() error {
-			resolver := NewWithEntityAdapters(nil, nil, []SongSourceAdapter{newNilSongSourceAdapter()}, []SongTargetAdapter{newLibrarySongTargetAdapter()})
+			resolver := NewWithAdapters(AdapterSet{SongSources: []SongSourceAdapter{newNilSongSourceAdapter()}, SongTargets: []SongTargetAdapter{newLibrarySongTargetAdapter()}})
 			_, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 			return err
 		}},
@@ -443,7 +453,7 @@ func TestResolveSongReturnsDeferredRuntimeForParseOnlyServices(t *testing.T) {
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
-	resolver := NewWithAdapters([]SourceAdapter{newLibrarySourceAdapter()}, []TargetAdapter{newFailingLibraryTargetAdapter()})
+	resolver := NewWithAdapters(AdapterSet{AlbumSources: []SourceAdapter{newLibrarySourceAdapter()}, AlbumTargets: []TargetAdapter{newFailingLibraryTargetAdapter()}})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
@@ -452,10 +462,10 @@ func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
 }
 
 func newTestEntityResolver() *Resolver {
-	return NewWithEntityAdapters(
-		[]SourceAdapter{newLibrarySourceAdapter()},
-		[]TargetAdapter{newLibraryTargetAdapter()},
-		[]SongSourceAdapter{newLibrarySongSourceAdapter()},
-		[]SongTargetAdapter{newLibrarySongTargetAdapter()},
-	)
+	return NewWithAdapters(AdapterSet{
+		AlbumSources: []SourceAdapter{newLibrarySourceAdapter()},
+		AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()},
+		SongSources:  []SongSourceAdapter{newLibrarySongSourceAdapter()},
+		SongTargets:  []SongTargetAdapter{newLibrarySongTargetAdapter()},
+	})
 }

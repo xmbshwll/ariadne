@@ -248,21 +248,36 @@ func (c providerCatalog) describeEnabledService(config Config, service ServiceNa
 	return capability.describe(), true
 }
 
-func (c providerCatalog) targetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, service, supportsAnyTarget, c.unavailableTargetServiceMessage(string(service)))
-}
-
-func (c providerCatalog) lookupTargetServiceRequest(config Config, raw string) TargetServiceRequestDecision {
-	message := c.unavailableTargetServiceMessage(raw)
-	service, ok := c.lookupServiceName(raw)
+func (c providerCatalog) evaluateTarget(config Config, name string, entity EntityShape) TargetServiceRequestDecision {
+	message := c.unavailableTargetServiceMessage(name, config, entity)
+	service, ok := c.lookupServiceName(name)
 	if !ok {
 		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: message}
 	}
-	return c.targetCapabilityRequest(config, service, supportsAnyTarget, message)
+	return c.targetCapabilityRequest(config, service, targetCapabilityFor(entity), message)
 }
 
-func (c providerCatalog) songTargetServiceRequest(config Config, service ServiceName) TargetServiceRequestDecision {
-	return c.targetCapabilityRequest(config, service, supportsSongTargetCapability, c.unavailableSongTargetServiceMessage(config, service))
+func targetCapabilityFor(entity EntityShape) func(serviceCapability) bool {
+	switch entity {
+	case EntityShapeAlbum:
+		return func(capability serviceCapability) bool { return capability.supportsAlbumTarget }
+	case EntityShapeSong:
+		return supportsSongTargetCapability
+	default:
+		return supportsAnyTarget
+	}
+}
+
+func (c providerCatalog) targetServices(config *Config, entity EntityShape) []ServiceName {
+	supports := targetCapabilityFor(entity)
+	order := c.order.albumTargets
+	if entity == EntityShapeSong {
+		order = c.order.songTargets
+	}
+	if config == nil {
+		return c.supportedServices(order, supports)
+	}
+	return c.enabledServices(*config, order, supports)
 }
 
 func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceName, supports func(serviceCapability) bool, message string) TargetServiceRequestDecision {
@@ -285,20 +300,15 @@ func (c providerCatalog) targetCapabilityRequest(config Config, service ServiceN
 	return decision
 }
 
-func (c providerCatalog) unavailableTargetServiceMessage(raw string) string {
-	return fmt.Sprintf("%q (expected one of the supported target services: %s)", raw, strings.Join(serviceNameStrings(c.supportedTargetServices()), ", "))
-}
-
-func (c providerCatalog) unavailableSongTargetServiceMessage(config Config, service ServiceName) string {
-	return fmt.Sprintf("%q (%s)", service, c.enabledSongTargetServicesUsage(config))
-}
-
-func (c providerCatalog) enabledSongTargetServicesUsage(config Config) string {
-	names := serviceNameStrings(c.enabledSongTargetServices(config))
-	if len(names) == 0 {
-		return "enabled for songs: none"
+func (c providerCatalog) unavailableTargetServiceMessage(raw string, config Config, entity EntityShape) string {
+	if entity == EntityShapeSong {
+		names := serviceNameStrings(c.targetServices(&config, entity))
+		if len(names) == 0 {
+			return fmt.Sprintf("%q (enabled for songs: none)", raw)
+		}
+		return fmt.Sprintf("%q (enabled for songs: %s)", raw, strings.Join(names, ", "))
 	}
-	return "enabled for songs: " + strings.Join(names, ", ")
+	return fmt.Sprintf("%q (expected one of the supported target services: %s)", raw, strings.Join(serviceNameStrings(c.targetServices(nil, entity)), ", "))
 }
 
 func serviceNameStrings(services []ServiceName) []string {
@@ -316,40 +326,9 @@ func targetServiceUnavailableStatus(service ServiceName, capability serviceCapab
 	return TargetServiceRequestUnsupported
 }
 
-func (c providerCatalog) supportsSongTarget(service ServiceName) bool {
-	capability, ok := c.serviceCapability(service)
-	return ok && capability.supportsSongTarget
-}
-
-func (c providerCatalog) supportsEnabledSongTarget(config Config, service ServiceName) bool {
-	capability, ok := c.enabledServiceCapability(config, service)
-	return ok && capability.supportsSongTarget
-}
-
 func (c providerCatalog) supportsTarget(service ServiceName) bool {
 	capability, ok := c.serviceCapability(service)
 	return ok && supportsAnyTarget(capability)
-}
-
-func (c providerCatalog) supportsEnabledTarget(config Config, service ServiceName) bool {
-	capability, ok := c.enabledServiceCapability(config, service)
-	return ok && supportsAnyTarget(capability)
-}
-
-func (c providerCatalog) supportedTargetServices() []ServiceName {
-	return c.supportedServices(c.order.albumTargets, supportsAnyTarget)
-}
-
-func (c providerCatalog) enabledTargetServices(config Config) []ServiceName {
-	return c.enabledServices(config, c.order.albumTargets, supportsAnyTarget)
-}
-
-func (c providerCatalog) supportedSongTargetServices() []ServiceName {
-	return c.supportedServices(c.order.songTargets, supportsSongTargetCapability)
-}
-
-func (c providerCatalog) enabledSongTargetServices(config Config) []ServiceName {
-	return c.enabledServices(config, c.order.songTargets, supportsSongTargetCapability)
 }
 
 func (c providerCatalog) supportsRuntimeSongInputURL(raw string) bool {
