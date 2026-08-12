@@ -13,10 +13,8 @@ import (
 
 func TestRunResolveForcedSongCSVOutput(t *testing.T) {
 	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithEntityAdapters(
-			nil,
-			nil,
-			[]ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
+		return ariadne.NewWithAdapters(ariadne.AdapterSet{
+			SongSources: []ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
 				"https://fixture.test/songs/1": {
 					Service:     ariadne.ServiceSpotify,
 					SourceID:    "song-1",
@@ -29,7 +27,7 @@ func TestRunResolveForcedSongCSVOutput(t *testing.T) {
 					TrackNumber: 1,
 				},
 			})},
-			[]ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
+			SongTargets: []ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
 				CanonicalSong: ariadne.CanonicalSong{
 					Service:     ariadne.ServiceAppleMusic,
 					SourceID:    "apple-song-1",
@@ -44,7 +42,7 @@ func TestRunResolveForcedSongCSVOutput(t *testing.T) {
 				CandidateID: "apple-song-1",
 				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
 			}}, nil)},
-		)
+		})
 	})
 
 	var stdout bytes.Buffer
@@ -59,39 +57,10 @@ func TestRunResolveForcedSongCSVOutput(t *testing.T) {
 	assert.Equal(t, []string{"spotify", "https://fixture.test/songs/1"}, records[2])
 }
 
-func TestRunResolveForcedSongPropagatesMetadataErrors(t *testing.T) {
-	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithEntityAdapters(
-			nil,
-			nil,
-			[]ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
-				"https://fixture.test/songs/1": {
-					Service:     ariadne.ServiceSpotify,
-					SourceID:    "song-1",
-					SourceURL:   "https://fixture.test/songs/1",
-					Title:       "Fixture Song",
-					Artists:     []string{"Fixture Artist"},
-					DurationMS:  180000,
-					AlbumTitle:  "Fixture Album",
-					TrackNumber: 1,
-				},
-			})},
-			[]ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceTIDAL, nil, errCLIResolveBoom)},
-		)
-	})
-
-	var stdout bytes.Buffer
-	err := runResolve([]string{"--song", "https://fixture.test/songs/1"}, &stdout)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errCLIResolveBoom)
-}
-
 func TestRunResolveForcedSongVerboseCSVOutput(t *testing.T) {
 	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithEntityAdapters(
-			nil,
-			nil,
-			[]ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
+		return ariadne.NewWithAdapters(ariadne.AdapterSet{
+			SongSources: []ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
 				"https://fixture.test/songs/1": {
 					Service:     ariadne.ServiceSpotify,
 					SourceID:    "song-1",
@@ -106,7 +75,7 @@ func TestRunResolveForcedSongVerboseCSVOutput(t *testing.T) {
 					ReleaseDate: "2024-02-03",
 				},
 			})},
-			[]ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
+			SongTargets: []ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
 				CanonicalSong: ariadne.CanonicalSong{
 					Service:     ariadne.ServiceAppleMusic,
 					SourceID:    "apple-song-1",
@@ -123,7 +92,7 @@ func TestRunResolveForcedSongVerboseCSVOutput(t *testing.T) {
 				CandidateID: "apple-song-1",
 				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
 			}}, nil)},
-		)
+		})
 	})
 
 	var stdout bytes.Buffer

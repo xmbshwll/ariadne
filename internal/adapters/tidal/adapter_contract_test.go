@@ -65,13 +65,12 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T) {
 
 func TestSearchByMetadataReturnsMalformedResponseError(t *testing.T) {
 	adapter := newTIDALAPIAdapter(t, func(mux *http.ServeMux) {
-		mux.HandleFunc("/searchResults/", func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/searchResults/Album Artist/relationships/albums", "/searchResults/Album%20Artist/relationships/albums":
-				_, _ = w.Write([]byte("{"))
-			default:
+		mux.HandleFunc("/searchResults", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("filter[query]") != "Album Artist" {
 				http.NotFound(w, r)
+				return
 			}
+			_, _ = w.Write([]byte("{"))
 		})
 	})
 

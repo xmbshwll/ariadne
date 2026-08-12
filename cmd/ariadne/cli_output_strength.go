@@ -3,24 +3,39 @@ package main
 import "github.com/xmbshwll/ariadne"
 
 func filterResolutionByStrength(resolution ariadne.Resolution, minStrength ariadne.MatchStrength) ariadne.Resolution {
-	if minStrength == ariadne.MatchStrengthVeryWeak {
-		return resolution
-	}
 	filtered := resolution
-	filtered.Matches = make(map[ariadne.ServiceName]ariadne.MatchResult, len(resolution.Matches))
-	for service, match := range resolution.Matches {
-		pruned, ok := pruneAlbumMatchByStrength(match, minStrength)
+	filtered.Matches = filterMatchesByStrength(resolution.Matches, minStrength, pruneAlbumMatchByStrength)
+	return filtered
+}
+
+func filterSongResolutionByStrength(resolution ariadne.SongResolution, minStrength ariadne.MatchStrength) ariadne.SongResolution {
+	filtered := resolution
+	filtered.Matches = filterMatchesByStrength(resolution.Matches, minStrength, pruneSongMatchByStrength)
+	return filtered
+}
+
+func filterMatchesByStrength[C any](
+	matches map[ariadne.ServiceName]ariadne.MatchResultOf[C],
+	minStrength ariadne.MatchStrength,
+	prune func(ariadne.MatchResultOf[C], ariadne.MatchStrength) (ariadne.MatchResultOf[C], bool),
+) map[ariadne.ServiceName]ariadne.MatchResultOf[C] {
+	if minStrength == ariadne.MatchStrengthVeryWeak {
+		return matches
+	}
+	filtered := make(map[ariadne.ServiceName]ariadne.MatchResultOf[C], len(matches))
+	for service, match := range matches {
+		pruned, ok := prune(match, minStrength)
 		if !ok {
 			continue
 		}
-		filtered.Matches[service] = pruned
+		filtered[service] = pruned
 	}
 	return filtered
 }
 
 func pruneAlbumMatchByStrength(match ariadne.MatchResult, minStrength ariadne.MatchStrength) (ariadne.MatchResult, bool) {
 	pruned := match
-	pruned.Alternates = filterAlternatesByStrength(match.Alternates, minStrength)
+	pruned.Alternates = filterScoredByStrength(match.Alternates, minStrength)
 
 	if match.Best == nil || !meetsMinimumStrength(match.Best.Score, minStrength) {
 		return ariadne.MatchResult{}, false
@@ -28,37 +43,9 @@ func pruneAlbumMatchByStrength(match ariadne.MatchResult, minStrength ariadne.Ma
 	return pruned, true
 }
 
-func filterAlternatesByStrength(alternates []ariadne.ScoredMatch, minStrength ariadne.MatchStrength) []ariadne.ScoredMatch {
-	filtered := make([]ariadne.ScoredMatch, 0, len(alternates))
-	for _, alternate := range alternates {
-		if !meetsMinimumStrength(alternate.Score, minStrength) {
-			continue
-		}
-		filtered = append(filtered, alternate)
-	}
-	return filtered
-}
-
-func filterSongResolutionByStrength(resolution ariadne.SongResolution, minStrength ariadne.MatchStrength) ariadne.SongResolution {
-	if minStrength == ariadne.MatchStrengthVeryWeak {
-		return resolution
-	}
-
-	filtered := resolution
-	filtered.Matches = make(map[ariadne.ServiceName]ariadne.SongMatchResult, len(resolution.Matches))
-	for service, match := range resolution.Matches {
-		pruned, ok := pruneSongMatchByStrength(match, minStrength)
-		if !ok {
-			continue
-		}
-		filtered.Matches[service] = pruned
-	}
-	return filtered
-}
-
 func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne.MatchStrength) (ariadne.SongMatchResult, bool) {
 	pruned := match
-	pruned.Alternates = filterSongAlternatesByStrength(match.Alternates, minStrength)
+	pruned.Alternates = filterScoredByStrength(match.Alternates, minStrength)
 
 	if match.Best != nil && meetsMinimumStrength(match.Best.Score, minStrength) {
 		best := *match.Best
@@ -73,18 +60,14 @@ func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne
 		return ariadne.SongMatchResult{}, false
 	}
 
-	best, alternates := promoteBestSongAlternate(pruned.Alternates)
+	best, alternates := promoteBestAlternate(pruned.Alternates)
 	pruned.Best = &best
 	pruned.Alternates = alternates
 	return pruned, true
 }
 
-// promoteBestSongAlternate assumes alternates contains at least one entry.
-func promoteBestSongAlternate(alternates []ariadne.SongScoredMatch) (ariadne.SongScoredMatch, []ariadne.SongScoredMatch) {
-	if len(alternates) == 0 {
-		return ariadne.SongScoredMatch{}, []ariadne.SongScoredMatch{}
-	}
-
+// promoteBestAlternate requires at least one entry; callers check beforehand.
+func promoteBestAlternate[C any](alternates []ariadne.ScoredMatchOf[C]) (ariadne.ScoredMatchOf[C], []ariadne.ScoredMatchOf[C]) {
 	bestIndex := 0
 	for i := 1; i < len(alternates); i++ {
 		if alternates[i].Score > alternates[bestIndex].Score {
@@ -93,14 +76,14 @@ func promoteBestSongAlternate(alternates []ariadne.SongScoredMatch) (ariadne.Son
 	}
 
 	best := alternates[bestIndex]
-	remaining := make([]ariadne.SongScoredMatch, 0, len(alternates)-1)
+	remaining := make([]ariadne.ScoredMatchOf[C], 0, len(alternates)-1)
 	remaining = append(remaining, alternates[:bestIndex]...)
 	remaining = append(remaining, alternates[bestIndex+1:]...)
 	return best, remaining
 }
 
-func filterSongAlternatesByStrength(alternates []ariadne.SongScoredMatch, minStrength ariadne.MatchStrength) []ariadne.SongScoredMatch {
-	filtered := make([]ariadne.SongScoredMatch, 0, len(alternates))
+func filterScoredByStrength[C any](alternates []ariadne.ScoredMatchOf[C], minStrength ariadne.MatchStrength) []ariadne.ScoredMatchOf[C] {
+	filtered := make([]ariadne.ScoredMatchOf[C], 0, len(alternates))
 	for _, alternate := range alternates {
 		if !meetsMinimumStrength(alternate.Score, minStrength) {
 			continue

@@ -43,31 +43,17 @@ func DefaultSongWeights() SongWeights {
 	}
 }
 
-// RankedSongCandidate is one song candidate plus its computed score and explanation.
-type RankedSongCandidate struct {
-	Candidate model.CandidateSong
-	Score     int
-	Reasons   []string
-	Evidence  MatchEvidence
-}
-
-// SongRanking is the ordered song ranking for one target service.
-type SongRanking struct {
-	Best   *RankedSongCandidate
-	Ranked []RankedSongCandidate
-}
-
 // RankSongs scores and sorts target song candidates for a single source song.
-func RankSongs(source model.CanonicalSong, candidates []model.CandidateSong, weights SongWeights) SongRanking {
-	ranked := make([]RankedSongCandidate, 0, len(candidates))
+func RankSongs(source model.CanonicalSong, candidates []model.CandidateSong, weights SongWeights) Ranking[model.CandidateSong] {
+	ranked := make([]Ranked[model.CandidateSong], 0, len(candidates))
 	for _, candidate := range candidates {
 		ranked = append(ranked, scoreSongCandidate(source, candidate, weights))
 	}
-	ranked, best := finalizeRanking(ranked, func(r RankedSongCandidate) int { return r.Score }, func(r RankedSongCandidate) string { return r.Candidate.CandidateID })
-	return SongRanking{Best: best, Ranked: ranked}
+	ranked, best := finalizeRanking(ranked, func(r Ranked[model.CandidateSong]) int { return r.Score }, func(r Ranked[model.CandidateSong]) string { return r.Candidate.CandidateID })
+	return Ranking[model.CandidateSong]{Best: best, Ranked: ranked}
 }
 
-func scoreSongCandidate(source model.CanonicalSong, candidate model.CandidateSong, weights SongWeights) RankedSongCandidate {
+func scoreSongCandidate(source model.CanonicalSong, candidate model.CandidateSong, weights SongWeights) Ranked[model.CandidateSong] {
 	song := candidate.CanonicalSong
 	titleWeights := titleSignalWeights{
 		exact: weights.TitleExact,
@@ -95,7 +81,7 @@ func scoreSongCandidate(source model.CanonicalSong, candidate model.CandidateSon
 		scoreEditionMarkerSignal(source.Title, song.Title, weights.EditionMarkerPenalty, weights.EditionMismatch),
 	)
 
-	return RankedSongCandidate{Candidate: candidate, Score: score, Reasons: reasons, Evidence: evidence}
+	return Ranked[model.CandidateSong]{Candidate: candidate, Score: score, Reasons: reasons, Evidence: evidence}
 }
 
 func scoreSongISRC(source model.CanonicalSong, candidate model.CanonicalSong, weights SongWeights) scoreContribution {

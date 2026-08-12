@@ -27,15 +27,20 @@ func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestResolverResolveAlbumReturnsTargetError(t *testing.T) {
+func TestResolverResolveAlbumSurfacesTargetErrorPerMatch(t *testing.T) {
 	resolver := New(
 		[]SourceAdapter{newStubSourceAdapter()},
-		[]TargetAdapter{newFailingTargetAdapter()},
+		[]TargetAdapter{newStubTargetAdapter(), newFailingTargetAdapter()},
 		score.DefaultWeights(),
 	)
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
-	require.Error(t, err)
-	assert.Nil(t, resolution)
-	assert.ErrorIs(t, err, errTargetSearchBoom)
+	require.NoError(t, err)
+	require.NotNil(t, resolution)
+
+	// One failing Target Search surfaces on its own match without affecting others.
+	failing := resolution.Matches[model.ServiceBandcamp]
+	assert.ErrorIs(t, failing.Err, errTargetSearchBoom)
+	assert.Nil(t, failing.Best)
+	require.NotNil(t, resolution.Matches[model.ServiceSpotify].Best)
 }

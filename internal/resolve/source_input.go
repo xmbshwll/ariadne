@@ -39,73 +39,44 @@ func (e sourceAdapterContractError) Is(target error) bool {
 	return target == e.target
 }
 
-type sourceInput[P any, Entity any] struct {
-	Parsed P
-	Entity Entity
-}
-
-func resolveSourceInput[S interface{ Service() model.ServiceName }, P any, Entity any](
-	ctx context.Context,
-	sources []S,
-	inputURL string,
-	parse func(S, string) (*P, error),
-	hydrate func(context.Context, S, P) (*Entity, error),
-	entityLabel string,
-	nilEntityErr error,
-) (sourceInput[P, Entity], error) {
-	var zero sourceInput[P, Entity]
-	if len(sources) == 0 {
-		return zero, ErrNoSourceAdapters
-	}
-
-	adapter, parsed, err := recognizeSourceInput(sources, inputURL, parse)
-	if err != nil {
-		return zero, err
-	}
-
-	entity, err := hydrateSourceInput(ctx, adapter, *parsed, hydrate, entityLabel, nilEntityErr)
-	if err != nil {
-		return zero, err
-	}
-
-	return sourceInput[P, Entity]{
-		Parsed: *parsed,
-		Entity: *entity,
-	}, nil
-}
-
 type fatalParseFailure interface {
 	FatalParseFailure() bool
 }
 
-func recognizeSourceInput[S any, P any](sources []S, inputURL string, parse func(S, string) (*P, error)) (S, *P, error) {
+// recognizeSourceInput returns the first Source Adapter that parses inputURL.
+// Fatal parse failures stop recognition; nil parses violate the adapter contract.
+func recognizeSourceInput[S any, P any](sources []S, inputURL string, parse func(S) (*P, error)) (*P, S, error) {
 	var zero S
+	if len(sources) == 0 {
+		return nil, zero, ErrNoSourceAdapters
+	}
 	for _, source := range sources {
-		parsed, err := parse(source, inputURL)
+		parsed, err := parse(source)
 		if err != nil {
 			var fatal fatalParseFailure
 			if errors.As(err, &fatal) && fatal.FatalParseFailure() {
-				return zero, nil, err
+				return nil, zero, err
 			}
 			continue
 		}
 		if parsed == nil {
-			return zero, nil, ErrSourceAdapterReturnedNilParsedURL
+			return nil, zero, ErrSourceAdapterReturnedNilParsedURL
 		}
-		return source, parsed, nil
+		return parsed, source, nil
 	}
-	return zero, nil, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
+	return nil, zero, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
 }
 
-func hydrateSourceInput[S interface{ Service() model.ServiceName }, P any, Entity any](
+// hydrateSourceInput runs Runtime Hydration for a recognized Source Input and
+// normalizes the nil-entity adapter contract violation to a contract error.
+func hydrateSourceInput[S interface{ Service() model.ServiceName }, Entity any](
 	ctx context.Context,
 	adapter S,
-	parsed P,
-	hydrate func(context.Context, S, P) (*Entity, error),
 	entityLabel string,
 	nilEntityErr error,
+	hydrate func(context.Context) (*Entity, error),
 ) (*Entity, error) {
-	entity, err := hydrate(ctx, adapter, parsed)
+	entity, err := hydrate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetch source %s with %s: %w", entityLabel, adapter.Service(), err)
 	}

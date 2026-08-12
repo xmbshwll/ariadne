@@ -87,7 +87,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQueryTargetSearch[albumResponse, model.CandidateAlbum]{
+	targetSearch := adapterutil.MetadataQuerySearch[albumResponse, model.CandidateAlbum]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]albumResponse, error) {
@@ -132,7 +132,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQueryTargetSearch[trackResponse, model.CandidateSong]{
+	targetSearch := adapterutil.MetadataQuerySearch[trackResponse, model.CandidateSong]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]trackResponse, error) {

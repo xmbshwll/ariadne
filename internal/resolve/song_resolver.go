@@ -3,6 +3,7 @@ package resolve
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -30,28 +31,14 @@ type SongMetadataSearcher interface {
 	SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error)
 }
 
-// SongScoredMatch is one scored song candidate exposed by the resolver.
-type SongScoredMatch struct {
-	URL       string
-	Score     int
-	Reasons   []string
-	Candidate model.CandidateSong
-}
-
-// SongMatchResult is the resolver output for one target service.
-type SongMatchResult struct {
-	Service    model.ServiceName
-	Best       *SongScoredMatch
-	Alternates []SongScoredMatch
-}
-
-// SongResolution contains the source song and ranked target matches collected by the resolver.
-type SongResolution struct {
-	InputURL string
-	Parsed   model.ParsedURL
-	Source   model.CanonicalSong
-	Matches  map[model.ServiceName]SongMatchResult
-}
+type (
+	// SongScoredMatch is one scored song candidate.
+	SongScoredMatch = ScoredMatchOf[model.CandidateSong]
+	// SongMatchResult is the song resolver output for one target service.
+	SongMatchResult = MatchResultOf[model.CandidateSong]
+	// SongResolution is the song resolver output.
+	SongResolution = ResolutionOf[model.ParsedURL, model.CanonicalSong, model.CandidateSong]
+)
 
 // SongResolver coordinates song Source Input, Runtime Hydration, and Target Search.
 type SongResolver struct {
@@ -79,77 +66,77 @@ func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights 
 }
 
 // ResolveSong parses an input song URL, fetches the canonical source song,
-// then collects and ranks candidates from every target adapter except the source service.
+// then collects and ranks candidates from every target adapter except the source
+// service. A failing target does not abort the resolution: its SongMatchResult
+// carries the error in Err while other targets resolve normally.
 func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
 	return r.policy.resolve(ctx, inputURL)
 }
 
 func (p songEntityResolutionPolicy) resolve(ctx context.Context, inputURL string) (*SongResolution, error) {
-	return resolveEntity[model.ParsedURL, model.CanonicalSong, SongTargetAdapter, SongMatchResult, SongResolution](
-		ctx,
-		inputURL,
-		p.resolveSourceInput,
-		p.sourceService,
-		p.targetAdapters,
-		p.resolveTargetMatches,
-		p.afterTargetMatches,
-		p.resolution,
-	)
-}
-
-func (p songEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (sourceInput[model.ParsedURL, model.CanonicalSong], error) {
-	return resolveSongSourceInput(ctx, p.sourceAdapters, inputURL)
-}
-
-func resolveSongSourceInput(ctx context.Context, sources []SongSourceAdapter, inputURL string) (sourceInput[model.ParsedURL, model.CanonicalSong], error) {
-	return resolveSourceInput(
-		ctx,
-		sources,
-		inputURL,
-		func(source SongSourceAdapter, raw string) (*model.ParsedURL, error) {
-			return source.ParseSongURL(raw)
-		},
-		func(ctx context.Context, source SongSourceAdapter, parsed model.ParsedURL) (*model.CanonicalSong, error) {
-			return source.FetchSong(ctx, parsed)
-		},
-		"song",
-		errNilSourceSong,
-	)
-}
-
-func (p songEntityResolutionPolicy) sourceService(source model.CanonicalSong) model.ServiceName {
-	return source.Service
-}
-
-func (p songEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []SongTargetAdapter, source model.CanonicalSong) (map[model.ServiceName]SongMatchResult, error) {
-	matches, err := resolveTargetMatches(
-		ctx,
-		targets,
-		source,
-		collectSongTargetCandidates,
-		func(source model.CanonicalSong, candidates []model.CandidateSong) score.SongRanking {
-			return score.RankSongs(source, candidates, p.weights)
-		},
-		songMatchResultFromRanking,
-		"song candidates",
-	)
+	source, err := p.resolveSourceInput(ctx, inputURL)
 	if err != nil {
-		return nil, fmt.Errorf("resolve song target searches: %w", err)
+		return nil, err
 	}
-	return matches, nil
-}
 
-func (songEntityResolutionPolicy) afterTargetMatches(context.Context, []SongTargetAdapter, model.CanonicalSong, map[model.ServiceName]SongMatchResult) error {
-	return nil
-}
+	targets := excludeTargetService(p.targetAdapters, source.Entity.Service)
+	matches := p.resolveTargetMatches(ctx, targets, source.Entity)
 
-func (p songEntityResolutionPolicy) resolution(inputURL string, source sourceInput[model.ParsedURL, model.CanonicalSong], matches map[model.ServiceName]SongMatchResult) *SongResolution {
 	return &SongResolution{
 		InputURL: inputURL,
 		Parsed:   source.Parsed,
 		Source:   source.Entity,
 		Matches:  matches,
+	}, nil
+}
+
+// songSourceInput pairs the recognized Source Input with its hydrated song.
+type songSourceInput struct {
+	Parsed model.ParsedURL
+	Entity model.CanonicalSong
+}
+
+func (p songEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (songSourceInput, error) {
+	return resolveSongSourceInput(ctx, p.sourceAdapters, inputURL)
+}
+
+func resolveSongSourceInput(ctx context.Context, sources []SongSourceAdapter, inputURL string) (songSourceInput, error) {
+	parsed, adapter, err := recognizeSourceInput(sources, inputURL, func(source SongSourceAdapter) (*model.ParsedURL, error) {
+		return source.ParseSongURL(inputURL)
+	})
+	if err != nil {
+		return songSourceInput{}, err
 	}
+
+	song, err := hydrateSourceInput(ctx, adapter, "song", errNilSourceSong,
+		func(ctx context.Context) (*model.CanonicalSong, error) {
+			return adapter.FetchSong(ctx, *parsed)
+		})
+	if err != nil {
+		return songSourceInput{}, err
+	}
+
+	return songSourceInput{Parsed: *parsed, Entity: *song}, nil
+}
+
+func (p songEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []SongTargetAdapter, source model.CanonicalSong) map[model.ServiceName]SongMatchResult {
+	matches := make(map[model.ServiceName]SongMatchResult, len(targets))
+	var matchesMu sync.Mutex
+
+	resolveTargetsConcurrently(ctx, targets, func(targetCtx context.Context, target SongTargetAdapter) {
+		var result SongMatchResult
+		candidates, err := collectSongTargetCandidates(targetCtx, target, source)
+		if err != nil {
+			result = SongMatchResult{Service: target.Service(), Err: fmt.Errorf("collect song candidates: %w", err)}
+		} else {
+			result = songMatchResultFromRanking(target.Service(), score.RankSongs(source, candidates, p.weights))
+		}
+
+		matchesMu.Lock()
+		matches[target.Service()] = result
+		matchesMu.Unlock()
+	})
+	return matches
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {
@@ -159,25 +146,6 @@ func songCandidateKey(candidate model.CandidateSong) string {
 	return string(candidate.Service) + ":url:" + candidate.MatchURL
 }
 
-func songMatchResultFromRanking(service model.ServiceName, ranking score.SongRanking) SongMatchResult {
-	result := SongMatchResult{Service: service, Alternates: make([]SongScoredMatch, 0)}
-	if ranking.Best == nil {
-		return result
-	}
-
-	best := toSongScoredMatch(*ranking.Best)
-	result.Best = &best
-	for _, ranked := range ranking.Ranked[1:] {
-		result.Alternates = append(result.Alternates, toSongScoredMatch(ranked))
-	}
-	return result
-}
-
-func toSongScoredMatch(ranked score.RankedSongCandidate) SongScoredMatch {
-	return SongScoredMatch{
-		URL:       ranked.Candidate.MatchURL,
-		Score:     ranked.Score,
-		Reasons:   append([]string(nil), ranked.Reasons...),
-		Candidate: ranked.Candidate,
-	}
+func songMatchResultFromRanking(service model.ServiceName, ranking score.Ranking[model.CandidateSong]) SongMatchResult {
+	return matchResultFromRanking(service, ranking, func(candidate model.CandidateSong) string { return candidate.MatchURL })
 }

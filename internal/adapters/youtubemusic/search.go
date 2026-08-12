@@ -10,7 +10,7 @@ import (
 )
 
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := adapterutil.TitleAndFirstArtistQuery(album.Title, album.Artists)
+	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
@@ -22,7 +22,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 
 	candidates := extractSearchCandidates(body)
-	results, err := adapterutil.CollectCandidatesWithContext(
+	results, err := adapterutil.CollectCandidates(
 		ctx,
 		candidates,
 		searchLimit,

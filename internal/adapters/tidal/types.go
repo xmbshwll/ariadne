@@ -53,6 +53,7 @@ type resourceRelationships struct {
 	Items    relationship `json:"items"`
 	CoverArt relationship `json:"coverArt"`
 	Albums   relationship `json:"albums"`
+	Tracks   relationship `json:"tracks"`
 }
 
 type relationship struct {

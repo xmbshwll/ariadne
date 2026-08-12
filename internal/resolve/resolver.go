@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"golang.org/x/sync/errgroup"
+	"sync"
 
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -45,28 +44,40 @@ type MetadataSearcher interface {
 	SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error)
 }
 
-// ScoredMatch is one scored candidate exposed by the resolver.
-type ScoredMatch struct {
+// ScoredMatchOf is one scored candidate exposed by the resolver.
+type ScoredMatchOf[C any] struct {
 	URL       string
 	Score     int
 	Reasons   []string
-	Candidate model.CandidateAlbum
+	Candidate C
 }
 
-// MatchResult is the resolver output for one target service.
-type MatchResult struct {
+// MatchResultOf is the resolver output for one target service. When the Target
+// Search for this service failed, Err carries the failure and Best/Alternates
+// are empty; other services are unaffected.
+type MatchResultOf[C any] struct {
 	Service    model.ServiceName
-	Best       *ScoredMatch
-	Alternates []ScoredMatch
+	Best       *ScoredMatchOf[C]
+	Alternates []ScoredMatchOf[C]
+	Err        error
 }
 
-// Resolution contains the source album and ranked target matches collected by the resolver.
-type Resolution struct {
+// ResolutionOf contains the source entity and ranked target matches collected by the resolver.
+type ResolutionOf[P, E, C any] struct {
 	InputURL string
-	Parsed   model.ParsedAlbumURL
-	Source   model.CanonicalAlbum
-	Matches  map[model.ServiceName]MatchResult
+	Parsed   P
+	Source   E
+	Matches  map[model.ServiceName]MatchResultOf[C]
 }
+
+type (
+	// ScoredMatch is one scored album candidate.
+	ScoredMatch = ScoredMatchOf[model.CandidateAlbum]
+	// MatchResult is the album resolver output for one target service.
+	MatchResult = MatchResultOf[model.CandidateAlbum]
+	// Resolution is the album resolver output.
+	Resolution = ResolutionOf[model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum]
+)
 
 const albumEntityLabel = "album"
 
@@ -84,7 +95,7 @@ type albumEntityResolutionPolicy struct {
 	targetAdapters          []TargetAdapter
 	weights                 score.Weights
 	collectTargetCandidates func(context.Context, TargetAdapter, model.CanonicalAlbum) ([]model.CandidateAlbum, error)
-	afterTargetMatches      func(context.Context, []TargetAdapter, model.CanonicalAlbum, map[model.ServiceName]MatchResult) error
+	afterTargetMatches      func(context.Context, []TargetAdapter, model.CanonicalAlbum, map[model.ServiceName]MatchResult)
 }
 
 func newAlbumEntityResolutionPolicy(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) albumEntityResolutionPolicy {
@@ -104,73 +115,79 @@ func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights
 }
 
 // ResolveAlbum parses an input album URL, fetches the canonical source album,
-// then collects and ranks candidates from every target adapter except the source service.
+// then collects and ranks candidates from every target adapter except the source
+// service. A failing target does not abort the resolution: its MatchResult
+// carries the error in Err while other targets resolve normally.
 func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resolution, error) {
 	return r.policy.resolve(ctx, inputURL)
 }
 
 func (p albumEntityResolutionPolicy) resolve(ctx context.Context, inputURL string) (*Resolution, error) {
-	return resolveEntity[model.ParsedAlbumURL, model.CanonicalAlbum, TargetAdapter, MatchResult, Resolution](
-		ctx,
-		inputURL,
-		p.resolveSourceInput,
-		p.sourceService,
-		p.targetAdapters,
-		p.resolveTargetMatches,
-		p.afterTargetMatches,
-		p.resolution,
-	)
-}
-
-func (p albumEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], error) {
-	return resolveAlbumSourceInput(ctx, p.sourceAdapters, inputURL)
-}
-
-func resolveAlbumSourceInput(ctx context.Context, sources []SourceAdapter, inputURL string) (sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], error) {
-	return resolveSourceInput(
-		ctx,
-		sources,
-		inputURL,
-		func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
-			return source.ParseAlbumURL(raw)
-		},
-		func(ctx context.Context, source SourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-			return source.FetchAlbum(ctx, parsed)
-		},
-		albumEntityLabel,
-		errNilSourceAlbum,
-	)
-}
-
-func (p albumEntityResolutionPolicy) sourceService(source model.CanonicalAlbum) model.ServiceName {
-	return source.Service
-}
-
-func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum) (map[model.ServiceName]MatchResult, error) {
-	matches, err := resolveTargetMatches(
-		ctx,
-		targets,
-		source,
-		p.collectTargetCandidates,
-		func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
-			return score.RankAlbums(source, candidates, p.weights)
-		},
-		albumMatchResultFromRanking,
-		"candidates",
-	)
+	source, err := p.resolveSourceInput(ctx, inputURL)
 	if err != nil {
-		return nil, fmt.Errorf("resolve target searches: %w", err)
+		return nil, err
 	}
-	return matches, nil
-}
 
-func (p albumEntityResolutionPolicy) resolution(inputURL string, source sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], matches map[model.ServiceName]MatchResult) *Resolution {
+	targets := excludeTargetService(p.targetAdapters, source.Entity.Service)
+	matches := p.resolveTargetMatches(ctx, targets, source.Entity)
+
+	p.afterTargetMatches(ctx, targets, source.Entity, matches)
+
 	return &Resolution{
 		InputURL: inputURL,
 		Parsed:   source.Parsed,
 		Source:   source.Entity,
 		Matches:  matches,
+	}, nil
+}
+
+// albumSourceInput pairs the recognized Source Input with its hydrated album.
+type albumSourceInput struct {
+	Parsed model.ParsedAlbumURL
+	Entity model.CanonicalAlbum
+}
+
+func (p albumEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (albumSourceInput, error) {
+	return resolveAlbumSourceInput(ctx, p.sourceAdapters, inputURL)
+}
+
+func resolveAlbumSourceInput(ctx context.Context, sources []SourceAdapter, inputURL string) (albumSourceInput, error) {
+	parsed, adapter, err := recognizeSourceInput(sources, inputURL, func(source SourceAdapter) (*model.ParsedAlbumURL, error) {
+		return source.ParseAlbumURL(inputURL)
+	})
+	if err != nil {
+		return albumSourceInput{}, err
 	}
+
+	album, err := hydrateSourceInput(ctx, adapter, albumEntityLabel, errNilSourceAlbum,
+		func(ctx context.Context) (*model.CanonicalAlbum, error) {
+			return adapter.FetchAlbum(ctx, *parsed)
+		})
+	if err != nil {
+		return albumSourceInput{}, err
+	}
+
+	return albumSourceInput{Parsed: *parsed, Entity: *album}, nil
+}
+
+func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum) map[model.ServiceName]MatchResult {
+	matches := make(map[model.ServiceName]MatchResult, len(targets))
+	var matchesMu sync.Mutex
+
+	resolveTargetsConcurrently(ctx, targets, func(targetCtx context.Context, target TargetAdapter) {
+		var result MatchResult
+		candidates, err := p.collectTargetCandidates(targetCtx, target, source)
+		if err != nil {
+			result = MatchResult{Service: target.Service(), Err: fmt.Errorf("collect candidates: %w", err)}
+		} else {
+			result = albumMatchResultFromRanking(target.Service(), score.RankAlbums(source, candidates, p.weights))
+		}
+
+		matchesMu.Lock()
+		matches[target.Service()] = result
+		matchesMu.Unlock()
+	})
+	return matches
 }
 
 func excludeTargetService[T serviceAdapter](targets []T, sourceService model.ServiceName) []T {
@@ -184,15 +201,16 @@ func excludeTargetService[T serviceAdapter](targets []T, sourceService model.Ser
 	return filtered
 }
 
-func resolveTargetsConcurrently[T serviceAdapter](ctx context.Context, targets []T, resolve func(context.Context, T) error) error {
-	group, groupCtx := errgroup.WithContext(ctx)
+// resolveTargetsConcurrently runs resolve for every target without canceling
+// siblings: one failing Target Search must not affect the others.
+func resolveTargetsConcurrently[T serviceAdapter](ctx context.Context, targets []T, resolve func(context.Context, T)) {
+	var group sync.WaitGroup
 	for _, target := range targets {
-		group.Go(func() error {
-			return resolve(groupCtx, target)
+		group.Go(func() {
+			resolve(ctx, target)
 		})
 	}
-	//nolint:wrapcheck // Preserve worker errors without adding another wrapper layer.
-	return group.Wait()
+	group.Wait()
 }
 
 func collectISRCs(album model.CanonicalAlbum) []string {
@@ -218,26 +236,30 @@ func albumCandidateKey(candidate model.CandidateAlbum) string {
 	return string(candidate.Service) + ":url:" + candidate.MatchURL
 }
 
-func albumMatchResultFromRanking(service model.ServiceName, ranking score.Ranking) MatchResult {
-	result := MatchResult{
+func albumMatchResultFromRanking(service model.ServiceName, ranking score.Ranking[model.CandidateAlbum]) MatchResult {
+	return matchResultFromRanking(service, ranking, func(candidate model.CandidateAlbum) string { return candidate.MatchURL })
+}
+
+func matchResultFromRanking[C any](service model.ServiceName, ranking score.Ranking[C], urlOf func(C) string) MatchResultOf[C] {
+	result := MatchResultOf[C]{
 		Service:    service,
-		Alternates: make([]ScoredMatch, 0),
+		Alternates: make([]ScoredMatchOf[C], 0),
 	}
 	if ranking.Best == nil {
 		return result
 	}
 
-	best := toAlbumScoredMatch(*ranking.Best)
+	best := toScoredMatch(*ranking.Best, urlOf)
 	result.Best = &best
 	for _, ranked := range ranking.Ranked[1:] {
-		result.Alternates = append(result.Alternates, toAlbumScoredMatch(ranked))
+		result.Alternates = append(result.Alternates, toScoredMatch(ranked, urlOf))
 	}
 	return result
 }
 
-func toAlbumScoredMatch(ranked score.RankedCandidate) ScoredMatch {
-	return ScoredMatch{
-		URL:       ranked.Candidate.MatchURL,
+func toScoredMatch[C any](ranked score.Ranked[C], urlOf func(C) string) ScoredMatchOf[C] {
+	return ScoredMatchOf[C]{
+		URL:       urlOf(ranked.Candidate),
 		Score:     ranked.Score,
 		Reasons:   append([]string(nil), ranked.Reasons...),
 		Candidate: ranked.Candidate,

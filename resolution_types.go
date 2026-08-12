@@ -4,6 +4,15 @@ import (
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
+// MatchResultOf is the ranked output for one target service over a candidate type.
+type MatchResultOf[C any] = resolve.MatchResultOf[C]
+
+// ScoredMatchOf is one scored match over a candidate type.
+type ScoredMatchOf[C any] = resolve.ScoredMatchOf[C]
+
+// ResolutionOf is the full resolution output over parsed, source, and candidate types.
+type ResolutionOf[P, E, C any] = resolve.ResolutionOf[P, E, C]
+
 // MatchResult is the ranked output for one target service.
 type MatchResult = resolve.MatchResult
 

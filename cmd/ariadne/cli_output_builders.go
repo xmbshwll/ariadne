@@ -16,11 +16,15 @@ func newCLIResolution(resolution ariadne.Resolution) cliResolution {
 }
 
 func newCLILinks(resolution ariadne.Resolution) map[string]string {
+	return newMatchLinks(string(resolution.Source.Service), resolution.Source.SourceURL, resolution.Matches)
+}
+
+func newMatchLinks[C any](sourceService string, sourceURL string, matches map[ariadne.ServiceName]ariadne.MatchResultOf[C]) map[string]string {
 	links := map[string]string{}
-	if resolution.Source.Service != "" && resolution.Source.SourceURL != "" {
-		links[string(resolution.Source.Service)] = resolution.Source.SourceURL
+	if sourceService != "" && sourceURL != "" {
+		links[sourceService] = sourceURL
 	}
-	for service, match := range resolution.Matches {
+	for service, match := range matches {
 		if match.Best == nil || match.Best.URL == "" {
 			continue
 		}
@@ -46,18 +50,5 @@ func newCLISongResolution(resolution ariadne.SongResolution) cliSongResolution {
 }
 
 func newCLISongLinks(resolution ariadne.SongResolution) map[string]string {
-	links := map[string]string{}
-	if resolution.Source.Service != "" && resolution.Source.SourceURL != "" {
-		links[string(resolution.Source.Service)] = resolution.Source.SourceURL
-	}
-	for service, match := range resolution.Matches {
-		if match.Best == nil || match.Best.URL == "" {
-			continue
-		}
-		if _, exists := links[string(service)]; exists {
-			continue
-		}
-		links[string(service)] = match.Best.URL
-	}
-	return links
+	return newMatchLinks(string(resolution.Source.Service), resolution.Source.SourceURL, resolution.Matches)
 }

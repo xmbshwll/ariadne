@@ -21,12 +21,14 @@ type cliAlbum struct {
 	EditionHints []string `json:"edition_hints,omitempty" yaml:"edition_hints,omitempty"`
 }
 
-type cliMatchResult struct {
-	Found      bool       `json:"found" yaml:"found"`
-	Summary    string     `json:"summary" yaml:"summary"`
-	Best       *cliMatch  `json:"best,omitempty" yaml:"best,omitempty"`
-	Alternates []cliMatch `json:"alternates,omitempty" yaml:"alternates,omitempty"`
+type cliMatchListing[M any] struct {
+	Found      bool   `json:"found" yaml:"found"`
+	Summary    string `json:"summary" yaml:"summary"`
+	Best       *M     `json:"best,omitempty" yaml:"best,omitempty"`
+	Alternates []M    `json:"alternates,omitempty" yaml:"alternates,omitempty"`
 }
+
+type cliMatchResult = cliMatchListing[cliMatch]
 
 type cliMatch struct {
 	URL         string   `json:"url" yaml:"url"`
@@ -65,12 +67,7 @@ type cliSong struct {
 	EditionHints []string `json:"edition_hints,omitempty" yaml:"edition_hints,omitempty"`
 }
 
-type cliSongMatchResult struct {
-	Found      bool           `json:"found" yaml:"found"`
-	Summary    string         `json:"summary" yaml:"summary"`
-	Best       *cliSongMatch  `json:"best,omitempty" yaml:"best,omitempty"`
-	Alternates []cliSongMatch `json:"alternates,omitempty" yaml:"alternates,omitempty"`
-}
+type cliSongMatchResult = cliMatchListing[cliSongMatch]
 
 type cliSongMatch struct {
 	URL         string   `json:"url" yaml:"url"`

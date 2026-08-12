@@ -43,6 +43,35 @@ type CredentialToken struct {
 
 type CredentialTokenFetchFunc func(context.Context, ClientCredentials) (CredentialToken, error)
 
+// ClientCredentialsTokenConfig carries the per-service varying bits of the
+// common client-credentials token flow; NewClientCredentialsTokenSource owns
+// the wiring defaults.
+type ClientCredentialsTokenConfig struct {
+	Service            string
+	ClientID           string
+	ClientSecret       string
+	MissingCredentials error
+	EmptyAccessToken   error
+	Fetch              CredentialTokenFetchFunc
+	RefreshTimeout     time.Duration
+}
+
+// NewClientCredentialsTokenSource builds a CredentialTokenSource for a Music
+// Service using the client-credentials flow.
+func NewClientCredentialsTokenSource(config ClientCredentialsTokenConfig) *CredentialTokenSource {
+	return NewCredentialTokenSource(CredentialTokenSourceConfig{
+		Credentials: func() ClientCredentials {
+			return ClientCredentials{ClientID: config.ClientID, ClientSecret: config.ClientSecret}
+		},
+		MissingCredentials: config.MissingCredentials,
+		EmptyAccessToken:   config.EmptyAccessToken,
+		IsEmptyAccessToken: func(accessToken string) bool { return strings.TrimSpace(accessToken) == "" },
+		Fetch:              config.Fetch,
+		RefreshTimeout:     config.RefreshTimeout,
+		SingleflightKey:    config.Service + "-token",
+	})
+}
+
 type CredentialTokenSourceConfig struct {
 	Credentials        func() ClientCredentials
 	MissingCredentials error

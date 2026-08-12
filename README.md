@@ -150,11 +150,10 @@ func main() {
 }
 ```
 
-Advanced constructors are available when you want more control:
+Advanced construction is available when you want more control:
 
-- `ariadne.NewWithClient(...)`
-- `ariadne.NewWithAdapters(...)`
-- `ariadne.NewWithEntityAdapters(...)`
+- `ariadne.New(config, ariadne.WithHTTPClient(client))`
+- `ariadne.NewWithAdapters(ariadne.AdapterSet{...})`
 
 ## How matching works
 

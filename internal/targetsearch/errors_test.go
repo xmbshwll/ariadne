@@ -24,20 +24,30 @@ func TestUnavailablePreservesErrorChain(t *testing.T) {
 	assert.ErrorIs(t, err, errTargetSearchUnavailable)
 }
 
-func TestIsRecoverableTimeoutRequiresActiveContext(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
+func TestIsRecoverableTimeout(t *testing.T) {
+	deadlineCtx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	assert.True(t, IsRecoverableTimeout(context.Background(), context.DeadlineExceeded))
-	assert.False(t, IsRecoverableTimeout(ctx, context.DeadlineExceeded))
-}
-
-func TestIsRecoverableTimeoutAcceptsNetTimeouts(t *testing.T) {
-	err := &url.Error{
+	netTimeoutErr := &url.Error{
 		Op:  "Get",
 		URL: "https://example.test",
 		Err: &net.OpError{Op: "dial", Net: "tcp", Err: timeoutError{}},
 	}
 
-	assert.True(t, IsRecoverableTimeout(context.Background(), err))
+	tests := []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want bool
+	}{
+		{name: "deadline exceeded with active context", ctx: context.Background(), err: context.DeadlineExceeded, want: true},
+		{name: "deadline exceeded with expired context", ctx: deadlineCtx, err: context.DeadlineExceeded, want: false},
+		{name: "net timeout with active context", ctx: context.Background(), err: netTimeoutErr, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsRecoverableTimeout(tt.ctx, tt.err))
+		})
+	}
 }

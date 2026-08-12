@@ -135,7 +135,7 @@ func buildTIDALQuery(title string, artistNames []string, albumID string) string 
 }
 
 func fetchTIDALAlbumSearch(ctx context.Context, client *http.Client, inputs validationInputs, accessToken, query string) ([]byte, error) {
-	searchURL := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(query), url.QueryEscape(inputs.countryCode))
+	searchURL := fmt.Sprintf("%s/searchResults?countryCode=%s&filter[query]=%s&include=albums", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(query))
 	searchBody, err := getAPI(ctx, client, searchURL, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("search tidal albums: %w", err)

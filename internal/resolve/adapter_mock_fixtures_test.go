@@ -247,7 +247,7 @@ func newSourceServiceTargetAdapter() TargetAdapter {
 
 func newFailingTargetAdapter() TargetAdapter {
 	return newAlbumTargetFixture(albumTargetFixture{
-		service: model.ServiceSpotify,
+		service: model.ServiceBandcamp,
 		byMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 			return nil, errTargetSearchBoom
 		},
@@ -395,7 +395,7 @@ func newSourceServiceSongTargetAdapter() *MockSongTargetAdapter {
 
 func newFailingSongTargetAdapter() SongTargetAdapter {
 	return newSongTargetFixture(songTargetFixture{
-		service: model.ServiceAppleMusic,
+		service: model.ServiceDeezer,
 		byMetadata: func(context.Context, model.CanonicalSong) ([]model.CandidateSong, error) {
 			return nil, errTargetSearchBoom
 		},

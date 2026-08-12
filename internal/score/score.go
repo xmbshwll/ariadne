@@ -55,31 +55,31 @@ func DefaultWeights() Weights {
 	}
 }
 
-// RankedCandidate is one candidate plus its computed score and explanation.
-type RankedCandidate struct {
-	Candidate model.CandidateAlbum
+// Ranked is one candidate plus its computed score and explanation.
+type Ranked[C any] struct {
+	Candidate C
 	Score     int
 	Reasons   []string
 	Evidence  MatchEvidence
 }
 
 // Ranking is the ordered ranking for one target service.
-type Ranking struct {
-	Best   *RankedCandidate
-	Ranked []RankedCandidate
+type Ranking[C any] struct {
+	Best   *Ranked[C]
+	Ranked []Ranked[C]
 }
 
 // RankAlbums scores and sorts target candidates for a single source album.
-func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, weights Weights) Ranking {
-	ranked := make([]RankedCandidate, 0, len(candidates))
+func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, weights Weights) Ranking[model.CandidateAlbum] {
+	ranked := make([]Ranked[model.CandidateAlbum], 0, len(candidates))
 	for _, candidate := range candidates {
 		ranked = append(ranked, scoreCandidate(source, candidate, weights))
 	}
-	ranked, best := finalizeRanking(ranked, func(r RankedCandidate) int { return r.Score }, func(r RankedCandidate) string { return r.Candidate.CandidateID })
-	return Ranking{Best: best, Ranked: ranked}
+	ranked, best := finalizeRanking(ranked, func(r Ranked[model.CandidateAlbum]) int { return r.Score }, func(r Ranked[model.CandidateAlbum]) string { return r.Candidate.CandidateID })
+	return Ranking[model.CandidateAlbum]{Best: best, Ranked: ranked}
 }
 
-func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) RankedCandidate {
+func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) Ranked[model.CandidateAlbum] {
 	album := candidate.CanonicalAlbum
 	titleWeights := titleSignalWeights{
 		exact: weights.TitleExact,
@@ -109,7 +109,7 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum,
 		scoreEditionMarkerSignal(source.Title, album.Title, weights.EditionMarkerPenalty, weights.EditionMismatch),
 	)
 
-	return RankedCandidate{
+	return Ranked[model.CandidateAlbum]{
 		Candidate: candidate,
 		Score:     score,
 		Reasons:   reasons,
