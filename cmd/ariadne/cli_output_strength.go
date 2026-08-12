@@ -3,29 +3,32 @@ package main
 import "github.com/xmbshwll/ariadne"
 
 func filterResolutionByStrength(resolution ariadne.Resolution, minStrength ariadne.MatchStrength) ariadne.Resolution {
-	return filterResolutionMatches(resolution, minStrength, pruneAlbumMatchByStrength)
+	filtered := resolution
+	filtered.Matches = filterMatchesByStrength(resolution.Matches, minStrength, pruneAlbumMatchByStrength)
+	return filtered
 }
 
 func filterSongResolutionByStrength(resolution ariadne.SongResolution, minStrength ariadne.MatchStrength) ariadne.SongResolution {
-	return filterResolutionMatches(resolution, minStrength, pruneSongMatchByStrength)
+	filtered := resolution
+	filtered.Matches = filterMatchesByStrength(resolution.Matches, minStrength, pruneSongMatchByStrength)
+	return filtered
 }
 
-func filterResolutionMatches[P, E, C any](
-	resolution ariadne.ResolutionOf[P, E, C],
+func filterMatchesByStrength[C any](
+	matches map[ariadne.ServiceName]ariadne.MatchResultOf[C],
 	minStrength ariadne.MatchStrength,
 	prune func(ariadne.MatchResultOf[C], ariadne.MatchStrength) (ariadne.MatchResultOf[C], bool),
-) ariadne.ResolutionOf[P, E, C] {
+) map[ariadne.ServiceName]ariadne.MatchResultOf[C] {
 	if minStrength == ariadne.MatchStrengthVeryWeak {
-		return resolution
+		return matches
 	}
-	filtered := resolution
-	filtered.Matches = make(map[ariadne.ServiceName]ariadne.MatchResultOf[C], len(resolution.Matches))
-	for service, match := range resolution.Matches {
+	filtered := make(map[ariadne.ServiceName]ariadne.MatchResultOf[C], len(matches))
+	for service, match := range matches {
 		pruned, ok := prune(match, minStrength)
 		if !ok {
 			continue
 		}
-		filtered.Matches[service] = pruned
+		filtered[service] = pruned
 	}
 	return filtered
 }

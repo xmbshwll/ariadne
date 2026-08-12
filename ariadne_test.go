@@ -287,8 +287,23 @@ func TestEnabledServiceLists(t *testing.T) {
 		Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"},
 		TIDAL:   TIDALConfig{ClientID: "tidal-id", ClientSecret: "tidal-secret"},
 	}
-	assert.Equal(t, TargetServices(nil, EntityShapeAny), TargetServices(&config, EntityShapeAny))
-	assert.Equal(t, TargetServices(nil, EntityShapeSong), TargetServices(&config, EntityShapeSong))
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceYouTubeMusic,
+		ServiceSpotify,
+		ServiceTIDAL,
+	}, TargetServices(&config, EntityShapeAny))
+	assert.Equal(t, []ServiceName{
+		ServiceAppleMusic,
+		ServiceBandcamp,
+		ServiceDeezer,
+		ServiceSoundCloud,
+		ServiceSpotify,
+		ServiceTIDAL,
+	}, TargetServices(&config, EntityShapeSong))
 
 	spotify, ok := DescribeEnabled(config, ServiceSpotify)
 	require.True(t, ok)
