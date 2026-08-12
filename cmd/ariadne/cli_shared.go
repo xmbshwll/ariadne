@@ -49,8 +49,12 @@ func resolveCommandUsage(timeout time.Duration) string {
 var (
 	defaultResolveCommandUse = resolveCommandUse(defaultResolveTimeout)
 	resolveUsage             = resolveCommandUsage(defaultResolveTimeout)
-	resolverFactory          = ariadne.New
-	valueNormalizer          = strings.NewReplacer("-", "", "_", "")
+	// resolverFactory keeps a non-variadic type so tests can stub it with plain
+	// func(ariadne.Config) factories; production wiring passes no options.
+	resolverFactory func(ariadne.Config) *ariadne.Resolver = func(config ariadne.Config) *ariadne.Resolver {
+		return ariadne.New(config)
+	}
+	valueNormalizer = strings.NewReplacer("-", "", "_", "")
 )
 
 var (
