@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -155,5 +156,9 @@ func allTargetsFailedError(total int, failures map[string]error) error {
 		services = append(services, service)
 	}
 	sort.Strings(services)
-	return fmt.Errorf("%w: %s: %w", errAllTargetSearchesFailed, strings.Join(services, ", "), failures[services[0]])
+	errs := make([]error, 0, len(services))
+	for _, service := range services {
+		errs = append(errs, failures[service])
+	}
+	return fmt.Errorf("%w: %s: %w", errAllTargetSearchesFailed, strings.Join(services, ", "), errors.Join(errs...))
 }

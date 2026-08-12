@@ -107,10 +107,11 @@ func TestAdapterRuntimeOperations(t *testing.T) {
 			writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
 		})
 		mux.HandleFunc("/searchResults", func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Query().Get("filter[query]") {
-			case "Shadows among trees Fetch":
+			query := r.URL.Query()
+			switch {
+			case query.Get("filter[query]") == "Shadows among trees Fetch" && query.Get("include") == "albums":
 				writeJSON(w, apiDocument{Data: []apiResource{{ID: "sr-1", Type: "searchResults", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
-			case "Kings of mist Fetch":
+			case query.Get("filter[query]") == "Kings of mist Fetch" && query.Get("include") == "tracks":
 				writeJSON(w, apiDocument{Data: []apiResource{{ID: "sr-2", Type: "searchResults", Relationships: resourceRelationships{Tracks: relationship{Data: []relationshipData{{ID: "156205494", Type: "tracks"}, {ID: "156205495", Type: "tracks"}}}}}}})
 			default:
 				http.NotFound(w, r)
