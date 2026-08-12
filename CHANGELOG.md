@@ -4,6 +4,31 @@ All notable changes to Ariadne are documented here.
 
 ## Unreleased
 
+## v0.7.0 - 2026-08-13
+
+### Breaking
+
+- Provider Catalog query surface collapsed from fifteen pass-through helpers to five: `LookupServiceName`, `Describe`, `DescribeEnabled`, `EvaluateTarget(config, name, entity)`, `TargetServices(config, entity)`, plus the unchanged `SupportsRuntimeSongInputURL`. The album/song/any axis moved from function names into the new exported `EntityShape` parameter; `DescribeService`, `DescribeEnabledService`, `EvaluateTargetServiceRequest`, `EvaluateConfiguredTargetService`, `EvaluateSongTargetService`, and all `Supports*`/`Supported*`/`Enabled*` helpers are removed — capability questions are answered through `Describe` fields.
+- Resolver constructor matrix collapsed from six constructors to two: `New(config, ...Option)` (with `WithHTTPClient`) and `NewWithAdapters(AdapterSet{...})`. `NewWithClient`, `NewWithAdaptersAndWeights`, `NewWithEntityAdapters`, and `NewWithEntityAdaptersAndWeights` are removed; adapter lists and ranking weights now travel in one `AdapterSet` struct with zero-value weight defaults.
+
+### Added
+
+- Per-target failure resilience: a failing Target Search no longer aborts the resolution or cancels sibling searches. `MatchResult` and `SongMatchResult` carry the failure in a new exported `Err` field while other services resolve normally; the CLI prints a warning per failed service and exits non-zero only when every target failed, wrapping the underlying errors so `errors.Is` still finds them.
+- Generic result types `ScoredMatchOf[C]`, `MatchResultOf[C]`, and `ResolutionOf[P, E, C]` in the resolve package, re-exported at the library root. Existing names (`MatchResult`, `SongMatchResult`, `Resolution`, ...) are aliases to the album/song instantiations — no caller-visible change.
+- `adapterutil.NewClientCredentialsTokenSource` owning the client-credentials token-source wiring defaults (credentials closure, trim-space empty-token check, singleflight key) for credentialed Music Service adapters.
+
+### Fixed
+
+- TIDAL metadata Target Search migrated to the current `GET /v2/searchResults?filter[query]=...` contract after TIDAL retired query-in-path search (`INVALID_RESOURCE_ID` on every metadata search); track fetches no longer request the removed `coverArt` include, and song artwork resolves through the `albums.coverArt` include chain.
+- Bandcamp adapter no longer pre-ranks with hardcoded default weights and truncates to five candidates: Score Signal ranking lives only in Entity Resolution, so configured weights now govern Bandcamp matches.
+
+### Changed
+
+- Entity Resolution de-generalized: album and song pipelines are concrete top-to-bottom flows in their own Entity Resolution Policy modules instead of one generic orchestrator with seven function parameters.
+- `adapterutil` Metadata Query collection consolidated to one module (`MetadataQuerySearch`); duplicate collector and query-alias helpers removed.
+- CLI output album/song forks (strength filtering, match mapping, link building, CSV rows and writers) consolidated onto the generic result types; per-entity policy differences stay in small wrappers.
+- Test suites converted to table-driven form where tests shared a shape.
+
 ## v0.6.2 - 2026-05-12
 
 ### Fixed
