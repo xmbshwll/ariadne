@@ -6,32 +6,56 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestScoreTitleSignalUsesExactAndCoreEvidence(t *testing.T) {
+func TestScoreTitleSignal(t *testing.T) {
 	weights := titleSignalWeights{exact: 25, core: 15}
 
-	exact := scoreTitleSignal("Abbey Road", "", "Abbey Road", "", weights)
-	assert.Equal(t, 25, exact.value)
-	assert.Equal(t, "title exact match", exact.reason)
-	assert.True(t, exact.evidence.Title)
+	tests := []struct {
+		name          string
+		title         string
+		coreTitle     string
+		candidate     string
+		candidateCore string
+		wantValue     int
+		wantReason    string
+	}{
+		{name: "exact match", title: "Abbey Road", candidate: "Abbey Road", wantValue: 25, wantReason: "title exact match"},
+		{name: "core title match", title: "Abbey Road (Live)", candidate: "Abbey Road", wantValue: 15, wantReason: "core title match"},
+	}
 
-	core := scoreTitleSignal("Abbey Road (Live)", "", "Abbey Road", "", weights)
-	assert.Equal(t, 15, core.value)
-	assert.Equal(t, "core title match", core.reason)
-	assert.True(t, core.evidence.Title)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := scoreTitleSignal(tt.title, tt.coreTitle, tt.candidate, tt.candidateCore, weights)
+			assert.Equal(t, tt.wantValue, got.value)
+			assert.Equal(t, tt.wantReason, got.reason)
+			assert.True(t, got.evidence.Title)
+		})
+	}
 }
 
-func TestScoreArtistSignalUsesNormalizedFallbacks(t *testing.T) {
+func TestScoreArtistSignal(t *testing.T) {
 	weights := artistSignalWeights{primaryExact: 20, overlap: 10}
 
-	primary := scoreArtistSignal([]string{"The Beatles"}, nil, []string{"the beatles"}, nil, weights)
-	assert.Equal(t, 20, primary.value)
-	assert.Equal(t, "primary artist exact match", primary.reason)
-	assert.True(t, primary.evidence.Artist)
+	tests := []struct {
+		name                string
+		sourceArtists       []string
+		sourceNormalized    []string
+		candidateArtists    []string
+		candidateNormalized []string
+		wantValue           int
+		wantReason          string
+	}{
+		{name: "primary artist exact match", sourceArtists: []string{"The Beatles"}, candidateArtists: []string{"the beatles"}, wantValue: 20, wantReason: "primary artist exact match"},
+		{name: "artist overlap", sourceArtists: []string{"Paul McCartney", "The Beatles"}, candidateArtists: []string{"The Beatles"}, wantValue: 10, wantReason: "artist overlap"},
+	}
 
-	overlap := scoreArtistSignal([]string{"Paul McCartney", "The Beatles"}, nil, []string{"The Beatles"}, nil, weights)
-	assert.Equal(t, 10, overlap.value)
-	assert.Equal(t, "artist overlap", overlap.reason)
-	assert.True(t, overlap.evidence.Artist)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := scoreArtistSignal(tt.sourceArtists, tt.sourceNormalized, tt.candidateArtists, tt.candidateNormalized, weights)
+			assert.Equal(t, tt.wantValue, got.value)
+			assert.Equal(t, tt.wantReason, got.reason)
+			assert.True(t, got.evidence.Artist)
+		})
+	}
 }
 
 func TestSharedScoreSignalsPreserveReasonText(t *testing.T) {

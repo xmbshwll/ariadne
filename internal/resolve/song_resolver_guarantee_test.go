@@ -27,15 +27,20 @@ func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestSongResolverResolveSongReturnsTargetError(t *testing.T) {
+func TestSongResolverResolveSongSurfacesTargetErrorPerMatch(t *testing.T) {
 	resolver := NewSongs(
 		[]SongSourceAdapter{newStubSongSourceAdapter()},
-		[]SongTargetAdapter{newFailingSongTargetAdapter()},
+		[]SongTargetAdapter{newStubSongTargetAdapter(), newFailingSongTargetAdapter()},
 		score.DefaultSongWeights(),
 	)
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/track-1")
-	require.Error(t, err)
-	assert.Nil(t, resolution)
-	assert.ErrorIs(t, err, errTargetSearchBoom)
+	require.NoError(t, err)
+	require.NotNil(t, resolution)
+
+	// One failing Target Search surfaces on its own match without affecting others.
+	failing := resolution.Matches[model.ServiceDeezer]
+	assert.ErrorIs(t, failing.Err, errTargetSearchBoom)
+	assert.Nil(t, failing.Best)
+	require.NotNil(t, resolution.Matches[model.ServiceAppleMusic].Best)
 }

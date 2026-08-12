@@ -69,6 +69,7 @@ var (
 	errTIDALTargetCredentials    = errors.New("tidal target search requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET")
 	errUnsupportedMinStrength    = errors.New("unsupported min-strength")
 	errEmptyResolution           = errors.New("empty resolution")
+	errAllTargetSearchesFailed   = errors.New("all target searches failed")
 	errUnsupportedResolveMode    = errors.New("unsupported resolve mode")
 )
 

@@ -39,11 +39,14 @@ type SongScoredMatch struct {
 	Candidate model.CandidateSong
 }
 
-// SongMatchResult is the resolver output for one target service.
+// SongMatchResult is the resolver output for one target service. When the
+// Target Search for this service failed, Err carries the failure and
+// Best/Alternates are empty; other services are unaffected.
 type SongMatchResult struct {
 	Service    model.ServiceName
 	Best       *SongScoredMatch
 	Alternates []SongScoredMatch
+	Err        error
 }
 
 // SongResolution contains the source song and ranked target matches collected by the resolver.
@@ -80,7 +83,9 @@ func NewSongs(sources []SongSourceAdapter, targets []SongTargetAdapter, weights 
 }
 
 // ResolveSong parses an input song URL, fetches the canonical source song,
-// then collects and ranks candidates from every target adapter except the source service.
+// then collects and ranks candidates from every target adapter except the source
+// service. A failing target does not abort the resolution: its SongMatchResult
+// carries the error in Err while other targets resolve normally.
 func (r *SongResolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
 	return r.policy.resolve(ctx, inputURL)
 }
@@ -92,10 +97,7 @@ func (p songEntityResolutionPolicy) resolve(ctx context.Context, inputURL string
 	}
 
 	targets := excludeTargetService(p.targetAdapters, source.Entity.Service)
-	matches, err := p.resolveTargetMatches(ctx, targets, source.Entity)
-	if err != nil {
-		return nil, err
-	}
+	matches := p.resolveTargetMatches(ctx, targets, source.Entity)
 
 	return &SongResolution{
 		InputURL: inputURL,
@@ -134,26 +136,24 @@ func resolveSongSourceInput(ctx context.Context, sources []SongSourceAdapter, in
 	return songSourceInput{Parsed: *parsed, Entity: *song}, nil
 }
 
-func (p songEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []SongTargetAdapter, source model.CanonicalSong) (map[model.ServiceName]SongMatchResult, error) {
+func (p songEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []SongTargetAdapter, source model.CanonicalSong) map[model.ServiceName]SongMatchResult {
 	matches := make(map[model.ServiceName]SongMatchResult, len(targets))
 	var matchesMu sync.Mutex
 
-	err := resolveTargetsConcurrently(ctx, targets, func(groupCtx context.Context, target SongTargetAdapter) error {
-		candidates, err := collectSongTargetCandidates(groupCtx, target, source)
+	resolveTargetsConcurrently(ctx, targets, func(targetCtx context.Context, target SongTargetAdapter) {
+		var result SongMatchResult
+		candidates, err := collectSongTargetCandidates(targetCtx, target, source)
 		if err != nil {
-			return fmt.Errorf("collect song candidates from %s: %w", target.Service(), err)
+			result = SongMatchResult{Service: target.Service(), Err: fmt.Errorf("collect song candidates: %w", err)}
+		} else {
+			result = songMatchResultFromRanking(target.Service(), score.RankSongs(source, candidates, p.weights))
 		}
-		ranking := score.RankSongs(source, candidates, p.weights)
 
 		matchesMu.Lock()
-		matches[target.Service()] = songMatchResultFromRanking(target.Service(), ranking)
+		matches[target.Service()] = result
 		matchesMu.Unlock()
-		return nil
 	})
-	if err != nil {
-		return nil, fmt.Errorf("resolve song target searches: %w", err)
-	}
-	return matches, nil
+	return matches
 }
 
 func songCandidateKey(candidate model.CandidateSong) string {

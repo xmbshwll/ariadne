@@ -105,6 +105,8 @@ func newResolver(
 }
 
 // ResolveAlbum resolves one input album URL into a canonical source album plus per-service matches.
+// A failing target service does not fail the resolution: its MatchResult carries
+// the error in Err while other services resolve normally.
 //
 // Callers should use errors.Is on the returned error when branching on public
 // resolver failure modes. The stable exported sentinels are:
@@ -139,6 +141,8 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 }
 
 // ResolveSong resolves one input song URL into a canonical source song plus per-service matches.
+// A failing target service does not fail the resolution: its SongMatchResult
+// carries the error in Err while other services resolve normally.
 //
 // Callers should use errors.Is on the returned error when branching on
 // ResolveSong failure modes. The stable exported sentinels are:

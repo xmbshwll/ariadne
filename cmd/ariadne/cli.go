@@ -118,6 +118,10 @@ func (l *cliLogger) Debugf(format string, args ...any) {
 	l.logf(logLevelDebug, format, args...)
 }
 
+func (l *cliLogger) Warnf(format string, args ...any) {
+	l.logf(logLevelWarn, format, args...)
+}
+
 func logRawCLIConfigValues(logger *cliLogger, lookup func(string) string) {
 	if lookup == nil {
 		return

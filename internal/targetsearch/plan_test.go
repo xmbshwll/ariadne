@@ -73,27 +73,29 @@ func TestPlanPreservesOrderAndDeduplicates(t *testing.T) {
 }
 
 func TestPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.T) {
-	plan := planWithRecoverableTimeout(context.DeadlineExceeded)
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "deadline exceeded", err: context.DeadlineExceeded},
+		{name: "net timeout", err: &url.Error{
+			Op:  "Get",
+			URL: "https://api.example.test/albums",
+			Err: &net.OpError{Op: "dial", Net: "tcp", Err: targetSearchTimeoutError{}},
+		}},
+	}
 
-	candidates, err := plan.Collect(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := planWithRecoverableTimeout(tt.err)
 
-	require.NoError(t, err)
-	require.Len(t, candidates, 1)
-	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
-}
+			candidates, err := plan.Collect(context.Background())
 
-func TestPlanSkipsNetErrorTimeoutsWhenParentContextIsActive(t *testing.T) {
-	plan := planWithRecoverableTimeout(&url.Error{
-		Op:  "Get",
-		URL: "https://api.example.test/albums",
-		Err: &net.OpError{Op: "dial", Net: "tcp", Err: targetSearchTimeoutError{}},
-	})
-
-	candidates, err := plan.Collect(context.Background())
-
-	require.NoError(t, err)
-	require.Len(t, candidates, 1)
-	assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
+			require.NoError(t, err)
+			require.Len(t, candidates, 1)
+			assert.Equal(t, targetSearchAlbum1, candidates[0].CandidateID)
+		})
+	}
 }
 
 func planWithRecoverableTimeout(err error) Plan[model.CandidateAlbum] {

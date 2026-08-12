@@ -249,52 +249,42 @@ func TestRunResolveServiceFilter(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestRunResolveYAMLFixtureOutput(t *testing.T) {
-	originalFactory := resolverFactory
-	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
-				"https://fixture.test/source": {
-					Service:           ariadne.ServiceDeezer,
-					SourceID:          "src-1",
-					SourceURL:         "https://fixture.test/source",
-					Title:             "Fixture Album",
-					NormalizedTitle:   "fixture album",
-					Artists:           []string{"Fixture Artist"},
-					NormalizedArtists: []string{"fixture artist"},
-					ReleaseDate:       "2024-02-03",
-					UPC:               "123456789012",
-				},
-			})},
-			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, []ariadne.CandidateAlbum{{
-				CanonicalAlbum: ariadne.CanonicalAlbum{
-					Service:           ariadne.ServiceSpotify,
-					SourceID:          "spotify-1",
-					SourceURL:         "https://open.spotify.com/album/spotify-1",
-					Title:             "Fixture Album",
-					NormalizedTitle:   "fixture album",
-					Artists:           []string{"Fixture Artist"},
-					NormalizedArtists: []string{"fixture artist"},
-					ReleaseDate:       "2024-02-03",
-					UPC:               "123456789012",
-				},
-				CandidateID: "spotify-1",
-				MatchURL:    "https://open.spotify.com/album/spotify-1",
-			}}, nil)},
-		)
+func TestRunResolveFormatFixtureOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		want   []string
+	}{
+		{name: "yaml", format: "yaml", want: []string{
+			"deezer: https://fixture.test/source",
+			"spotify: https://open.spotify.com/album/spotify-1",
+		}},
+		{name: "csv", format: "csv", want: []string{
+			"service,url",
+			"deezer,https://fixture.test/source",
+			"spotify,https://open.spotify.com/album/spotify-1",
+		}},
 	}
-	defer func() { resolverFactory = originalFactory }()
 
-	var stdout bytes.Buffer
-	err := runResolve([]string{"--format=yaml", "https://fixture.test/source"}, &stdout)
-	require.NoError(t, err)
-	assert.Contains(t, stdout.String(), "deezer: https://fixture.test/source")
-	assert.Contains(t, stdout.String(), "spotify: https://open.spotify.com/album/spotify-1")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			installSimpleAlbumFixtureResolver(t)
+
+			var stdout bytes.Buffer
+			err := runResolve([]string{"--format=" + tt.format, "https://fixture.test/source"}, &stdout)
+			require.NoError(t, err)
+			for _, want := range tt.want {
+				assert.Contains(t, stdout.String(), want)
+			}
+		})
+	}
 }
 
-func TestRunResolveCSVFixtureOutput(t *testing.T) {
-	originalFactory := resolverFactory
-	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
+// installSimpleAlbumFixtureResolver stubs the resolver factory with a one-album
+// source and one Spotify target candidate.
+func installSimpleAlbumFixtureResolver(t *testing.T) {
+	t.Helper()
+	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
 		return ariadne.NewWithAdapters(
 			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
 				"https://fixture.test/source": {
@@ -325,15 +315,7 @@ func TestRunResolveCSVFixtureOutput(t *testing.T) {
 				MatchURL:    "https://open.spotify.com/album/spotify-1",
 			}}, nil)},
 		)
-	}
-	defer func() { resolverFactory = originalFactory }()
-
-	var stdout bytes.Buffer
-	err := runResolve([]string{"--format=csv", "https://fixture.test/source"}, &stdout)
-	require.NoError(t, err)
-	assert.Contains(t, stdout.String(), "service,url")
-	assert.Contains(t, stdout.String(), "deezer,https://fixture.test/source")
-	assert.Contains(t, stdout.String(), "spotify,https://open.spotify.com/album/spotify-1")
+	})
 }
 
 func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
@@ -380,25 +362,63 @@ func TestRunResolveVerboseCSVFixtureOutput(t *testing.T) {
 	assert.Contains(t, stdout.String(), ",spotify,best,https://open.spotify.com/album/spotify-1,true,strong,155,spotify-1,")
 }
 
-func TestRunResolvePropagatesResolverErrors(t *testing.T) {
-	originalFactory := resolverFactory
-	resolverFactory = func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(
-			[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
-				"https://fixture.test/source": {
-					Service:   ariadne.ServiceDeezer,
-					SourceID:  "src-1",
-					SourceURL: "https://fixture.test/source",
-					Title:     "Fixture Album",
-				},
-			})},
-			[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, nil, errCLIResolveBoom)},
-		)
+func TestRunResolvePropagatesTargetErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		factory func(ariadne.Config) *ariadne.Resolver
+		args    []string
+	}{
+		{
+			name: "album target failure",
+			args: []string{"https://fixture.test/source"},
+			factory: func(_ ariadne.Config) *ariadne.Resolver {
+				return ariadne.NewWithAdapters(
+					[]ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
+						"https://fixture.test/source": {
+							Service:   ariadne.ServiceDeezer,
+							SourceID:  "src-1",
+							SourceURL: "https://fixture.test/source",
+							Title:     "Fixture Album",
+						},
+					})},
+					[]ariadne.TargetAdapter{newFixtureTargetAdapterForCLI(ariadne.ServiceSpotify, nil, errCLIResolveBoom)},
+				)
+			},
+		},
+		{
+			name: "forced song target failure",
+			args: []string{"--song", "https://fixture.test/songs/1"},
+			factory: func(_ ariadne.Config) *ariadne.Resolver {
+				return ariadne.NewWithEntityAdapters(
+					nil,
+					nil,
+					[]ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
+						"https://fixture.test/songs/1": {
+							Service:     ariadne.ServiceSpotify,
+							SourceID:    "song-1",
+							SourceURL:   "https://fixture.test/songs/1",
+							Title:       "Fixture Song",
+							Artists:     []string{"Fixture Artist"},
+							DurationMS:  180000,
+							AlbumTitle:  "Fixture Album",
+							TrackNumber: 1,
+						},
+					})},
+					[]ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceTIDAL, nil, errCLIResolveBoom)},
+				)
+			},
+		},
 	}
-	defer func() { resolverFactory = originalFactory }()
 
-	var stdout bytes.Buffer
-	err := runResolve([]string{"https://fixture.test/source"}, &stdout)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "boom")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withResolverFactory(t, tt.factory)
+
+			var stdout bytes.Buffer
+			err := runResolve(tt.args, &stdout)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, errAllTargetSearchesFailed)
+			assert.ErrorIs(t, err, errCLIResolveBoom)
+		})
+	}
 }

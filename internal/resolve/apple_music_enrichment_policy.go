@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -32,27 +31,29 @@ func (p appleMusicEnrichmentPolicy) collectTargetCandidates(ctx context.Context,
 	return collectAlbumTargetCandidatesWithMetadataFilter(ctx, target, source, metadataFilter)
 }
 
+// apply runs the follow-up Apple Music Target Search with enriched identifiers.
+// Identifier Enrichment is best-effort: failures keep the base matches.
 func (p appleMusicEnrichmentPolicy) apply(
 	ctx context.Context,
 	targets []TargetAdapter,
 	source model.CanonicalAlbum,
 	matches map[model.ServiceName]MatchResult,
-) error {
-	appleMusicTargets := appleMusicTargets(targets)
-	if len(appleMusicTargets) == 0 {
-		return nil
+) {
+	enrichmentTargets := appleMusicTargets(targets)
+	if len(enrichmentTargets) == 0 {
+		return
 	}
 
 	enriched, ok := p.enrichedSource(source, matches)
 	if !ok {
-		return nil
+		return
 	}
 
 	var matchesMu sync.Mutex
-	return resolveTargetsConcurrently(ctx, appleMusicTargets, func(groupCtx context.Context, target TargetAdapter) error {
-		newResult, err := p.resolveTarget(groupCtx, target, enriched)
+	resolveTargetsConcurrently(ctx, enrichmentTargets, func(targetCtx context.Context, target TargetAdapter) {
+		newResult, err := p.resolveTarget(targetCtx, target, enriched)
 		if err != nil {
-			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
+			return
 		}
 
 		matchesMu.Lock()
@@ -61,7 +62,6 @@ func (p appleMusicEnrichmentPolicy) apply(
 			matches[target.Service()] = newResult
 		}
 		matchesMu.Unlock()
-		return nil
 	})
 }
 

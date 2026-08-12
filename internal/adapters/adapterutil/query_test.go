@@ -7,25 +7,41 @@ import (
 )
 
 func TestMetadataQueries(t *testing.T) {
-	queries := MetadataQueries("ΘΕΛΗΜΑ (Thelema)", []string{"DECIPHER"})
+	tests := []struct {
+		name    string
+		title   string
+		artists []string
+		want    []string
+	}{
+		{
+			name:    "transliterated title variants",
+			title:   "ΘΕΛΗΜΑ (Thelema)",
+			artists: []string{"DECIPHER"},
+			want: []string{
+				"ΘΕΛΗΜΑ (Thelema) DECIPHER",
+				"Thelema DECIPHER",
+				"ΘΕΛΗΜΑ DECIPHER",
+				"ΘΕΛΗΜΑ (Thelema)",
+				"Thelema",
+				"ΘΕΛΗΜΑ",
+			},
+		},
+		{
+			name:    "deduplicates normalized queries",
+			title:   "Solid Static",
+			artists: []string{"Mainliner", "mainliner"},
+			want: []string{
+				"Solid Static Mainliner",
+				"Solid Static",
+			},
+		},
+	}
 
-	assert.Equal(t, []string{
-		"ΘΕΛΗΜΑ (Thelema) DECIPHER",
-		"Thelema DECIPHER",
-		"ΘΕΛΗΜΑ DECIPHER",
-		"ΘΕΛΗΜΑ (Thelema)",
-		"Thelema",
-		"ΘΕΛΗΜΑ",
-	}, queries)
-}
-
-func TestMetadataQueriesDeduplicatesNormalizedQueries(t *testing.T) {
-	queries := MetadataQueries("Solid Static", []string{"Mainliner", "mainliner"})
-
-	assert.Equal(t, []string{
-		"Solid Static Mainliner",
-		"Solid Static",
-	}, queries)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, MetadataQueries(tt.title, tt.artists))
+		})
+	}
 }
 
 func TestFormattedMetadataQueries(t *testing.T) {
@@ -44,6 +60,19 @@ func TestFormattedMetadataQueries(t *testing.T) {
 }
 
 func TestPrimaryMetadataQuery(t *testing.T) {
-	assert.Equal(t, "Solid Static Musica Transonic", PrimaryMetadataQuery("Solid Static", []string{"Musica Transonic"}))
-	assert.Equal(t, "", PrimaryMetadataQuery(" ", []string{"Musica Transonic"}))
+	tests := []struct {
+		name    string
+		title   string
+		artists []string
+		want    string
+	}{
+		{name: "title and artist", title: "Solid Static", artists: []string{"Musica Transonic"}, want: "Solid Static Musica Transonic"},
+		{name: "blank title yields no query", title: " ", artists: []string{"Musica Transonic"}, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, PrimaryMetadataQuery(tt.title, tt.artists))
+		})
+	}
 }
