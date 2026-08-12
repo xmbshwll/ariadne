@@ -17,11 +17,15 @@ func TrimmedNonEmptyStrings(values []string) []string {
 	return trimmed
 }
 
+// CollectCandidates fetches one candidate per item, skipping items with empty
+// or duplicate IDs and tolerating per-item fetch errors. It returns the first
+// fetch error only when no candidate was collected.
 func CollectCandidates[Input any, Candidate any](
+	ctx context.Context,
 	items []Input,
 	limit int,
 	itemID func(Input) string,
-	fetch func(Input) (Candidate, error),
+	fetch func(context.Context, Input) (Candidate, error),
 ) ([]Candidate, error) {
 	if limit <= 0 {
 		return []Candidate{}, nil
@@ -40,7 +44,7 @@ func CollectCandidates[Input any, Candidate any](
 		}
 		seen[id] = struct{}{}
 
-		candidate, err := fetch(item)
+		candidate, err := fetch(ctx, item)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
@@ -58,19 +62,11 @@ func CollectCandidates[Input any, Candidate any](
 	return results, nil
 }
 
-func CollectCandidatesWithContext[Input any, Candidate any](
-	ctx context.Context,
-	items []Input,
-	limit int,
-	itemID func(Input) string,
-	fetch func(context.Context, Input) (Candidate, error),
-) ([]Candidate, error) {
-	return CollectCandidates(items, limit, itemID, func(item Input) (Candidate, error) {
-		return fetch(ctx, item)
-	})
-}
-
-type MetadataQueryTargetSearch[Item any, Candidate any] struct {
+// MetadataQuerySearch runs one Metadata Query Target Search: for each query it
+// searches, then builds deduplicated candidates up to Limit. Per-item build
+// errors are tolerated; a search error aborts unless ContinueAfterSearchError
+// approves. The first error surfaces only when no candidate was collected.
+type MetadataQuerySearch[Item any, Candidate any] struct {
 	Queries                  []string
 	Limit                    int
 	Search                   func(context.Context, string) ([]Item, error)
@@ -79,51 +75,20 @@ type MetadataQueryTargetSearch[Item any, Candidate any] struct {
 	ContinueAfterSearchError func(collected int) bool
 }
 
-func (search MetadataQueryTargetSearch[Item, Candidate]) Collect(ctx context.Context) ([]Candidate, error) {
-	if len(search.Queries) == 0 {
+func (search MetadataQuerySearch[Item, Candidate]) Collect(ctx context.Context) ([]Candidate, error) {
+	if search.Limit <= 0 || len(search.Queries) == 0 {
 		return []Candidate{}, nil
 	}
 
-	collector := MetadataQueryCandidateCollector[Item, Candidate]{
-		Queries: search.Queries,
-		Limit:   search.Limit,
-		Search: func(query string) ([]Item, error) {
-			return search.Search(ctx, query)
-		},
-		ItemID: search.ItemID,
-		BuildCandidate: func(item Item) (Candidate, error) {
-			return search.BuildCandidate(ctx, item)
-		},
-		ContinueAfterSearchError: search.ContinueAfterSearchError,
-	}
-	return CollectMetadataQueryCandidates(collector)
-}
-
-type MetadataQueryCandidateCollector[Item any, Candidate any] struct {
-	Queries                  []string
-	Limit                    int
-	Search                   func(string) ([]Item, error)
-	ItemID                   func(Item) string
-	BuildCandidate           func(Item) (Candidate, error)
-	ContinueAfterSearchError func(collected int) bool
-}
-
-func CollectMetadataQueryCandidates[Item any, Candidate any](
-	collector MetadataQueryCandidateCollector[Item, Candidate],
-) ([]Candidate, error) {
-	if collector.Limit <= 0 {
-		return []Candidate{}, nil
-	}
-
-	candidates := make([]Candidate, 0, collector.Limit)
-	seen := make(map[string]struct{}, collector.Limit)
+	candidates := make([]Candidate, 0, search.Limit)
+	seen := make(map[string]struct{}, search.Limit)
 	var firstSearchErr error
 	var firstCandidateErr error
 
-	for _, query := range collector.Queries {
-		items, err := collector.Search(query)
+	for _, query := range search.Queries {
+		items, err := search.Search(ctx, query)
 		if err != nil {
-			if !continueAfterMetadataSearchError(collector.ContinueAfterSearchError, len(candidates)) {
+			if search.ContinueAfterSearchError != nil && !search.ContinueAfterSearchError(len(candidates)) {
 				return nil, err
 			}
 			if firstSearchErr == nil {
@@ -133,7 +98,7 @@ func CollectMetadataQueryCandidates[Item any, Candidate any](
 		}
 
 		for _, item := range items {
-			id := strings.TrimSpace(collector.ItemID(item))
+			id := strings.TrimSpace(search.ItemID(item))
 			if id == "" {
 				continue
 			}
@@ -142,7 +107,7 @@ func CollectMetadataQueryCandidates[Item any, Candidate any](
 			}
 			seen[id] = struct{}{}
 
-			candidate, err := collector.BuildCandidate(item)
+			candidate, err := search.BuildCandidate(ctx, item)
 			if err != nil {
 				if firstCandidateErr == nil {
 					firstCandidateErr = err
@@ -150,7 +115,7 @@ func CollectMetadataQueryCandidates[Item any, Candidate any](
 				continue
 			}
 			candidates = append(candidates, candidate)
-			if len(candidates) >= collector.Limit {
+			if len(candidates) >= search.Limit {
 				return candidates, nil
 			}
 		}
@@ -165,11 +130,4 @@ func CollectMetadataQueryCandidates[Item any, Candidate any](
 		}
 	}
 	return candidates, nil
-}
-
-func continueAfterMetadataSearchError(shouldContinue func(int) bool, collected int) bool {
-	if shouldContinue == nil {
-		return true
-	}
-	return shouldContinue(collected)
 }

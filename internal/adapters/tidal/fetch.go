@@ -165,7 +165,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 }
 
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
-	return hydrateTIDALCandidates(albumIDs, func(albumID string) string { return albumID }, func(albumID string) (model.CandidateAlbum, error) {
+	return hydrateTIDALCandidates(ctx, albumIDs, func(albumID string) string { return albumID }, func(ctx context.Context, albumID string) (model.CandidateAlbum, error) {
 		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
 			return model.CandidateAlbum{}, fmt.Errorf("%s: %w", errorMessage(albumID), err)
@@ -175,7 +175,7 @@ func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string,
 }
 
 func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
-	return hydrateTIDALCandidates(songIDs, func(songID string) string { return songID }, func(songID string) (model.CandidateSong, error) {
+	return hydrateTIDALCandidates(ctx, songIDs, func(songID string) string { return songID }, func(ctx context.Context, songID string) (model.CandidateSong, error) {
 		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
 		if err != nil {
 			return model.CandidateSong{}, fmt.Errorf("%s: %w", errorMessage(songID), err)
@@ -184,9 +184,9 @@ func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, r
 	})
 }
 
-func hydrateTIDALCandidates[Input any, Candidate any](items []Input, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+func hydrateTIDALCandidates[Input any, Candidate any](ctx context.Context, items []Input, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
+	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
 
 func resourceIDs(resources []apiResource) []string {

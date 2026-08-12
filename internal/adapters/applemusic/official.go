@@ -142,9 +142,10 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 
 func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
 	return hydrateAppleMusicOfficialCandidates(
+		ctx,
 		albumIDs,
 		func(albumID string) string { return albumID },
-		func(albumID string) (model.CandidateAlbum, error) {
+		func(ctx context.Context, albumID string) (model.CandidateAlbum, error) {
 			album, err := a.fetchOfficialAlbumByID(ctx, albumID, storefront)
 			if err != nil {
 				return model.CandidateAlbum{}, err
@@ -156,9 +157,10 @@ func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, 
 
 func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
 	return hydrateAppleMusicOfficialCandidates(
+		ctx,
 		songIDs,
 		func(songID string) string { return songID },
-		func(songID string) (model.CandidateSong, error) {
+		func(ctx context.Context, songID string) (model.CandidateSong, error) {
 			song, err := a.fetchSongByID(ctx, songID, "", storefront)
 			if err != nil {
 				return model.CandidateSong{}, err
@@ -168,9 +170,9 @@ func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront
 	)
 }
 
-func hydrateAppleMusicOfficialCandidates[Input any, Candidate any](items []Input, itemID func(Input) string, fetch func(Input) (Candidate, error)) ([]Candidate, error) {
+func hydrateAppleMusicOfficialCandidates[Input any, Candidate any](ctx context.Context, items []Input, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
+	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
 
 func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, storefront string) (*model.CanonicalAlbum, error) {

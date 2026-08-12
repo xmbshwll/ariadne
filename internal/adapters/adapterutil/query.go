@@ -6,10 +6,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func TitleAndFirstArtistQuery(title string, artists []string) string {
-	return PrimaryMetadataQuery(title, artists)
-}
-
 func PrimaryMetadataQuery(title string, artists []string) string {
 	queries := MetadataQueries(title, artists)
 	if len(queries) == 0 {

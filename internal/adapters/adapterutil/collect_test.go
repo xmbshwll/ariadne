@@ -23,17 +23,17 @@ type metadataQueryTestItem struct {
 
 type metadataQueryContextKey struct{}
 
-func TestMetadataQueryTargetSearchReturnsEmptySliceForNoQueries(t *testing.T) {
-	candidates, err := (MetadataQueryTargetSearch[metadataQueryTestItem, string]{}).Collect(context.Background())
+func TestMetadataQuerySearchReturnsEmptySliceForNoQueries(t *testing.T) {
+	candidates, err := (MetadataQuerySearch[metadataQueryTestItem, string]{}).Collect(context.Background())
 
 	require.NoError(t, err)
 	assert.NotNil(t, candidates)
 	assert.Empty(t, candidates)
 }
 
-func TestMetadataQueryTargetSearchPassesContextToSearchAndBuildCandidate(t *testing.T) {
+func TestMetadataQuerySearchPassesContextToSearchAndBuildCandidate(t *testing.T) {
 	ctx := context.WithValue(context.Background(), metadataQueryContextKey{}, "metadata-context")
-	targetSearch := MetadataQueryTargetSearch[metadataQueryTestItem, string]{
+	targetSearch := MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first"},
 		Limit:   1,
 		Search: func(ctx context.Context, query string) ([]metadataQueryTestItem, error) {
@@ -56,13 +56,13 @@ func TestMetadataQueryTargetSearchPassesContextToSearchAndBuildCandidate(t *test
 	assert.Equal(t, []string{"A"}, candidates)
 }
 
-func TestCollectMetadataQueryCandidatesDeduplicatesAndStopsAtLimit(t *testing.T) {
+func TestMetadataQuerySearchDeduplicatesAndStopsAtLimit(t *testing.T) {
 	searches := []string{}
 
-	candidates, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
+	candidates, err := MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   3,
-		Search: func(query string) ([]metadataQueryTestItem, error) {
+		Search: func(_ context.Context, query string) ([]metadataQueryTestItem, error) {
 			searches = append(searches, query)
 			return map[string][]metadataQueryTestItem{
 				"first": {
@@ -80,21 +80,21 @@ func TestCollectMetadataQueryCandidatesDeduplicatesAndStopsAtLimit(t *testing.T)
 		ItemID: func(item metadataQueryTestItem) string {
 			return item.ID
 		},
-		BuildCandidate: func(item metadataQueryTestItem) (string, error) {
+		BuildCandidate: func(_ context.Context, item metadataQueryTestItem) (string, error) {
 			return item.Value, nil
 		},
-	})
+	}.Collect(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"A", "B", "C"}, candidates)
 	assert.Equal(t, []string{"first", "second"}, searches)
 }
 
-func TestCollectMetadataQueryCandidatesReturnsFirstSearchErrorWhenNothingCollected(t *testing.T) {
-	_, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
+func TestMetadataQuerySearchReturnsFirstSearchErrorWhenNothingCollected(t *testing.T) {
+	_, err := MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   2,
-		Search: func(query string) ([]metadataQueryTestItem, error) {
+		Search: func(_ context.Context, query string) ([]metadataQueryTestItem, error) {
 			if query == "first" {
 				return nil, errMetadataQueryFirstSearch
 			}
@@ -103,49 +103,49 @@ func TestCollectMetadataQueryCandidatesReturnsFirstSearchErrorWhenNothingCollect
 		ItemID: func(item metadataQueryTestItem) string {
 			return item.ID
 		},
-		BuildCandidate: func(item metadataQueryTestItem) (string, error) {
+		BuildCandidate: func(_ context.Context, item metadataQueryTestItem) (string, error) {
 			return item.Value, nil
 		},
-	})
+	}.Collect(context.Background())
 
 	assert.ErrorIs(t, err, errMetadataQueryFirstSearch)
 }
 
-func TestCollectMetadataQueryCandidatesCanStopAfterSearchError(t *testing.T) {
-	_, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
+func TestMetadataQuerySearchCanStopAfterSearchError(t *testing.T) {
+	_, err := MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   2,
-		Search: func(string) ([]metadataQueryTestItem, error) {
+		Search: func(context.Context, string) ([]metadataQueryTestItem, error) {
 			return nil, errMetadataQuerySearch
 		},
 		ItemID: func(item metadataQueryTestItem) string {
 			return item.ID
 		},
-		BuildCandidate: func(item metadataQueryTestItem) (string, error) {
+		BuildCandidate: func(_ context.Context, item metadataQueryTestItem) (string, error) {
 			return item.Value, nil
 		},
 		ContinueAfterSearchError: func(collected int) bool {
 			return collected > 0
 		},
-	})
+	}.Collect(context.Background())
 
 	assert.ErrorIs(t, err, errMetadataQuerySearch)
 }
 
-func TestCollectMetadataQueryCandidatesReturnsFirstCandidateErrorWhenNothingBuilds(t *testing.T) {
-	_, err := CollectMetadataQueryCandidates(MetadataQueryCandidateCollector[metadataQueryTestItem, string]{
+func TestMetadataQuerySearchReturnsFirstCandidateErrorWhenNothingBuilds(t *testing.T) {
+	_, err := MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first"},
 		Limit:   2,
-		Search: func(string) ([]metadataQueryTestItem, error) {
+		Search: func(context.Context, string) ([]metadataQueryTestItem, error) {
 			return []metadataQueryTestItem{{ID: "a", Value: "A"}}, nil
 		},
 		ItemID: func(item metadataQueryTestItem) string {
 			return item.ID
 		},
-		BuildCandidate: func(metadataQueryTestItem) (string, error) {
+		BuildCandidate: func(context.Context, metadataQueryTestItem) (string, error) {
 			return "", errMetadataQueryCandidate
 		},
-	})
+	}.Collect(context.Background())
 
 	assert.ErrorIs(t, err, errMetadataQueryCandidate)
 }

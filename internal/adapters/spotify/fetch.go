@@ -106,7 +106,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := adapterutil.MetadataQueryTargetSearch[apiAlbumSummary, apiAlbumSummary]{
+	targetSearch := adapterutil.MetadataQuerySearch[apiAlbumSummary, apiAlbumSummary]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]apiAlbumSummary, error) {
@@ -172,7 +172,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := adapterutil.MetadataQueryTargetSearch[apiTrackSearchItem, apiTrackSearchItem]{
+	targetSearch := adapterutil.MetadataQuerySearch[apiTrackSearchItem, apiTrackSearchItem]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]apiTrackSearchItem, error) {
@@ -385,9 +385,10 @@ func (a *Adapter) hydrateAlbumCandidates(
 	summaries []apiAlbumSummary,
 ) ([]model.CandidateAlbum, error) {
 	return hydrateSpotifyCandidates(
+		ctx,
 		summaries,
 		func(summary apiAlbumSummary) string { return summary.ID },
-		func(summary apiAlbumSummary) (model.CandidateAlbum, error) {
+		func(ctx context.Context, summary apiAlbumSummary) (model.CandidateAlbum, error) {
 			album, err := a.fetchAlbumAPI(ctx, summary.ID)
 			if err != nil {
 				return model.CandidateAlbum{}, fmt.Errorf("hydrate spotify album %s: %w", summary.ID, err)
@@ -407,9 +408,10 @@ func (a *Adapter) hydrateSongCandidates(
 	items []apiTrackSearchItem,
 ) ([]model.CandidateSong, error) {
 	return hydrateSpotifyCandidates(
+		ctx,
 		items,
 		func(item apiTrackSearchItem) string { return item.ID },
-		func(item apiTrackSearchItem) (model.CandidateSong, error) {
+		func(ctx context.Context, item apiTrackSearchItem) (model.CandidateSong, error) {
 			track, err := a.fetchTrackAPI(ctx, item.ID)
 			if err != nil {
 				return model.CandidateSong{}, fmt.Errorf("hydrate spotify track %s: %w", item.ID, err)
@@ -425,10 +427,11 @@ func (a *Adapter) hydrateSongCandidates(
 }
 
 func hydrateSpotifyCandidates[Input any, Candidate any](
+	ctx context.Context,
 	items []Input,
 	itemID func(Input) string,
-	fetch func(Input) (Candidate, error),
+	fetch func(context.Context, Input) (Candidate, error),
 ) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(items, searchLimit, itemID, fetch)
+	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }

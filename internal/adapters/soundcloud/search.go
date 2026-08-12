@@ -26,10 +26,13 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
 	results, err := adapterutil.CollectCandidates(
+		ctx,
 		payload.Collection,
 		searchLimit,
 		soundCloudPlaylistCandidateID,
-		soundCloudAlbumSearchCandidate,
+		func(_ context.Context, playlist soundPlaylist) (model.CandidateAlbum, error) {
+			return soundCloudAlbumSearchCandidate(playlist)
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect soundcloud album candidates: %w", err)
@@ -50,10 +53,13 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
 	results, err := adapterutil.CollectCandidates(
+		ctx,
 		payload.Collection,
 		searchLimit,
 		soundCloudSongCandidateID,
-		soundCloudSongSearchCandidate,
+		func(_ context.Context, track soundTrack) (model.CandidateSong, error) {
+			return soundCloudSongSearchCandidate(track)
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("collect soundcloud song candidates: %w", err)

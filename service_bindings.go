@@ -56,24 +56,22 @@ type sourceRuntimeAdapter interface {
 }
 
 type serviceBindingSpec struct {
-	service              ServiceName
-	aliases              []string
-	capabilities         serviceCapabilitySet
-	runtimeSongURLParser songURLParser
-	targetSearchEnabled  func(Config) bool
-	build                serviceAdapterBuilder
+	service             ServiceName
+	aliases             []string
+	capabilities        serviceCapabilitySet
+	targetSearchEnabled func(Config) bool
+	build               serviceAdapterBuilder
 }
 
 func (s serviceBindingSpec) capability() serviceCapability {
 	return serviceCapability{
-		name:                 s.service,
-		aliases:              append([]string(nil), s.aliases...),
-		supportsAlbumSource:  s.capabilities.albumSource,
-		supportsAlbumTarget:  s.capabilities.albumTarget,
-		supportsSongSource:   s.capabilities.songSource,
-		supportsSongTarget:   s.capabilities.songTarget,
-		runtimeSongURLParser: s.runtimeSongURLParser,
-		targetSearchEnabled:  s.targetSearchEnabled,
+		name:                s.service,
+		aliases:             append([]string(nil), s.aliases...),
+		supportsAlbumSource: s.capabilities.albumSource,
+		supportsAlbumTarget: s.capabilities.albumTarget,
+		supportsSongSource:  s.capabilities.songSource,
+		supportsSongTarget:  s.capabilities.songTarget,
+		targetSearchEnabled: s.targetSearchEnabled,
 	}
 }
 
@@ -112,10 +110,9 @@ func credentialedFullRuntimeAdapterSet(adapter fullRuntimeAdapter, targetSearchE
 
 func appleMusicServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceAppleMusic,
-		aliases:              []string{"applemusic"},
-		capabilities:         allRuntimeCapabilities,
-		runtimeSongURLParser: applemusicadapter.ParseSongURL,
+		service:      ServiceAppleMusic,
+		aliases:      []string{"applemusic"},
+		capabilities: allRuntimeCapabilities,
 		build: func(client *http.Client, config Config) serviceAdapterSet {
 			adapter := applemusicadapter.New(
 				client,
@@ -133,10 +130,9 @@ func appleMusicServiceBinding() serviceBinding {
 
 func bandcampServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceBandcamp,
-		aliases:              []string{"bandcamp"},
-		capabilities:         allRuntimeCapabilities,
-		runtimeSongURLParser: bandcampadapter.ParseSongURL,
+		service:      ServiceBandcamp,
+		aliases:      []string{"bandcamp"},
+		capabilities: allRuntimeCapabilities,
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			return fullRuntimeAdapterSet(bandcampadapter.New(client))
 		},
@@ -145,10 +141,9 @@ func bandcampServiceBinding() serviceBinding {
 
 func deezerServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceDeezer,
-		aliases:              []string{"deezer"},
-		capabilities:         allRuntimeCapabilities,
-		runtimeSongURLParser: deezeradapter.ParseSongURL,
+		service:      ServiceDeezer,
+		aliases:      []string{"deezer"},
+		capabilities: allRuntimeCapabilities,
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			return fullRuntimeAdapterSet(deezeradapter.New(client))
 		},
@@ -157,10 +152,9 @@ func deezerServiceBinding() serviceBinding {
 
 func soundCloudServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceSoundCloud,
-		aliases:              []string{"soundcloud"},
-		capabilities:         allRuntimeCapabilities,
-		runtimeSongURLParser: soundcloudadapter.ParseSongURL,
+		service:      ServiceSoundCloud,
+		aliases:      []string{"soundcloud"},
+		capabilities: allRuntimeCapabilities,
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			return fullRuntimeAdapterSet(soundcloudadapter.New(client))
 		},
@@ -169,11 +163,10 @@ func soundCloudServiceBinding() serviceBinding {
 
 func spotifyServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceSpotify,
-		aliases:              []string{"spotify"},
-		capabilities:         allRuntimeCapabilities,
-		runtimeSongURLParser: spotifyadapter.ParseSongURL,
-		targetSearchEnabled:  Config.SpotifyEnabled,
+		service:             ServiceSpotify,
+		aliases:             []string{"spotify"},
+		capabilities:        allRuntimeCapabilities,
+		targetSearchEnabled: Config.SpotifyEnabled,
 		build: func(client *http.Client, config Config) serviceAdapterSet {
 			adapter := spotifyadapter.New(
 				client,
@@ -186,11 +179,10 @@ func spotifyServiceBinding() serviceBinding {
 
 func tidalServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceTIDAL,
-		aliases:              []string{"tidal"},
-		capabilities:         allRuntimeCapabilities,
-		runtimeSongURLParser: tidaladapter.ParseSongURL,
-		targetSearchEnabled:  Config.TIDALEnabled,
+		service:             ServiceTIDAL,
+		aliases:             []string{"tidal"},
+		capabilities:        allRuntimeCapabilities,
+		targetSearchEnabled: Config.TIDALEnabled,
 		build: func(client *http.Client, config Config) serviceAdapterSet {
 			adapter := tidaladapter.New(
 				client,
@@ -203,10 +195,9 @@ func tidalServiceBinding() serviceBinding {
 
 func youTubeMusicServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceYouTubeMusic,
-		aliases:              []string{"youtubemusic", "ytmusic"},
-		capabilities:         albumRuntimeCapabilities,
-		runtimeSongURLParser: youtubemusicadapter.ParseSongURL,
+		service:      ServiceYouTubeMusic,
+		aliases:      []string{"youtubemusic", "ytmusic"},
+		capabilities: albumRuntimeCapabilities,
 		build: func(client *http.Client, _ Config) serviceAdapterSet {
 			adapter := youtubemusicadapter.New(client)
 			set := albumRuntimeAdapterSet(adapter)
@@ -218,10 +209,9 @@ func youTubeMusicServiceBinding() serviceBinding {
 
 func amazonMusicServiceBinding() serviceBinding {
 	return newServiceBinding(serviceBindingSpec{
-		service:              ServiceAmazonMusic,
-		aliases:              []string{"amazonmusic", "amazon"},
-		capabilities:         sourceOnlyCapabilities,
-		runtimeSongURLParser: amazonmusicadapter.ParseSongURL,
+		service:      ServiceAmazonMusic,
+		aliases:      []string{"amazonmusic", "amazon"},
+		capabilities: sourceOnlyCapabilities,
 		build: func(*http.Client, Config) serviceAdapterSet {
 			return sourceRuntimeAdapterSet(amazonmusicadapter.New(nil))
 		},

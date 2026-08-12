@@ -53,7 +53,7 @@ type bandcampTargetSearch[Candidate any] struct {
 func (a *Adapter) albumTargetSearch(album model.CanonicalAlbum) bandcampTargetSearch[model.CandidateAlbum] {
 	return bandcampTargetSearch[model.CandidateAlbum]{
 		adapter: a,
-		query:   adapterutil.TitleAndFirstArtistQuery(album.Title, album.Artists),
+		query:   adapterutil.PrimaryMetadataQuery(album.Title, album.Artists),
 		autocompleteCandidates: func(response fuzzySearchResponse) []searchCandidate {
 			return rankSearchCandidates(album, extractAutocompleteAlbumSearchCandidates(response))
 		},
@@ -68,7 +68,7 @@ func (a *Adapter) albumTargetSearch(album model.CanonicalAlbum) bandcampTargetSe
 func (a *Adapter) songTargetSearch(song model.CanonicalSong) bandcampTargetSearch[model.CandidateSong] {
 	return bandcampTargetSearch[model.CandidateSong]{
 		adapter: a,
-		query:   adapterutil.TitleAndFirstArtistQuery(song.Title, song.Artists),
+		query:   adapterutil.PrimaryMetadataQuery(song.Title, song.Artists),
 		autocompleteCandidates: func(response fuzzySearchResponse) []searchCandidate {
 			return rankSongSearchCandidates(song, extractAutocompleteSongSearchCandidates(response))
 		},
@@ -141,7 +141,7 @@ func (s bandcampTargetSearch[Candidate]) collectHTML(ctx context.Context) ([]Can
 }
 
 func (s bandcampTargetSearch[Candidate]) collect(ctx context.Context, candidates []searchCandidate) ([]Candidate, error) {
-	results, err := adapterutil.CollectCandidatesWithContext(
+	results, err := adapterutil.CollectCandidates(
 		ctx,
 		candidates,
 		searchHydrationLimit,

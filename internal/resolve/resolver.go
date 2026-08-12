@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"golang.org/x/sync/errgroup"
 
@@ -110,67 +111,78 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 }
 
 func (p albumEntityResolutionPolicy) resolve(ctx context.Context, inputURL string) (*Resolution, error) {
-	return resolveEntity[model.ParsedAlbumURL, model.CanonicalAlbum, TargetAdapter, MatchResult, Resolution](
-		ctx,
-		inputURL,
-		p.resolveSourceInput,
-		p.sourceService,
-		p.targetAdapters,
-		p.resolveTargetMatches,
-		p.afterTargetMatches,
-		p.resolution,
-	)
-}
-
-func (p albumEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], error) {
-	return resolveAlbumSourceInput(ctx, p.sourceAdapters, inputURL)
-}
-
-func resolveAlbumSourceInput(ctx context.Context, sources []SourceAdapter, inputURL string) (sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], error) {
-	return resolveSourceInput(
-		ctx,
-		sources,
-		inputURL,
-		func(source SourceAdapter, raw string) (*model.ParsedAlbumURL, error) {
-			return source.ParseAlbumURL(raw)
-		},
-		func(ctx context.Context, source SourceAdapter, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-			return source.FetchAlbum(ctx, parsed)
-		},
-		albumEntityLabel,
-		errNilSourceAlbum,
-	)
-}
-
-func (p albumEntityResolutionPolicy) sourceService(source model.CanonicalAlbum) model.ServiceName {
-	return source.Service
-}
-
-func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum) (map[model.ServiceName]MatchResult, error) {
-	matches, err := resolveTargetMatches(
-		ctx,
-		targets,
-		source,
-		p.collectTargetCandidates,
-		func(source model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking {
-			return score.RankAlbums(source, candidates, p.weights)
-		},
-		albumMatchResultFromRanking,
-		"candidates",
-	)
+	source, err := p.resolveSourceInput(ctx, inputURL)
 	if err != nil {
-		return nil, fmt.Errorf("resolve target searches: %w", err)
+		return nil, err
 	}
-	return matches, nil
-}
 
-func (p albumEntityResolutionPolicy) resolution(inputURL string, source sourceInput[model.ParsedAlbumURL, model.CanonicalAlbum], matches map[model.ServiceName]MatchResult) *Resolution {
+	targets := excludeTargetService(p.targetAdapters, source.Entity.Service)
+	matches, err := p.resolveTargetMatches(ctx, targets, source.Entity)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.afterTargetMatches(ctx, targets, source.Entity, matches); err != nil {
+		return nil, err
+	}
+
 	return &Resolution{
 		InputURL: inputURL,
 		Parsed:   source.Parsed,
 		Source:   source.Entity,
 		Matches:  matches,
+	}, nil
+}
+
+// albumSourceInput pairs the recognized Source Input with its hydrated album.
+type albumSourceInput struct {
+	Parsed model.ParsedAlbumURL
+	Entity model.CanonicalAlbum
+}
+
+func (p albumEntityResolutionPolicy) resolveSourceInput(ctx context.Context, inputURL string) (albumSourceInput, error) {
+	return resolveAlbumSourceInput(ctx, p.sourceAdapters, inputURL)
+}
+
+func resolveAlbumSourceInput(ctx context.Context, sources []SourceAdapter, inputURL string) (albumSourceInput, error) {
+	parsed, adapter, err := recognizeSourceInput(sources, inputURL, func(source SourceAdapter) (*model.ParsedAlbumURL, error) {
+		return source.ParseAlbumURL(inputURL)
+	})
+	if err != nil {
+		return albumSourceInput{}, err
 	}
+
+	album, err := hydrateSourceInput(ctx, adapter, albumEntityLabel, errNilSourceAlbum,
+		func(ctx context.Context) (*model.CanonicalAlbum, error) {
+			return adapter.FetchAlbum(ctx, *parsed)
+		})
+	if err != nil {
+		return albumSourceInput{}, err
+	}
+
+	return albumSourceInput{Parsed: *parsed, Entity: *album}, nil
+}
+
+func (p albumEntityResolutionPolicy) resolveTargetMatches(ctx context.Context, targets []TargetAdapter, source model.CanonicalAlbum) (map[model.ServiceName]MatchResult, error) {
+	matches := make(map[model.ServiceName]MatchResult, len(targets))
+	var matchesMu sync.Mutex
+
+	err := resolveTargetsConcurrently(ctx, targets, func(groupCtx context.Context, target TargetAdapter) error {
+		candidates, err := p.collectTargetCandidates(groupCtx, target, source)
+		if err != nil {
+			return fmt.Errorf("collect candidates from %s: %w", target.Service(), err)
+		}
+		ranking := score.RankAlbums(source, candidates, p.weights)
+
+		matchesMu.Lock()
+		matches[target.Service()] = albumMatchResultFromRanking(target.Service(), ranking)
+		matchesMu.Unlock()
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("resolve target searches: %w", err)
+	}
+	return matches, nil
 }
 
 func excludeTargetService[T serviceAdapter](targets []T, sourceService model.ServiceName) []T {

@@ -18,7 +18,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 
 	storefront := a.storefrontFor(album.RegionHint)
-	targetSearch := adapterutil.MetadataQueryTargetSearch[lookupItem, model.CandidateAlbum]{
+	targetSearch := adapterutil.MetadataQuerySearch[lookupItem, model.CandidateAlbum]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
@@ -59,7 +59,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 
 	storefront := a.storefrontFor(song.RegionHint)
-	targetSearch := adapterutil.MetadataQueryTargetSearch[lookupItem, model.CandidateSong]{
+	targetSearch := adapterutil.MetadataQuerySearch[lookupItem, model.CandidateSong]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
