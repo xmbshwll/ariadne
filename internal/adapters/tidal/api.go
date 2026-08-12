@@ -174,6 +174,27 @@ func documentData(document apiDocument) ([]apiResource, error) {
 	}
 }
 
+// searchResultRelationshipIDs extracts relationship resource IDs from a
+// /searchResults document (data holds searchResults resources).
+func searchResultRelationshipIDs(document apiDocument, pick func(resourceRelationships) relationship) ([]string, error) {
+	resources, err := documentData(document)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, resource := range resources {
+		if resource.Type != "searchResults" {
+			continue
+		}
+		for _, item := range pick(resource.Relationships).Data {
+			if id := strings.TrimSpace(item.ID); id != "" {
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids, nil
+}
+
 func albumIDsFromTrackDocument(document apiDocument) ([]string, error) {
 	resources, err := documentData(document)
 	if err != nil {

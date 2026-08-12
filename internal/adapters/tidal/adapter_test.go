@@ -106,12 +106,12 @@ func TestAdapterRuntimeOperations(t *testing.T) {
 			}
 			writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
 		})
-		mux.HandleFunc("/searchResults/", func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/searchResults/Shadows among trees Fetch/relationships/albums", "/searchResults/Shadows%20among%20trees%20Fetch/relationships/albums":
-				writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205493", Type: "albums"}}})
-			case "/searchResults/Kings of mist Fetch/relationships/tracks", "/searchResults/Kings%20of%20mist%20Fetch/relationships/tracks":
-				writeJSON(w, apiDocument{Data: []apiResource{{ID: "156205494", Type: "tracks"}, {ID: "156205495", Type: "tracks"}}})
+		mux.HandleFunc("/searchResults", func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Query().Get("filter[query]") {
+			case "Shadows among trees Fetch":
+				writeJSON(w, apiDocument{Data: []apiResource{{ID: "sr-1", Type: "searchResults", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "156205493", Type: "albums"}}}}}}})
+			case "Kings of mist Fetch":
+				writeJSON(w, apiDocument{Data: []apiResource{{ID: "sr-2", Type: "searchResults", Relationships: resourceRelationships{Tracks: relationship{Data: []relationshipData{{ID: "156205494", Type: "tracks"}, {ID: "156205495", Type: "tracks"}}}}}}})
 			default:
 				http.NotFound(w, r)
 			}

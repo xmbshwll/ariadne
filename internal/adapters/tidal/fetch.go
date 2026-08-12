@@ -97,18 +97,24 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, ErrCredentialsNotConfigured
 	}
 	countryCode := a.countryCodeFor(album.RegionHint)
-	endpoint := fmt.Sprintf("%s/searchResults/%s/relationships/albums?countryCode=%s", a.apiBaseURL, url.PathEscape(query), url.QueryEscape(countryCode))
-	var document apiDocument
-	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
+	ids, err := a.searchResourceIDs(ctx, query, countryCode, "albums", func(r resourceRelationships) relationship { return r.Albums })
+	if err != nil {
 		return nil, fmt.Errorf("tidal search by metadata: %w", err)
 	}
-	resources, err := documentData(document)
-	if err != nil {
-		return nil, err
-	}
-	return a.hydrateAlbumCandidates(ctx, resourceIDs(resources), album.RegionHint, func(albumID string) string {
+	return a.hydrateAlbumCandidates(ctx, ids, album.RegionHint, func(albumID string) string {
 		return fmt.Sprintf("hydrate tidal album %s from metadata", albumID)
 	})
+}
+
+// searchResourceIDs runs a /searchResults metadata query and returns the IDs
+// from the requested relationship.
+func (a *Adapter) searchResourceIDs(ctx context.Context, query string, countryCode string, include string, pick func(resourceRelationships) relationship) ([]string, error) {
+	endpoint := fmt.Sprintf("%s/searchResults?countryCode=%s&filter[query]=%s&include=%s", a.apiBaseURL, url.QueryEscape(countryCode), url.QueryEscape(query), url.QueryEscape(include))
+	var document apiDocument
+	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
+		return nil, err
+	}
+	return searchResultRelationshipIDs(document, pick)
 }
 
 func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
@@ -150,16 +156,11 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 	countryCode := a.countryCodeFor(song.RegionHint)
-	endpoint := fmt.Sprintf("%s/searchResults/%s/relationships/tracks?countryCode=%s", a.apiBaseURL, url.PathEscape(query), url.QueryEscape(countryCode))
-	var document apiDocument
-	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
+	ids, err := a.searchResourceIDs(ctx, query, countryCode, "tracks", func(r resourceRelationships) relationship { return r.Tracks })
+	if err != nil {
 		return nil, fmt.Errorf("tidal song search by metadata: %w", err)
 	}
-	resources, err := documentData(document)
-	if err != nil {
-		return nil, err
-	}
-	return a.hydrateSongCandidates(ctx, resourceIDs(resources), song.RegionHint, func(songID string) string {
+	return a.hydrateSongCandidates(ctx, ids, song.RegionHint, func(songID string) string {
 		return fmt.Sprintf("hydrate tidal song %s from metadata", songID)
 	})
 }
@@ -237,7 +238,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 func (a *Adapter) fetchSongByID(ctx context.Context, trackID string, canonicalURL string, regionHint string) (*model.CanonicalSong, error) {
 	var document apiDocument
 	countryCode := a.countryCodeFor(regionHint)
-	endpoint := fmt.Sprintf("%s/tracks/%s?countryCode=%s&include=%s", a.apiBaseURL, url.PathEscape(trackID), url.QueryEscape(countryCode), url.QueryEscape("artists,albums,coverArt"))
+	endpoint := fmt.Sprintf("%s/tracks/%s?countryCode=%s&include=%s", a.apiBaseURL, url.PathEscape(trackID), url.QueryEscape(countryCode), url.QueryEscape("artists,albums,albums.coverArt"))
 	if err := a.getAPIJSON(ctx, endpoint, &document); err != nil {
 		return nil, err
 	}
