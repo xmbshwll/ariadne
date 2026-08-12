@@ -100,15 +100,14 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 }
 
 func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
-	return adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
-		Credentials: func() adapterutil.ClientCredentials {
-			return adapterutil.ClientCredentials{ClientID: a.clientID, ClientSecret: a.clientSecret}
-		},
+	return adapterutil.NewClientCredentialsTokenSource(adapterutil.ClientCredentialsTokenConfig{
+		Service:            "spotify",
+		ClientID:           a.clientID,
+		ClientSecret:       a.clientSecret,
 		MissingCredentials: ErrCredentialsNotConfigured,
 		EmptyAccessToken:   errEmptySpotifyAccessToken,
 		Fetch:              a.fetchAccessToken,
 		RefreshTimeout:     spotifyTokenRefreshTimeout,
-		SingleflightKey:    "spotify-token",
 	})
 }
 

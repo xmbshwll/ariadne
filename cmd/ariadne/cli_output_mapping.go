@@ -41,35 +41,26 @@ func newCLISong(song ariadne.CanonicalSong) cliSong {
 }
 
 func newCLIMatchResult(result ariadne.MatchResult) cliMatchResult {
-	output := cliMatchResult{
-		Found:      result.Best != nil,
-		Summary:    "not_found",
-		Alternates: make([]cliMatch, 0, len(result.Alternates)),
-	}
-	if result.Best != nil {
-		best := newCLIMatch(*result.Best)
-		output.Best = &best
-		output.Summary = scoreSummary(result.Best.Score)
-	}
-	for _, alternate := range result.Alternates {
-		output.Alternates = append(output.Alternates, newCLIMatch(alternate))
-	}
-	return output
+	return newCLIMatchListing(result, newCLIMatch)
 }
 
 func newCLISongMatchResult(result ariadne.SongMatchResult) cliSongMatchResult {
-	output := cliSongMatchResult{
+	return newCLIMatchListing(result, newCLISongMatch)
+}
+
+func newCLIMatchListing[C any, M any](result ariadne.MatchResultOf[C], convert func(ariadne.ScoredMatchOf[C]) M) cliMatchListing[M] {
+	output := cliMatchListing[M]{
 		Found:      result.Best != nil,
 		Summary:    "not_found",
-		Alternates: make([]cliSongMatch, 0, len(result.Alternates)),
+		Alternates: make([]M, 0, len(result.Alternates)),
 	}
 	if result.Best != nil {
-		best := newCLISongMatch(*result.Best)
+		best := convert(*result.Best)
 		output.Best = &best
 		output.Summary = scoreSummary(result.Best.Score)
 	}
 	for _, alternate := range result.Alternates {
-		output.Alternates = append(output.Alternates, newCLISongMatch(alternate))
+		output.Alternates = append(output.Alternates, convert(alternate))
 	}
 	return output
 }

@@ -44,31 +44,40 @@ type MetadataSearcher interface {
 	SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error)
 }
 
-// ScoredMatch is one scored candidate exposed by the resolver.
-type ScoredMatch struct {
+// ScoredMatchOf is one scored candidate exposed by the resolver.
+type ScoredMatchOf[C any] struct {
 	URL       string
 	Score     int
 	Reasons   []string
-	Candidate model.CandidateAlbum
+	Candidate C
 }
 
-// MatchResult is the resolver output for one target service. When the Target
+// MatchResultOf is the resolver output for one target service. When the Target
 // Search for this service failed, Err carries the failure and Best/Alternates
 // are empty; other services are unaffected.
-type MatchResult struct {
+type MatchResultOf[C any] struct {
 	Service    model.ServiceName
-	Best       *ScoredMatch
-	Alternates []ScoredMatch
+	Best       *ScoredMatchOf[C]
+	Alternates []ScoredMatchOf[C]
 	Err        error
 }
 
-// Resolution contains the source album and ranked target matches collected by the resolver.
-type Resolution struct {
+// ResolutionOf contains the source entity and ranked target matches collected by the resolver.
+type ResolutionOf[P, E, C any] struct {
 	InputURL string
-	Parsed   model.ParsedAlbumURL
-	Source   model.CanonicalAlbum
-	Matches  map[model.ServiceName]MatchResult
+	Parsed   P
+	Source   E
+	Matches  map[model.ServiceName]MatchResultOf[C]
 }
+
+type (
+	// ScoredMatch is one scored album candidate.
+	ScoredMatch = ScoredMatchOf[model.CandidateAlbum]
+	// MatchResult is the album resolver output for one target service.
+	MatchResult = MatchResultOf[model.CandidateAlbum]
+	// Resolution is the album resolver output.
+	Resolution = ResolutionOf[model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum]
+)
 
 const albumEntityLabel = "album"
 
@@ -227,26 +236,30 @@ func albumCandidateKey(candidate model.CandidateAlbum) string {
 	return string(candidate.Service) + ":url:" + candidate.MatchURL
 }
 
-func albumMatchResultFromRanking(service model.ServiceName, ranking score.Ranking) MatchResult {
-	result := MatchResult{
+func albumMatchResultFromRanking(service model.ServiceName, ranking score.Ranking[model.CandidateAlbum]) MatchResult {
+	return matchResultFromRanking(service, ranking, func(candidate model.CandidateAlbum) string { return candidate.MatchURL })
+}
+
+func matchResultFromRanking[C any](service model.ServiceName, ranking score.Ranking[C], urlOf func(C) string) MatchResultOf[C] {
+	result := MatchResultOf[C]{
 		Service:    service,
-		Alternates: make([]ScoredMatch, 0),
+		Alternates: make([]ScoredMatchOf[C], 0),
 	}
 	if ranking.Best == nil {
 		return result
 	}
 
-	best := toAlbumScoredMatch(*ranking.Best)
+	best := toScoredMatch(*ranking.Best, urlOf)
 	result.Best = &best
 	for _, ranked := range ranking.Ranked[1:] {
-		result.Alternates = append(result.Alternates, toAlbumScoredMatch(ranked))
+		result.Alternates = append(result.Alternates, toScoredMatch(ranked, urlOf))
 	}
 	return result
 }
 
-func toAlbumScoredMatch(ranked score.RankedCandidate) ScoredMatch {
-	return ScoredMatch{
-		URL:       ranked.Candidate.MatchURL,
+func toScoredMatch[C any](ranked score.Ranked[C], urlOf func(C) string) ScoredMatchOf[C] {
+	return ScoredMatchOf[C]{
+		URL:       urlOf(ranked.Candidate),
 		Score:     ranked.Score,
 		Reasons:   append([]string(nil), ranked.Reasons...),
 		Candidate: ranked.Candidate,

@@ -31,31 +31,14 @@ type SongMetadataSearcher interface {
 	SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error)
 }
 
-// SongScoredMatch is one scored song candidate exposed by the resolver.
-type SongScoredMatch struct {
-	URL       string
-	Score     int
-	Reasons   []string
-	Candidate model.CandidateSong
-}
-
-// SongMatchResult is the resolver output for one target service. When the
-// Target Search for this service failed, Err carries the failure and
-// Best/Alternates are empty; other services are unaffected.
-type SongMatchResult struct {
-	Service    model.ServiceName
-	Best       *SongScoredMatch
-	Alternates []SongScoredMatch
-	Err        error
-}
-
-// SongResolution contains the source song and ranked target matches collected by the resolver.
-type SongResolution struct {
-	InputURL string
-	Parsed   model.ParsedURL
-	Source   model.CanonicalSong
-	Matches  map[model.ServiceName]SongMatchResult
-}
+type (
+	// SongScoredMatch is one scored song candidate.
+	SongScoredMatch = ScoredMatchOf[model.CandidateSong]
+	// SongMatchResult is the song resolver output for one target service.
+	SongMatchResult = MatchResultOf[model.CandidateSong]
+	// SongResolution is the song resolver output.
+	SongResolution = ResolutionOf[model.ParsedURL, model.CanonicalSong, model.CandidateSong]
+)
 
 // SongResolver coordinates song Source Input, Runtime Hydration, and Target Search.
 type SongResolver struct {
@@ -163,25 +146,6 @@ func songCandidateKey(candidate model.CandidateSong) string {
 	return string(candidate.Service) + ":url:" + candidate.MatchURL
 }
 
-func songMatchResultFromRanking(service model.ServiceName, ranking score.SongRanking) SongMatchResult {
-	result := SongMatchResult{Service: service, Alternates: make([]SongScoredMatch, 0)}
-	if ranking.Best == nil {
-		return result
-	}
-
-	best := toSongScoredMatch(*ranking.Best)
-	result.Best = &best
-	for _, ranked := range ranking.Ranked[1:] {
-		result.Alternates = append(result.Alternates, toSongScoredMatch(ranked))
-	}
-	return result
-}
-
-func toSongScoredMatch(ranked score.RankedSongCandidate) SongScoredMatch {
-	return SongScoredMatch{
-		URL:       ranked.Candidate.MatchURL,
-		Score:     ranked.Score,
-		Reasons:   append([]string(nil), ranked.Reasons...),
-		Candidate: ranked.Candidate,
-	}
+func songMatchResultFromRanking(service model.ServiceName, ranking score.Ranking[model.CandidateSong]) SongMatchResult {
+	return matchResultFromRanking(service, ranking, func(candidate model.CandidateSong) string { return candidate.MatchURL })
 }

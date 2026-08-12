@@ -12,68 +12,37 @@ import (
 )
 
 func writeCompactCSV(w io.Writer, resolution ariadne.Resolution) error {
-	writer := csv.NewWriter(w)
-	if err := writer.Write([]string{"service", "url"}); err != nil {
-		return fmt.Errorf("write csv header: %w", err)
-	}
-	links := newCLILinks(resolution)
-	services := sortedKeys(links)
-	for _, service := range services {
-		if err := writer.Write([]string{service, links[service]}); err != nil {
-			return fmt.Errorf("write csv row: %w", err)
-		}
-	}
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return fmt.Errorf("flush csv: %w", err)
-	}
-	return nil
+	return writeCSVRows(w, []string{"service", "url"}, linkRows(newCLILinks(resolution)))
 }
 
 func writeVerboseCSV(w io.Writer, resolution ariadne.Resolution) error {
-	writer := csv.NewWriter(w)
 	headers := []string{"input_url", "service", "kind", "url", "found", "summary", "score", "album_id", "region_hint", "title", "artists", "release_date", "upc", "reasons"}
-	if err := writer.Write(headers); err != nil {
-		return fmt.Errorf("write csv header: %w", err)
-	}
-	for _, row := range newVerboseCSVRows(resolution) {
-		if err := writer.Write(row); err != nil {
-			return fmt.Errorf("write csv row: %w", err)
-		}
-	}
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return fmt.Errorf("flush csv: %w", err)
-	}
-	return nil
+	return writeCSVRows(w, headers, newVerboseCSVRows(resolution))
 }
 
 func writeCompactSongCSV(w io.Writer, resolution ariadne.SongResolution) error {
-	writer := csv.NewWriter(w)
-	if err := writer.Write([]string{"service", "url"}); err != nil {
-		return fmt.Errorf("write csv header: %w", err)
-	}
-	links := newCLISongLinks(resolution)
-	services := sortedKeys(links)
-	for _, service := range services {
-		if err := writer.Write([]string{service, links[service]}); err != nil {
-			return fmt.Errorf("write csv row: %w", err)
-		}
-	}
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return fmt.Errorf("flush csv: %w", err)
-	}
-	return nil
+	return writeCSVRows(w, []string{"service", "url"}, linkRows(newCLISongLinks(resolution)))
 }
 
 func writeVerboseSongCSV(w io.Writer, resolution ariadne.SongResolution) error {
-	writer := csv.NewWriter(w)
 	headers := []string{"input_url", "service", "kind", "url", "found", "summary", "score", "song_id", "region_hint", "title", "artists", "duration_ms", "isrc", "album_title", "track_number", "release_date", "reasons"}
-	if err := writer.Write(headers); err != nil {
+	return writeCSVRows(w, headers, newVerboseSongCSVRows(resolution))
+}
+
+func linkRows(links map[string]string) [][]string {
+	rows := make([][]string, 0, len(links))
+	for _, service := range sortedKeys(links) {
+		rows = append(rows, []string{service, links[service]})
+	}
+	return rows
+}
+
+func writeCSVRows(w io.Writer, header []string, rows [][]string) error {
+	writer := csv.NewWriter(w)
+	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("write csv header: %w", err)
 	}
-	for _, row := range newVerboseSongCSVRows(resolution) {
+	for _, row := range rows {
 		if err := writer.Write(row); err != nil {
 			return fmt.Errorf("write csv row: %w", err)
 		}
@@ -103,35 +72,34 @@ func newVerboseCSVRows(resolution ariadne.Resolution) [][]string {
 		"",
 	}}
 
-	services := make([]string, 0, len(resolution.Matches))
-	for service := range resolution.Matches {
+	return appendMatchRows(rows, resolution.InputURL, 7, resolution.Matches, newCSVMatchRow)
+}
+
+// appendMatchRows appends one not_found row or best+alternate rows per service,
+// in sorted service order. Row shape stays per entity shape via matchRow;
+// trailingEmpty pads not_found rows to the entity's column count.
+func appendMatchRows[C any](
+	rows [][]string,
+	inputURL string,
+	trailingEmpty int,
+	matches map[ariadne.ServiceName]ariadne.MatchResultOf[C],
+	matchRow func(inputURL, service, kind string, found bool, summary string, match ariadne.ScoredMatchOf[C]) []string,
+) [][]string {
+	services := make([]string, 0, len(matches))
+	for service := range matches {
 		services = append(services, string(service))
 	}
 	sort.Strings(services)
 	for _, service := range services {
-		result := resolution.Matches[ariadne.ServiceName(service)]
+		result := matches[ariadne.ServiceName(service)]
 		if result.Best == nil {
-			rows = append(rows, []string{
-				resolution.InputURL,
-				service,
-				"best",
-				"",
-				"false",
-				"not_found",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-			})
+			row := []string{inputURL, service, "best", "", "false", "not_found", ""}
+			rows = append(rows, append(row, make([]string, trailingEmpty)...))
 		} else {
-			rows = append(rows, newCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
+			rows = append(rows, matchRow(inputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
 		}
 		for _, alternate := range result.Alternates {
-			rows = append(rows, newCSVMatchRow(resolution.InputURL, service, "alternate", true, scoreSummary(alternate.Score), alternate))
+			rows = append(rows, matchRow(inputURL, service, "alternate", true, scoreSummary(alternate.Score), alternate))
 		}
 	}
 	return rows
@@ -177,41 +145,7 @@ func newVerboseSongCSVRows(resolution ariadne.SongResolution) [][]string {
 		"",
 	}}
 
-	services := make([]string, 0, len(resolution.Matches))
-	for service := range resolution.Matches {
-		services = append(services, string(service))
-	}
-	sort.Strings(services)
-	for _, service := range services {
-		result := resolution.Matches[ariadne.ServiceName(service)]
-		if result.Best == nil {
-			rows = append(rows, []string{
-				resolution.InputURL,
-				service,
-				"best",
-				"",
-				"false",
-				"not_found",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-				"",
-			})
-		} else {
-			rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "best", true, scoreSummary(result.Best.Score), *result.Best))
-		}
-		for _, alternate := range result.Alternates {
-			rows = append(rows, newSongCSVMatchRow(resolution.InputURL, service, "alternate", true, scoreSummary(alternate.Score), alternate))
-		}
-	}
-	return rows
+	return appendMatchRows(rows, resolution.InputURL, 10, resolution.Matches, newSongCSVMatchRow)
 }
 
 func newSongCSVMatchRow(inputURL, service, kind string, found bool, summary string, match ariadne.SongScoredMatch) []string {

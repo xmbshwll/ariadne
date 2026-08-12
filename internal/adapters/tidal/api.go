@@ -51,16 +51,14 @@ func (a *Adapter) accessToken(ctx context.Context) (string, error) {
 }
 
 func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
-	return adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
-		Credentials: func() adapterutil.ClientCredentials {
-			return adapterutil.ClientCredentials{ClientID: a.clientID, ClientSecret: a.clientSecret}
-		},
+	return adapterutil.NewClientCredentialsTokenSource(adapterutil.ClientCredentialsTokenConfig{
+		Service:            "tidal",
+		ClientID:           a.clientID,
+		ClientSecret:       a.clientSecret,
 		MissingCredentials: ErrCredentialsNotConfigured,
 		EmptyAccessToken:   errEmptyTIDALAccessToken,
-		IsEmptyAccessToken: func(accessToken string) bool { return strings.TrimSpace(accessToken) == "" },
 		Fetch:              a.fetchAccessToken,
 		RefreshTimeout:     tidalTokenRefreshTimeout,
-		SingleflightKey:    "tidal-token",
 	})
 }
 
