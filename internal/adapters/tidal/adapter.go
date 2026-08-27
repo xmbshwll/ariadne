@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -57,7 +57,7 @@ type Adapter struct {
 	authBaseURL        string
 	defaultCountryCode string
 
-	tokenSource *adapterutil.CredentialTokenSource
+	tokenSource *auth.TokenSource
 }
 
 func New(client *http.Client, opts ...Option) *Adapter {

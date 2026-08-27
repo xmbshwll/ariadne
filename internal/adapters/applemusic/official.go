@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
-	"github.com/xmbshwll/ariadne/internal/applemusicauth"
+	"github.com/xmbshwll/ariadne/internal/auth/appleauth"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -106,7 +106,7 @@ func (a *Adapter) developerToken() (string, error) {
 		return a.cachedToken, nil
 	}
 
-	token, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
+	token, err := appleauth.GenerateDeveloperToken(appleauth.Config{
 		KeyID:          a.appleMusicKeyID,
 		TeamID:         a.appleMusicTeamID,
 		PrivateKeyPath: a.appleMusicPrivateKeyPath,

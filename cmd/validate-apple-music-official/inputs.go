@@ -9,7 +9,7 @@ import (
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
-	"github.com/xmbshwll/ariadne/internal/applemusicauth"
+	"github.com/xmbshwll/ariadne/internal/auth/appleauth"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -96,7 +96,7 @@ func loadValidationInputs(args []string) (validationInputs, error) {
 }
 
 func generateDeveloperToken(appConfig config.Config) (string, error) {
-	developerToken, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
+	developerToken, err := appleauth.GenerateDeveloperToken(appleauth.Config{
 		KeyID:          appConfig.AppleMusic.KeyID,
 		TeamID:         appConfig.AppleMusic.TeamID,
 		PrivateKeyPath: appConfig.AppleMusic.PrivateKeyPath,

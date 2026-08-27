@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -52,11 +52,13 @@ func (a *Adapter) AccessToken(ctx context.Context) (string, error) {
 	return a.tokenSource.AccessToken(ctx)
 }
 
-func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
-	return adapterutil.NewClientCredentialsTokenSource(adapterutil.ClientCredentialsTokenConfig{
-		Service:            "tidal",
-		ClientID:           a.clientID,
-		ClientSecret:       a.clientSecret,
+func (a *Adapter) newTokenSource() *auth.TokenSource {
+	return auth.NewTokenSource(auth.TokenSourceConfig{
+		Service: "%s",
+		Credentials: auth.ClientCredentials{
+			ClientID:     a.clientID,
+			ClientSecret: a.clientSecret,
+		},
 		MissingCredentials: ErrCredentialsNotConfigured,
 		EmptyAccessToken:   errEmptyTIDALAccessToken,
 		Fetch:              a.fetchAccessToken,
@@ -68,7 +70,7 @@ func (a *Adapter) hasCredentials() bool {
 	return a.tokenSource.CredentialsConfigured()
 }
 
-func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
+func (a *Adapter) fetchAccessToken(ctx context.Context, credentials auth.ClientCredentials) (auth.Token, error) {
 	form := url.Values{}
 	form.Set("client_id", credentials.ClientID)
 	form.Set("client_secret", credentials.ClientSecret)
@@ -94,13 +96,13 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 	})
 	if err != nil {
 		//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
-		return adapterutil.CredentialToken{}, err
+		return auth.Token{}, err
 	}
 	var token TokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
-		return adapterutil.CredentialToken{}, fmt.Errorf("decode token response: %w", err)
+		return auth.Token{}, fmt.Errorf("decode token response: %w", err)
 	}
-	return adapterutil.CredentialToken{
+	return auth.Token{
 		AccessToken: token.AccessToken,
 		ExpiresIn:   time.Duration(token.ExpiresIn) * time.Second,
 	}, nil

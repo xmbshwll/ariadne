@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 )
 
@@ -100,11 +100,13 @@ func (a *Adapter) AccessToken(ctx context.Context) (string, error) {
 	return a.tokenSource.AccessToken(ctx)
 }
 
-func (a *Adapter) newTokenSource() *adapterutil.CredentialTokenSource {
-	return adapterutil.NewClientCredentialsTokenSource(adapterutil.ClientCredentialsTokenConfig{
-		Service:            "spotify",
-		ClientID:           a.clientID,
-		ClientSecret:       a.clientSecret,
+func (a *Adapter) newTokenSource() *auth.TokenSource {
+	return auth.NewTokenSource(auth.TokenSourceConfig{
+		Service: "%s",
+		Credentials: auth.ClientCredentials{
+			ClientID:     a.clientID,
+			ClientSecret: a.clientSecret,
+		},
 		MissingCredentials: ErrCredentialsNotConfigured,
 		EmptyAccessToken:   errEmptySpotifyAccessToken,
 		Fetch:              a.fetchAccessToken,
@@ -116,7 +118,7 @@ func (a *Adapter) hasCredentials() bool {
 	return a.tokenSource.CredentialsConfigured()
 }
 
-func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
+func (a *Adapter) fetchAccessToken(ctx context.Context, credentials auth.ClientCredentials) (auth.Token, error) {
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
 	endpoint := a.authBaseURL + "/token"
@@ -139,9 +141,9 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 		},
 		DecodeError: "decode token response",
 	}, &token); err != nil {
-		return adapterutil.CredentialToken{}, err
+		return auth.Token{}, err
 	}
-	return adapterutil.CredentialToken{
+	return auth.Token{
 		AccessToken: token.AccessToken,
 		ExpiresIn:   time.Duration(token.ExpiresIn) * time.Second,
 	}, nil

@@ -11,7 +11,10 @@ config, and documentation aligned with this file.
 - `*.go`: root-package implementation.
 - `internal/config/`: project-local `.ariadne/config.yml` normalization for
   runtime credentials and later provider-specific settings.
-- `internal/applemusicauth/`: Apple Music Media API JWT exchange.
+- `internal/auth/`: client credentials and the shared token source - fetch once,
+  cache until near expiry, share one in-flight refresh across callers.
+- `internal/auth/appleauth/`: the Apple Music Media API developer token, which is
+  a signed JWT rather than a fetched bearer token.
 - `internal/normalize/`: shared canonical text, ISRC, UPC, duration, release
   date, artist, and title normalization, plus the Metadata Query variants built
   from them, used by adapters and Target Search.

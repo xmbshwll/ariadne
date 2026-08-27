@@ -1,4 +1,4 @@
-package applemusicauth_test
+package appleauth_test
 
 import (
 	"crypto/ecdsa"
@@ -17,10 +17,9 @@ import (
 	"testing"
 	"time"
 
-	applemusicauth "github.com/xmbshwll/ariadne/internal/applemusicauth"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/auth/appleauth"
 )
 
 func TestGenerateDeveloperToken(t *testing.T) {
@@ -33,7 +32,7 @@ func TestGenerateDeveloperToken(t *testing.T) {
 	require.NoError(t, osWriteFile(keyPath, pemBytes))
 
 	now := time.Unix(1_700_000_000, 0).UTC()
-	token, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
+	token, err := appleauth.GenerateDeveloperToken(appleauth.Config{
 		KeyID:          "TEST12345",
 		TeamID:         "TEAM123456",
 		PrivateKeyPath: keyPath,
@@ -66,7 +65,7 @@ func TestGenerateDeveloperToken(t *testing.T) {
 }
 
 func TestGenerateDeveloperTokenRequiresConfig(t *testing.T) {
-	_, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{}, time.Now())
+	_, err := appleauth.GenerateDeveloperToken(appleauth.Config{}, time.Now())
 	require.Error(t, err)
 }
 

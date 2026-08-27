@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -76,7 +76,7 @@ type Adapter struct {
 	authBaseURL  string
 	webBaseURL   string
 
-	tokenSource *adapterutil.CredentialTokenSource
+	tokenSource *auth.TokenSource
 }
 
 // New creates a Spotify adapter.

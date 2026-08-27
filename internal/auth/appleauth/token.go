@@ -1,4 +1,4 @@
-package applemusicauth
+package appleauth
 
 import (
 	"crypto/ecdsa"
