@@ -5,8 +5,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xmbshwll/ariadne"
 	"gopkg.in/yaml.v3"
+
+	"github.com/xmbshwll/ariadne"
 )
 
 func TestNewCLIResolution(t *testing.T) {

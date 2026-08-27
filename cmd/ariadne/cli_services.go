@@ -52,38 +52,44 @@ func targetServiceRequestError(raw string, decision ariadne.TargetServiceRequest
 	case ariadne.TargetServiceRequestParseOnly:
 		return targetServiceDecisionError(errAmazonMusicTargetService, decision)
 	case ariadne.TargetServiceRequestCredentialsRequired:
-		return targetServiceCredentialError(decision.Service)
+		return targetServiceCredentialError(decision)
 	default:
 		return targetServiceDecisionError(errUnsupportedTargetService, decision)
 	}
+}
+
+// cliError reports a sentinel to errors.Is while keeping the full user-facing
+// text. main.rootError prints the innermost error of a chain, so an explanation
+// built with %w would be unwrapped away before it reaches stderr.
+type cliError struct {
+	sentinel error
+	message  string
+}
+
+func (e cliError) Error() string { return e.message }
+
+func (e cliError) Is(target error) bool { return target == e.sentinel }
+
+// withDetail composes one sentinel with a detail phrase without hiding it behind
+// the sentinel when the CLI prints the error. The format owns its own separator.
+func withDetail(sentinel error, format string, args ...any) error {
+	return cliError{sentinel: sentinel, message: fmt.Sprintf(sentinel.Error()+format, args...)}
 }
 
 func targetServiceDecisionError(sentinel error, decision ariadne.TargetServiceRequestDecision) error {
 	if decision.Message == "" {
 		return sentinel
 	}
-	return fmt.Errorf("%w %s", sentinel, decision.Message)
+	return withDetail(sentinel, " %s", decision.Message)
 }
 
-func unsupportedTargetServiceError(raw string) error {
-	decision := ariadne.EvaluateTarget(ariadne.Config{}, raw, ariadne.EntityShapeAny)
-	return targetServiceDecisionError(errUnsupportedTargetService, decision)
+func targetServiceCredentialError(decision ariadne.TargetServiceRequestDecision) error {
+	return withDetail(errTargetServiceCredentials, ": %s", decision.CredentialHint)
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
 	decision := ariadne.EvaluateTarget(appConfig, string(service), ariadne.EntityShapeAny)
 	return targetServiceRequestError(string(service), decision)
-}
-
-func targetServiceCredentialError(service ariadne.ServiceName) error {
-	switch service {
-	case ariadne.ServiceSpotify:
-		return errSpotifyTargetCredentials
-	case ariadne.ServiceTIDAL:
-		return errTIDALTargetCredentials
-	default:
-		return unsupportedTargetServiceError(string(service))
-	}
 }
 
 func normalizeOutputFormat(raw string) (string, error) {
@@ -92,7 +98,7 @@ func normalizeOutputFormat(raw string) (string, error) {
 		return outputFormatJSON, nil
 	}
 	if format != outputFormatJSON && format != outputFormatYAML && format != outputFormatCSV {
-		return "", fmt.Errorf("%w %q (expected json, yaml, or csv)", errUnsupportedFormat, format)
+		return "", withDetail(errUnsupportedFormat, " %q (expected json, yaml, or csv)", format)
 	}
 	return format, nil
 }
@@ -104,7 +110,7 @@ func parseMatchStrength(raw string) (ariadne.MatchStrength, error) {
 	}
 	strength, ok := matchStrengthByName[normalized]
 	if !ok {
-		return "", fmt.Errorf("%w %q (expected very_weak, weak, probable, or strong)", errUnsupportedMinStrength, raw)
+		return "", withDetail(errUnsupportedMinStrength, " %q (expected very_weak, weak, probable, or strong)", raw)
 	}
 	return strength, nil
 }

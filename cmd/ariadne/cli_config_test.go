@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne"
 )
 
@@ -111,7 +112,9 @@ func TestParseResolveArgsValidatesConfiguredTargetServices(t *testing.T) {
 		[]string{"https://www.deezer.com/album/12047952"},
 		ariadne.Config{TargetServices: []ariadne.ServiceName{ariadne.ServiceSpotify}},
 	)
-	require.ErrorIs(t, err, errSpotifyTargetCredentials)
+	require.ErrorIs(t, err, errTargetServiceCredentials)
+	require.Contains(t, rootError(err).Error(), "SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET",
+		"main prints the unwrapped error, so the Credential Token names must survive unwrapping")
 }
 
 func TestLoadCLIConfigRejectsNonPositiveHTTPTimeout(t *testing.T) {
@@ -299,7 +302,7 @@ func TestParseResolveArgs(t *testing.T) {
 			resolveConfig, err := parseResolveArgs(tt.args, baseConfig)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrContains)
+				assert.Contains(t, rootError(err).Error(), tt.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
