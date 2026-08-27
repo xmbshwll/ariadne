@@ -82,19 +82,19 @@ func RankAlbums(source model.CanonicalAlbum, candidates []model.CandidateAlbum, 
 func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum, weights Weights) Ranked[model.CandidateAlbum] {
 	album := candidate.CanonicalAlbum
 	titleWeights := titleSignalWeights{
-		exact: weights.TitleExact,
-		core:  weights.CoreTitleExact,
+		Exact: weights.TitleExact,
+		Core:  weights.CoreTitleExact,
 	}
 	artistWeights := artistSignalWeights{
-		primaryExact: weights.PrimaryArtistExact,
-		overlap:      weights.ArtistOverlap,
+		PrimaryExact: weights.PrimaryArtistExact,
+		Overlap:      weights.ArtistOverlap,
 	}
 	releaseWeights := releaseDateSignalWeights{
-		exact: weights.ReleaseDateExact,
-		year:  weights.ReleaseYearExact,
+		Exact: weights.ReleaseDateExact,
+		Year:  weights.ReleaseYearExact,
 	}
 
-	score, reasons, evidence := collectScoreContributions(
+	score, reasons, Evidence := collectScoreContributions(
 		scoreTitleSignal(source.Title, source.NormalizedTitle, album.Title, album.NormalizedTitle, titleWeights),
 		scoreArtistSignal(source.Artists, source.NormalizedArtists, album.Artists, album.NormalizedArtists, artistWeights),
 		scoreAlbumUPC(source, album, weights),
@@ -113,13 +113,13 @@ func scoreCandidate(source model.CanonicalAlbum, candidate model.CandidateAlbum,
 		Candidate: candidate,
 		Score:     score,
 		Reasons:   reasons,
-		Evidence:  evidence,
+		Evidence:  Evidence,
 	}
 }
 
 func scoreAlbumUPC(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
 	if source.UPC != "" && candidate.UPC != "" && source.UPC == candidate.UPC {
-		return scoreContribution{value: weights.UPCExact, reason: "upc exact match"}
+		return scoreContribution{Value: weights.UPCExact, Reason: "upc exact match"}
 	}
 	return scoreContribution{}
 }
@@ -133,14 +133,14 @@ func scoreAlbumISRCOverlap(source model.CanonicalAlbum, candidate model.Canonica
 	ratio := float64(overlap) / float64(sourceISRCCount)
 	if ratio >= 0.70 {
 		return scoreContribution{
-			value:  weights.ISRCStrongOverlap,
-			reason: fmt.Sprintf("strong isrc overlap (%d/%d)", overlap, sourceISRCCount),
+			Value:  weights.ISRCStrongOverlap,
+			Reason: fmt.Sprintf("strong isrc overlap (%d/%d)", overlap, sourceISRCCount),
 		}
 	}
 
 	return scoreContribution{
-		value:  int(ratio * float64(weights.ISRCPartialScale)),
-		reason: fmt.Sprintf("partial isrc overlap (%d/%d)", overlap, sourceISRCCount),
+		Value:  int(ratio * float64(weights.ISRCPartialScale)),
+		Reason: fmt.Sprintf("partial isrc overlap (%d/%d)", overlap, sourceISRCCount),
 	}
 }
 
@@ -153,8 +153,8 @@ func scoreAlbumTrackTitleOverlap(source model.CanonicalAlbum, candidate model.Ca
 	ratio := float64(overlap) / float64(sourceTrackTitleCount)
 	if ratio >= 0.70 {
 		return scoreContribution{
-			value:  weights.TrackTitleStrong,
-			reason: fmt.Sprintf("strong track title overlap (%d/%d)", overlap, sourceTrackTitleCount),
+			Value:  weights.TrackTitleStrong,
+			Reason: fmt.Sprintf("strong track title overlap (%d/%d)", overlap, sourceTrackTitleCount),
 		}
 	}
 	if ratio < 0.40 {
@@ -166,8 +166,8 @@ func scoreAlbumTrackTitleOverlap(source model.CanonicalAlbum, candidate model.Ca
 		return scoreContribution{}
 	}
 	return scoreContribution{
-		value:  partialScore,
-		reason: fmt.Sprintf("partial track title overlap (%d/%d)", overlap, sourceTrackTitleCount),
+		Value:  partialScore,
+		Reason: fmt.Sprintf("partial track title overlap (%d/%d)", overlap, sourceTrackTitleCount),
 	}
 }
 
@@ -181,20 +181,20 @@ func scoreAlbumTrackCount(source model.CanonicalAlbum, candidate model.Canonical
 		diff = -diff
 	}
 	if diff == 0 {
-		return scoreContribution{value: weights.TrackCountExact, reason: "track count exact match"}
+		return scoreContribution{Value: weights.TrackCountExact, Reason: "track count exact match"}
 	}
 	if diff == 1 {
-		return scoreContribution{value: weights.TrackCountNear, reason: "track count near match"}
+		return scoreContribution{Value: weights.TrackCountNear, Reason: "track count near match"}
 	}
 	if diff >= 3 {
-		return scoreContribution{value: weights.TrackCountMismatch, reason: "track count mismatch"}
+		return scoreContribution{Value: weights.TrackCountMismatch, Reason: "track count mismatch"}
 	}
 	return scoreContribution{}
 }
 
 func scoreAlbumLabel(source model.CanonicalAlbum, candidate model.CanonicalAlbum, weights Weights) scoreContribution {
 	if source.Label != "" && candidate.Label != "" && normalizedOrDerived(source.Label, "") == normalizedOrDerived(candidate.Label, "") {
-		return scoreContribution{value: weights.LabelExact, reason: "label exact match"}
+		return scoreContribution{Value: weights.LabelExact, Reason: "label exact match"}
 	}
 	return scoreContribution{}
 }

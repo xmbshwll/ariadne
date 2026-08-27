@@ -155,8 +155,8 @@ func doRequest(ctx context.Context, spec RequestSpec) (*http.Response, error) {
 	if spec.UserAgent != "" {
 		req.Header.Set("User-Agent", spec.UserAgent)
 	}
-	for name, value := range spec.Headers {
-		req.Header.Set(name, value)
+	for Name, value := range spec.Headers {
+		req.Header.Set(Name, value)
 	}
 	client := spec.Client
 	if client == nil {

@@ -35,6 +35,12 @@ linters:
     - usestdlibvars
     - usetesting
     - whitespace
+  exclusions:
+    rules:
+      # External test packages assert on the exact error a call returned
+      # (errors.Is against a sentinel), so wrapping it would only add noise.
+      - path: _test\.go
+        linters: [wrapcheck]
   settings:
     errcheck:
       check-type-assertions: true

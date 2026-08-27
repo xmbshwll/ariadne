@@ -1,33 +1,36 @@
-package tidal
+package tidal_test
 
 import (
 	"context"
 	"testing"
 
+	tidal "github.com/xmbshwll/ariadne/internal/adapters/tidal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
-	adapter := New(nil)
+	adapter := tidal.New(nil)
 
 	_, err := adapter.FetchAlbum(context.Background(), model.ParsedAlbumURL{Service: model.ServiceTIDAL, ID: "156205493", CanonicalURL: "https://tidal.com/album/156205493"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.SearchByISRC(context.Background(), []string{"QZMHK2043414"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.SearchSongByISRC(context.Background(), "QZMHK2043414")
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Song"})
-	require.ErrorIs(t, err, ErrCredentialsNotConfigured)
+	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 }
 
 func TestAdapterSkipsCredentialChecksForEmptySearches(t *testing.T) {
-	adapter := New(nil)
+	adapter := tidal.New(nil)
 
 	tests := []struct {
 		name string

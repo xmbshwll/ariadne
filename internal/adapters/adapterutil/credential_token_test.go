@@ -1,4 +1,4 @@
-package adapterutil
+package adapterutil_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	adapterutil "github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,13 +28,13 @@ type accessTokenResult struct {
 
 func TestCredentialTokenSourceRequiresCredentials(t *testing.T) {
 	var fetchCalled bool
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials:        func() ClientCredentials { return ClientCredentials{} },
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials:        func() adapterutil.ClientCredentials { return adapterutil.ClientCredentials{} },
 		MissingCredentials: errCredentialTokenMissing,
 		EmptyAccessToken:   errCredentialTokenEmpty,
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetchCalled = true
-			return CredentialToken{}, nil
+			return adapterutil.CredentialToken{}, nil
 		},
 	})
 
@@ -45,17 +47,17 @@ func TestCredentialTokenSourceRequiresCredentials(t *testing.T) {
 func TestCredentialTokenSourceCachesUntilRefreshMargin(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	var fetches int
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials: errCredentialTokenMissing,
 		EmptyAccessToken:   errCredentialTokenEmpty,
 		RefreshMargin:      10 * time.Second,
 		Now:                func() time.Time { return now },
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches++
-			return CredentialToken{AccessToken: "token-" + string(rune('0'+fetches)), ExpiresIn: time.Minute}, nil
+			return adapterutil.CredentialToken{AccessToken: "token-" + string(rune('0'+fetches)), ExpiresIn: time.Minute}, nil
 		},
 	})
 
@@ -79,17 +81,17 @@ func TestCredentialTokenSourceSerializesConcurrentRefresh(t *testing.T) {
 	started := make(chan struct{}, 8)
 	allowResponse := make(chan struct{})
 	var fetches atomic.Int32
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials: errCredentialTokenMissing,
 		EmptyAccessToken:   errCredentialTokenEmpty,
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches.Add(1)
 			started <- struct{}{}
 			<-allowResponse
-			return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
+			return adapterutil.CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 		},
 	})
 
@@ -130,20 +132,20 @@ func TestCredentialTokenSourceCallerCancellationDoesNotCancelSharedRefresh(t *te
 	started := make(chan struct{}, 1)
 	allowResponse := make(chan struct{})
 	var fetches atomic.Int32
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials: errCredentialTokenMissing,
 		EmptyAccessToken:   errCredentialTokenEmpty,
-		Fetch: func(ctx context.Context, _ ClientCredentials) (CredentialToken, error) {
+		Fetch: func(ctx context.Context, _ adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches.Add(1)
 			started <- struct{}{}
 			select {
 			case <-allowResponse:
-				return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
+				return adapterutil.CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 			case <-ctx.Done():
-				return CredentialToken{}, ctx.Err()
+				return adapterutil.CredentialToken{}, ctx.Err()
 			}
 		},
 	})
@@ -178,18 +180,18 @@ func TestCredentialTokenSourceCallerCancellationDoesNotCancelSharedRefresh(t *te
 
 func TestCredentialTokenSourceDoesNotCacheFetchError(t *testing.T) {
 	var fetches int
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials: errCredentialTokenMissing,
 		EmptyAccessToken:   errCredentialTokenEmpty,
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches++
 			if fetches == 1 {
-				return CredentialToken{}, errCredentialTokenFetch
+				return adapterutil.CredentialToken{}, errCredentialTokenFetch
 			}
-			return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
+			return adapterutil.CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 		},
 	})
 
@@ -203,15 +205,15 @@ func TestCredentialTokenSourceDoesNotCacheFetchError(t *testing.T) {
 }
 
 func TestCredentialTokenSourceRejectsEmptyToken(t *testing.T) {
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials: errCredentialTokenMissing,
 		EmptyAccessToken:   errCredentialTokenEmpty,
 		IsEmptyAccessToken: func(accessToken string) bool { return accessToken == " " },
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
-			return CredentialToken{AccessToken: " ", ExpiresIn: time.Hour}, nil
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
+			return adapterutil.CredentialToken{AccessToken: " ", ExpiresIn: time.Hour}, nil
 		},
 	})
 
@@ -224,20 +226,20 @@ var errTestTokenSentinel = errors.New("test token error")
 
 func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 	var fetches int
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials:  errCredentialTokenMissing,
 		EmptyAccessToken:    errCredentialTokenEmpty,
 		MaxRefreshAttempts:  3,
 		RefreshRetryBackoff: time.Millisecond,
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches++
 			if fetches < 3 {
-				return CredentialToken{}, StatusError(errTestTokenSentinel)(http.StatusServiceUnavailable, "temporarily_unavailable")
+				return adapterutil.CredentialToken{}, adapterutil.StatusError(errTestTokenSentinel)(http.StatusServiceUnavailable, "temporarily_unavailable")
 			}
-			return CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
+			return adapterutil.CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 		},
 	})
 
@@ -249,17 +251,17 @@ func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 
 func TestCredentialTokenSourceDoesNotRetryNonTransientErrors(t *testing.T) {
 	var fetches int
-	source := NewCredentialTokenSource(CredentialTokenSourceConfig{
-		Credentials: func() ClientCredentials {
-			return ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	source := adapterutil.NewCredentialTokenSource(adapterutil.CredentialTokenSourceConfig{
+		Credentials: func() adapterutil.ClientCredentials {
+			return adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 		},
 		MissingCredentials:  errCredentialTokenMissing,
 		EmptyAccessToken:    errCredentialTokenEmpty,
 		MaxRefreshAttempts:  3,
 		RefreshRetryBackoff: time.Millisecond,
-		Fetch: func(context.Context, ClientCredentials) (CredentialToken, error) {
+		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches++
-			return CredentialToken{}, StatusError(errTestTokenSentinel)(http.StatusUnauthorized, "unauthorized")
+			return adapterutil.CredentialToken{}, adapterutil.StatusError(errTestTokenSentinel)(http.StatusUnauthorized, "unauthorized")
 		},
 	})
 
@@ -269,7 +271,7 @@ func TestCredentialTokenSourceDoesNotRetryNonTransientErrors(t *testing.T) {
 }
 
 func TestClientCredentialsBasicAuthorization(t *testing.T) {
-	credentials := ClientCredentials{ClientID: "client", ClientSecret: "secret"}
+	credentials := adapterutil.ClientCredentials{ClientID: "client", ClientSecret: "secret"}
 
 	assert.Equal(t, "Basic Y2xpZW50OnNlY3JldA==", credentials.BasicAuthorization())
 }

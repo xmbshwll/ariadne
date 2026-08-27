@@ -1,19 +1,22 @@
-package resolve
+package resolve_test
 
 import (
 	"context"
 	"testing"
 
+	resolve "github.com/xmbshwll/ariadne/internal/resolve"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
 
 func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
-	resolver := New(
-		[]SourceAdapter{newStubSourceAdapter()},
-		[]TargetAdapter{
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newStubSourceAdapter()},
+		[]resolve.TargetAdapter{
 			newSourceServiceTargetAdapter(),
 			newStubTargetAdapter(),
 		},
@@ -28,9 +31,9 @@ func TestResolverResolveAlbumSkipsSourceServiceAsTarget(t *testing.T) {
 }
 
 func TestResolverResolveAlbumSurfacesTargetErrorPerMatch(t *testing.T) {
-	resolver := New(
-		[]SourceAdapter{newStubSourceAdapter()},
-		[]TargetAdapter{newStubTargetAdapter(), newFailingTargetAdapter()},
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newStubSourceAdapter()},
+		[]resolve.TargetAdapter{newStubTargetAdapter(), newFailingTargetAdapter()},
 		score.DefaultWeights(),
 	)
 

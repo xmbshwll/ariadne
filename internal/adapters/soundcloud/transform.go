@@ -8,7 +8,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func toCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
+func ToCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
 	artists := nonEmptyArtistList(firstNonEmpty(playlist.User.Username, trackArtist(playlist.Tracks)))
 	tracks := make([]model.CanonicalTrack, 0, len(playlist.Tracks))
 	totalDurationMS := playlist.Duration
@@ -64,7 +64,7 @@ func toCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
 	}
 }
 
-func toCanonicalSong(track soundTrack) *model.CanonicalSong {
+func ToCanonicalSong(track SoundTrack) *model.CanonicalSong {
 	artists := nonEmptyArtistList(firstNonEmpty(track.PublisherMetadata.Artist, track.User.Username))
 	durationMS := track.FullDuration
 	if durationMS == 0 {
@@ -117,7 +117,7 @@ func canonicalizeSoundCloudURL(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-func consistentUPC(tracks []soundTrack) string {
+func consistentUPC(tracks []SoundTrack) string {
 	upc := ""
 	for _, track := range tracks {
 		candidate := strings.TrimSpace(track.PublisherMetadata.UPCOrEAN)
@@ -135,7 +135,7 @@ func consistentUPC(tracks []soundTrack) string {
 	return upc
 }
 
-func trackArtist(tracks []soundTrack) string {
+func trackArtist(tracks []SoundTrack) string {
 	for _, track := range tracks {
 		if artist := firstNonEmpty(track.PublisherMetadata.Artist, track.User.Username); artist != "" {
 			return artist
@@ -144,7 +144,7 @@ func trackArtist(tracks []soundTrack) string {
 	return ""
 }
 
-func trackLabel(tracks []soundTrack) string {
+func trackLabel(tracks []SoundTrack) string {
 	for _, track := range tracks {
 		if label := firstNonEmpty(track.LabelName); label != "" {
 			return label
@@ -153,7 +153,7 @@ func trackLabel(tracks []soundTrack) string {
 	return ""
 }
 
-func trackPLine(tracks []soundTrack) string {
+func trackPLine(tracks []SoundTrack) string {
 	for _, track := range tracks {
 		if pLine := firstNonEmpty(track.PublisherMetadata.PLineForDisplay, track.PublisherMetadata.CLineForDisplay); pLine != "" {
 			return pLine

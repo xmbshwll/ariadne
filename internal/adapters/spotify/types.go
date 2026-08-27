@@ -76,38 +76,38 @@ type spotifyTrackTime struct {
 	TotalMilliseconds int `json:"totalMilliseconds"`
 }
 
-type tokenResponse struct {
+type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-type apiAlbumResponse struct {
+type APIAlbumResponse struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	ReleaseDate string         `json:"release_date"`
 	Label       string         `json:"label"`
 	AlbumType   string         `json:"album_type"`
 	TotalTracks int            `json:"total_tracks"`
-	Images      []apiImage     `json:"images"`
-	Artists     []apiArtist    `json:"artists"`
-	ExternalIDs apiExternalIDs `json:"external_ids"`
+	Images      []APIImage     `json:"images"`
+	Artists     []APIArtist    `json:"artists"`
+	ExternalIDs APIExternalIDs `json:"external_ids"`
 	Copyrights  []apiCopyright `json:"copyrights"`
-	Tracks      apiTrackPage   `json:"tracks"`
+	Tracks      APITrackPage   `json:"tracks"`
 }
 
-type apiImage struct {
+type APIImage struct {
 	URL    string `json:"url"`
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
 }
 
-type apiArtist struct {
+type APIArtist struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-type apiExternalIDs struct {
+type APIExternalIDs struct {
 	UPC  string `json:"upc"`
 	ISRC string `json:"isrc"`
 }
@@ -117,56 +117,56 @@ type apiCopyright struct {
 	Type string `json:"type"`
 }
 
-type apiTrackPage struct {
-	Items []apiTrack `json:"items"`
+type APITrackPage struct {
+	Items []APITrack `json:"items"`
 }
 
-type apiTrack struct {
+type APITrack struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	DiscNumber  int            `json:"disc_number"`
 	TrackNumber int            `json:"track_number"`
 	DurationMS  int            `json:"duration_ms"`
 	Explicit    bool           `json:"explicit"`
-	Artists     []apiArtist    `json:"artists"`
-	ExternalIDs apiExternalIDs `json:"external_ids"`
-	Album       apiTrackAlbum  `json:"album"`
+	Artists     []APIArtist    `json:"artists"`
+	ExternalIDs APIExternalIDs `json:"external_ids"`
+	Album       APITrackAlbum  `json:"album"`
 }
 
-type apiAlbumSearchResponse struct {
-	Albums apiAlbumSearchPage `json:"albums"`
+type APIAlbumSearchResponse struct {
+	Albums APIAlbumSearchPage `json:"albums"`
 }
 
-type apiAlbumSearchPage struct {
-	Items []apiAlbumSummary `json:"items"`
+type APIAlbumSearchPage struct {
+	Items []APIAlbumSummary `json:"items"`
 }
 
-type apiAlbumSummary struct {
+type APIAlbumSummary struct {
 	ID string `json:"id"`
 }
 
-type apiTrackSearchResponse struct {
-	Tracks apiTrackSearchPage `json:"tracks"`
+type APITrackSearchResponse struct {
+	Tracks APITrackSearchPage `json:"tracks"`
 }
 
-type apiTrackSearchPage struct {
-	Items []apiTrackSearchItem `json:"items"`
+type APITrackSearchPage struct {
+	Items []APITrackSearchItem `json:"items"`
 }
 
-type apiTrackSearchItem struct {
+type APITrackSearchItem struct {
 	ID          string         `json:"id"`
 	Name        string         `json:"name"`
 	DurationMS  int            `json:"duration_ms"`
 	Explicit    bool           `json:"explicit"`
-	Artists     []apiArtist    `json:"artists"`
-	ExternalIDs apiExternalIDs `json:"external_ids"`
-	Album       apiTrackAlbum  `json:"album"`
+	Artists     []APIArtist    `json:"artists"`
+	ExternalIDs APIExternalIDs `json:"external_ids"`
+	Album       APITrackAlbum  `json:"album"`
 }
 
-type apiTrackAlbum struct {
+type APITrackAlbum struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
 	ReleaseDate string      `json:"release_date"`
-	Images      []apiImage  `json:"images"`
-	Artists     []apiArtist `json:"artists"`
+	Images      []APIImage  `json:"images"`
+	Artists     []APIArtist `json:"artists"`
 }

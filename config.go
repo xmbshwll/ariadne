@@ -7,6 +7,7 @@ import (
 	internalconfig "github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/score"
+	"github.com/xmbshwll/ariadne/internal/wiring"
 )
 
 // ScoreWeights configures how ranking signals contribute to match scores.
@@ -64,17 +65,15 @@ type TIDALConfig struct {
 }
 
 // SpotifyEnabled reports whether Spotify credential-gated features are available.
+// The check is the internal config rule, so the public answer can never disagree
+// with what the Provider Catalog enables.
 func (c Config) SpotifyEnabled() bool {
-	clientID := strings.TrimSpace(c.Spotify.ClientID)
-	clientSecret := strings.TrimSpace(c.Spotify.ClientSecret)
-	return clientID != "" && clientSecret != ""
+	return internalConfig(c).Spotify.Enabled()
 }
 
 // TIDALEnabled reports whether TIDAL credential-gated features are available.
 func (c Config) TIDALEnabled() bool {
-	clientID := strings.TrimSpace(c.TIDAL.ClientID)
-	clientSecret := strings.TrimSpace(c.TIDAL.ClientSecret)
-	return clientID != "" && clientSecret != ""
+	return internalConfig(c).TIDAL.Enabled()
 }
 
 // DefaultScoreWeights returns the built-in album ranking weights.
@@ -151,6 +150,20 @@ func configFromInternal(cfg internalconfig.Config) Config {
 	})
 }
 
+// internalConfig converts the public Config DTO into the shape the Provider
+// Catalog consumes. It is the single public-to-internal seam, so it normalizes:
+// every Catalog query and the default adapter build see trimmed credentials and
+// defaults exactly as New does.
+func internalConfig(config Config) internalconfig.Config {
+	config = normalizedConfig(config)
+	return internalconfig.Config{
+		Spotify:     internalconfig.Spotify{ClientID: config.Spotify.ClientID, ClientSecret: config.Spotify.ClientSecret},
+		AppleMusic:  internalconfig.AppleMusic{Storefront: config.AppleMusicStorefront, KeyID: config.AppleMusic.KeyID, TeamID: config.AppleMusic.TeamID, PrivateKeyPath: config.AppleMusic.PrivateKeyPath},
+		TIDAL:       internalconfig.TIDAL{ClientID: config.TIDAL.ClientID, ClientSecret: config.TIDAL.ClientSecret},
+		HTTPTimeout: config.HTTPTimeout,
+	}
+}
+
 func normalizedConfig(config Config) Config {
 	config.AppleMusicStorefront = strings.ToLower(strings.TrimSpace(config.AppleMusicStorefront))
 	if config.AppleMusicStorefront == "" {
@@ -201,7 +214,7 @@ func normalizedTargetServices(services []ServiceName) []ServiceName {
 	normalized := make([]ServiceName, 0, len(services))
 	seen := make(map[ServiceName]struct{}, len(services))
 	for _, service := range services {
-		service, ok := defaultProviderCatalog.lookupSupportedTargetService(string(service))
+		service, ok := wiring.Default.LookupSupportedTargetService(string(service))
 		if !ok {
 			continue
 		}

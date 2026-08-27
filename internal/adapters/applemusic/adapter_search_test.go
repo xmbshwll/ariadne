@@ -1,9 +1,12 @@
-package applemusic
+package applemusic_test
 
 import (
 	"testing"
 
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
+
 	"github.com/stretchr/testify/assert"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -45,7 +48,7 @@ func TestMetadataQueries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, metadataQueries(tt.album))
+			assert.Equal(t, tt.want, applemusic.MetadataQueries(tt.album))
 		})
 	}
 }

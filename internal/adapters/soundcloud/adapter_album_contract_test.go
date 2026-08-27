@@ -1,4 +1,4 @@
-package soundcloud
+package soundcloud_test
 
 import (
 	"context"
@@ -7,8 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	soundcloud "github.com/xmbshwll/ariadne/internal/adapters/soundcloud"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
@@ -42,7 +45,7 @@ func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
 	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Good Playlist", Artists: []string{"Artist"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -53,7 +56,7 @@ func TestSearchAlbumByMetadataReturnsNoResultsWhenClientIDUnavailable(t *testing
 	server := newSoundCloudServerWithoutClientID()
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
 	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "FENIAN", Artists: []string{"KNEECAP"}})
 
 	require.NoError(t, err)
@@ -106,7 +109,7 @@ func TestSearchAlbumByMetadataRefreshesRejectedClientID(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
 	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   soundCloudCatsAndDogs,
 		Artists: []string{"Evidence"},

@@ -16,7 +16,7 @@ const (
 var (
 	errUnexpectedDeezerService = errors.New("unexpected deezer service")
 	errUnexpectedDeezerStatus  = errors.New("unexpected deezer status")
-	errMalformedDeezerResponse = errors.New("malformed deezer response")
+	ErrMalformedDeezerResponse = errors.New("malformed deezer response")
 	errDeezerAlbumNotFound     = errors.New("deezer album not found")
 	errDeezerTrackNotFound     = errors.New("deezer track not found")
 )
@@ -29,10 +29,10 @@ type Adapter struct {
 
 // New creates a Deezer adapter.
 func New(client *http.Client) *Adapter {
-	return newAdapter(client, defaultBaseURL)
+	return NewAdapter(client, defaultBaseURL)
 }
 
-func newAdapter(client *http.Client, baseURL string) *Adapter {
+func NewAdapter(client *http.Client, baseURL string) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}

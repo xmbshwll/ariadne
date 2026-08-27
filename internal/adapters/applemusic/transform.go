@@ -9,7 +9,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
+func ToCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
 	const explicitTrack = "explicit"
 
 	if len(items) == 0 {
@@ -23,7 +23,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	explicit := false
 
 	for _, item := range items[1:] {
-		if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong {
+		if item.WrapperType != wrapperTypeTrack || item.Kind != EntitySong {
 			continue
 		}
 		trackCount++

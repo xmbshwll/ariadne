@@ -65,7 +65,7 @@ func NewClientCredentialsTokenSource(config ClientCredentialsTokenConfig) *Crede
 		},
 		MissingCredentials: config.MissingCredentials,
 		EmptyAccessToken:   config.EmptyAccessToken,
-		IsEmptyAccessToken: func(accessToken string) bool { return strings.TrimSpace(accessToken) == "" },
+		IsEmptyAccessToken: func(AccessToken string) bool { return strings.TrimSpace(AccessToken) == "" },
 		Fetch:              config.Fetch,
 		RefreshTimeout:     config.RefreshTimeout,
 		SingleflightKey:    config.Service + "-token",
@@ -100,7 +100,7 @@ type CredentialTokenSource struct {
 }
 
 type cachedCredentialToken struct {
-	accessToken string
+	AccessToken string
 	expiresAt   time.Time
 }
 
@@ -115,7 +115,7 @@ func NewCredentialTokenSource(config CredentialTokenSourceConfig) *CredentialTok
 		config.Now = time.Now
 	}
 	if config.IsEmptyAccessToken == nil {
-		config.IsEmptyAccessToken = func(accessToken string) bool { return accessToken == "" }
+		config.IsEmptyAccessToken = func(AccessToken string) bool { return AccessToken == "" }
 	}
 	if config.MaxRefreshAttempts <= 0 {
 		config.MaxRefreshAttempts = defaultMaxRefreshAttempts
@@ -145,8 +145,8 @@ func (s *CredentialTokenSource) AccessToken(ctx context.Context) (string, error)
 	if !credentials.Configured() {
 		return "", s.config.MissingCredentials
 	}
-	if accessToken, ok := s.cachedAccessToken(); ok {
-		return accessToken, nil
+	if AccessToken, ok := s.cachedAccessToken(); ok {
+		return AccessToken, nil
 	}
 	if err := ctx.Err(); err != nil {
 		//nolint:wrapcheck // Return caller cancellation unchanged.
@@ -155,8 +155,8 @@ func (s *CredentialTokenSource) AccessToken(ctx context.Context) (string, error)
 
 	detachedCtx := context.WithoutCancel(ctx)
 	resultCh := s.group.DoChan(s.config.SingleflightKey, func() (any, error) {
-		if accessToken, ok := s.cachedAccessToken(); ok {
-			return accessToken, nil
+		if AccessToken, ok := s.cachedAccessToken(); ok {
+			return AccessToken, nil
 		}
 		return s.refreshAccessToken(detachedCtx, credentials)
 	})
@@ -169,21 +169,21 @@ func (s *CredentialTokenSource) AccessToken(ctx context.Context) (string, error)
 		if result.Err != nil {
 			return "", result.Err
 		}
-		accessToken, ok := result.Val.(string)
+		AccessToken, ok := result.Val.(string)
 		if !ok {
 			return "", errCredentialTokenResultInvalid
 		}
-		return accessToken, nil
+		return AccessToken, nil
 	}
 }
 
 func (s *CredentialTokenSource) cachedAccessToken() (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cached.accessToken == "" || !s.config.Now().Before(s.cached.expiresAt) {
+	if s.cached.AccessToken == "" || !s.config.Now().Before(s.cached.expiresAt) {
 		return "", false
 	}
-	return s.cached.accessToken, true
+	return s.cached.AccessToken, true
 }
 
 func (s *CredentialTokenSource) refreshAccessToken(ctx context.Context, credentials ClientCredentials) (string, error) {
@@ -219,11 +219,11 @@ func (s *CredentialTokenSource) fetchAndCacheToken(ctx context.Context, credenti
 	expiresAt := s.config.Now().Add(max(token.ExpiresIn-s.config.RefreshMargin, 0))
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cached.accessToken != "" && s.config.Now().Before(s.cached.expiresAt) {
-		return s.cached.accessToken, nil
+	if s.cached.AccessToken != "" && s.config.Now().Before(s.cached.expiresAt) {
+		return s.cached.AccessToken, nil
 	}
-	s.cached = cachedCredentialToken{accessToken: token.AccessToken, expiresAt: expiresAt}
-	return s.cached.accessToken, nil
+	s.cached = cachedCredentialToken{AccessToken: token.AccessToken, expiresAt: expiresAt}
+	return s.cached.AccessToken, nil
 }
 
 func waitForRefreshRetry(ctx context.Context, attempt int, baseBackoff time.Duration) error {

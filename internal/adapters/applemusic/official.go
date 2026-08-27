@@ -26,7 +26,7 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, fmt.Errorf("search apple music by upc: %w", err)
 	}
 	albumIDs := officialAlbumIDs(payload)
-	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+	return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
 
 // SearchByISRC uses the official Apple Music catalog API when MusicKit auth is configured.
@@ -51,13 +51,13 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		}
 		albumIDs = appendUniqueOfficialAlbumIDs(albumIDs, seenAlbumIDs, officialAlbumIDsFromSongs(payload))
 		if len(albumIDs) >= searchLimit {
-			return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+			return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 		}
 	}
 	if len(albumIDs) == 0 && firstErr != nil {
 		return nil, fmt.Errorf("search apple music by isrc: %w", firstErr)
 	}
-	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+	return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
 
 func appendUniqueOfficialAlbumIDs(dst []string, seen map[string]struct{}, ids []string) []string {
@@ -85,7 +85,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		return nil, fmt.Errorf("search apple music song by isrc: %w", err)
 	}
 	songIDs := officialSongIDs(payload)
-	return a.hydrateSongs(ctx, songIDs, storefront)
+	return a.HydrateSongs(ctx, songIDs, storefront)
 }
 
 func (a *Adapter) authEnabled() bool {
@@ -136,11 +136,11 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicOfficialStatus),
 		},
 		DecodeError:       "decode apple music official response",
-		MalformedResponse: errMalformedAppleMusicOfficialResponse,
+		MalformedResponse: ErrMalformedAppleMusicOfficialResponse,
 	}, target)
 }
 
-func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
+func (a *Adapter) HydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
 	return hydrateAppleMusicOfficialCandidates(
 		ctx,
 		albumIDs,
@@ -155,7 +155,7 @@ func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, 
 	)
 }
 
-func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
+func (a *Adapter) HydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
 	return hydrateAppleMusicOfficialCandidates(
 		ctx,
 		songIDs,

@@ -14,7 +14,7 @@ var (
 	errUnexpectedBandcampService       = errors.New("unexpected bandcamp service")
 	errUnexpectedBandcampStatus        = errors.New("unexpected bandcamp status")
 	errBandcampJSONLDNotFound          = errors.New("bandcamp json-ld not found")
-	errMalformedBandcampJSONLD         = errors.New("malformed bandcamp json-ld")
+	ErrMalformedBandcampJSONLD         = errors.New("malformed bandcamp json-ld")
 	errMalformedBandcampSearchResponse = errors.New("malformed bandcamp search response")
 )
 

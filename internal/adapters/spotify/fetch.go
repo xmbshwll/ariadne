@@ -27,12 +27,12 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 		if err == nil {
 			return toCanonicalAlbumAPI(parsed.CanonicalURL, album), nil
 		}
-		if !errors.Is(err, errSpotifyAlbumNotFound) {
+		if !errors.Is(err, ErrSpotifyAlbumNotFound) {
 			return nil, err
 		}
 	}
 
-	return a.fetchAlbumBootstrap(ctx, parsed)
+	return a.FetchAlbumBootstrap(ctx, parsed)
 }
 
 // SearchByUPC searches Spotify albums by UPC via the Web API.
@@ -46,7 +46,7 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 	}
 
 	endpoint := a.searchEndpoint("upc:"+upc, "album", searchLimit)
-	var response apiAlbumSearchResponse
+	var response APIAlbumSearchResponse
 	if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 		return nil, fmt.Errorf("spotify search by upc: %w", err)
 	}
@@ -68,7 +68,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	var firstErr error
 	for _, isrc := range isrcs {
 		endpoint := a.searchEndpoint("isrc:"+isrc, "track", 1)
-		var response apiTrackSearchResponse
+		var response APITrackSearchResponse
 		if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("spotify search by isrc %s: %w", isrc, err)
@@ -98,7 +98,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 
 // SearchByMetadata searches Spotify albums by title and artist metadata.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	queries := metadataQueries(album)
+	queries := MetadataQueries(album)
 	if len(queries) == 0 {
 		return nil, nil
 	}
@@ -106,19 +106,19 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[apiAlbumSummary, apiAlbumSummary]{
+	targetSearch := adapterutil.MetadataQuerySearch[APIAlbumSummary, APIAlbumSummary]{
 		Queries: queries,
 		Limit:   searchLimit,
-		Search: func(ctx context.Context, query string) ([]apiAlbumSummary, error) {
+		Search: func(ctx context.Context, query string) ([]APIAlbumSummary, error) {
 			endpoint := a.searchEndpoint(query, "album", searchLimit)
-			var response apiAlbumSearchResponse
+			var response APIAlbumSearchResponse
 			if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 				return nil, fmt.Errorf("spotify search by metadata %q: %w", query, err)
 			}
 			return response.Albums.Items, nil
 		},
-		ItemID: func(item apiAlbumSummary) string { return item.ID },
-		BuildCandidate: func(_ context.Context, item apiAlbumSummary) (apiAlbumSummary, error) {
+		ItemID: func(item APIAlbumSummary) string { return item.ID },
+		BuildCandidate: func(_ context.Context, item APIAlbumSummary) (APIAlbumSummary, error) {
 			return item, nil
 		},
 	}
@@ -155,7 +155,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 	}
 
 	endpoint := a.searchEndpoint("isrc:"+strings.TrimSpace(isrc), "track", searchLimit)
-	var response apiTrackSearchResponse
+	var response APITrackSearchResponse
 	if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 		return nil, fmt.Errorf("spotify song search by isrc %s: %w", isrc, err)
 	}
@@ -164,7 +164,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 
 // SearchSongByMetadata searches Spotify tracks by title and artist metadata.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	queries := songMetadataQueries(song)
+	queries := SongMetadataQueries(song)
 	if len(queries) == 0 {
 		return nil, nil
 	}
@@ -172,19 +172,19 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[apiTrackSearchItem, apiTrackSearchItem]{
+	targetSearch := adapterutil.MetadataQuerySearch[APITrackSearchItem, APITrackSearchItem]{
 		Queries: queries,
 		Limit:   searchLimit,
-		Search: func(ctx context.Context, query string) ([]apiTrackSearchItem, error) {
+		Search: func(ctx context.Context, query string) ([]APITrackSearchItem, error) {
 			endpoint := a.searchEndpoint(query, "track", searchLimit)
-			var response apiTrackSearchResponse
+			var response APITrackSearchResponse
 			if err := a.getAPIJSON(ctx, endpoint, &response); err != nil {
 				return nil, fmt.Errorf("spotify song search by metadata %q: %w", query, err)
 			}
 			return response.Tracks.Items, nil
 		},
-		ItemID: func(item apiTrackSearchItem) string { return item.ID },
-		BuildCandidate: func(_ context.Context, item apiTrackSearchItem) (apiTrackSearchItem, error) {
+		ItemID: func(item APITrackSearchItem) string { return item.ID },
+		BuildCandidate: func(_ context.Context, item APITrackSearchItem) (APITrackSearchItem, error) {
 			return item, nil
 		},
 	}
@@ -205,12 +205,12 @@ func (a *Adapter) searchEndpoint(query string, entityType string, limit int) str
 	)
 }
 
-func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*apiAlbumResponse, error) {
-	var album apiAlbumResponse
+func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*APIAlbumResponse, error) {
+	var album APIAlbumResponse
 	endpoint := a.apiBaseURL + "/albums/" + albumID
 	if err := a.getAPIJSON(ctx, endpoint, &album); err != nil {
 		if isSpotifyAPIStatus(err, http.StatusNotFound) {
-			return nil, fmt.Errorf("%w: %s", errSpotifyAlbumNotFound, albumID)
+			return nil, fmt.Errorf("%w: %s", ErrSpotifyAlbumNotFound, albumID)
 		}
 		return nil, fmt.Errorf("spotify fetch album api %s: %w", albumID, err)
 	}
@@ -220,7 +220,7 @@ func (a *Adapter) fetchAlbumAPI(ctx context.Context, albumID string) (*apiAlbumR
 	return &album, nil
 }
 
-func (a *Adapter) hydrateAlbumTrackDetails(ctx context.Context, album *apiAlbumResponse) error {
+func (a *Adapter) hydrateAlbumTrackDetails(ctx context.Context, album *APIAlbumResponse) error {
 	trackIDs := make([]string, 0, len(album.Tracks.Items))
 	for _, track := range album.Tracks.Items {
 		if track.ID == "" {
@@ -236,7 +236,7 @@ func (a *Adapter) hydrateAlbumTrackDetails(ctx context.Context, album *apiAlbumR
 	if err != nil {
 		return err
 	}
-	byID := make(map[string]apiTrack, len(trackDetails))
+	byID := make(map[string]APITrack, len(trackDetails))
 	for _, track := range trackDetails {
 		if track.ID == "" {
 			continue
@@ -263,13 +263,13 @@ func (a *Adapter) hydrateAlbumTrackDetails(ctx context.Context, album *apiAlbumR
 
 const spotifyTrackFetchParallelism = 8
 
-func (a *Adapter) fetchTrackAPI(ctx context.Context, trackID string) (*apiTrack, error) {
+func (a *Adapter) fetchTrackAPI(ctx context.Context, trackID string) (*APITrack, error) {
 	trackID = strings.TrimSpace(trackID)
 	if trackID == "" {
 		return nil, fmt.Errorf("%w: %s", errSpotifyTrackNotFound, trackID)
 	}
 
-	var track apiTrack
+	var track APITrack
 	endpoint := a.apiBaseURL + "/tracks/" + trackID
 	if err := a.getAPIJSON(ctx, endpoint, &track); err != nil {
 		if isSpotifyAPIStatus(err, http.StatusNotFound) {
@@ -280,7 +280,7 @@ func (a *Adapter) fetchTrackAPI(ctx context.Context, trackID string) (*apiTrack,
 	return &track, nil
 }
 
-func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) ([]apiTrack, error) {
+func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) ([]APITrack, error) {
 	if len(trackIDs) == 0 {
 		return nil, nil
 	}
@@ -297,7 +297,7 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		return nil, nil
 	}
 
-	results := make([]*apiTrack, len(ids))
+	results := make([]*APITrack, len(ids))
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(spotifyTrackFetchParallelism)
 
@@ -320,7 +320,7 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 		return nil, fmt.Errorf("fetch spotify track details: %w", err)
 	}
 
-	tracks := make([]apiTrack, 0, len(results))
+	tracks := make([]APITrack, 0, len(results))
 	for _, track := range results {
 		if track == nil || strings.TrimSpace(track.ID) == "" {
 			continue
@@ -334,7 +334,7 @@ func shouldSkipSpotifyTrackDetailError(err error) bool {
 	return errors.Is(err, errSpotifyTrackNotFound) || shouldRetrySpotifyAPIError(err)
 }
 
-func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
+func (a *Adapter) FetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 	requestURL := parsed.CanonicalURL
 	if parsed.CanonicalURL == "https://open.spotify.com/album/"+parsed.ID && a.webBaseURL != defaultWebBaseURL {
 		requestURL = a.webBaseURL + "/album/" + parsed.ID
@@ -360,7 +360,7 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 		return nil, fmt.Errorf("close spotify response body: %w", closeErr)
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, errSpotifyAlbumNotFound
+		return nil, ErrSpotifyAlbumNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%w: %d", errUnexpectedSpotifyStatus, resp.StatusCode)
@@ -374,7 +374,7 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 	entityKey := "spotify:album:" + parsed.ID
 	album, ok := payload.Entities.Items[entityKey]
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", errSpotifyAlbumNotFound, entityKey)
+		return nil, fmt.Errorf("%w: %s", ErrSpotifyAlbumNotFound, entityKey)
 	}
 
 	return toCanonicalAlbumBootstrap(parsed, album), nil
@@ -382,13 +382,13 @@ func (a *Adapter) fetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAl
 
 func (a *Adapter) hydrateAlbumCandidates(
 	ctx context.Context,
-	summaries []apiAlbumSummary,
+	summaries []APIAlbumSummary,
 ) ([]model.CandidateAlbum, error) {
 	return hydrateSpotifyCandidates(
 		ctx,
 		summaries,
-		func(summary apiAlbumSummary) string { return summary.ID },
-		func(ctx context.Context, summary apiAlbumSummary) (model.CandidateAlbum, error) {
+		func(summary APIAlbumSummary) string { return summary.ID },
+		func(ctx context.Context, summary APIAlbumSummary) (model.CandidateAlbum, error) {
 			album, err := a.fetchAlbumAPI(ctx, summary.ID)
 			if err != nil {
 				return model.CandidateAlbum{}, fmt.Errorf("hydrate spotify album %s: %w", summary.ID, err)
@@ -405,13 +405,13 @@ func (a *Adapter) hydrateAlbumCandidates(
 
 func (a *Adapter) hydrateSongCandidates(
 	ctx context.Context,
-	items []apiTrackSearchItem,
+	items []APITrackSearchItem,
 ) ([]model.CandidateSong, error) {
 	return hydrateSpotifyCandidates(
 		ctx,
 		items,
-		func(item apiTrackSearchItem) string { return item.ID },
-		func(ctx context.Context, item apiTrackSearchItem) (model.CandidateSong, error) {
+		func(item APITrackSearchItem) string { return item.ID },
+		func(ctx context.Context, item APITrackSearchItem) (model.CandidateSong, error) {
 			track, err := a.fetchTrackAPI(ctx, item.ID)
 			if err != nil {
 				return model.CandidateSong{}, fmt.Errorf("hydrate spotify track %s: %w", item.ID, err)

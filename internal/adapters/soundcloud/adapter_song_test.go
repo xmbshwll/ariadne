@@ -1,12 +1,15 @@
-package soundcloud
+package soundcloud_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
+	soundcloud "github.com/xmbshwll/ariadne/internal/adapters/soundcloud"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -35,10 +38,10 @@ func TestExtractTrackHydrationRequiresExactURLMatch(t *testing.T) {
 		`<html><body><script>window.__sc_hydration = [{"hydratable":"sound","data":%s}];</script></body></html>`,
 		fixture.trackPayload,
 	)
-	track, err := extractTrackHydration(body, fixture.server.URL+"/missing-track")
+	track, err := soundcloud.ExtractTrackHydration(body, fixture.server.URL+"/missing-track")
 	require.Error(t, err)
 	assert.Nil(t, track)
-	assert.ErrorIs(t, err, errSoundCloudTrackNotFound)
+	assert.ErrorIs(t, err, soundcloud.ErrSoundCloudTrackNotFound)
 }
 
 func TestSearchSongByMetadata(t *testing.T) {

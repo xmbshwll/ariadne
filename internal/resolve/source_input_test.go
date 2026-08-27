@@ -1,12 +1,15 @@
-package resolve
+package resolve_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	resolve "github.com/xmbshwll/ariadne/internal/resolve"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -33,7 +36,7 @@ func (e fatalSourceInputError) Unwrap() error {
 }
 
 func TestResolveSourceInputHydratesRecognizedSource(t *testing.T) {
-	parsed, adapter, err := recognizeSourceInput(
+	parsed, adapter, err := resolve.RecognizeSourceInput(
 		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
 		func(sourceInputTestAdapter) (*model.ParsedURL, error) {
@@ -42,11 +45,11 @@ func TestResolveSourceInputHydratesRecognizedSource(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	album, err := hydrateSourceInput(
+	album, err := resolve.HydrateSourceInput(
 		context.Background(),
 		adapter,
 		"album",
-		errNilSourceAlbum,
+		resolve.ErrNilSourceAlbum,
 		func(context.Context) (*model.CanonicalAlbum, error) {
 			return &model.CanonicalAlbum{Service: adapter.Service(), SourceID: parsed.ID}, nil
 		},
@@ -58,7 +61,7 @@ func TestResolveSourceInputHydratesRecognizedSource(t *testing.T) {
 }
 
 func TestResolveSourceInputPreservesFatalParseFailure(t *testing.T) {
-	_, _, err := recognizeSourceInput(
+	_, _, err := resolve.RecognizeSourceInput(
 		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
 		func(sourceInputTestAdapter) (*model.ParsedURL, error) {
@@ -71,7 +74,7 @@ func TestResolveSourceInputPreservesFatalParseFailure(t *testing.T) {
 }
 
 func TestResolveSourceInputReportsNilHydration(t *testing.T) {
-	_, adapter, err := recognizeSourceInput(
+	_, adapter, err := resolve.RecognizeSourceInput(
 		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
 		func(sourceInputTestAdapter) (*model.ParsedURL, error) {
@@ -80,11 +83,11 @@ func TestResolveSourceInputReportsNilHydration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = hydrateSourceInput(
+	_, err = resolve.HydrateSourceInput(
 		context.Background(),
 		adapter,
 		"album",
-		errNilSourceAlbum,
+		resolve.ErrNilSourceAlbum,
 		func(context.Context) (*model.CanonicalAlbum, error) {
 			return nil, nil //nolint:nilnil // Exercise source input nil hydration outcome.
 		},
@@ -92,5 +95,5 @@ func TestResolveSourceInputReportsNilHydration(t *testing.T) {
 
 	require.Error(t, err)
 	assert.EqualError(t, err, "fetch source album returned nil from spotify")
-	assert.ErrorIs(t, err, errNilSourceAlbum)
+	assert.ErrorIs(t, err, resolve.ErrNilSourceAlbum)
 }

@@ -9,11 +9,11 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalAlbum {
-	resourceByID := includedResourceIndex(included)
-	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+func ToCanonicalAlbum(resource APIResource, included []APIResource, canonicalURL string, regionHint string) *model.CanonicalAlbum {
+	resourceByID := IncludedResourceIndex(included)
+	artistNames := IncludedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 	tracks := tracksFromIncluded(included, resource.Relationships.Items.Data, artistNames)
-	artworkURL := artworkURLFromIncluded(resourceByID, resource.Relationships.CoverArt.Data)
+	artworkURL := ArtworkURLFromIncluded(resourceByID, resource.Relationships.CoverArt.Data)
 	trackCount := resource.Attributes.NumberOfItems
 	if trackCount == 0 {
 		trackCount = len(tracks)
@@ -42,10 +42,10 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 	}
 }
 
-func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalSong {
-	resourceByID := includedResourceIndex(included)
-	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
-	albumResource := firstRelatedResource(resourceByID, resource.Relationships.Albums.Data, "albums")
+func toCanonicalSong(resource APIResource, included []APIResource, canonicalURL string, regionHint string) *model.CanonicalSong {
+	resourceByID := IncludedResourceIndex(included)
+	artistNames := IncludedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+	albumResource := FirstRelatedResource(resourceByID, resource.Relationships.Albums.Data, "albums")
 	albumTitle := ""
 	albumNormalizedTitle := ""
 	albumArtists := []string{}
@@ -55,12 +55,12 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	if albumResource != nil {
 		albumTitle = albumResource.Attributes.Title
 		albumNormalizedTitle = normalize.Text(albumTitle)
-		albumArtists = includedArtistNames(resourceByID, albumResource.Relationships.Artists.Data)
+		albumArtists = IncludedArtistNames(resourceByID, albumResource.Relationships.Artists.Data)
 		albumNormalizedArtists = normalize.Artists(albumArtists)
 		if releaseDate == "" {
 			releaseDate = albumResource.Attributes.ReleaseDate
 		}
-		artworkURL = artworkURLFromIncluded(resourceByID, albumResource.Relationships.CoverArt.Data)
+		artworkURL = ArtworkURLFromIncluded(resourceByID, albumResource.Relationships.CoverArt.Data)
 	}
 	if canonicalURL == "" {
 		canonicalURL = canonicalTrackURL(resource.ID)
@@ -90,7 +90,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	}
 }
 
-func includedArtistNames(resourceByID map[string]apiResource, relations []relationshipData) []string {
+func IncludedArtistNames(resourceByID map[string]APIResource, relations []RelationshipData) []string {
 	results := make([]string, 0, len(relations))
 	seen := make(map[string]struct{}, len(relations))
 	for _, relation := range relations {
@@ -101,20 +101,20 @@ func includedArtistNames(resourceByID map[string]apiResource, relations []relati
 		if !ok {
 			continue
 		}
-		name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
-		if name == "" {
+		Name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
+		if Name == "" {
 			continue
 		}
-		if _, ok := seen[name]; ok {
+		if _, ok := seen[Name]; ok {
 			continue
 		}
-		seen[name] = struct{}{}
-		results = append(results, name)
+		seen[Name] = struct{}{}
+		results = append(results, Name)
 	}
 	return results
 }
 
-func firstRelatedResource(resourceByID map[string]apiResource, relations []relationshipData, typ string) *apiResource {
+func FirstRelatedResource(resourceByID map[string]APIResource, relations []RelationshipData, typ string) *APIResource {
 	for _, relation := range relations {
 		if relation.Type != typ {
 			continue
@@ -129,7 +129,7 @@ func firstRelatedResource(resourceByID map[string]apiResource, relations []relat
 	return nil
 }
 
-func firstRelatedID(relations []relationshipData, typ string) string {
+func firstRelatedID(relations []RelationshipData, typ string) string {
 	for _, relation := range relations {
 		if relation.Type == typ && relation.ID != "" {
 			return relation.ID
@@ -138,7 +138,7 @@ func firstRelatedID(relations []relationshipData, typ string) string {
 	return ""
 }
 
-func firstTrackNumber(relations []relationshipData) int {
+func firstTrackNumber(relations []RelationshipData) int {
 	for _, relation := range relations {
 		if relation.Meta.TrackNumber > 0 {
 			return relation.Meta.TrackNumber
@@ -147,7 +147,7 @@ func firstTrackNumber(relations []relationshipData) int {
 	return 0
 }
 
-func firstTrackVolumeNumber(relations []relationshipData) int {
+func firstTrackVolumeNumber(relations []RelationshipData) int {
 	for _, relation := range relations {
 		if relation.Meta.VolumeNumber > 0 {
 			return relation.Meta.VolumeNumber
@@ -156,8 +156,8 @@ func firstTrackVolumeNumber(relations []relationshipData) int {
 	return 0
 }
 
-func tracksFromIncluded(included []apiResource, relations []relationshipData, fallbackArtists []string) []model.CanonicalTrack {
-	resourceByID := includedResourceIndex(included)
+func tracksFromIncluded(included []APIResource, relations []RelationshipData, fallbackArtists []string) []model.CanonicalTrack {
+	resourceByID := IncludedResourceIndex(included)
 	tracks := make([]model.CanonicalTrack, 0, len(relations))
 	for _, relation := range relations {
 		if relation.Type != "tracks" {
@@ -167,7 +167,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 		if !ok {
 			continue
 		}
-		trackArtists := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+		trackArtists := IncludedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 		if len(trackArtists) == 0 {
 			trackArtists = append([]string(nil), fallbackArtists...)
 		}
@@ -190,7 +190,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 	return tracks
 }
 
-func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []relationshipData) string {
+func ArtworkURLFromIncluded(resourceByID map[string]APIResource, relations []RelationshipData) string {
 	for _, relation := range relations {
 		if relation.Type != "artworks" {
 			continue
@@ -199,7 +199,7 @@ func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []rel
 		if !ok {
 			continue
 		}
-		files := append([]resourceFile(nil), resource.Attributes.Files...)
+		files := append([]ResourceFile(nil), resource.Attributes.Files...)
 		sort.Slice(files, func(i, j int) bool {
 			return files[i].Meta.Width > files[j].Meta.Width
 		})
@@ -212,8 +212,8 @@ func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []rel
 	return ""
 }
 
-func includedResourceIndex(included []apiResource) map[string]apiResource {
-	resourceByID := make(map[string]apiResource, len(included))
+func IncludedResourceIndex(included []APIResource) map[string]APIResource {
+	resourceByID := make(map[string]APIResource, len(included))
 	for _, resource := range included {
 		resourceByID[includedResourceKey(resource.Type, resource.ID)] = resource
 	}
@@ -224,7 +224,7 @@ func includedResourceKey(resourceType string, resourceID string) string {
 	return resourceType + ":" + resourceID
 }
 
-func includedRelationKey(relation relationshipData) string {
+func includedRelationKey(relation RelationshipData) string {
 	return includedResourceKey(relation.Type, relation.ID)
 }
 

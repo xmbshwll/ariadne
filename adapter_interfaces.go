@@ -1,4 +1,3 @@
-// Package ariadne defines adapter interfaces.
 package ariadne
 
 import "github.com/xmbshwll/ariadne/internal/resolve"

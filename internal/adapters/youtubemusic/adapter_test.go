@@ -1,4 +1,4 @@
-package youtubemusic
+package youtubemusic_test
 
 import (
 	"context"
@@ -6,8 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	youtubemusic "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
@@ -35,7 +38,7 @@ func TestFetchAlbum(t *testing.T) {
 }
 
 func TestParseSongURLAndDeferredFetch(t *testing.T) {
-	adapter := New(nil)
+	adapter := youtubemusic.New(nil)
 
 	parsed, err := adapter.ParseSongURL("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ")
 	require.NoError(t, err)
@@ -43,12 +46,12 @@ func TestParseSongURLAndDeferredFetch(t *testing.T) {
 	assert.Equal(t, "dQw4w9WgXcQ", parsed.ID)
 
 	_, err = adapter.FetchSong(context.Background(), *parsed)
-	assert.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
+	assert.ErrorIs(t, err, youtubemusic.ErrDeferredRuntimeAdapter)
 	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
 }
 
 func TestUnsupportedIdentifierSearches(t *testing.T) {
-	adapter := New(nil)
+	adapter := youtubemusic.New(nil)
 
 	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
 	assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), adapter)
@@ -56,19 +59,19 @@ func TestUnsupportedIdentifierSearches(t *testing.T) {
 
 func TestExtractTrackTitlesPreservesRepeatedTitles(t *testing.T) {
 	body := youTubeMusicTrackTitleBody("Intro", "Interlude", "Intro")
-	assert.Equal(t, []string{"Intro", "Interlude", "Intro"}, extractTrackTitles(body))
+	assert.Equal(t, []string{"Intro", "Interlude", "Intro"}, youtubemusic.ExtractTrackTitles(body))
 }
 
 func TestExtractTrackTitlesSkipsImmediateDuplicateParserArtifacts(t *testing.T) {
 	body := youTubeMusicTrackTitleBody("Intro", "Intro", "Interlude")
-	assert.Equal(t, []string{"Intro", "Interlude"}, extractTrackTitles(body))
+	assert.Equal(t, []string{"Intro", "Interlude"}, youtubemusic.ExtractTrackTitles(body))
 }
 
 func TestShouldSkipTrackTitleOnlySkipsCountLabels(t *testing.T) {
-	assert.True(t, shouldSkipTrackTitle("1,234 views"))
-	assert.True(t, shouldSkipTrackTitle("123 Wiedergaben"))
-	assert.False(t, shouldSkipTrackTitle("Views"))
-	assert.False(t, shouldSkipTrackTitle("Wiedergaben"))
+	assert.True(t, youtubemusic.ShouldSkipTrackTitle("1,234 views"))
+	assert.True(t, youtubemusic.ShouldSkipTrackTitle("123 Wiedergaben"))
+	assert.False(t, youtubemusic.ShouldSkipTrackTitle("Views"))
+	assert.False(t, youtubemusic.ShouldSkipTrackTitle("Wiedergaben"))
 }
 
 func youTubeMusicTrackTitleBody(titles ...string) []byte {

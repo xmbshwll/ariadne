@@ -1,11 +1,14 @@
-package applemusic
+package applemusic_test
 
 import (
 	"context"
 	"testing"
 
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -30,7 +33,7 @@ func TestFetchSong(t *testing.T) {
 
 	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   entitySong,
+		EntityType:   applemusic.EntitySong,
 		ID:           "1441164430",
 		CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=1441164430",
 		RegionHint:   "us",
@@ -47,12 +50,12 @@ func TestFetchSongRejectsNonSongLookupPayload(t *testing.T) {
 
 	song, err := fixture.adapter.FetchSong(context.Background(), model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   entitySong,
+		EntityType:   applemusic.EntitySong,
 		ID:           "123456789",
 		CanonicalURL: "https://music.apple.com/us/album/abbey-road-remastered/1441164426?i=123456789",
 		RegionHint:   "us",
 	})
 	require.Error(t, err)
 	assert.Nil(t, song)
-	assert.ErrorIs(t, err, errAppleMusicSongNotFound)
+	assert.ErrorIs(t, err, applemusic.ErrAppleMusicSongNotFound)
 }

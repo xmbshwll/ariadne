@@ -1,4 +1,4 @@
-package adapterutil
+package adapterutil_test
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"testing"
 	"time"
+
+	adapterutil "github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,14 +22,14 @@ var (
 
 func TestPageFetcherBuildsPageRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, BrowserUserAgent, r.Header.Get("User-Agent"))
+		assert.Equal(t, adapterutil.BrowserUserAgent, r.Header.Get("User-Agent"))
 		_, _ = w.Write([]byte("page"))
 	}))
 	defer server.Close()
 
-	body, err := PageFetcher{
+	body, err := adapterutil.PageFetcher{
 		Client:       server.Client(),
-		UserAgent:    BrowserUserAgent,
+		UserAgent:    adapterutil.BrowserUserAgent,
 		BuildError:   "build page request",
 		ExecuteError: "execute page request",
 		ReadError:    "read page response",
@@ -44,9 +46,9 @@ func TestFetchPageAppliesTimeoutWhenCallerHasNoDeadline(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := FetchPage(context.Background(), PageRequest{
-		BytesRequest: BytesRequest{
-			RequestSpec: RequestSpec{
+	_, err := adapterutil.FetchPage(context.Background(), adapterutil.PageRequest{
+		BytesRequest: adapterutil.BytesRequest{
+			RequestSpec: adapterutil.RequestSpec{
 				Client:       server.Client(),
 				URL:          server.URL,
 				BuildError:   "build page request",
@@ -64,18 +66,18 @@ func TestFetchPageAppliesTimeoutWhenCallerHasNoDeadline(t *testing.T) {
 func TestFirstRegexpGroup(t *testing.T) {
 	pattern := regexp.MustCompile(`<script>(.*?)</script>`)
 
-	payload, err := FirstRegexpGroup([]byte(`<script>payload</script>`), pattern, errPageExtractionNotFound)
+	payload, err := adapterutil.FirstRegexpGroup([]byte(`<script>payload</script>`), pattern, errPageExtractionNotFound)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("payload"), payload)
 
-	_, err = FirstRegexpGroup([]byte(`<html></html>`), pattern, errPageExtractionNotFound)
+	_, err = adapterutil.FirstRegexpGroup([]byte(`<html></html>`), pattern, errPageExtractionNotFound)
 	require.ErrorIs(t, err, errPageExtractionNotFound)
 }
 
 func TestDecodeJSONBlock(t *testing.T) {
 	pattern := regexp.MustCompile(`<script>(.*?)</script>`)
 
-	payload, err := DecodeJSONBlock[struct {
+	payload, err := adapterutil.DecodeJSONBlock[struct {
 		Name string `json:"name"`
 	}](
 		[]byte(`<script>{"name":"ariadne"}</script>`),
@@ -87,7 +89,7 @@ func TestDecodeJSONBlock(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ariadne", payload.Name)
 
-	_, err = DecodeJSONBlock[struct{}](
+	_, err = adapterutil.DecodeJSONBlock[struct{}](
 		[]byte(`<script>{</script>`),
 		pattern,
 		errPageExtractionNotFound,

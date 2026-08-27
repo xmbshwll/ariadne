@@ -21,25 +21,25 @@ func (e MatchEvidence) HasTitleOrArtist() bool {
 }
 
 type scoreContribution struct {
-	value    int
-	reason   string
-	evidence MatchEvidence
+	Value    int
+	Reason   string
+	Evidence MatchEvidence
 }
 
 func collectScoreContributions(contributions ...scoreContribution) (int, []string, MatchEvidence) {
 	score := 0
 	reasons := make([]string, 0, len(contributions))
-	evidence := MatchEvidence{}
+	Evidence := MatchEvidence{}
 	for _, contribution := range contributions {
-		if contribution.reason == "" {
+		if contribution.Reason == "" {
 			continue
 		}
-		score += contribution.value
-		reasons = append(reasons, contribution.reason)
-		evidence.Title = evidence.Title || contribution.evidence.Title
-		evidence.Artist = evidence.Artist || contribution.evidence.Artist
+		score += contribution.Value
+		reasons = append(reasons, contribution.Reason)
+		Evidence.Title = Evidence.Title || contribution.Evidence.Title
+		Evidence.Artist = Evidence.Artist || contribution.Evidence.Artist
 	}
-	return score, reasons, evidence
+	return score, reasons, Evidence
 }
 
 func normalizedOrDerived(raw string, normalized string) string {

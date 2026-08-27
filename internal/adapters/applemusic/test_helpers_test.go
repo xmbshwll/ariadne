@@ -1,4 +1,4 @@
-package applemusic
+package applemusic_test
 
 import (
 	"crypto/ecdsa"
@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
+
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -39,8 +42,8 @@ type testPayloads struct {
 type testFixture struct {
 	httpClient  *http.Client
 	serverURL   string
-	adapter     *Adapter
-	authAdapter *Adapter
+	adapter     *applemusic.Adapter
+	authAdapter *applemusic.Adapter
 	parsed      model.ParsedAlbumURL
 }
 
@@ -247,13 +250,13 @@ func newTestFixture(t *testing.T, payloads testPayloads) testFixture {
 	return testFixture{
 		httpClient: client,
 		serverURL:  serverURL,
-		adapter:    New(client, WithLookupBaseURL(serverURL)),
-		authAdapter: New(
+		adapter:    applemusic.New(client, applemusic.WithLookupBaseURL(serverURL)),
+		authAdapter: applemusic.New(
 			client,
-			WithLookupBaseURL(serverURL),
-			WithAPIBaseURL(serverURL),
-			WithDefaultStorefront("gb"),
-			WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
+			applemusic.WithLookupBaseURL(serverURL),
+			applemusic.WithAPIBaseURL(serverURL),
+			applemusic.WithDefaultStorefront("gb"),
+			applemusic.WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
 		),
 		parsed: model.ParsedAlbumURL{
 			Service:      model.ServiceAppleMusic,
@@ -266,18 +269,18 @@ func newTestFixture(t *testing.T, payloads testPayloads) testFixture {
 	}
 }
 
-func newOfficialTestAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *Adapter {
+func newOfficialTestAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *applemusic.Adapter {
 	t.Helper()
 	keyPath := writeTestPrivateKey(t)
 	mux := http.NewServeMux()
 	registerHandlers(mux)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	return New(
+	return applemusic.New(
 		server.Client(),
-		WithAPIBaseURL(server.URL),
-		WithDefaultStorefront("gb"),
-		WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
+		applemusic.WithAPIBaseURL(server.URL),
+		applemusic.WithDefaultStorefront("gb"),
+		applemusic.WithDeveloperTokenAuth("TEST12345", "TEAM123456", keyPath),
 	)
 }
 
@@ -324,7 +327,7 @@ func searchHandler(payloads testPayloads) http.HandlerFunc {
 			http.Error(w, "expected gb storefront", http.StatusBadRequest)
 			return
 		}
-		if r.URL.Query().Get("entity") == entitySong {
+		if r.URL.Query().Get("entity") == applemusic.EntitySong {
 			_, _ = w.Write(payloads.searchSong)
 			return
 		}

@@ -12,7 +12,7 @@ import (
 
 // SearchByMetadata searches Apple Music albums by title and artist metadata via the public search API.
 func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	queries := metadataQueries(album)
+	queries := MetadataQueries(album)
 	if len(queries) == 0 {
 		return nil, nil
 	}
@@ -63,7 +63,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
-			searchURL := a.metadataSearchURL(query, entitySong, storefront)
+			searchURL := a.metadataSearchURL(query, EntitySong, storefront)
 			var payload lookupResponse
 			if err := a.getJSON(ctx, searchURL, &payload); err != nil {
 				return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
@@ -111,7 +111,7 @@ func appleMusicAlbumSearchItemID(item lookupItem) string {
 }
 
 func appleMusicSongSearchItemID(item lookupItem) string {
-	if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong || item.TrackID == 0 {
+	if item.WrapperType != wrapperTypeTrack || item.Kind != EntitySong || item.TrackID == 0 {
 		return ""
 	}
 	return strconv.FormatInt(item.TrackID, 10)
@@ -121,14 +121,14 @@ func continueAppleMusicMetadataSearchAfterError(collected int) bool {
 	return collected > 0
 }
 
-func metadataQueries(album model.CanonicalAlbum) []string {
-	return buildMetadataQueries(album.Title, album.Artists)
+func MetadataQueries(album model.CanonicalAlbum) []string {
+	return BuildMetadataQueries(album.Title, album.Artists)
 }
 
 func songMetadataQueries(song model.CanonicalSong) []string {
-	return buildMetadataQueries(song.Title, song.Artists)
+	return BuildMetadataQueries(song.Title, song.Artists)
 }
 
-func buildMetadataQueries(title string, artists []string) []string {
+func BuildMetadataQueries(title string, artists []string) []string {
 	return adapterutil.MetadataQueries(title, artists)
 }

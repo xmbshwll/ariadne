@@ -1,6 +1,9 @@
 package ariadne
 
-import "github.com/xmbshwll/ariadne/internal/model"
+import (
+	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/wiring"
+)
 
 // ServiceName identifies a music service known to the library.
 type ServiceName = model.ServiceName
@@ -41,42 +44,24 @@ const (
 )
 
 // ServiceCapabilities describes Ariadne's built-in runtime support for one service.
-type ServiceCapabilities struct {
-	// Aliases are additional names accepted by LookupServiceName.
-	Aliases []string
-	// SupportsAlbumSource reports whether the service can parse and fetch album source URLs at runtime.
-	SupportsAlbumSource bool
-	// SupportsAlbumTarget reports whether the service has a built-in album target adapter.
-	SupportsAlbumTarget bool
-	// SupportsSongSource reports whether the service can parse and fetch song source URLs at runtime.
-	SupportsSongSource bool
-	// SupportsSongTarget reports whether the service has a built-in song target adapter.
-	SupportsSongTarget bool
-	// SupportsRuntimeSongInputURL reports whether the built-in runtime song pipeline can parse song URLs for this service.
-	SupportsRuntimeSongInputURL bool
-}
+type ServiceCapabilities = wiring.Capabilities
 
 // TargetServiceRequestStatus explains whether a requested target service can be used under a Config.
-type TargetServiceRequestStatus string
+type TargetServiceRequestStatus = wiring.TargetServiceRequestStatus
 
-// Re-export target service request status constants.
+// Re-export target service request status constants so callers don't need to import the wiring module.
 const (
 	// TargetServiceRequestAvailable means the service can be used as requested.
-	TargetServiceRequestAvailable TargetServiceRequestStatus = "available"
+	TargetServiceRequestAvailable = wiring.TargetServiceRequestAvailable
 	// TargetServiceRequestUnknown means the requested service name or alias is not known.
-	TargetServiceRequestUnknown TargetServiceRequestStatus = "unknown"
+	TargetServiceRequestUnknown = wiring.TargetServiceRequestUnknown
 	// TargetServiceRequestUnsupported means the service is known but does not support the requested target role.
-	TargetServiceRequestUnsupported TargetServiceRequestStatus = "unsupported"
+	TargetServiceRequestUnsupported = wiring.TargetServiceRequestUnsupported
 	// TargetServiceRequestParseOnly means the service can parse URLs but has no runtime target search capability.
-	TargetServiceRequestParseOnly TargetServiceRequestStatus = "parseOnly"
+	TargetServiceRequestParseOnly = wiring.TargetServiceRequestParseOnly
 	// TargetServiceRequestCredentialsRequired means the target role needs missing credentials.
-	TargetServiceRequestCredentialsRequired TargetServiceRequestStatus = "credentialsRequired"
+	TargetServiceRequestCredentialsRequired = wiring.TargetServiceRequestCredentialsRequired
 )
 
 // TargetServiceRequestDecision reports Provider Catalog validation for one requested target service.
-type TargetServiceRequestDecision struct {
-	Service ServiceName
-	Status  TargetServiceRequestStatus
-	// Message is a human-readable explanation for unavailable decisions.
-	Message string
-}
+type TargetServiceRequestDecision = wiring.TargetServiceRequestDecision

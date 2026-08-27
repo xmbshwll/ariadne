@@ -1,4 +1,4 @@
-package deezer
+package deezer_test
 
 import (
 	"net/http"
@@ -7,8 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	deezer "github.com/xmbshwll/ariadne/internal/adapters/deezer"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -76,8 +79,8 @@ func jsonError(status int, body string) jsonRoute {
 	return jsonRoute{status: status, body: []byte(body)}
 }
 
-func newTestAdapter(server *httptest.Server) *Adapter {
-	return newAdapter(server.Client(), server.URL)
+func newTestAdapter(server *httptest.Server) *deezer.Adapter {
+	return deezer.NewAdapter(server.Client(), server.URL)
 }
 
 func mustReadDeezerAlbumFixtures(t *testing.T) ([]byte, []byte) {

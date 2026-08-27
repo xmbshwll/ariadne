@@ -1,4 +1,4 @@
-package resolve
+package resolve_test
 
 import (
 	"context"
@@ -7,9 +7,12 @@ import (
 	"testing"
 	"time"
 
+	resolve "github.com/xmbshwll/ariadne/internal/resolve"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -25,7 +28,7 @@ var (
 func TestResolverResolveAlbum(t *testing.T) {
 	tests := []struct {
 		name                string
-		resolver            *Resolver
+		resolver            *resolve.Resolver
 		inputURL            string
 		wantErr             error
 		wantSourceService   model.ServiceName
@@ -36,25 +39,25 @@ func TestResolverResolveAlbum(t *testing.T) {
 	}{
 		{
 			name:     "no source adapters",
-			resolver: New(nil, nil, score.DefaultWeights()),
+			resolver: resolve.New(nil, nil, score.DefaultWeights()),
 			inputURL: "https://www.deezer.com/album/12047952",
-			wantErr:  ErrNoSourceAdapters,
+			wantErr:  resolve.ErrNoSourceAdapters,
 		},
 		{
 			name: "unsupported url",
-			resolver: New(
-				[]SourceAdapter{newStubSourceAdapter()},
+			resolver: resolve.New(
+				[]resolve.SourceAdapter{newStubSourceAdapter()},
 				nil,
 				score.DefaultWeights(),
 			),
 			inputURL: "https://example.com/album/123",
-			wantErr:  ErrUnsupportedURL,
+			wantErr:  resolve.ErrUnsupportedURL,
 		},
 		{
 			name: "collect layered candidates and dedupe",
-			resolver: New(
-				[]SourceAdapter{newStubSourceAdapter()},
-				[]TargetAdapter{newStubTargetAdapter()},
+			resolver: resolve.New(
+				[]resolve.SourceAdapter{newStubSourceAdapter()},
+				[]resolve.TargetAdapter{newStubTargetAdapter()},
 				score.DefaultWeights(),
 			),
 			inputURL:          "https://www.deezer.com/album/12047952",
@@ -101,8 +104,8 @@ func TestResolverResolveAlbum(t *testing.T) {
 }
 
 func TestResolverResolveAlbumReturnsNilSourceAlbumError(t *testing.T) {
-	resolver := New(
-		[]SourceAdapter{newNilAlbumSourceAdapter()},
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newNilAlbumSourceAdapter()},
 		nil,
 		score.DefaultWeights(),
 	)
@@ -111,7 +114,7 @@ func TestResolverResolveAlbumReturnsNilSourceAlbumError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, resolution)
 	assert.EqualError(t, err, "fetch source album returned nil from deezer")
-	assert.ErrorIs(t, err, errNilSourceAlbum)
+	assert.ErrorIs(t, err, resolve.ErrNilSourceAlbum)
 }
 
 func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
@@ -119,9 +122,9 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 	spotifyStarted := make(chan struct{}, 1)
 	appleMusicStarted := make(chan struct{}, 1)
 
-	resolver := New(
-		[]SourceAdapter{newStubSourceAdapter()},
-		[]TargetAdapter{
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newStubSourceAdapter()},
+		[]resolve.TargetAdapter{
 			newBlockingTargetAdapter(model.ServiceSpotify, spotifyStarted, release),
 			newBlockingTargetAdapter(model.ServiceAppleMusic, appleMusicStarted, release),
 		},
@@ -208,9 +211,9 @@ func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t
 	})
 	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
 
-	resolver := New(
-		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]TargetAdapter{spotifyTarget, appleTarget},
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]resolve.TargetAdapter{spotifyTarget, appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -275,9 +278,9 @@ func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.
 		return nil, nil
 	})
 
-	resolver := New(
-		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]TargetAdapter{spotifyTarget, appleTarget},
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]resolve.TargetAdapter{spotifyTarget, appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -311,9 +314,9 @@ func TestResolverResolveAlbumFiltersAppleMusicMetadataFallbackCandidates(t *test
 		[]model.CandidateAlbum{noTitleArtistCandidate, nonPositiveCandidate},
 		nil,
 	)
-	resolver := New(
-		[]SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]TargetAdapter{appleTarget},
+	resolver := resolve.New(
+		[]resolve.SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]resolve.TargetAdapter{appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -577,12 +580,12 @@ func TestResolverCrossServiceFixtures(t *testing.T) {
 		targetCandidates[fixture.targetService][fixture.source.SourceID] = fixture.candidates
 	}
 
-	targets := make([]TargetAdapter, 0, len(targetCandidates))
+	targets := make([]resolve.TargetAdapter, 0, len(targetCandidates))
 	for service, candidatesBySourceID := range targetCandidates {
 		targets = append(targets, newFixtureTargetAdapter(service, candidatesBySourceID))
 	}
 
-	resolver := New([]SourceAdapter{newFixtureSourceAdapter(sourceAlbumsByURL)}, targets, score.DefaultWeights())
+	resolver := resolve.New([]resolve.SourceAdapter{newFixtureSourceAdapter(sourceAlbumsByURL)}, targets, score.DefaultWeights())
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			resolution, err := resolver.ResolveAlbum(context.Background(), fixture.inputURL)

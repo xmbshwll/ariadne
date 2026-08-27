@@ -8,6 +8,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 	"github.com/xmbshwll/ariadne/internal/score"
+	"github.com/xmbshwll/ariadne/internal/wiring"
 )
 
 // Resolver wraps the internal resolvers with a public library-facing API.
@@ -55,12 +56,12 @@ func New(config Config, opts ...Option) *Resolver {
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
-	adapters := buildResolverAdapters(client, config, defaultServiceBindings, defaultServiceOrder, config.TargetServices)
+	adapters := wiring.DefaultResolverAdapters(client, internalConfig(config), config.TargetServices)
 	return newResolver(
-		adapters.albumSources,
-		adapters.albumTargets,
-		adapters.songSources,
-		adapters.songTargets,
+		adapters.AlbumSources,
+		adapters.AlbumTargets,
+		adapters.SongSources,
+		adapters.SongTargets,
 		config.ScoreWeights,
 		config.SongScoreWeights,
 	)

@@ -1,4 +1,4 @@
-package deezer
+package deezer_test
 
 import (
 	"context"
@@ -6,8 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	deezer "github.com/xmbshwll/ariadne/internal/adapters/deezer"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -82,7 +85,7 @@ func TestSearchKeepsEarlierResultsWhenLaterLookupsFail(t *testing.T) {
 	tests := []struct {
 		name      string
 		newServer func(t *testing.T) *httptest.Server
-		search    func(a *Adapter) (int, error)
+		search    func(a *deezer.Adapter) (int, error)
 	}{
 		{
 			name: "isrc search tolerates later query failure",
@@ -96,7 +99,7 @@ func TestSearchKeepsEarlierResultsWhenLaterLookupsFail(t *testing.T) {
 					deezerAlbumTracksPath:                   jsonOK(trackBytes),
 				})
 			},
-			search: func(a *Adapter) (int, error) {
+			search: func(a *deezer.Adapter) (int, error) {
 				results, err := a.SearchByISRC(context.Background(), []string{deezerComeTogetherISRC, "BADISRC"})
 				return len(results), err
 			},
@@ -125,7 +128,7 @@ func TestSearchKeepsEarlierResultsWhenLaterLookupsFail(t *testing.T) {
 				})
 				return server
 			},
-			search: func(a *Adapter) (int, error) {
+			search: func(a *deezer.Adapter) (int, error) {
 				results, err := a.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
 				return len(results), err
 			},
@@ -166,14 +169,14 @@ func TestSearchSkipsCandidatesWithoutUsableIDs(t *testing.T) {
 	tests := []struct {
 		name   string
 		routes map[string]jsonRoute
-		search func(a *Adapter) (int, error)
+		search func(a *deezer.Adapter) (int, error)
 	}{
 		{
 			name: "isrc tracks without album ids",
 			routes: map[string]jsonRoute{
 				"/track/isrc:" + deezerComeTogetherISRC: jsonOK(mustReadTestFile(t, "testdata/track-without-album-id.json")),
 			},
-			search: func(a *Adapter) (int, error) {
+			search: func(a *deezer.Adapter) (int, error) {
 				results, err := a.SearchByISRC(context.Background(), []string{deezerComeTogetherISRC})
 				return len(results), err
 			},
@@ -183,7 +186,7 @@ func TestSearchSkipsCandidatesWithoutUsableIDs(t *testing.T) {
 			routes: map[string]jsonRoute{
 				deezerAlbumSearchPath: jsonOK(mustReadTestFile(t, "testdata/search-album-non-positive-id.json")),
 			},
-			search: func(a *Adapter) (int, error) {
+			search: func(a *deezer.Adapter) (int, error) {
 				results, err := a.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
 				return len(results), err
 			},
@@ -193,7 +196,7 @@ func TestSearchSkipsCandidatesWithoutUsableIDs(t *testing.T) {
 			routes: map[string]jsonRoute{
 				deezerTrackSearchPath: jsonOK(mustReadTestFile(t, "testdata/search-track-non-positive-id.json")),
 			},
-			search: func(a *Adapter) (int, error) {
+			search: func(a *deezer.Adapter) (int, error) {
 				results, err := a.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
 				return len(results), err
 			},
@@ -221,5 +224,5 @@ func TestSearchSongByMetadataReturnsMalformedResponseError(t *testing.T) {
 	adapter := newTestAdapter(server)
 	_, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"The Beatles"}})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedDeezerResponse)
+	assert.ErrorIs(t, err, deezer.ErrMalformedDeezerResponse)
 }

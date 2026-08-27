@@ -87,10 +87,10 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[albumResponse, model.CandidateAlbum]{
+	targetSearch := adapterutil.MetadataQuerySearch[AlbumResponse, model.CandidateAlbum]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
-		Search: func(ctx context.Context, query string) ([]albumResponse, error) {
+		Search: func(ctx context.Context, query string) ([]AlbumResponse, error) {
 			var searchResults albumSearchResponse
 			endpoint := a.baseURL + "/search/album?q=" + url.QueryEscape(query)
 			if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
@@ -136,7 +136,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]trackResponse, error) {
-			var searchResults tracksResponse
+			var searchResults TracksResponse
 			endpoint := a.baseURL + "/search/track?q=" + url.QueryEscape(query)
 			if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
 				return nil, fmt.Errorf("search deezer song by metadata %q: %w", query, err)
@@ -161,7 +161,7 @@ func isDeezerTrackLookupMiss(err error) bool {
 	return errors.Is(err, errDeezerTrackNotFound)
 }
 
-func deezerAlbumSearchCandidateID(candidate albumResponse) string {
+func deezerAlbumSearchCandidateID(candidate AlbumResponse) string {
 	return deezerCandidateID(candidate.ID)
 }
 
@@ -176,7 +176,7 @@ func deezerCandidateID(id int) string {
 	return strconv.Itoa(id)
 }
 
-func (a *Adapter) hydrateDeezerAlbumSearchCandidate(ctx context.Context, candidate albumResponse) (model.CandidateAlbum, error) {
+func (a *Adapter) hydrateDeezerAlbumSearchCandidate(ctx context.Context, candidate AlbumResponse) (model.CandidateAlbum, error) {
 	hydrated, err := a.hydrateAlbumCandidate(ctx, candidate.ID)
 	if err != nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate deezer candidate %d: %w", candidate.ID, err)

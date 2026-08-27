@@ -1,13 +1,15 @@
-package config
+package config_test
 
 import (
 	"testing"
+
+	config "github.com/xmbshwll/ariadne/internal/config"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadFromEnv(t *testing.T) {
-	cfg := LoadFromEnv(func(key string) string {
+	cfg := config.LoadFromEnv(func(key string) string {
 		switch key {
 		case "SPOTIFY_CLIENT_ID":
 			return "  client-id  "
@@ -47,7 +49,7 @@ func TestLoadFromEnv(t *testing.T) {
 }
 
 func TestLoadFromEnvDefaults(t *testing.T) {
-	cfg := LoadFromEnv(nil)
+	cfg := config.LoadFromEnv(nil)
 	assert.False(t, cfg.Spotify.Enabled())
 	assert.Equal(t, "us", cfg.AppleMusic.Storefront)
 	assert.False(t, cfg.AppleMusic.AuthEnabled())

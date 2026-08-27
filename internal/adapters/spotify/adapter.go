@@ -22,11 +22,11 @@ var (
 
 	errUnexpectedSpotifyService       = errors.New("unexpected spotify service")
 	errUnexpectedSpotifyStatus        = errors.New("unexpected spotify status")
-	errSpotifyAlbumNotFound           = errors.New("spotify album not found")
+	ErrSpotifyAlbumNotFound           = errors.New("spotify album not found")
 	errSpotifyTrackNotFound           = errors.New("spotify track not found")
 	errUnexpectedSpotifyAPIStatus     = errors.New("unexpected spotify api status")
 	errUnexpectedSpotifyTokenStatus   = errors.New("unexpected spotify token status")
-	errMalformedSpotifyAPIResponse    = errors.New("malformed spotify api response")
+	ErrMalformedSpotifyAPIResponse    = errors.New("malformed spotify api response")
 	errMalformedSpotifyBootstrapState = errors.New("malformed spotify bootstrap state")
 	errEmptySpotifyAccessToken        = errors.New("empty spotify access token")
 	errInitialStateScriptNotFound     = errors.New("initial state script not found")

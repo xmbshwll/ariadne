@@ -1,4 +1,4 @@
-package spotify
+package spotify_test
 
 import (
 	"context"
@@ -10,8 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	spotify "github.com/xmbshwll/ariadne/internal/adapters/spotify"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -43,21 +46,21 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	assert.Equal(t, wantID, candidates[0].CandidateID)
 }
 
-func newSpotifyAPIAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *Adapter {
+func newSpotifyAPIAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *spotify.Adapter {
 	t.Helper()
 	mux := http.NewServeMux()
 	registerSpotifyTokenEndpoint(t, mux)
 	registerHandlers(mux)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	return New(server.Client(), WithCredentials("client-id", "client-secret"), WithAPIBaseURL(server.URL), WithAuthBaseURL(server.URL))
+	return spotify.New(server.Client(), spotify.WithCredentials("client-id", "client-secret"), spotify.WithAPIBaseURL(server.URL), spotify.WithAuthBaseURL(server.URL))
 }
 
 func registerSpotifyTokenEndpoint(t *testing.T, mux *http.ServeMux) {
 	t.Helper()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		requireSpotifyTokenRequest(t, r)
-		_ = json.NewEncoder(w).Encode(tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
+		_ = json.NewEncoder(w).Encode(spotify.TokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
 	})
 }
 
@@ -74,7 +77,7 @@ func requireSpotifyBearerAuth(t *testing.T, r *http.Request) {
 	assert.Equal(t, "Bearer token-123", r.Header.Get("Authorization"))
 }
 
-func registerSpotifyTrackEndpoint(t *testing.T, mux *http.ServeMux, tracksByID map[string]apiTrack) {
+func registerSpotifyTrackEndpoint(t *testing.T, mux *http.ServeMux, tracksByID map[string]spotify.APITrack) {
 	t.Helper()
 	registerSpotifyTrackHandler(t, mux, func(w http.ResponseWriter, r *http.Request, trackID string) {
 		track, ok := tracksByID[trackID]
@@ -102,7 +105,7 @@ func spotifyTrackIDFromRequest(r *http.Request) string {
 }
 
 func TestSearchAlbumByMetadataEmptyAlbumWithoutCredentialsReturnsEmptyResults(t *testing.T) {
-	adapter := New(http.DefaultClient)
+	adapter := spotify.New(http.DefaultClient)
 
 	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{})
 	require.NoError(t, err)
@@ -110,7 +113,7 @@ func TestSearchAlbumByMetadataEmptyAlbumWithoutCredentialsReturnsEmptyResults(t 
 }
 
 func TestSearchSongByMetadataEmptySongWithoutCredentialsReturnsEmptyResults(t *testing.T) {
-	adapter := New(http.DefaultClient)
+	adapter := spotify.New(http.DefaultClient)
 
 	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{})
 	require.NoError(t, err)

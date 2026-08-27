@@ -1,4 +1,4 @@
-package bandcamp
+package bandcamp_test
 
 import (
 	"encoding/json"
@@ -10,7 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
+
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -36,8 +39,8 @@ func newBandcampTestServer(buildRoutes func(baseURL string) map[string][]byte) *
 	return server
 }
 
-func newBandcampTestAdapter(server *httptest.Server) *Adapter {
-	return New(server.Client(), WithSearchBaseURL(server.URL))
+func newBandcampTestAdapter(server *httptest.Server) *bandcamp.Adapter {
+	return bandcamp.New(server.Client(), bandcamp.WithSearchBaseURL(server.URL))
 }
 
 func newBandcampAlbumSource(baseURL, slug string) model.ParsedAlbumURL {

@@ -1,11 +1,14 @@
-package resolve
+package resolve_test
 
 import (
 	"context"
 	"testing"
 
+	resolve "github.com/xmbshwll/ariadne/internal/resolve"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -13,7 +16,7 @@ import (
 func TestSongResolverResolveSong(t *testing.T) {
 	tests := []struct {
 		name               string
-		resolver           *SongResolver
+		resolver           *resolve.SongResolver
 		inputURL           string
 		wantErr            error
 		wantErrMessage     string
@@ -23,25 +26,25 @@ func TestSongResolverResolveSong(t *testing.T) {
 	}{
 		{
 			name:     "no source adapters",
-			resolver: NewSongs(nil, nil, score.DefaultSongWeights()),
+			resolver: resolve.NewSongs(nil, nil, score.DefaultSongWeights()),
 			inputURL: "https://open.spotify.com/track/1",
-			wantErr:  ErrNoSourceAdapters,
+			wantErr:  resolve.ErrNoSourceAdapters,
 		},
 		{
 			name: "unsupported url",
-			resolver: NewSongs(
-				[]SongSourceAdapter{newStubSongSourceAdapter()},
+			resolver: resolve.NewSongs(
+				[]resolve.SongSourceAdapter{newStubSongSourceAdapter()},
 				nil,
 				score.DefaultSongWeights(),
 			),
 			inputURL: "https://example.com/track/123",
-			wantErr:  ErrUnsupportedURL,
+			wantErr:  resolve.ErrUnsupportedURL,
 		},
 		{
 			name: "collect song candidates and dedupe",
-			resolver: NewSongs(
-				[]SongSourceAdapter{newStubSongSourceAdapter()},
-				[]SongTargetAdapter{newStubSongTargetAdapter()},
+			resolver: resolve.NewSongs(
+				[]resolve.SongSourceAdapter{newStubSongSourceAdapter()},
+				[]resolve.SongTargetAdapter{newStubSongTargetAdapter()},
 				score.DefaultSongWeights(),
 			),
 			inputURL:          "https://open.spotify.com/track/track-1",
@@ -53,8 +56,8 @@ func TestSongResolverResolveSong(t *testing.T) {
 		},
 		{
 			name: "nil source song",
-			resolver: NewSongs(
-				[]SongSourceAdapter{newNilSongSourceAdapter()},
+			resolver: resolve.NewSongs(
+				[]resolve.SongSourceAdapter{newNilSongSourceAdapter()},
 				nil,
 				score.DefaultSongWeights(),
 			),
@@ -74,7 +77,7 @@ func TestSongResolverResolveSong(t *testing.T) {
 				require.Error(t, err)
 				assert.Nil(t, resolution)
 				assert.EqualError(t, err, tt.wantErrMessage)
-				assert.ErrorIs(t, err, errNilSourceSong)
+				assert.ErrorIs(t, err, resolve.ErrNilSourceSong)
 				return
 			}
 			require.NoError(t, err)

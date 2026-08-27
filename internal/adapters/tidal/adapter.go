@@ -21,10 +21,10 @@ var (
 
 	errUnexpectedTIDALService     = errors.New("unexpected tidal service")
 	errTIDALAlbumNotFound         = errors.New("tidal album not found")
-	errTIDALTrackNotFound         = errors.New("tidal track not found")
+	ErrTIDALTrackNotFound         = errors.New("tidal track not found")
 	errUnexpectedTIDALAPIStatus   = errors.New("unexpected tidal api status")
 	errUnexpectedTIDALTokenStatus = errors.New("unexpected tidal token status")
-	errMalformedTIDALAPIResponse  = errors.New("malformed tidal api response")
+	ErrMalformedTIDALAPIResponse  = errors.New("malformed tidal api response")
 	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
 )
 

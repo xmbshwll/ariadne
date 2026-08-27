@@ -46,7 +46,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 	if parsed.CanonicalURL == "" {
 		parsed.CanonicalURL = canonicalCollectionURL(payload.Results[0].CollectionViewURL, "")
 	}
-	return toCanonicalAlbum(parsed, payload.Results), nil
+	return ToCanonicalAlbum(parsed, payload.Results), nil
 }
 
 func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL string, storefront string) (*model.CanonicalSong, error) {
@@ -57,12 +57,12 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 	}
 	track, ok := firstSongLookupItem(payload.Results)
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", errAppleMusicSongNotFound, songID)
+		return nil, fmt.Errorf("%w: %s", ErrAppleMusicSongNotFound, songID)
 	}
 
 	parsed := model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   entitySong,
+		EntityType:   EntitySong,
 		ID:           songID,
 		CanonicalURL: canonicalURL,
 		RegionHint:   a.storefrontFor(storefront),
@@ -93,7 +93,7 @@ func firstSongLookupItem(items []lookupItem) (lookupItem, bool) {
 		if item.TrackID == 0 {
 			continue
 		}
-		if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong {
+		if item.WrapperType != wrapperTypeTrack || item.Kind != EntitySong {
 			continue
 		}
 		return item, true

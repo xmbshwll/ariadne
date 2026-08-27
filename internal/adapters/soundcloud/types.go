@@ -12,7 +12,7 @@ type searchResponse struct {
 }
 
 type trackSearchResponse struct {
-	Collection []soundTrack `json:"collection"`
+	Collection []SoundTrack `json:"collection"`
 }
 
 type soundPlaylist struct {
@@ -29,18 +29,18 @@ type soundPlaylist struct {
 	Duration     int          `json:"duration"`
 	LabelName    string       `json:"label_name"`
 	Genre        string       `json:"genre"`
-	User         soundUser    `json:"user"`
-	Tracks       []soundTrack `json:"tracks"`
+	User         SoundUser    `json:"user"`
+	Tracks       []SoundTrack `json:"tracks"`
 }
 
-type soundUser struct {
+type SoundUser struct {
 	ID           int64  `json:"id"`
 	Username     string `json:"username"`
 	Permalink    string `json:"permalink"`
 	PermalinkURL string `json:"permalink_url"`
 }
 
-type soundTrack struct {
+type SoundTrack struct {
 	ID                int64             `json:"id"`
 	Title             string            `json:"title"`
 	PermalinkURL      string            `json:"permalink_url"`
@@ -50,11 +50,11 @@ type soundTrack struct {
 	ReleaseDate       string            `json:"release_date"`
 	DisplayDate       string            `json:"display_date"`
 	LabelName         string            `json:"label_name"`
-	User              soundUser         `json:"user"`
-	PublisherMetadata publisherMetadata `json:"publisher_metadata"`
+	User              SoundUser         `json:"user"`
+	PublisherMetadata PublisherMetadata `json:"publisher_metadata"`
 }
 
-type publisherMetadata struct {
+type PublisherMetadata struct {
 	Artist          string `json:"artist"`
 	AlbumTitle      string `json:"album_title"`
 	UPCOrEAN        string `json:"upc_or_ean"`

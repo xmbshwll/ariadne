@@ -59,7 +59,7 @@ func (a *Adapter) fetchTrackLookup(ctx context.Context, endpoint string) (*track
 }
 
 func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parsedOverride ...model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
-	var album albumResponse
+	var album AlbumResponse
 	if err := a.getJSON(ctx, endpoint, &album); err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parse
 		parsed = parsedOverride[0]
 	}
 
-	return a.toCanonicalAlbum(parsed, album, tracks), nil
+	return a.ToCanonicalAlbum(parsed, album, tracks), nil
 }
 
 func (a *Adapter) getJSON(ctx context.Context, endpoint string, target any) error {
@@ -113,11 +113,11 @@ func (a *Adapter) getJSON(ctx context.Context, endpoint string, target any) erro
 	if decodeErr != nil {
 		if closeErr != nil {
 			return errors.Join(
-				fmt.Errorf("decode response: %w", errors.Join(errMalformedDeezerResponse, decodeErr)),
+				fmt.Errorf("decode response: %w", errors.Join(ErrMalformedDeezerResponse, decodeErr)),
 				fmt.Errorf("close response body: %w", closeErr),
 			)
 		}
-		return fmt.Errorf("decode response: %w", errors.Join(errMalformedDeezerResponse, decodeErr))
+		return fmt.Errorf("decode response: %w", errors.Join(ErrMalformedDeezerResponse, decodeErr))
 	}
 	if closeErr != nil {
 		return fmt.Errorf("close response body: %w", closeErr)

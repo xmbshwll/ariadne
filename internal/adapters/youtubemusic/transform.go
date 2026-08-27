@@ -26,11 +26,11 @@ func extractAlbum(body []byte, fallbackURL string) (*model.CanonicalAlbum, error
 	}
 	title := cleanAlbumTitle(extractFirstGroup(ogTitlePattern, body))
 	if title == "" {
-		return nil, errors.Join(errMalformedYouTubeMusicPage, errYouTubeMusicAlbumTitleNotFound)
+		return nil, errors.Join(ErrMalformedYouTubeMusicPage, errYouTubeMusicAlbumTitleNotFound)
 	}
 
 	artist := html.UnescapeString(extractFirstGroup(subtitleArtistPattern, body))
-	trackTitles := extractTrackTitles(body)
+	trackTitles := ExtractTrackTitles(body)
 	artists := nonEmptyArtistList(artist)
 	sourceID := youTubeMusicAlbumSourceID(canonicalURL)
 
@@ -92,7 +92,7 @@ func extractSearchCandidates(body []byte) []searchCandidate {
 	return results
 }
 
-func extractTrackTitles(body []byte) []string {
+func ExtractTrackTitles(body []byte) []string {
 	matches := trackTitlePattern.FindAllSubmatch(body, -1)
 	titles := make([]string, 0, len(matches))
 	for _, match := range matches {
@@ -100,7 +100,7 @@ func extractTrackTitles(body []byte) []string {
 			continue
 		}
 		title := html.UnescapeString(string(match[1]))
-		if shouldSkipTrackTitle(title) {
+		if ShouldSkipTrackTitle(title) {
 			continue
 		}
 		if len(titles) > 0 && titles[len(titles)-1] == title {
@@ -111,7 +111,7 @@ func extractTrackTitles(body []byte) []string {
 	return titles
 }
 
-func shouldSkipTrackTitle(value string) bool {
+func ShouldSkipTrackTitle(value string) bool {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return true

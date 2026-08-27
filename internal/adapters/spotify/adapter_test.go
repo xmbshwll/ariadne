@@ -1,4 +1,4 @@
-package spotify
+package spotify_test
 
 import (
 	"context"
@@ -6,8 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	spotify "github.com/xmbshwll/ariadne/internal/adapters/spotify"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -23,7 +26,7 @@ func TestFetchAlbumViaBootstrap(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter := New(server.Client(), WithWebBaseURL(server.URL))
+	adapter := spotify.New(server.Client(), spotify.WithWebBaseURL(server.URL))
 	parsed := model.ParsedAlbumURL{
 		Service:      model.ServiceSpotify,
 		EntityType:   model.EntityTypeAlbum,

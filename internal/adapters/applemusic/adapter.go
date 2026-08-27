@@ -14,18 +14,18 @@ const (
 	defaultLookupBaseURL = "https://itunes.apple.com"
 	defaultAPIBaseURL    = "https://api.music.apple.com/v1"
 	searchLimit          = 5
-	entitySong           = "song"
+	EntitySong           = "song"
 	wrapperTypeTrack     = "track"
 )
 
 var (
 	errUnexpectedAppleMusicService = errors.New("unexpected apple music service")
 	errAppleMusicAlbumNotFound     = errors.New("apple music album not found")
-	errAppleMusicSongNotFound      = errors.New("apple music song not found")
+	ErrAppleMusicSongNotFound      = errors.New("apple music song not found")
 	errUnexpectedAppleMusicStatus  = errors.New("unexpected apple music status")
 
 	errUnexpectedAppleMusicOfficialStatus  = errors.New("unexpected apple music official status")
-	errMalformedAppleMusicOfficialResponse = errors.New("malformed apple music official response")
+	ErrMalformedAppleMusicOfficialResponse = errors.New("malformed apple music official response")
 	errAppleMusicOfficialAlbumNotFound     = errors.New("apple music official album not found")
 
 	// ErrCredentialsNotConfigured indicates that an Apple Music official API operation requires developer token credentials.

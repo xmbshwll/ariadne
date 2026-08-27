@@ -1,9 +1,11 @@
-package adapterutil
+package adapterutil_test
 
 import (
 	"context"
 	"errors"
 	"testing"
+
+	adapterutil "github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +26,7 @@ type metadataQueryTestItem struct {
 type metadataQueryContextKey struct{}
 
 func TestMetadataQuerySearchReturnsEmptySliceForNoQueries(t *testing.T) {
-	candidates, err := (MetadataQuerySearch[metadataQueryTestItem, string]{}).Collect(context.Background())
+	candidates, err := (adapterutil.MetadataQuerySearch[metadataQueryTestItem, string]{}).Collect(context.Background())
 
 	require.NoError(t, err)
 	assert.NotNil(t, candidates)
@@ -33,7 +35,7 @@ func TestMetadataQuerySearchReturnsEmptySliceForNoQueries(t *testing.T) {
 
 func TestMetadataQuerySearchPassesContextToSearchAndBuildCandidate(t *testing.T) {
 	ctx := context.WithValue(context.Background(), metadataQueryContextKey{}, "metadata-context")
-	targetSearch := MetadataQuerySearch[metadataQueryTestItem, string]{
+	targetSearch := adapterutil.MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first"},
 		Limit:   1,
 		Search: func(ctx context.Context, query string) ([]metadataQueryTestItem, error) {
@@ -59,7 +61,7 @@ func TestMetadataQuerySearchPassesContextToSearchAndBuildCandidate(t *testing.T)
 func TestMetadataQuerySearchDeduplicatesAndStopsAtLimit(t *testing.T) {
 	searches := []string{}
 
-	candidates, err := MetadataQuerySearch[metadataQueryTestItem, string]{
+	candidates, err := adapterutil.MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   3,
 		Search: func(_ context.Context, query string) ([]metadataQueryTestItem, error) {
@@ -91,7 +93,7 @@ func TestMetadataQuerySearchDeduplicatesAndStopsAtLimit(t *testing.T) {
 }
 
 func TestMetadataQuerySearchReturnsFirstSearchErrorWhenNothingCollected(t *testing.T) {
-	_, err := MetadataQuerySearch[metadataQueryTestItem, string]{
+	_, err := adapterutil.MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   2,
 		Search: func(_ context.Context, query string) ([]metadataQueryTestItem, error) {
@@ -112,7 +114,7 @@ func TestMetadataQuerySearchReturnsFirstSearchErrorWhenNothingCollected(t *testi
 }
 
 func TestMetadataQuerySearchCanStopAfterSearchError(t *testing.T) {
-	_, err := MetadataQuerySearch[metadataQueryTestItem, string]{
+	_, err := adapterutil.MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first", "second"},
 		Limit:   2,
 		Search: func(context.Context, string) ([]metadataQueryTestItem, error) {
@@ -133,7 +135,7 @@ func TestMetadataQuerySearchCanStopAfterSearchError(t *testing.T) {
 }
 
 func TestMetadataQuerySearchReturnsFirstCandidateErrorWhenNothingBuilds(t *testing.T) {
-	_, err := MetadataQuerySearch[metadataQueryTestItem, string]{
+	_, err := adapterutil.MetadataQuerySearch[metadataQueryTestItem, string]{
 		Queries: []string{"first"},
 		Limit:   2,
 		Search: func(context.Context, string) ([]metadataQueryTestItem, error) {

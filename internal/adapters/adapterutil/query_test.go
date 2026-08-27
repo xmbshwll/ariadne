@@ -1,7 +1,9 @@
-package adapterutil
+package adapterutil_test
 
 import (
 	"testing"
+
+	adapterutil "github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -39,13 +41,13 @@ func TestMetadataQueries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, MetadataQueries(tt.title, tt.artists))
+			assert.Equal(t, tt.want, adapterutil.MetadataQueries(tt.title, tt.artists))
 		})
 	}
 }
 
 func TestFormattedMetadataQueries(t *testing.T) {
-	queries := FormattedMetadataQueries("Solid Static", []string{"Musica Transonic + Mainliner"}, func(titleVariant string, artistVariant string) string {
+	queries := adapterutil.FormattedMetadataQueries("Solid Static", []string{"Musica Transonic + Mainliner"}, func(titleVariant string, artistVariant string) string {
 		return titleVariant + " by " + artistVariant
 	}, func(titleVariant string) string {
 		return "title only " + titleVariant
@@ -72,7 +74,7 @@ func TestPrimaryMetadataQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, PrimaryMetadataQuery(tt.title, tt.artists))
+			assert.Equal(t, tt.want, adapterutil.PrimaryMetadataQuery(tt.title, tt.artists))
 		})
 	}
 }

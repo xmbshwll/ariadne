@@ -1,11 +1,14 @@
-package bandcamp
+package bandcamp_test
 
 import (
 	"context"
 	"testing"
 
+	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -44,10 +47,10 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := mustReadBandcampFixture(t, tt.fixture)
-			candidates := extractSearchCandidates(body)
+			candidates := bandcamp.ExtractSearchCandidates(body)
 			require.Len(t, candidates, tt.wantCount)
 
-			ranked := rankSearchCandidates(tt.source, candidates)
+			ranked := bandcamp.RankSearchCandidates(tt.source, candidates)
 			require.Len(t, ranked, tt.wantCount)
 			for i, want := range tt.wantTitles {
 				assert.Equal(t, want, ranked[i].Title)
@@ -58,14 +61,14 @@ func TestExtractAndRankSearchCandidates(t *testing.T) {
 
 func TestExtractSearchCandidatesDeduplicatesURLs(t *testing.T) {
 	body := mustReadBandcampFixture(t, "testdata/search-fixture-url-dedup.html")
-	candidates := extractSearchCandidates(body)
+	candidates := bandcamp.ExtractSearchCandidates(body)
 	require.Len(t, candidates, 1)
 	assert.Equal(t, "https://artist.bandcamp.com/album/example-album", candidates[0].URL)
 }
 
 func TestExtractSongSearchCandidatesCanonicalizesAndDeduplicatesURLs(t *testing.T) {
 	body := mustReadBandcampFixture(t, "testdata/search-fixture-track.html")
-	candidates := extractSongSearchCandidates(body)
+	candidates := bandcamp.ExtractSongSearchCandidates(body)
 	require.Len(t, candidates, 2)
 
 	assert.Equal(t, "Come Together", candidates[0].Title)
@@ -85,19 +88,19 @@ func TestSearchBandcampCandidatesFallsBackToHTMLWhenAutocompleteYieldsNoCandidat
 	defer server.Close()
 
 	adapter := newBandcampTestAdapter(server)
-	search := bandcampTargetSearch[model.CandidateAlbum]{
-		adapter:                adapter,
-		query:                  "Fenian Kneecap",
-		autocompleteCandidates: extractAutocompleteAlbumSearchCandidates,
-		htmlCandidates: func([]byte) []searchCandidate {
-			return []searchCandidate{{URL: server.URL + "/album/fenian", Title: "Fenian"}}
+	search := bandcamp.BandcampTargetSearch[model.CandidateAlbum]{
+		Adapter:                adapter,
+		Query:                  "Fenian Kneecap",
+		AutocompleteCandidates: bandcamp.ExtractAutocompleteAlbumSearchCandidates,
+		HtmlCandidates: func([]byte) []bandcamp.SearchCandidate {
+			return []bandcamp.SearchCandidate{{URL: server.URL + "/album/fenian", Title: "Fenian"}}
 		},
-		hydrate: func(_ context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
+		Hydrate: func(_ context.Context, candidate bandcamp.SearchCandidate) (model.CandidateAlbum, error) {
 			return model.CandidateAlbum{CandidateID: "fenian", MatchURL: candidate.URL}, nil
 		},
-		collectErr: "collect bandcamp album candidates",
+		CollectErr: "collect bandcamp album candidates",
 	}
-	results, err := search.run(context.Background())
+	results, err := search.Run(context.Background())
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)

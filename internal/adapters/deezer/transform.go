@@ -9,7 +9,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func (a *Adapter) toCanonicalAlbum(parsed model.ParsedAlbumURL, album albumResponse, tracks tracksResponse) *model.CanonicalAlbum {
+func (a *Adapter) ToCanonicalAlbum(parsed model.ParsedAlbumURL, album AlbumResponse, tracks TracksResponse) *model.CanonicalAlbum {
 	artists := contributorNames(album)
 	if len(artists) == 0 && album.Artist.Name != "" {
 		artists = []string{album.Artist.Name}
@@ -90,7 +90,7 @@ func (a *Adapter) toCanonicalSong(track trackLookupResponse) *model.CanonicalSon
 	}
 }
 
-func contributorNames(album albumResponse) []string {
+func contributorNames(album AlbumResponse) []string {
 	artists := make([]string, 0, len(album.Contributors))
 	for _, contributor := range album.Contributors {
 		if contributor.Name == "" {

@@ -1,4 +1,4 @@
-package youtubemusic
+package youtubemusic_test
 
 import (
 	"fmt"
@@ -9,7 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	youtubemusic "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
+
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -40,8 +43,8 @@ func newYouTubeMusicTestServer(routes map[string][]byte) *httptest.Server {
 	}))
 }
 
-func newYouTubeMusicTestAdapter(server *httptest.Server) *Adapter {
-	return New(server.Client(), WithBaseURL(server.URL))
+func newYouTubeMusicTestAdapter(server *httptest.Server) *youtubemusic.Adapter {
+	return youtubemusic.New(server.Client(), youtubemusic.WithBaseURL(server.URL))
 }
 
 func newYouTubeMusicAlbumSource(baseURL string) model.ParsedAlbumURL {

@@ -1,4 +1,4 @@
-package targetsearch
+package targetsearch_test
 
 import (
 	"context"
@@ -7,8 +7,11 @@ import (
 	"net/url"
 	"testing"
 
+	targetsearch "github.com/xmbshwll/ariadne/internal/targetsearch"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -28,11 +31,11 @@ const (
 type testTarget struct{}
 
 func TestPlanPreservesOrderAndDeduplicates(t *testing.T) {
-	plan := Plan[model.CandidateAlbum]{
+	plan := targetsearch.Plan[model.CandidateAlbum]{
 		Target:       testTarget{},
 		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
 				Name:    "disabled",
 				Enabled: false,
@@ -98,12 +101,12 @@ func TestPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.T) {
 	}
 }
 
-func planWithRecoverableTimeout(err error) Plan[model.CandidateAlbum] {
-	return Plan[model.CandidateAlbum]{
+func planWithRecoverableTimeout(err error) targetsearch.Plan[model.CandidateAlbum] {
+	return targetsearch.Plan[model.CandidateAlbum]{
 		Target:       testTarget{},
 		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
 				Name:    "SearchByUPC",
 				Enabled: true,
@@ -125,11 +128,11 @@ func planWithRecoverableTimeout(err error) Plan[model.CandidateAlbum] {
 func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
-	plan := Plan[model.CandidateAlbum]{
+	plan := targetsearch.Plan[model.CandidateAlbum]{
 		Target:       testTarget{},
 		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
 				Name:    "SearchByMetadata",
 				Enabled: true,
@@ -147,11 +150,11 @@ func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 }
 
 func TestPlanWrapsLayerErrors(t *testing.T) {
-	plan := Plan[model.CandidateAlbum]{
+	plan := targetsearch.Plan[model.CandidateAlbum]{
 		Target:       testTarget{},
 		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
 				Name:    "SearchByUPC",
 				Enabled: true,
@@ -167,11 +170,4 @@ func TestPlanWrapsLayerErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errTargetSearchLayerBoom)
 	assert.Contains(t, err.Error(), "SearchByUPC spotify")
-}
-
-func albumCandidateKey(candidate model.CandidateAlbum) string {
-	if candidate.CandidateID != "" {
-		return string(candidate.Service) + ":id:" + candidate.CandidateID
-	}
-	return string(candidate.Service) + ":url:" + candidate.MatchURL
 }

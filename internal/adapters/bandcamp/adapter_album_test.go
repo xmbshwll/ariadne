@@ -1,12 +1,15 @@
-package bandcamp
+package bandcamp_test
 
 import (
 	"context"
 	"strings"
 	"testing"
 
+	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 )
@@ -131,7 +134,7 @@ func TestSearchByMetadataReturnsFirstHydrationErrorWhenNothingRecovers(t *testin
 	adapter := newBandcampTestAdapter(server)
 	_, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"COMRADIATION"}})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedBandcampJSONLD)
+	assert.ErrorIs(t, err, bandcamp.ErrMalformedBandcampJSONLD)
 }
 
 func TestRealSavedPages(t *testing.T) {
@@ -185,7 +188,7 @@ func TestRealSavedPages(t *testing.T) {
 			})
 			defer server.Close()
 
-			adapter := New(server.Client())
+			adapter := bandcamp.New(server.Client())
 			parsed := newBandcampAlbumSource(server.URL, strings.TrimPrefix(tt.path, "/album/"))
 
 			album, err := adapter.FetchAlbum(context.Background(), parsed)

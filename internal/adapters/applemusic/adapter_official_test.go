@@ -1,9 +1,11 @@
-package applemusic
+package applemusic_test
 
 import (
 	"context"
 	"net/http"
 	"testing"
+
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,5 +88,5 @@ func TestSearchSongByISRCReturnsMalformedOfficialResponseError(t *testing.T) {
 
 	_, err := adapter.SearchSongByISRC(context.Background(), comeTogetherISRC)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedAppleMusicOfficialResponse)
+	assert.ErrorIs(t, err, applemusic.ErrMalformedAppleMusicOfficialResponse)
 }

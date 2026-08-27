@@ -54,7 +54,7 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 }
 
 func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target any) error {
-	token, err := a.accessToken(ctx)
+	token, err := a.AccessToken(ctx)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target an
 			},
 		},
 		DecodeError:       "decode api response",
-		MalformedResponse: errMalformedSpotifyAPIResponse,
+		MalformedResponse: ErrMalformedSpotifyAPIResponse,
 	}, target)
 }
 
@@ -94,7 +94,7 @@ func waitForSpotifyAPIRetry(ctx context.Context, attempt int) error {
 	}
 }
 
-func (a *Adapter) accessToken(ctx context.Context) (string, error) {
+func (a *Adapter) AccessToken(ctx context.Context) (string, error) {
 	//nolint:wrapcheck // Credential token source preserves service-specific token errors.
 	return a.tokenSource.AccessToken(ctx)
 }
@@ -119,7 +119,7 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
 	endpoint := a.authBaseURL + "/token"
-	var token tokenResponse
+	var token TokenResponse
 	//nolint:wrapcheck // HTTP exchange spec supplies token request/status/decode context.
 	if err := adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
 		RequestSpec: adapterutil.RequestSpec{

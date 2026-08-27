@@ -10,4 +10,8 @@
 //   - call ResolveAlbum, ResolveSong, or Resolve depending on your input shape
 //
 // The CLI in cmd/ariadne is a thin wrapper around this package.
+//
+// This package is a facade. Service capability and adapter-construction
+// decisions live in the Provider Catalog (internal/wiring); entity resolution
+// lives in internal/resolve. Everything here is a re-export or a thin wrapper.
 package ariadne

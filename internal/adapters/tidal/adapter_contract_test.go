@@ -1,4 +1,4 @@
-package tidal
+package tidal_test
 
 import (
 	"context"
@@ -9,8 +9,11 @@ import (
 	"testing"
 	"time"
 
+	tidal "github.com/xmbshwll/ariadne/internal/adapters/tidal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -19,7 +22,7 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 		mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Query().Get("filter[isrc]") {
 			case "GOODISRC":
-				writeJSON(w, apiDocument{Data: []apiResource{{ID: "track-good", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "album-good", Type: "albums"}}}}}}})
+				writeJSON(w, tidal.APIDocument{Data: []tidal.APIResource{{ID: "track-good", Type: "tracks", Relationships: tidal.ResourceRelationships{Albums: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "album-good", Type: "albums"}}}}}}})
 			case "BADISRC":
 				http.Error(w, "temporary tidal failure", http.StatusBadGateway)
 			default:
@@ -27,7 +30,7 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 			}
 		})
 		mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, apiDocument{Data: apiResource{ID: "album-good", Type: "albums", Attributes: resourceAttributes{Title: "Album", ReleaseDate: "2024-01-01", NumberOfItems: 1}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "artist-1", Type: "artists"}}}, Items: relationship{Data: []relationshipData{{ID: "track-good", Type: "tracks", Meta: relationshipMeta{TrackNumber: 1, VolumeNumber: 1}}}}}}, Included: []apiResource{{ID: "artist-1", Type: "artists", Attributes: resourceAttributes{Name: "Artist"}}, {ID: "track-good", Type: "tracks", Attributes: resourceAttributes{Title: "Song", ISRC: "GOODISRC", Duration: "PT3M"}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "artist-1", Type: "artists"}}}}}}})
+			writeJSON(w, tidal.APIDocument{Data: tidal.APIResource{ID: "album-good", Type: "albums", Attributes: tidal.ResourceAttributes{Title: "Album", ReleaseDate: "2024-01-01", NumberOfItems: 1}, Relationships: tidal.ResourceRelationships{Artists: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "artist-1", Type: "artists"}}}, Items: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "track-good", Type: "tracks", Meta: tidal.RelationshipMeta{TrackNumber: 1, VolumeNumber: 1}}}}}}, Included: []tidal.APIResource{{ID: "artist-1", Type: "artists", Attributes: tidal.ResourceAttributes{Name: "Artist"}}, {ID: "track-good", Type: "tracks", Attributes: tidal.ResourceAttributes{Title: "Song", ISRC: "GOODISRC", Duration: "PT3M"}, Relationships: tidal.ResourceRelationships{Artists: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "artist-1", Type: "artists"}}}}}}})
 		})
 	})
 
@@ -42,18 +45,18 @@ func TestSearchByISRCKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T) {
 		mux.HandleFunc("/tracks", func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Query().Get("filter[isrc]") {
 			case "GOODISRC":
-				writeJSON(w, apiDocument{Data: []apiResource{{ID: "track-good", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "album-good", Type: "albums"}}}}}}})
+				writeJSON(w, tidal.APIDocument{Data: []tidal.APIResource{{ID: "track-good", Type: "tracks", Relationships: tidal.ResourceRelationships{Albums: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "album-good", Type: "albums"}}}}}}})
 			case "MISSINGALBUM":
-				writeJSON(w, apiDocument{Data: []apiResource{{ID: "track-missing", Type: "tracks", Relationships: resourceRelationships{Albums: relationship{Data: []relationshipData{{ID: "album-missing", Type: "albums"}}}}}}})
+				writeJSON(w, tidal.APIDocument{Data: []tidal.APIResource{{ID: "track-missing", Type: "tracks", Relationships: tidal.ResourceRelationships{Albums: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "album-missing", Type: "albums"}}}}}}})
 			default:
 				http.NotFound(w, r)
 			}
 		})
 		mux.HandleFunc("/albums/album-good", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, apiDocument{Data: apiResource{ID: "album-good", Type: "albums", Attributes: resourceAttributes{Title: "Album", ReleaseDate: "2024-01-01", NumberOfItems: 1}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "artist-1", Type: "artists"}}}, Items: relationship{Data: []relationshipData{{ID: "track-good", Type: "tracks", Meta: relationshipMeta{TrackNumber: 1, VolumeNumber: 1}}}}}}, Included: []apiResource{{ID: "artist-1", Type: "artists", Attributes: resourceAttributes{Name: "Artist"}}, {ID: "track-good", Type: "tracks", Attributes: resourceAttributes{Title: "Song", ISRC: "GOODISRC", Duration: "PT3M"}, Relationships: resourceRelationships{Artists: relationship{Data: []relationshipData{{ID: "artist-1", Type: "artists"}}}}}}})
+			writeJSON(w, tidal.APIDocument{Data: tidal.APIResource{ID: "album-good", Type: "albums", Attributes: tidal.ResourceAttributes{Title: "Album", ReleaseDate: "2024-01-01", NumberOfItems: 1}, Relationships: tidal.ResourceRelationships{Artists: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "artist-1", Type: "artists"}}}, Items: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "track-good", Type: "tracks", Meta: tidal.RelationshipMeta{TrackNumber: 1, VolumeNumber: 1}}}}}}, Included: []tidal.APIResource{{ID: "artist-1", Type: "artists", Attributes: tidal.ResourceAttributes{Name: "Artist"}}, {ID: "track-good", Type: "tracks", Attributes: tidal.ResourceAttributes{Title: "Song", ISRC: "GOODISRC", Duration: "PT3M"}, Relationships: tidal.ResourceRelationships{Artists: tidal.Relationship{Data: []tidal.RelationshipData{{ID: "artist-1", Type: "artists"}}}}}}})
 		})
 		mux.HandleFunc("/albums/album-missing", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, apiDocument{})
+			writeJSON(w, tidal.APIDocument{})
 		})
 	})
 
@@ -76,7 +79,7 @@ func TestSearchByMetadataReturnsMalformedResponseError(t *testing.T) {
 
 	_, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album", Artists: []string{"Artist"}})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedTIDALAPIResponse)
+	assert.ErrorIs(t, err, tidal.ErrMalformedTIDALAPIResponse)
 }
 
 func TestAccessTokenSerializesConcurrentRefresh(t *testing.T) {
@@ -89,17 +92,17 @@ func TestAccessTokenSerializesConcurrentRefresh(t *testing.T) {
 		tokenRequests.Add(1)
 		started <- struct{}{}
 		<-allowResponse
-		_ = json.NewEncoder(w).Encode(tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
+		_ = json.NewEncoder(w).Encode(tidal.TokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
 	})
 
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	adapter := New(server.Client(), WithCredentials("tidal-client", "tidal-secret"), WithAuthBaseURL(server.URL))
+	adapter := tidal.New(server.Client(), tidal.WithCredentials("tidal-client", "tidal-secret"), tidal.WithAuthBaseURL(server.URL))
 	errCh := make(chan error, 8)
 	for range 8 {
 		go func() {
-			_, err := adapter.accessToken(context.Background())
+			_, err := adapter.AccessToken(context.Background())
 			errCh <- err
 		}()
 	}

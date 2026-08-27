@@ -22,7 +22,7 @@ const (
 var errTIDALTokenResponseTooLarge = errors.New("tidal token response too large")
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
-	token, err := a.accessToken(ctx)
+	token, err := a.AccessToken(ctx)
 	if err != nil {
 		return err
 	}
@@ -41,11 +41,11 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 			StatusError:  adapterutil.StatusError(errUnexpectedTIDALAPIStatus),
 		},
 		DecodeError:       "decode api response",
-		MalformedResponse: errMalformedTIDALAPIResponse,
+		MalformedResponse: ErrMalformedTIDALAPIResponse,
 	}, target)
 }
 
-func (a *Adapter) accessToken(ctx context.Context) (string, error) {
+func (a *Adapter) AccessToken(ctx context.Context) (string, error) {
 	//nolint:wrapcheck // Credential token source preserves service-specific token errors.
 	return a.tokenSource.AccessToken(ctx)
 }
@@ -94,7 +94,7 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 		//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
 		return adapterutil.CredentialToken{}, err
 	}
-	var token tokenResponse
+	var token TokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
 		return adapterutil.CredentialToken{}, fmt.Errorf("decode token response: %w", err)
 	}
@@ -128,54 +128,54 @@ func songMetadataQuery(song model.CanonicalSong) string {
 	return adapterutil.PrimaryMetadataQuery(song.Title, song.Artists)
 }
 
-func firstDataResource(document apiDocument) (apiResource, bool, error) {
-	resources, err := documentData(document)
+func firstDataResource(document APIDocument) (APIResource, bool, error) {
+	resources, err := DocumentData(document)
 	if err != nil {
-		return apiResource{}, false, err
+		return APIResource{}, false, err
 	}
 	if len(resources) == 0 {
-		return apiResource{}, false, nil
+		return APIResource{}, false, nil
 	}
 	return resources[0], true, nil
 }
 
-func documentData(document apiDocument) ([]apiResource, error) {
+func DocumentData(document APIDocument) ([]APIResource, error) {
 	switch data := document.Data.(type) {
 	case nil:
 		return nil, nil
 	case map[string]any:
 		content, err := json.Marshal(data)
 		if err != nil {
-			return nil, errMalformedTIDALAPIResponse
+			return nil, ErrMalformedTIDALAPIResponse
 		}
-		var resource apiResource
+		var resource APIResource
 		if err := json.Unmarshal(content, &resource); err != nil {
-			return nil, errMalformedTIDALAPIResponse
+			return nil, ErrMalformedTIDALAPIResponse
 		}
-		return []apiResource{resource}, nil
+		return []APIResource{resource}, nil
 	case []any:
-		resources := make([]apiResource, 0, len(data))
+		resources := make([]APIResource, 0, len(data))
 		for _, item := range data {
 			content, err := json.Marshal(item)
 			if err != nil {
-				return nil, errMalformedTIDALAPIResponse
+				return nil, ErrMalformedTIDALAPIResponse
 			}
-			var resource apiResource
+			var resource APIResource
 			if err := json.Unmarshal(content, &resource); err != nil {
-				return nil, errMalformedTIDALAPIResponse
+				return nil, ErrMalformedTIDALAPIResponse
 			}
 			resources = append(resources, resource)
 		}
 		return resources, nil
 	default:
-		return nil, errMalformedTIDALAPIResponse
+		return nil, ErrMalformedTIDALAPIResponse
 	}
 }
 
 // searchResultRelationshipIDs extracts relationship resource IDs from a
 // /searchResults document (data holds searchResults resources).
-func searchResultRelationshipIDs(document apiDocument, pick func(resourceRelationships) relationship) ([]string, error) {
-	resources, err := documentData(document)
+func searchResultRelationshipIDs(document APIDocument, pick func(ResourceRelationships) Relationship) ([]string, error) {
+	resources, err := DocumentData(document)
 	if err != nil {
 		return nil, err
 	}
@@ -193,8 +193,8 @@ func searchResultRelationshipIDs(document apiDocument, pick func(resourceRelatio
 	return ids, nil
 }
 
-func albumIDsFromTrackDocument(document apiDocument) ([]string, error) {
-	resources, err := documentData(document)
+func AlbumIDsFromTrackDocument(document APIDocument) ([]string, error) {
+	resources, err := DocumentData(document)
 	if err != nil {
 		return nil, err
 	}

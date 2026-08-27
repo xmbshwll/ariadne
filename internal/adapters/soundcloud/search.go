@@ -57,7 +57,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		payload.Collection,
 		searchLimit,
 		soundCloudSongCandidateID,
-		func(_ context.Context, track soundTrack) (model.CandidateSong, error) {
+		func(_ context.Context, track SoundTrack) (model.CandidateSong, error) {
 			return soundCloudSongSearchCandidate(track)
 		},
 	)
@@ -71,7 +71,7 @@ func validSoundCloudPlaylistSearchHit(playlist soundPlaylist) bool {
 	return playlist.Kind == "playlist" && strings.TrimSpace(playlist.PermalinkURL) != "" && strings.TrimSpace(playlist.Title) != ""
 }
 
-func validSoundCloudTrackSearchHit(track soundTrack) bool {
+func validSoundCloudTrackSearchHit(track SoundTrack) bool {
 	return strings.TrimSpace(track.PermalinkURL) != "" && strings.TrimSpace(track.Title) != ""
 }
 
@@ -82,7 +82,7 @@ func soundCloudPlaylistCandidateID(playlist soundPlaylist) string {
 	return soundCloudCandidateID(playlist.PermalinkURL)
 }
 
-func soundCloudSongCandidateID(track soundTrack) string {
+func soundCloudSongCandidateID(track SoundTrack) string {
 	if !validSoundCloudTrackSearchHit(track) {
 		return ""
 	}
@@ -98,12 +98,12 @@ func soundCloudCandidateID(rawURL string) string {
 }
 
 func soundCloudAlbumSearchCandidate(playlist soundPlaylist) (model.CandidateAlbum, error) {
-	canonical := toCanonicalAlbum(playlist)
+	canonical := ToCanonicalAlbum(playlist)
 	return toCandidateAlbum(*canonical), nil
 }
 
-func soundCloudSongSearchCandidate(track soundTrack) (model.CandidateSong, error) {
-	canonical := toCanonicalSong(track)
+func soundCloudSongSearchCandidate(track SoundTrack) (model.CandidateSong, error) {
+	canonical := ToCanonicalSong(track)
 	return toCandidateSong(*canonical), nil
 }
 
@@ -148,8 +148,7 @@ func (a *Adapter) refreshClientIdentifier(ctx context.Context) (string, error) {
 }
 
 func isSoundCloudClientIDError(err error) bool {
-	var statusErr adapterutil.HTTPStatusError
-	if errors.As(err, &statusErr) {
+	if statusErr, ok := errors.AsType[adapterutil.HTTPStatusError](err); ok {
 		switch statusErr.HTTPStatusCode() {
 		case http.StatusUnauthorized, http.StatusForbidden:
 			return true

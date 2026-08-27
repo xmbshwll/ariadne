@@ -9,20 +9,20 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func extractSchema(body []byte) (*schemaAlbum, error) {
-	schema, err := adapterutil.DecodeJSONBlock[schemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", errMalformedBandcampJSONLD)
+func extractSchema(body []byte) (*SchemaAlbum, error) {
+	schema, err := adapterutil.DecodeJSONBlock[SchemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", ErrMalformedBandcampJSONLD)
 	if err != nil {
 		return nil, err
 	}
 	return &schema, nil
 }
 
-func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.CanonicalAlbum {
+func ToCanonicalAlbum(parsed model.ParsedAlbumURL, album *SchemaAlbum) *model.CanonicalAlbum {
 	artists := nonEmptyArtistList(album.ByArtist.Name)
 	tracks := make([]model.CanonicalTrack, 0, len(album.Track.ItemListElement))
 	totalDurationMS := 0
 	for _, item := range album.Track.ItemListElement {
-		durationMS := parseISODurationMilliseconds(item.Item.Duration)
+		durationMS := ParseISODurationMilliseconds(item.Item.Duration)
 		totalDurationMS += durationMS
 		tracks = append(tracks, model.CanonicalTrack{
 			TrackNumber:     item.Position,
@@ -52,7 +52,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 	}
 }
 
-func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.CanonicalSong {
+func ToCanonicalSong(parsed model.ParsedURL, track *SchemaAlbum) *model.CanonicalSong {
 	artists := nonEmptyArtistList(track.ByArtist.Name)
 	albumArtists := nonEmptyArtistList(track.InAlbum.ByArtist.Name)
 	albumID := ""
@@ -68,7 +68,7 @@ func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.Canonica
 		NormalizedTitle:        normalize.Text(track.Name),
 		Artists:                artists,
 		NormalizedArtists:      normalize.Artists(artists),
-		DurationMS:             parseISODurationMilliseconds(track.Duration),
+		DurationMS:             ParseISODurationMilliseconds(track.Duration),
 		AlbumID:                albumID,
 		AlbumTitle:             track.InAlbum.Name,
 		AlbumNormalizedTitle:   normalize.Text(track.InAlbum.Name),
@@ -94,7 +94,7 @@ func schemaImageURL(value any) string {
 	return ""
 }
 
-func parseISODurationMilliseconds(value string) int {
+func ParseISODurationMilliseconds(value string) int {
 	if value == "" {
 		return 0
 	}

@@ -1,4 +1,4 @@
-package tidal
+package tidal_test
 
 import (
 	"bytes"
@@ -7,8 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	tidal "github.com/xmbshwll/ariadne/internal/adapters/tidal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -26,14 +29,14 @@ func assertSingleSong(t *testing.T, candidates []model.CandidateSong, wantID str
 	assert.Contains(t, candidates[0].MatchURL, wantID)
 }
 
-func newTIDALAPIAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *Adapter {
+func newTIDALAPIAdapter(t *testing.T, registerHandlers func(*http.ServeMux)) *tidal.Adapter {
 	t.Helper()
 	mux := http.NewServeMux()
 	registerTIDALTokenEndpoint(mux)
 	registerHandlers(mux)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	return New(server.Client(), WithCredentials("tidal-client", "tidal-secret"), WithAPIBaseURL(server.URL), WithAuthBaseURL(server.URL))
+	return tidal.New(server.Client(), tidal.WithCredentials("tidal-client", "tidal-secret"), tidal.WithAPIBaseURL(server.URL), tidal.WithAuthBaseURL(server.URL))
 }
 
 func registerTIDALTokenEndpoint(mux *http.ServeMux) {
@@ -42,7 +45,7 @@ func registerTIDALTokenEndpoint(mux *http.ServeMux) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		writeJSON(w, tokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
+		writeJSON(w, tidal.TokenResponse{AccessToken: "token-123", TokenType: "Bearer", ExpiresIn: 3600})
 	})
 }
 

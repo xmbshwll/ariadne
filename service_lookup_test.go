@@ -1,7 +1,9 @@
-package ariadne
+package ariadne_test
 
 import (
 	"testing"
+
+	ariadne "github.com/xmbshwll/ariadne"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -9,19 +11,19 @@ import (
 func TestLookupServiceName(t *testing.T) {
 	t.Parallel()
 
-	service, ok := LookupServiceName(" apple-music ")
+	service, ok := ariadne.LookupServiceName(" apple-music ")
 	assert.True(t, ok)
-	assert.Equal(t, ServiceAppleMusic, service)
+	assert.Equal(t, ariadne.ServiceAppleMusic, service)
 
-	service, ok = LookupServiceName("yt_music")
+	service, ok = ariadne.LookupServiceName("yt_music")
 	assert.True(t, ok)
-	assert.Equal(t, ServiceYouTubeMusic, service)
+	assert.Equal(t, ariadne.ServiceYouTubeMusic, service)
 
-	service, ok = LookupServiceName("amazon")
+	service, ok = ariadne.LookupServiceName("amazon")
 	assert.True(t, ok)
-	assert.Equal(t, ServiceAmazonMusic, service)
+	assert.Equal(t, ariadne.ServiceAmazonMusic, service)
 
-	service, ok = LookupServiceName("napster")
+	service, ok = ariadne.LookupServiceName("napster")
 	assert.False(t, ok)
 	assert.Empty(t, service)
 }

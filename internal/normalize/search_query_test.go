@@ -1,7 +1,9 @@
-package normalize
+package normalize_test
 
 import (
 	"testing"
+
+	normalize "github.com/xmbshwll/ariadne/internal/normalize"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +40,7 @@ func TestSearchPrimaryQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, SearchPrimaryQuery(tt.title, tt.artists))
+			assert.Equal(t, tt.want, normalize.SearchPrimaryQuery(tt.title, tt.artists))
 		})
 	}
 }

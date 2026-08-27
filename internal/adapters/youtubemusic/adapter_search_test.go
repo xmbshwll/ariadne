@@ -1,8 +1,10 @@
-package youtubemusic
+package youtubemusic_test
 
 import (
 	"context"
 	"testing"
+
+	youtubemusic "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,5 +62,5 @@ func TestSearchByMetadataReturnsMalformedPageErrorWhenNothingRecovers(t *testing
 	adapter := newYouTubeMusicTestAdapter(server)
 	_, err := adapter.SearchByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedYouTubeMusicPage)
+	assert.ErrorIs(t, err, youtubemusic.ErrMalformedYouTubeMusicPage)
 }

@@ -26,8 +26,8 @@ var (
 	errUnexpectedSoundCloudAPIStatus = errors.New("unexpected soundcloud api status")
 	errSoundCloudClientIDNotFound    = errors.New("soundcloud client id not found")
 	errSoundCloudHydrationNotFound   = errors.New("soundcloud hydration payload not found")
-	errSoundCloudPlaylistNotFound    = errors.New("soundcloud playlist hydration not found")
-	errSoundCloudTrackNotFound       = errors.New("soundcloud track hydration not found")
+	ErrSoundCloudPlaylistNotFound    = errors.New("soundcloud playlist hydration not found")
+	ErrSoundCloudTrackNotFound       = errors.New("soundcloud track hydration not found")
 )
 
 type Option func(*Adapter)

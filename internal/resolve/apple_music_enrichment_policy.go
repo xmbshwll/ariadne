@@ -10,13 +10,15 @@ import (
 	"github.com/xmbshwll/ariadne/internal/score"
 )
 
-const appleMusicCascadeMinimumScore = 100
+// AppleMusicCascadeMinimumScore is the match score an intermediate Target Search
+// result must reach before its identifiers may drive Identifier Enrichment.
+const AppleMusicCascadeMinimumScore = 100
 
 type appleMusicEnrichmentPolicy struct {
 	weights score.Weights
 }
 
-func newAppleMusicEnrichmentPolicy(weights score.Weights) appleMusicEnrichmentPolicy {
+func NewAppleMusicEnrichmentPolicy(weights score.Weights) appleMusicEnrichmentPolicy {
 	return appleMusicEnrichmentPolicy{weights: weights}
 }
 
@@ -44,7 +46,7 @@ func (p appleMusicEnrichmentPolicy) apply(
 		return
 	}
 
-	enriched, ok := p.enrichedSource(source, matches)
+	enriched, ok := p.EnrichedSource(source, matches)
 	if !ok {
 		return
 	}
@@ -58,15 +60,17 @@ func (p appleMusicEnrichmentPolicy) apply(
 
 		matchesMu.Lock()
 		existing := matches[target.Service()]
-		if p.shouldReplace(existing, newResult) {
+		if p.ShouldReplace(existing, newResult) {
 			matches[target.Service()] = newResult
 		}
 		matchesMu.Unlock()
 	})
 }
 
-func (p appleMusicEnrichmentPolicy) enrichedSource(source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) (model.CanonicalAlbum, bool) {
-	enriched := cloneAlbum(source)
+// EnrichedSource merges identifiers from strong intermediate matches into a copy
+// of the source album, reporting whether anything changed.
+func (p appleMusicEnrichmentPolicy) EnrichedSource(source model.CanonicalAlbum, matches map[model.ServiceName]MatchResult) (model.CanonicalAlbum, bool) {
+	enriched := CloneAlbum(source)
 	strongMatches := strongIntermediateAlbumMatches(matches)
 	for _, match := range strongMatches {
 		mergeAlbumIdentifiers(&enriched, match.Candidate)
@@ -74,6 +78,9 @@ func (p appleMusicEnrichmentPolicy) enrichedSource(source model.CanonicalAlbum, 
 	return enriched, albumIdentifiersChanged(source, enriched)
 }
 
+// resolveTarget is the single-target half of Identifier Enrichment. It mirrors
+// entityResolution.resolveTarget but returns the failure to the caller, because a
+// failed enrichment search must leave the base matches untouched.
 func (p appleMusicEnrichmentPolicy) resolveTarget(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) (MatchResult, error) {
 	candidates, err := p.collectTargetCandidates(ctx, target, source)
 	if err != nil {
@@ -83,7 +90,8 @@ func (p appleMusicEnrichmentPolicy) resolveTarget(ctx context.Context, target Ta
 	return albumMatchResultFromRanking(target.Service(), ranking), nil
 }
 
-func (p appleMusicEnrichmentPolicy) shouldReplace(existing MatchResult, newResult MatchResult) bool {
+// ShouldReplace reports whether the enriched result beats the base match.
+func (p appleMusicEnrichmentPolicy) ShouldReplace(existing MatchResult, newResult MatchResult) bool {
 	return newResult.Best != nil && (existing.Best == nil || newResult.Best.Score > existing.Best.Score)
 }
 
@@ -98,10 +106,13 @@ func appleMusicTargets(targets []TargetAdapter) []TargetAdapter {
 	return filtered
 }
 
+// strongIntermediateAlbumMatches returns the matches that may drive Identifier
+// Enrichment, in a deterministic order: the map iteration below is randomized, so
+// without the sort the merged UPC would depend on run order.
 func strongIntermediateAlbumMatches(matches map[model.ServiceName]MatchResult) []ScoredMatch {
 	strongMatches := make([]ScoredMatch, 0, len(matches))
 	for service, match := range matches {
-		if service == model.ServiceAppleMusic || match.Best == nil || match.Best.Score < appleMusicCascadeMinimumScore {
+		if service == model.ServiceAppleMusic || match.Best == nil || match.Best.Score < AppleMusicCascadeMinimumScore {
 			continue
 		}
 		strongMatches = append(strongMatches, *match.Best)
@@ -124,10 +135,10 @@ func mergeAlbumIdentifiers(album *model.CanonicalAlbum, candidate model.Candidat
 	if album.UPC == "" && candidate.UPC != "" {
 		album.UPC = candidate.UPC
 	}
-	mergeTrackISRCs(album, candidate.Tracks)
+	MergeTrackISRCs(album, candidate.Tracks)
 }
 
-func mergeTrackISRCs(album *model.CanonicalAlbum, tracks []model.CanonicalTrack) {
+func MergeTrackISRCs(album *model.CanonicalAlbum, tracks []model.CanonicalTrack) {
 	if len(tracks) == 0 {
 		return
 	}
@@ -162,7 +173,7 @@ func albumIdentifiersChanged(source model.CanonicalAlbum, enriched model.Canonic
 	return false
 }
 
-func cloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
+func CloneAlbum(album model.CanonicalAlbum) model.CanonicalAlbum {
 	clone := album
 	clone.Artists = append([]string(nil), album.Artists...)
 	clone.NormalizedArtists = append([]string(nil), album.NormalizedArtists...)
