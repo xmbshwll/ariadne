@@ -4,17 +4,15 @@ issue-845-fix: true
 resolve-type-alias: false
 testonly: false
 
-# Adapter interfaces are declared once, in internal/resolve. The public package
-# re-exports them as aliases, so one generated mock set serves both call sites.
+# The Adapter interface is declared once, in internal/adapters, and every Music
+# Service adapter implements it. One generated mock serves every consumer that
+# needs a stand-in adapter.
 dir: "{{.ConfigDir}}/internal/mocks"
 filename: "{{.InterfaceNameSnake}}_mock.go"
 mockname: "Mock{{.InterfaceName}}"
 outpkg: mocks
 
 packages:
-  github.com/xmbshwll/ariadne/internal/resolve:
+  github.com/xmbshwll/ariadne/internal/adapters:
     interfaces:
-      SourceAdapter:
-      AlbumTargetSearcher:
-      SongSourceAdapter:
-      SongTargetSearcher:
+      Adapter:

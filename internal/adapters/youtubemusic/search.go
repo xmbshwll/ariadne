@@ -9,7 +9,7 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil

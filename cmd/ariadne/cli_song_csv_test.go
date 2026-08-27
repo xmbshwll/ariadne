@@ -13,37 +13,13 @@ import (
 )
 
 func TestRunResolveForcedSongCSVOutput(t *testing.T) {
-	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(ariadne.AdapterSet{
-			SongSources: []ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
-				"https://fixture.test/songs/1": {
-					Service:     ariadne.ServiceSpotify,
-					SourceID:    "song-1",
-					SourceURL:   "https://fixture.test/songs/1",
-					Title:       "Fixture Song",
-					Artists:     []string{"Fixture Artist"},
-					DurationMS:  180000,
-					ISRC:        "ISRCSONG001",
-					AlbumTitle:  "Fixture Album",
-					TrackNumber: 1,
-				},
-			})},
-			SongTargets: []ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
-				CanonicalSong: ariadne.CanonicalSong{
-					Service:     ariadne.ServiceAppleMusic,
-					SourceID:    "apple-song-1",
-					SourceURL:   "https://music.apple.com/us/album/fixture-album/2?i=3",
-					Title:       "Fixture Song",
-					Artists:     []string{"Fixture Artist"},
-					DurationMS:  180050,
-					ISRC:        "ISRCSONG001",
-					AlbumTitle:  "Fixture Album",
-					TrackNumber: 1,
-				},
-				CandidateID: "apple-song-1",
-				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
-			}}, nil)},
-		})
+	source := fixtureSourceSong
+	source.RegionHint = ""
+	source.ReleaseDate = ""
+	withFixtureResolver(t, fixtureResolverForCLI{
+		song: fixtureSongResolution(source, map[ariadne.ServiceName]ariadne.SongMatchResult{
+			ariadne.ServiceAppleMusic: fixtureAppleSongMatch,
+		}),
 	})
 
 	var stdout bytes.Buffer
@@ -59,41 +35,11 @@ func TestRunResolveForcedSongCSVOutput(t *testing.T) {
 }
 
 func TestRunResolveForcedSongVerboseCSVOutput(t *testing.T) {
-	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(ariadne.AdapterSet{
-			SongSources: []ariadne.SongSourceAdapter{newFixtureSongSourceAdapterForCLI(map[string]ariadne.CanonicalSong{
-				"https://fixture.test/songs/1": {
-					Service:     ariadne.ServiceSpotify,
-					SourceID:    "song-1",
-					SourceURL:   "https://fixture.test/songs/1",
-					RegionHint:  "us",
-					Title:       "Fixture Song",
-					Artists:     []string{"Fixture Artist"},
-					DurationMS:  180000,
-					ISRC:        "ISRCSONG001",
-					AlbumTitle:  "Fixture Album",
-					TrackNumber: 1,
-					ReleaseDate: "2024-02-03",
-				},
-			})},
-			SongTargets: []ariadne.SongTargetAdapter{newFixtureSongTargetAdapterForCLI(ariadne.ServiceAppleMusic, []ariadne.CandidateSong{{
-				CanonicalSong: ariadne.CanonicalSong{
-					Service:     ariadne.ServiceAppleMusic,
-					SourceID:    "apple-song-1",
-					SourceURL:   "https://music.apple.com/us/album/fixture-album/2?i=3",
-					RegionHint:  "us",
-					Title:       "Fixture Song",
-					Artists:     []string{"Fixture Artist"},
-					DurationMS:  180050,
-					ISRC:        "ISRCSONG001",
-					AlbumTitle:  "Fixture Album",
-					TrackNumber: 1,
-					ReleaseDate: "2024-02-03",
-				},
-				CandidateID: "apple-song-1",
-				MatchURL:    "https://music.apple.com/us/album/fixture-album/2?i=3",
-			}}, nil)},
-		})
+	source := fixtureSourceSong
+	withFixtureResolver(t, fixtureResolverForCLI{
+		song: fixtureSongResolution(source, map[ariadne.ServiceName]ariadne.SongMatchResult{
+			ariadne.ServiceAppleMusic: fixtureAppleSongMatch,
+		}),
 	})
 
 	var stdout bytes.Buffer

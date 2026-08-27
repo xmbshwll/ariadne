@@ -5,27 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
-
-// serviceAdapter is one Music Service adapter, source or target.
-type serviceAdapter interface {
-	Service() model.ServiceName
-}
 
 // entityResolution is the Entity Resolution pipeline shared by every entity
 // shape: Source Input recognition, Runtime Hydration, per-target Target Search,
 // and ranking. An entity shape supplies only what genuinely differs — how to
 // parse and fetch its source, how to collect and rank its candidates, and the
 // optional Identifier Enrichment pass that runs after Target Search.
-type entityResolution[P, E, C any, Target serviceAdapter] struct {
+type entityResolution[P, E, C any] struct {
 	// resolveSourceInput recognizes the input URL and hydrates the source entity.
 	resolveSourceInput func(context.Context, string) (P, E, error)
 	// targetAdapters are all configured targets; the source service is excluded per run.
-	targetAdapters []Target
+	targetAdapters []adapters.Adapter
 	// collectCandidates runs the Target Search layers of one target.
-	collectCandidates func(context.Context, Target, E) ([]C, error)
+	collectCandidates func(context.Context, adapters.Adapter, E) ([]C, error)
 	// rank orders collected candidates for one source entity.
 	rank func(E, []C) score.Ranking[C]
 	// entityService is the Music Service a source entity came from.
@@ -35,12 +31,12 @@ type entityResolution[P, E, C any, Target serviceAdapter] struct {
 	// collectFailure prefixes a Target Search failure inside a MatchResult.
 	collectFailure string
 	// afterTargetMatches is the optional Identifier Enrichment pass.
-	afterTargetMatches func(context.Context, []Target, E, map[model.ServiceName]MatchResultOf[C])
+	afterTargetMatches func(context.Context, []adapters.Adapter, E, map[model.ServiceName]MatchResultOf[C])
 }
 
 // resolve runs Entity Resolution for one input URL. A failing target does not
 // abort the run: its MatchResult carries the error while other targets resolve.
-func (p entityResolution[P, E, C, Target]) resolve(ctx context.Context, inputURL string) (*ResolutionOf[P, E, C], error) {
+func (p entityResolution[P, E, C]) resolve(ctx context.Context, inputURL string) (*ResolutionOf[P, E, C], error) {
 	parsed, source, err := p.resolveSourceInput(ctx, inputURL)
 	if err != nil {
 		return nil, err
@@ -61,15 +57,15 @@ func (p entityResolution[P, E, C, Target]) resolve(ctx context.Context, inputURL
 }
 
 // resolveTargetMatches resolves every target concurrently.
-func (p entityResolution[P, E, C, Target]) resolveTargetMatches(
+func (p entityResolution[P, E, C]) resolveTargetMatches(
 	ctx context.Context,
-	targets []Target,
+	targets []adapters.Adapter,
 	source E,
 ) map[model.ServiceName]MatchResultOf[C] {
 	matches := make(map[model.ServiceName]MatchResultOf[C], len(targets))
 	var matchesMu sync.Mutex
 
-	resolveTargetsConcurrently(ctx, targets, func(targetCtx context.Context, target Target) {
+	resolveTargetsConcurrently(ctx, targets, func(targetCtx context.Context, target adapters.Adapter) {
 		result := p.resolveTarget(targetCtx, target, source)
 
 		matchesMu.Lock()
@@ -81,7 +77,7 @@ func (p entityResolution[P, E, C, Target]) resolveTargetMatches(
 
 // resolveTarget collects and ranks one target's candidates, carrying a Target
 // Search failure in the MatchResult instead of returning it.
-func (p entityResolution[P, E, C, Target]) resolveTarget(ctx context.Context, target Target, source E) MatchResultOf[C] {
+func (p entityResolution[P, E, C]) resolveTarget(ctx context.Context, target adapters.Adapter, source E) MatchResultOf[C] {
 	candidates, err := p.collectCandidates(ctx, target, source)
 	if err != nil {
 		return MatchResultOf[C]{Service: target.Service(), Err: fmt.Errorf("%s: %w", p.collectFailure, err)}
@@ -91,21 +87,21 @@ func (p entityResolution[P, E, C, Target]) resolveTarget(ctx context.Context, ta
 
 // resolveEntitySourceInput runs Source Input recognition and Runtime Hydration
 // for one entity shape.
-func resolveEntitySourceInput[S serviceAdapter, P, E any](
+func resolveEntitySourceInput[P, E any](
 	ctx context.Context,
-	sources []S,
+	sources []adapters.Adapter,
 	inputURL string,
 	entityLabel string,
 	nilEntityErr error,
-	parse func(S, string) (*P, error),
-	hydrate func(context.Context, S, *P) (*E, error),
+	parse func(adapters.Adapter, string) (*P, error),
+	hydrate func(context.Context, adapters.Adapter, *P) (*E, error),
 ) (P, E, error) {
 	var (
 		zeroParsed P
 		zeroEntity E
 	)
 
-	parsedURL, source, err := RecognizeSourceInput(sources, inputURL, func(source S) (*P, error) {
+	parsedURL, source, err := RecognizeSourceInput(sources, inputURL, func(source adapters.Adapter) (*P, error) {
 		return parse(source, inputURL)
 	})
 	if err != nil {
@@ -123,8 +119,8 @@ func resolveEntitySourceInput[S serviceAdapter, P, E any](
 }
 
 // excludeTargetService removes the source service from a target set.
-func excludeTargetService[T serviceAdapter](targets []T, sourceService model.ServiceName) []T {
-	filtered := make([]T, 0, len(targets))
+func excludeTargetService(targets []adapters.Adapter, sourceService model.ServiceName) []adapters.Adapter {
+	filtered := make([]adapters.Adapter, 0, len(targets))
 	for _, target := range targets {
 		if target.Service() == sourceService {
 			continue
@@ -136,7 +132,7 @@ func excludeTargetService[T serviceAdapter](targets []T, sourceService model.Ser
 
 // resolveTargetsConcurrently runs resolve for every target without canceling
 // siblings: one failing Target Search must not affect the others.
-func resolveTargetsConcurrently[T serviceAdapter](ctx context.Context, targets []T, resolve func(context.Context, T)) {
+func resolveTargetsConcurrently(ctx context.Context, targets []adapters.Adapter, resolve func(context.Context, adapters.Adapter)) {
 	var group sync.WaitGroup
 	for _, target := range targets {
 		group.Go(func() {

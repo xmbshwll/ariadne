@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestAdapter(t *testing.T) {
@@ -34,5 +34,6 @@ func TestAdapter(t *testing.T) {
 	require.ErrorIs(t, err, amazonmusic.ErrDeferredRuntimeAdapter)
 	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
 
-	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
+	_, err = adapter.SearchAlbumByUPC(context.Background(), "00602537184945")
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
 }

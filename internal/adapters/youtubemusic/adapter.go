@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -43,6 +44,8 @@ func WithBaseURL(baseURL string) Option {
 }
 
 type Adapter struct {
+	base.Unsupported
+
 	client  *http.Client
 	baseURL string
 }
@@ -51,7 +54,11 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	adapter := &Adapter{client: client, baseURL: defaultBaseURL}
+	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceYouTubeMusic},
+		client:      client,
+		baseURL:     defaultBaseURL,
+	}
 	for _, opt := range opts {
 		opt(adapter)
 	}

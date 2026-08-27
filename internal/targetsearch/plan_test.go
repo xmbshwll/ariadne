@@ -108,14 +108,14 @@ func planWithRecoverableTimeout(err error) targetsearch.Plan[model.CandidateAlbu
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
-				Name:    "SearchByUPC",
+				Name:    "SearchAlbumByUPC",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return nil, err
 				},
 			},
 			{
-				Name:    "SearchByMetadata",
+				Name:    "SearchAlbumByMetadata",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return []model.CandidateAlbum{{CandidateID: targetSearchAlbum1, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}}}, nil
@@ -134,7 +134,7 @@ func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
-				Name:    "SearchByMetadata",
+				Name:    "SearchAlbumByMetadata",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return nil, context.DeadlineExceeded
@@ -156,7 +156,7 @@ func TestPlanWrapsLayerErrors(t *testing.T) {
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
-				Name:    "SearchByUPC",
+				Name:    "SearchAlbumByUPC",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return nil, errTargetSearchLayerBoom
@@ -169,5 +169,5 @@ func TestPlanWrapsLayerErrors(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errTargetSearchLayerBoom)
-	assert.Contains(t, err.Error(), "SearchByUPC spotify")
+	assert.Contains(t, err.Error(), "SearchAlbumByUPC spotify")
 }

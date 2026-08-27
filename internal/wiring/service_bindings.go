@@ -3,6 +3,7 @@ package wiring
 import (
 	"net/http"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	amazonmusicadapter "github.com/xmbshwll/ariadne/internal/adapters/amazonmusic"
 	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 	bandcampadapter "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
@@ -13,7 +14,6 @@ import (
 	youtubemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 var defaultBindings = []binding{
@@ -27,40 +27,13 @@ var defaultBindings = []binding{
 	amazonMusicServiceBinding(),
 }
 
-type capabilitySet struct {
-	AlbumSource bool
-	AlbumTarget bool
-	SongSource  bool
-	SongTarget  bool
-}
-
-var (
-	allRuntimeCapabilities   = capabilitySet{AlbumSource: true, AlbumTarget: true, SongSource: true, SongTarget: true}
-	albumRuntimeCapabilities = capabilitySet{AlbumSource: true, AlbumTarget: true}
-	sourceOnlyCapabilities   = capabilitySet{AlbumSource: true, SongSource: true}
-)
-
-type fullRuntimeAdapter interface {
-	resolve.SourceAdapter
-	resolve.TargetAdapter
-	resolve.SongSourceAdapter
-	resolve.SongTargetAdapter
-}
-
-type albumRuntimeAdapter interface {
-	resolve.SourceAdapter
-	resolve.TargetAdapter
-}
-
-type sourceRuntimeAdapter interface {
-	resolve.SourceAdapter
-	resolve.SongSourceAdapter
-}
-
+// bindingSpec declares one Music Service for the Provider Catalog: how to look
+// it up, which Capabilities its adapter declares, whether Credential Tokens gate
+// its Target Search role, and how to build the adapter.
 type bindingSpec struct {
 	service             model.ServiceName
 	aliases             []string
-	capabilities        capabilitySet
+	capabilities        adapters.Capabilities
 	targetSearchEnabled func(config.Config) bool
 	build               adapterBuilder
 }
@@ -69,10 +42,7 @@ func (s bindingSpec) capability() capabilitySpec {
 	return capabilitySpec{
 		name:                s.service,
 		aliases:             append([]string(nil), s.aliases...),
-		supportsAlbumSource: s.capabilities.AlbumSource,
-		supportsAlbumTarget: s.capabilities.AlbumTarget,
-		supportsSongSource:  s.capabilities.SongSource,
-		supportsSongTarget:  s.capabilities.SongTarget,
+		capabilities:        s.capabilities,
 		targetSearchEnabled: s.targetSearchEnabled,
 	}
 }
@@ -84,39 +54,13 @@ func newServiceBinding(spec bindingSpec) binding {
 	}
 }
 
-func fullRuntimeAdapterSet(adapter fullRuntimeAdapter) adapterSet {
-	return adapterSet{
-		AlbumSource: adapter,
-		AlbumTarget: adapter,
-		SongSource:  adapter,
-		SongTarget:  adapter,
-	}
-}
-
-func albumRuntimeAdapterSet(adapter albumRuntimeAdapter) adapterSet {
-	return adapterSet{AlbumSource: adapter, AlbumTarget: adapter}
-}
-
-func sourceRuntimeAdapterSet(adapter sourceRuntimeAdapter) adapterSet {
-	return adapterSet{AlbumSource: adapter, SongSource: adapter}
-}
-
-func credentialedFullRuntimeAdapterSet(adapter fullRuntimeAdapter, targetSearchEnabled bool) adapterSet {
-	set := sourceRuntimeAdapterSet(adapter)
-	if targetSearchEnabled {
-		set.AlbumTarget = adapter
-		set.SongTarget = adapter
-	}
-	return set
-}
-
 func appleMusicServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:      model.ServiceAppleMusic,
 		aliases:      []string{"applemusic"},
-		capabilities: allRuntimeCapabilities,
-		build: func(client *http.Client, cfg config.Config) adapterSet {
-			adapter := applemusicadapter.New(
+		capabilities: applemusicadapter.Capabilities(),
+		build: func(client *http.Client, cfg config.Config) adapters.Adapter {
+			return applemusicadapter.New(
 				client,
 				applemusicadapter.WithDefaultStorefront(cfg.AppleMusic.Storefront),
 				applemusicadapter.WithDeveloperTokenAuth(
@@ -125,7 +69,6 @@ func appleMusicServiceBinding() binding {
 					cfg.AppleMusic.PrivateKeyPath,
 				),
 			)
-			return fullRuntimeAdapterSet(adapter)
 		},
 	})
 }
@@ -134,9 +77,9 @@ func bandcampServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:      model.ServiceBandcamp,
 		aliases:      []string{"bandcamp"},
-		capabilities: allRuntimeCapabilities,
-		build: func(client *http.Client, _ config.Config) adapterSet {
-			return fullRuntimeAdapterSet(bandcampadapter.New(client))
+		capabilities: bandcampadapter.Capabilities(),
+		build: func(client *http.Client, _ config.Config) adapters.Adapter {
+			return bandcampadapter.New(client)
 		},
 	})
 }
@@ -145,9 +88,9 @@ func deezerServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:      model.ServiceDeezer,
 		aliases:      []string{"deezer"},
-		capabilities: allRuntimeCapabilities,
-		build: func(client *http.Client, _ config.Config) adapterSet {
-			return fullRuntimeAdapterSet(deezeradapter.New(client))
+		capabilities: deezeradapter.Capabilities(),
+		build: func(client *http.Client, _ config.Config) adapters.Adapter {
+			return deezeradapter.New(client)
 		},
 	})
 }
@@ -156,9 +99,9 @@ func soundCloudServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:      model.ServiceSoundCloud,
 		aliases:      []string{"soundcloud"},
-		capabilities: allRuntimeCapabilities,
-		build: func(client *http.Client, _ config.Config) adapterSet {
-			return fullRuntimeAdapterSet(soundcloudadapter.New(client))
+		capabilities: soundcloudadapter.Capabilities(),
+		build: func(client *http.Client, _ config.Config) adapters.Adapter {
+			return soundcloudadapter.New(client)
 		},
 	})
 }
@@ -167,14 +110,13 @@ func spotifyServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:             model.ServiceSpotify,
 		aliases:             []string{"spotify"},
-		capabilities:        allRuntimeCapabilities,
+		capabilities:        spotifyadapter.Capabilities(),
 		targetSearchEnabled: spotifyEnabled,
-		build: func(client *http.Client, cfg config.Config) adapterSet {
-			adapter := spotifyadapter.New(
+		build: func(client *http.Client, cfg config.Config) adapters.Adapter {
+			return spotifyadapter.New(
 				client,
 				spotifyadapter.WithCredentials(cfg.Spotify.ClientID, cfg.Spotify.ClientSecret),
 			)
-			return credentialedFullRuntimeAdapterSet(adapter, cfg.Spotify.Enabled())
 		},
 	})
 }
@@ -183,14 +125,13 @@ func tidalServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:             model.ServiceTIDAL,
 		aliases:             []string{"tidal"},
-		capabilities:        allRuntimeCapabilities,
+		capabilities:        tidaladapter.Capabilities(),
 		targetSearchEnabled: tidalEnabled,
-		build: func(client *http.Client, cfg config.Config) adapterSet {
-			adapter := tidaladapter.New(
+		build: func(client *http.Client, cfg config.Config) adapters.Adapter {
+			return tidaladapter.New(
 				client,
 				tidaladapter.WithCredentials(cfg.TIDAL.ClientID, cfg.TIDAL.ClientSecret),
 			)
-			return credentialedFullRuntimeAdapterSet(adapter, cfg.TIDAL.Enabled())
 		},
 	})
 }
@@ -199,12 +140,9 @@ func youTubeMusicServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:      model.ServiceYouTubeMusic,
 		aliases:      []string{"youtubemusic", "ytmusic"},
-		capabilities: albumRuntimeCapabilities,
-		build: func(client *http.Client, _ config.Config) adapterSet {
-			adapter := youtubemusicadapter.New(client)
-			set := albumRuntimeAdapterSet(adapter)
-			set.SongSource = adapter
-			return set
+		capabilities: youtubemusicadapter.Capabilities(),
+		build: func(client *http.Client, _ config.Config) adapters.Adapter {
+			return youtubemusicadapter.New(client)
 		},
 	})
 }
@@ -213,9 +151,9 @@ func amazonMusicServiceBinding() binding {
 	return newServiceBinding(bindingSpec{
 		service:      model.ServiceAmazonMusic,
 		aliases:      []string{"amazonmusic", "amazon"},
-		capabilities: sourceOnlyCapabilities,
-		build: func(*http.Client, config.Config) adapterSet {
-			return sourceRuntimeAdapterSet(amazonmusicadapter.New(nil))
+		capabilities: amazonmusicadapter.Capabilities(),
+		build: func(*http.Client, config.Config) adapters.Adapter {
+			return amazonmusicadapter.New(nil)
 		},
 	})
 }

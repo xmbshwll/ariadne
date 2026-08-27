@@ -5,50 +5,75 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
+// capabilitySpec is one Provider Catalog entry. Capability support itself comes
+// from the service adapter's adapters.Capabilities, so a service states its own
+// support once; the Catalog adds only aliases, ordering, and credential gating.
 type capabilitySpec struct {
-	name                        model.ServiceName
-	aliases                     []string
-	supportsAlbumSource         bool
-	supportsAlbumTarget         bool
-	supportsSongSource          bool
-	supportsSongTarget          bool
-	supportsRuntimeSongInputURL bool
-	targetSearchEnabled         func(config.Config) bool
+	name                model.ServiceName
+	aliases             []string
+	capabilities        adapters.Capabilities
+	targetSearchEnabled func(config.Config) bool
 }
 
 func (c capabilitySpec) describe() Capabilities {
 	return Capabilities{
 		Aliases:                     append([]string(nil), c.aliases...),
-		SupportsAlbumSource:         c.supportsAlbumSource,
-		SupportsAlbumTarget:         c.supportsAlbumTarget,
-		SupportsSongSource:          c.supportsSongSource,
-		SupportsSongTarget:          c.supportsSongTarget,
-		SupportsRuntimeSongInputURL: c.supportsRuntimeSongInputURL,
+		SupportsAlbumSource:         c.capabilities.AlbumSource,
+		SupportsAlbumTarget:         c.capabilities.SupportsAlbumTarget(),
+		SupportsSongSource:          c.capabilities.SongSource,
+		SupportsSongTarget:          c.capabilities.SupportsSongTarget(),
+		SupportsRuntimeSongInputURL: c.capabilities.SongSource,
 	}
 }
 
+// enabled is the config-dependent view: a credential-gated service loses its
+// Target Search Capabilities while its Source Input stays available.
 func (c capabilitySpec) enabled(cfg config.Config) capabilitySpec {
 	if c.targetSearchEnabled != nil && !c.targetSearchEnabled(cfg) {
-		c.supportsAlbumTarget = false
-		c.supportsSongTarget = false
+		c.capabilities.AlbumUPC = false
+		c.capabilities.AlbumISRC = false
+		c.capabilities.AlbumMetadata = false
+		c.capabilities.SongISRC = false
+		c.capabilities.SongMetadata = false
 	}
 	return c
 }
 
-type adapterSet struct {
-	AlbumSource resolve.SourceAdapter
-	AlbumTarget resolve.TargetAdapter
-	SongSource  resolve.SongSourceAdapter
-	SongTarget  resolve.SongTargetAdapter
+// adapterRole is one of the four roles a Music Service adapter plays in the
+// default resolver wiring.
+type adapterRole int
+
+const (
+	roleAlbumSource adapterRole = iota
+	roleAlbumTarget
+	roleSongSource
+	roleSongTarget
+)
+
+// supports reports whether this Catalog entry takes part in one role.
+func (c capabilitySpec) supports(role adapterRole) bool {
+	switch role {
+	case roleAlbumSource:
+		return c.capabilities.AlbumSource
+	case roleAlbumTarget:
+		return c.capabilities.SupportsAlbumTarget()
+	case roleSongSource:
+		return c.capabilities.SongSource
+	case roleSongTarget:
+		return c.capabilities.SupportsSongTarget()
+	default:
+		return false
+	}
 }
 
-type adapterBuilder func(client *http.Client, cfg config.Config) adapterSet
+// adapterBuilder builds one service's adapter under one config.
+type adapterBuilder func(client *http.Client, cfg config.Config) adapters.Adapter
 
 // binding describes Ariadne's built-in service support. The capability
 // metadata is config-independent and feeds the Supported* helpers, while build
@@ -83,16 +108,17 @@ type catalog struct {
 	order                 serviceOrder
 	capabilitiesByService map[model.ServiceName]capabilitySpec
 	servicesByLookupKey   map[string]model.ServiceName
-	defaultAdapterSets    map[model.ServiceName]adapterSet
+	defaultAdapters       map[model.ServiceName]adapters.Adapter
 }
 
 // ResolverAdapters is the built-in adapter set the public constructors wire into
-// a Resolver, split by Entity Shape and role.
+// a Resolver, split by Entity Shape and role. Every entry is the same
+// adapters.Adapter interface; the role lists differ only by Capabilities.
 type ResolverAdapters struct {
-	AlbumSources []resolve.SourceAdapter
-	AlbumTargets []resolve.TargetAdapter
-	SongSources  []resolve.SongSourceAdapter
-	SongTargets  []resolve.SongTargetAdapter
+	AlbumSources []adapters.Adapter
+	AlbumTargets []adapters.Adapter
+	SongSources  []adapters.Adapter
+	SongTargets  []adapters.Adapter
 }
 
 func newProviderCatalog(bindings []binding, order serviceOrder) catalog {
@@ -116,15 +142,10 @@ func newProviderCatalog(bindings []binding, order serviceOrder) catalog {
 		}
 	}
 
-	// Derive song Source Input recognition from the real adapter sets instead
-	// of a parallel parser list: the built song source adapter is the seam the
-	// runtime song pipeline actually uses. Construction is cheap struct wiring
-	// with zero config — no network, no credentials.
-	catalog.defaultAdapterSets = buildAdapterSets(httpx.NewClient(0), config.Config{}, catalog.bindings)
-	for service, capability := range catalog.capabilitiesByService {
-		capability.supportsRuntimeSongInputURL = catalog.defaultAdapterSets[service].SongSource != nil
-		catalog.capabilitiesByService[service] = capability
-	}
+	// Construction is cheap struct wiring with zero config — no network, no
+	// credentials — so the Catalog can hold the built-in adapters for URL
+	// recognition without waiting for a Resolver to be built.
+	catalog.defaultAdapters = buildAdapters(httpx.NewClient(0), config.Config{}, catalog.bindings)
 
 	catalog.validateOrder(catalog.order.AlbumSources)
 	catalog.validateOrder(catalog.order.AlbumTargets)
@@ -218,7 +239,7 @@ func (c catalog) LookupServiceName(raw string) (model.ServiceName, bool) {
 
 func (c catalog) LookupSupportedTargetService(raw string) (model.ServiceName, bool) {
 	service, ok := c.LookupServiceName(raw)
-	if !ok || !c.supportsTarget(service) {
+	if !ok || !c.supportsAnyTargetRole(service) {
 		return "", false
 	}
 	return service, true
@@ -259,22 +280,32 @@ func (c catalog) EvaluateTarget(cfg config.Config, name string, entity EntitySha
 	if !ok {
 		return TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: message}
 	}
-	return c.targetCapabilityRequest(cfg, service, targetCapabilityFor(entity), message)
+	return c.targetCapabilityRequest(cfg, service, entity, message)
 }
 
-func targetCapabilityFor(entity EntityShape) func(capabilitySpec) bool {
+// targetRoleFor maps an Entity Shape to the Catalog role its query answers about.
+func targetRoleFor(entity EntityShape) adapterRole {
 	switch entity {
 	case EntityShapeAlbum:
-		return func(capability capabilitySpec) bool { return capability.supportsAlbumTarget }
+		return roleAlbumTarget
 	case EntityShapeSong:
-		return supportsSongTargetCapability
+		return roleSongTarget
 	default:
-		return supportsAnyTarget
+		return roleAlbumTarget
 	}
 }
 
+// supportsTarget reports whether a Catalog entry can act as a Target for the
+// requested Entity Shape; the zero Entity Shape accepts either.
+func supportsTarget(capability capabilitySpec, entity EntityShape) bool {
+	if entity == EntityShapeAny {
+		return capability.capabilities.SupportsAnyTarget()
+	}
+	return capability.supports(targetRoleFor(entity))
+}
+
 func (c catalog) TargetServices(cfg *config.Config, entity EntityShape) []model.ServiceName {
-	supports := targetCapabilityFor(entity)
+	supports := func(capability capabilitySpec) bool { return supportsTarget(capability, entity) }
 	order := c.order.AlbumTargets
 	if entity == EntityShapeSong {
 		order = c.order.SongTargets
@@ -285,15 +316,16 @@ func (c catalog) TargetServices(cfg *config.Config, entity EntityShape) []model.
 	return c.enabledServices(*cfg, order, supports)
 }
 
-func (c catalog) targetCapabilityRequest(cfg config.Config, service model.ServiceName, supports func(capabilitySpec) bool, message string) TargetServiceRequestDecision {
+func (c catalog) targetCapabilityRequest(cfg config.Config, service model.ServiceName, entity EntityShape, message string) TargetServiceRequestDecision {
 	decision := TargetServiceRequestDecision{Service: service, Message: message}
 	capability, ok := c.capability(service)
 	if !ok {
 		decision.Status = TargetServiceRequestUnknown
 		return decision
 	}
+	supports := func(spec capabilitySpec) bool { return supportsTarget(spec, entity) }
 	if !supports(capability) {
-		decision.Status = targetServiceUnavailableStatus(service, capability)
+		decision.Status = targetServiceUnavailableStatus(capability)
 		return decision
 	}
 	if !supports(capability.enabled(cfg)) {
@@ -325,22 +357,25 @@ func serviceNameStrings(services []model.ServiceName) []string {
 	return names
 }
 
-func targetServiceUnavailableStatus(service model.ServiceName, capability capabilitySpec) TargetServiceRequestStatus {
-	if service == model.ServiceAmazonMusic && !supportsAnyTarget(capability) {
+// targetServiceUnavailableStatus distinguishes a service that can only supply
+// Source Input (Parse Only) from one that supports a different Target role than
+// the one requested.
+func targetServiceUnavailableStatus(capability capabilitySpec) TargetServiceRequestStatus {
+	if !capability.capabilities.SupportsAnyTarget() {
 		return TargetServiceRequestParseOnly
 	}
 	return TargetServiceRequestUnsupported
 }
 
-func (c catalog) supportsTarget(service model.ServiceName) bool {
+func (c catalog) supportsAnyTargetRole(service model.ServiceName) bool {
 	capability, ok := c.capability(service)
-	return ok && supportsAnyTarget(capability)
+	return ok && capability.capabilities.SupportsAnyTarget()
 }
 
 func (c catalog) SupportsRuntimeSongInputURL(raw string) bool {
 	for _, service := range c.order.SongSources {
-		source := c.defaultAdapterSets[service].SongSource
-		if source == nil {
+		source := c.defaultAdapters[service]
+		if source == nil || !c.capabilitiesByService[service].capabilities.SongSource {
 			continue
 		}
 		parsed, err := source.ParseSongURL(raw)
@@ -373,12 +408,4 @@ func (c catalog) enabledServices(cfg config.Config, order []model.ServiceName, s
 		services = append(services, service)
 	}
 	return services
-}
-
-func supportsSongTargetCapability(capability capabilitySpec) bool {
-	return capability.supportsSongTarget
-}
-
-func supportsAnyTarget(capability capabilitySpec) bool {
-	return capability.supportsAlbumTarget || capability.supportsSongTarget
 }

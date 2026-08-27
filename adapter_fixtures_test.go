@@ -7,13 +7,15 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/mocks"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-func newLibrarySourceAdapter() ariadne.SourceAdapter {
-	adapter := new(mocks.MockSourceAdapter)
+func newLibrarySourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceDeezer)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumSource: true})
 	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
 		if raw != testLibrarySourceURL {
 			return nil, errUnsupportedLibrarySource
@@ -37,9 +39,10 @@ func newLibrarySourceAdapter() ariadne.SourceAdapter {
 	return adapter
 }
 
-func newNilParsedSourceAdapter() ariadne.SourceAdapter {
-	adapter := new(mocks.MockSourceAdapter)
+func newNilParsedSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceDeezer)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumSource: true})
 	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
 		if raw != testLibrarySourceURL {
 			return nil, errUnsupportedLibrarySource
@@ -49,9 +52,10 @@ func newNilParsedSourceAdapter() ariadne.SourceAdapter {
 	return adapter
 }
 
-func newNilAlbumSourceAdapter() ariadne.SourceAdapter {
-	adapter := new(mocks.MockSourceAdapter)
+func newNilAlbumSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceDeezer)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumSource: true})
 	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
 		if raw != testLibrarySourceURL {
 			return nil, errUnsupportedLibrarySource
@@ -62,10 +66,11 @@ func newNilAlbumSourceAdapter() ariadne.SourceAdapter {
 	return adapter
 }
 
-func newLibraryTargetAdapter() ariadne.TargetAdapter {
-	adapter := new(mocks.MockAlbumTargetSearcher)
+func newLibraryTargetAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
-	adapter.EXPECT().SearchByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, upc string) ([]ariadne.CandidateAlbum, error) {
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumUPC: true, AlbumISRC: true, AlbumMetadata: true})
+	adapter.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, upc string) ([]ariadne.CandidateAlbum, error) {
 		if upc == "" {
 			return nil, nil
 		}
@@ -86,23 +91,25 @@ func newLibraryTargetAdapter() ariadne.TargetAdapter {
 			MatchURL:    "https://open.spotify.com/album/spotify-1",
 		}}, nil
 	})
-	adapter.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
-	adapter.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
 	return adapter
 }
 
-func newFailingLibraryTargetAdapter() ariadne.TargetAdapter {
-	adapter := new(mocks.MockAlbumTargetSearcher)
+func newFailingLibraryTargetAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
-	adapter.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
-	adapter.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
-	adapter.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(nil, errLibraryTargetBoom)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumUPC: true, AlbumISRC: true, AlbumMetadata: true})
+	adapter.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return(nil, errLibraryTargetBoom)
 	return adapter
 }
 
-func newLibrarySongSourceAdapter() ariadne.SongSourceAdapter {
-	adapter := new(mocks.MockSongSourceAdapter)
+func newLibrarySongSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{SongSource: true})
 	adapter.EXPECT().ParseSongURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
 		if raw != "https://fixture.test/songs/1" {
 			return nil, errUnsupportedLibrarySource
@@ -128,9 +135,10 @@ func newLibrarySongSourceAdapter() ariadne.SongSourceAdapter {
 	return adapter
 }
 
-func newNilSongSourceAdapter() ariadne.SongSourceAdapter {
-	adapter := new(mocks.MockSongSourceAdapter)
+func newNilSongSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{SongSource: true})
 	adapter.EXPECT().ParseSongURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
 		if raw != "https://fixture.test/songs/1" {
 			return nil, errUnsupportedLibrarySource
@@ -141,9 +149,10 @@ func newNilSongSourceAdapter() ariadne.SongSourceAdapter {
 	return adapter
 }
 
-func newLibrarySongTargetAdapter() ariadne.SongTargetAdapter {
-	adapter := new(mocks.MockSongTargetSearcher)
+func newLibrarySongTargetAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(ariadne.ServiceAppleMusic)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{SongISRC: true, SongMetadata: true})
 	adapter.EXPECT().SearchSongByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, isrc string) ([]ariadne.CandidateSong, error) {
 		if isrc == "" {
 			return nil, nil

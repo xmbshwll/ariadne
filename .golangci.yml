@@ -41,6 +41,11 @@ linters:
       # (errors.Is against a sentinel), so wrapping it would only add noise.
       - path: _test\.go
         linters: [wrapcheck]
+      # The adapter base and the contract harness hand back the shared
+      # adapters.ErrUnsupported error unchanged on purpose; wrapping it would
+      # repeat the same sentence in every provider's error text.
+      - path: internal/adapters/(base|adaptertest)/
+        linters: [wrapcheck]
   settings:
     errcheck:
       check-type-assertions: true

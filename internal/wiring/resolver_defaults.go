@@ -3,66 +3,72 @@ package wiring
 import (
 	"net/http"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/config"
-
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
+// buildResolverAdapters builds every built-in adapter once, then distributes the
+// adapters into the four Resolver roles by their declared Capabilities under
+// cfg. Credential gating happens here rather than inside a builder: a gated
+// service keeps its Source Input and loses its Target Search roles.
 func buildResolverAdapters(client *http.Client, cfg config.Config, bindings []binding, order serviceOrder, targetServices []model.ServiceName) ResolverAdapters {
-	sets := buildAdapterSets(client, cfg, bindings)
+	built := buildAdapters(client, cfg, bindings)
+	enabled := enabledCapabilities(cfg, bindings)
 	return ResolverAdapters{
-		AlbumSources: orderedAdapters(sets, order.AlbumSources, func(set adapterSet) resolve.SourceAdapter {
-			return set.AlbumSource
-		}),
-		AlbumTargets: filterAdaptersByServiceName(
-			orderedAdapters(sets, order.AlbumTargets, func(set adapterSet) resolve.TargetAdapter {
-				return set.AlbumTarget
-			}),
-			targetServices,
-		),
-		SongSources: orderedAdapters(sets, order.SongSources, func(set adapterSet) resolve.SongSourceAdapter {
-			return set.SongSource
-		}),
-		SongTargets: filterAdaptersByServiceName(
-			orderedAdapters(sets, order.SongTargets, func(set adapterSet) resolve.SongTargetAdapter {
-				return set.SongTarget
-			}),
-			targetServices,
-		),
+		AlbumSources: orderedAdapters(built, enabled, order.AlbumSources, roleAlbumSource),
+		AlbumTargets: filterAdaptersByServiceName(orderedAdapters(built, enabled, order.AlbumTargets, roleAlbumTarget), targetServices),
+		SongSources:  orderedAdapters(built, enabled, order.SongSources, roleSongSource),
+		SongTargets:  filterAdaptersByServiceName(orderedAdapters(built, enabled, order.SongTargets, roleSongTarget), targetServices),
 	}
 }
 
-func buildAdapterSets(client *http.Client, cfg config.Config, bindings []binding) map[model.ServiceName]adapterSet {
-	sets := make(map[model.ServiceName]adapterSet, len(bindings))
+func buildAdapters(client *http.Client, cfg config.Config, bindings []binding) map[model.ServiceName]adapters.Adapter {
+	built := make(map[model.ServiceName]adapters.Adapter, len(bindings))
 	for _, binding := range bindings {
-		service := binding.capability.name
-		sets[service] = binding.build(client, cfg)
+		built[binding.capability.name] = binding.build(client, cfg)
 	}
-	return sets
+	return built
 }
 
-func orderedAdapters[T comparable](sets map[model.ServiceName]adapterSet, services []model.ServiceName, pick func(adapterSet) T) []T {
-	adapters := make([]T, 0, len(services))
-	var zero T
+func enabledCapabilities(cfg config.Config, bindings []binding) map[model.ServiceName]capabilitySpec {
+	capabilities := make(map[model.ServiceName]capabilitySpec, len(bindings))
+	for _, binding := range bindings {
+		capabilities[binding.capability.name] = binding.capability.enabled(cfg)
+	}
+	return capabilities
+}
+
+// orderedAdapters returns the built adapters for one role in Catalog order.
+func orderedAdapters(
+	built map[model.ServiceName]adapters.Adapter,
+	capabilities map[model.ServiceName]capabilitySpec,
+	services []model.ServiceName,
+	role adapterRole,
+) []adapters.Adapter {
+	ordered := make([]adapters.Adapter, 0, len(services))
 	for _, service := range services {
-		adapter := pick(sets[service])
-		if adapter == zero {
+		capability, ok := capabilities[service]
+		if !ok || !capability.supports(role) {
 			continue
 		}
-		adapters = append(adapters, adapter)
+		if adapter := built[service]; adapter != nil {
+			ordered = append(ordered, adapter)
+		}
 	}
-	return adapters
+	return ordered
 }
 
-func filterAdaptersByServiceName[T interface{ Service() model.ServiceName }](adapters []T, services []model.ServiceName) []T {
+// filterAdaptersByServiceName limits a Target list to an explicit --services
+// selection, keeping Catalog order. An empty selection means every Target.
+func filterAdaptersByServiceName(candidates []adapters.Adapter, services []model.ServiceName) []adapters.Adapter {
 	allowed := serviceNameSet(services)
 	if len(allowed) == 0 {
-		return adapters
+		return candidates
 	}
 
-	filtered := make([]T, 0, len(adapters))
-	for _, adapter := range adapters {
+	filtered := make([]adapters.Adapter, 0, len(candidates))
+	for _, adapter := range candidates {
 		if _, ok := allowed[adapter.Service()]; !ok {
 			continue
 		}

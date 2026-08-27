@@ -10,8 +10,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-// SearchByMetadata searches Apple Music albums by title and artist metadata via the public search API.
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+// SearchAlbumByMetadata searches Apple Music albums by title and artist metadata via the public search API.
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	queries := MetadataQueries(album)
 	if len(queries) == 0 {
 		return nil, nil

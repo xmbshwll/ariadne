@@ -15,7 +15,8 @@ import (
 var (
 	// ErrUnsupportedURL indicates that no registered source adapter recognized the input URL.
 	ErrUnsupportedURL = resolve.ErrUnsupportedURL
-	// ErrNoSourceAdapters indicates that a resolver was created without source adapters.
+	// ErrNoSourceAdapters indicates that no source adapter was registered for the Entity Shape
+	// of the input. Auto mode treats it as "not a song URL" and falls back to albums.
 	ErrNoSourceAdapters = resolve.ErrNoSourceAdapters
 	// ErrResolverNotInitialized indicates that a public Resolver receiver or inner resolver was nil.
 	ErrResolverNotInitialized = errors.New("resolver not initialized")
@@ -31,10 +32,13 @@ var (
 	ErrSpotifyCredentialsNotConfigured = spotifyadapter.ErrCredentialsNotConfigured
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
-	// ErrSourceAdapterReturnedNilParsedURL indicates that a caller-provided source adapter returned a nil parsed URL instead of either a parsed value or an error.
+	// ErrSourceAdapterReturnedNilParsedURL indicates that a source adapter answered a parse with a
+	// nil parsed URL and no error, which breaks the adapter contract.
 	ErrSourceAdapterReturnedNilParsedURL = resolve.ErrSourceAdapterReturnedNilParsedURL
-	// ErrSourceAdapterReturnedNilAlbum indicates that a caller-provided album source adapter returned a nil album without an error.
+	// ErrSourceAdapterReturnedNilAlbum indicates that an album source adapter returned a nil album
+	// and no error, which breaks the adapter contract.
 	ErrSourceAdapterReturnedNilAlbum = resolve.ErrSourceAdapterReturnedNilAlbum
-	// ErrSourceAdapterReturnedNilSong indicates that a caller-provided song source adapter returned a nil song without an error.
+	// ErrSourceAdapterReturnedNilSong indicates that a song source adapter returned a nil song and
+	// no error, which breaks the adapter contract.
 	ErrSourceAdapterReturnedNilSong = resolve.ErrSourceAdapterReturnedNilSong
 )

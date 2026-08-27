@@ -12,15 +12,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestIdentifierAlbumSearchIsUnsupported(t *testing.T) {
 	fixture := newTestFixture(t)
 
-	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), fixture.adapter)
-	assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), fixture.adapter)
+	_, err := fixture.adapter.SearchAlbumByUPC(context.Background(), "00602537184945")
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
+	_, err = fixture.adapter.SearchAlbumByISRC(context.Background(), []string{"GBAYE0601690"})
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
 }
 
 func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {
@@ -46,7 +48,7 @@ func TestSearchAlbumByMetadataSkipsMalformedHits(t *testing.T) {
 	defer server.Close()
 
 	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Good Playlist", Artists: []string{"Artist"}})
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Good Playlist", Artists: []string{"Artist"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, server.URL+"/artist/sets/good-playlist", results[0].MatchURL)
@@ -57,7 +59,7 @@ func TestSearchAlbumByMetadataReturnsNoResultsWhenClientIDUnavailable(t *testing
 	defer server.Close()
 
 	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "FENIAN", Artists: []string{"KNEECAP"}})
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "FENIAN", Artists: []string{"KNEECAP"}})
 
 	require.NoError(t, err)
 	assert.Empty(t, results)
@@ -110,7 +112,7 @@ func TestSearchAlbumByMetadataRefreshesRejectedClientID(t *testing.T) {
 	defer server.Close()
 
 	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   soundCloudCatsAndDogs,
 		Artists: []string{"Evidence"},
 	})

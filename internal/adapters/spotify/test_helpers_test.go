@@ -107,7 +107,7 @@ func spotifyTrackIDFromRequest(r *http.Request) string {
 func TestSearchAlbumByMetadataEmptyAlbumWithoutCredentialsReturnsEmptyResults(t *testing.T) {
 	adapter := spotify.New(http.DefaultClient)
 
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{})
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{})
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }

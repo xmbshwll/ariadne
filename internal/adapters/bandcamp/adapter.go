@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -30,6 +31,8 @@ func WithSearchBaseURL(baseURL string) Option {
 
 // Adapter implements Bandcamp source and metadata target operations.
 type Adapter struct {
+	base.Unsupported
+
 	client        *http.Client
 	searchBaseURL string
 }
@@ -40,6 +43,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported:   base.Unsupported{ServiceName: model.ServiceBandcamp},
 		client:        client,
 		searchBaseURL: "https://bandcamp.com",
 	}

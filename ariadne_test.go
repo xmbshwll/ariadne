@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/adapters"
 )
 
 const testLibrarySourceURL = "https://fixture.test/source"
@@ -194,7 +195,11 @@ func TestDescribe(t *testing.T) {
 		supportsRuntimeSongInput bool
 	}{
 		{name: "spotify full runtime", service: ariadne.ServiceSpotify, aliases: []string{"spotify"}, supportsAlbumSource: true, supportsAlbumTarget: true, supportsSongSource: true, supportsSongTarget: true, supportsRuntimeSongInput: true},
-		{name: "youtube music defers song hydration", service: ariadne.ServiceYouTubeMusic, supportsAlbumSource: true, supportsAlbumTarget: true, supportsRuntimeSongInput: true},
+		// YouTube Music recognizes song URLs and defers only song hydration, so
+		// it takes song Source Input like Amazon Music does; Support for a Source
+		// role means "this service can supply the Entity Shape", not "hydration is
+		// implemented".
+		{name: "youtube music defers song hydration", service: ariadne.ServiceYouTubeMusic, supportsAlbumSource: true, supportsAlbumTarget: true, supportsSongSource: true, supportsRuntimeSongInput: true},
 		{name: "amazon music is source only", service: ariadne.ServiceAmazonMusic, supportsAlbumSource: true, supportsSongSource: true, supportsRuntimeSongInput: true},
 	}
 
@@ -404,9 +409,9 @@ func TestMatchStrengthForScore(t *testing.T) {
 }
 
 func TestNewWithAdaptersResolveAlbum(t *testing.T) {
-	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
-		AlbumSources: []ariadne.SourceAdapter{newLibrarySourceAdapter()},
-		AlbumTargets: []ariadne.TargetAdapter{newLibraryTargetAdapter()},
+	resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{
+		AlbumSources: []adapters.Adapter{newLibrarySourceAdapter()},
+		AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()},
 	})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
@@ -475,17 +480,17 @@ func TestResolveReturnsPublicSentinelWhenCustomSourceViolatesContract(t *testing
 		sentinel error
 	}{
 		{name: "album source returns nil parsed url", sentinel: ariadne.ErrSourceAdapterReturnedNilParsedURL, resolve: func() error {
-			resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{AlbumSources: []ariadne.SourceAdapter{newNilParsedSourceAdapter()}, AlbumTargets: []ariadne.TargetAdapter{newLibraryTargetAdapter()}})
+			resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{AlbumSources: []adapters.Adapter{newNilParsedSourceAdapter()}, AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
 		{name: "album source returns nil album", sentinel: ariadne.ErrSourceAdapterReturnedNilAlbum, resolve: func() error {
-			resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{AlbumSources: []ariadne.SourceAdapter{newNilAlbumSourceAdapter()}, AlbumTargets: []ariadne.TargetAdapter{newLibraryTargetAdapter()}})
+			resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{AlbumSources: []adapters.Adapter{newNilAlbumSourceAdapter()}, AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
 		{name: "song source returns nil song", sentinel: ariadne.ErrSourceAdapterReturnedNilSong, resolve: func() error {
-			resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{SongSources: []ariadne.SongSourceAdapter{newNilSongSourceAdapter()}, SongTargets: []ariadne.SongTargetAdapter{newLibrarySongTargetAdapter()}})
+			resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{SongSources: []adapters.Adapter{newNilSongSourceAdapter()}, SongTargets: []adapters.Adapter{newLibrarySongTargetAdapter()}})
 			_, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 			return err
 		}},
@@ -531,7 +536,7 @@ func TestResolveSongReturnsDeferredRuntimeForParseOnlyServices(t *testing.T) {
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
-	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{AlbumSources: []ariadne.SourceAdapter{newLibrarySourceAdapter()}, AlbumTargets: []ariadne.TargetAdapter{newFailingLibraryTargetAdapter()}})
+	resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{AlbumSources: []adapters.Adapter{newLibrarySourceAdapter()}, AlbumTargets: []adapters.Adapter{newFailingLibraryTargetAdapter()}})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
@@ -540,10 +545,10 @@ func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
 }
 
 func newTestEntityResolver() *ariadne.Resolver {
-	return ariadne.NewWithAdapters(ariadne.AdapterSet{
-		AlbumSources: []ariadne.SourceAdapter{newLibrarySourceAdapter()},
-		AlbumTargets: []ariadne.TargetAdapter{newLibraryTargetAdapter()},
-		SongSources:  []ariadne.SongSourceAdapter{newLibrarySongSourceAdapter()},
-		SongTargets:  []ariadne.SongTargetAdapter{newLibrarySongTargetAdapter()},
+	return ariadne.NewWithAdapters(ariadne.TestAdapters{
+		AlbumSources: []adapters.Adapter{newLibrarySourceAdapter()},
+		AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()},
+		SongSources:  []adapters.Adapter{newLibrarySongSourceAdapter()},
+		SongTargets:  []adapters.Adapter{newLibrarySongTargetAdapter()},
 	})
 }

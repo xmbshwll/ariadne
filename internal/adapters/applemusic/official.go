@@ -12,8 +12,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-// SearchByUPC uses the official Apple Music catalog API when MusicKit auth is configured.
-func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByUPC uses the official Apple Music catalog API when MusicKit auth is configured.
+func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" || !a.authEnabled() {
 		return nil, nil
@@ -29,8 +29,8 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 	return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
 
-// SearchByISRC uses the official Apple Music catalog API when MusicKit auth is configured.
-func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByISRC uses the official Apple Music catalog API when MusicKit auth is configured.
+func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 	if !a.authEnabled() {
 		return nil, nil
 	}

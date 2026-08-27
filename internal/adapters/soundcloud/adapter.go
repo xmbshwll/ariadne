@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -45,6 +46,8 @@ func WithAPIBaseURL(baseURL string) Option {
 }
 
 type Adapter struct {
+	base.Unsupported
+
 	client      *http.Client
 	siteBaseURL string
 	apiBaseURL  string
@@ -58,6 +61,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceSoundCloud},
 		client:      client,
 		siteBaseURL: defaultSiteBaseURL,
 		apiBaseURL:  defaultAPIBaseURL,

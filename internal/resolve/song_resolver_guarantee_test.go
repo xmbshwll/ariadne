@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	resolve "github.com/xmbshwll/ariadne/internal/resolve"
 
 	"github.com/stretchr/testify/assert"
@@ -16,8 +17,8 @@ import (
 func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
 	sourceServiceTarget := newSourceServiceSongTargetAdapter()
 	resolver := resolve.NewSongs(
-		[]resolve.SongSourceAdapter{newStubSongSourceAdapter()},
-		[]resolve.SongTargetAdapter{sourceServiceTarget, newStubSongTargetAdapter()},
+		[]adapters.Adapter{newStubSongSourceAdapter()},
+		[]adapters.Adapter{sourceServiceTarget, newStubSongTargetAdapter()},
 		score.DefaultSongWeights(),
 	)
 
@@ -32,8 +33,8 @@ func TestSongResolverResolveSongExcludesSourceServiceFromTargets(t *testing.T) {
 
 func TestSongResolverResolveSongSurfacesTargetErrorPerMatch(t *testing.T) {
 	resolver := resolve.NewSongs(
-		[]resolve.SongSourceAdapter{newStubSongSourceAdapter()},
-		[]resolve.SongTargetAdapter{newStubSongTargetAdapter(), newFailingSongTargetAdapter()},
+		[]adapters.Adapter{newStubSongSourceAdapter()},
+		[]adapters.Adapter{newStubSongTargetAdapter(), newFailingSongTargetAdapter()},
 		score.DefaultSongWeights(),
 	)
 

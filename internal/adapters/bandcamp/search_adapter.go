@@ -11,10 +11,10 @@ import (
 
 const searchHydrationLimit = 8
 
-// SearchByMetadata searches Bandcamp metadata results and hydrates matching album pages.
+// SearchAlbumByMetadata searches Bandcamp metadata results and hydrates matching album pages.
 // Candidates return untruncated and unranked: Entity Resolution owns ranking
 // with the configured Score Signal weights.
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	return a.albumTargetSearch(album).Run(ctx)
 }
 

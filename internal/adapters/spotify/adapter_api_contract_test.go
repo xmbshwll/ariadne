@@ -196,7 +196,7 @@ func TestSearchByMetadataSkipsAlbumsThatDisappearDuringHydration(t *testing.T) {
 		})
 	})
 
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "album-good", results[0].CandidateID)
@@ -230,7 +230,7 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterQueriesFail(t *testing.T) {
 		})
 	})
 
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "ΘΕΛΗΜΑ (Thelema)", Artists: []string{"DECIPHER"}})
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "ΘΕΛΗΜΑ (Thelema)", Artists: []string{"DECIPHER"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "album-good", results[0].CandidateID)
@@ -245,7 +245,7 @@ func TestSearchByMetadataReturnsMalformedResponseError(t *testing.T) {
 		})
 	})
 
-	_, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
+	_, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"The Beatles"}})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, spotify.ErrMalformedSpotifyAPIResponse)
 }

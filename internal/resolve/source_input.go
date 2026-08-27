@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/adapters"
 )
 
 var (
@@ -47,8 +47,8 @@ type fatalParseFailure interface {
 
 // RecognizeSourceInput returns the first Source Adapter that parses inputURL.
 // Fatal parse failures stop recognition; nil parses violate the adapter contract.
-func RecognizeSourceInput[S any, P any](sources []S, inputURL string, parse func(S) (*P, error)) (*P, S, error) {
-	var zero S
+func RecognizeSourceInput[P any](sources []adapters.Adapter, inputURL string, parse func(adapters.Adapter) (*P, error)) (*P, adapters.Adapter, error) {
+	var zero adapters.Adapter
 	if len(sources) == 0 {
 		return nil, zero, ErrNoSourceAdapters
 	}
@@ -71,9 +71,9 @@ func RecognizeSourceInput[S any, P any](sources []S, inputURL string, parse func
 
 // HydrateSourceInput runs Runtime Hydration for a recognized Source Input and
 // normalizes the nil-entity adapter contract violation to a contract error.
-func HydrateSourceInput[S interface{ Service() model.ServiceName }, Entity any](
+func HydrateSourceInput[Entity any](
 	ctx context.Context,
-	adapter S,
+	adapter adapters.Adapter,
 	entityLabel string,
 	nilEntityErr error,
 	hydrate func(context.Context) (*Entity, error),

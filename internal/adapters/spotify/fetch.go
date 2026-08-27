@@ -35,8 +35,8 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	return a.FetchAlbumBootstrap(ctx, parsed)
 }
 
-// SearchByUPC searches Spotify albums by UPC via the Web API.
-func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByUPC searches Spotify albums by UPC via the Web API.
+func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" {
 		return nil, nil
@@ -53,8 +53,8 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 	return a.hydrateAlbumCandidates(ctx, response.Albums.Items)
 }
 
-// SearchByISRC searches Spotify track results by ISRC, then hydrates the owning albums.
-func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByISRC searches Spotify track results by ISRC, then hydrates the owning albums.
+func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
@@ -96,8 +96,8 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	return results, err
 }
 
-// SearchByMetadata searches Spotify albums by title and artist metadata.
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+// SearchAlbumByMetadata searches Spotify albums by title and artist metadata.
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	queries := MetadataQueries(album)
 	if len(queries) == 0 {
 		return nil, nil

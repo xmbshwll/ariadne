@@ -17,7 +17,7 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	return a.fetchAlbumByID(ctx, parsed.ID, parsed.CanonicalURL, parsed.RegionHint)
 }
 
-func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" {
 		return nil, nil
@@ -40,7 +40,7 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 	})
 }
 
-func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
@@ -88,7 +88,7 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	return results, nil
 }
 
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	query := metadataQuery(album)
 	if query == "" {
 		return nil, nil

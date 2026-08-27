@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestFetchAlbum(t *testing.T) {
@@ -53,8 +53,10 @@ func TestParseSongURLAndDeferredFetch(t *testing.T) {
 func TestUnsupportedIdentifierSearches(t *testing.T) {
 	adapter := youtubemusic.New(nil)
 
-	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
-	assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), adapter)
+	_, err := adapter.SearchAlbumByUPC(context.Background(), "00602537184945")
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
+	_, err = adapter.SearchAlbumByISRC(context.Background(), []string{"GBAYE0601690"})
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
 }
 
 func TestExtractTrackTitlesPreservesRepeatedTitles(t *testing.T) {

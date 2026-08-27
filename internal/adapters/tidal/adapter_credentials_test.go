@@ -19,9 +19,9 @@ func TestAdapterRequiresCredentialsForSourceAndSearch(t *testing.T) {
 	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.FetchSong(context.Background(), model.ParsedURL{Service: model.ServiceTIDAL, ID: "156205494", CanonicalURL: "https://tidal.com/track/156205494"})
 	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
-	_, err = adapter.SearchByISRC(context.Background(), []string{"QZMHK2043414"})
+	_, err = adapter.SearchAlbumByISRC(context.Background(), []string{"QZMHK2043414"})
 	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
-	_, err = adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"})
+	_, err = adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Album"})
 	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
 	_, err = adapter.SearchSongByISRC(context.Background(), "QZMHK2043414")
 	require.ErrorIs(t, err, tidal.ErrCredentialsNotConfigured)
@@ -39,13 +39,13 @@ func TestAdapterSkipsCredentialChecksForEmptySearches(t *testing.T) {
 		{
 			name: "album isrc search",
 			fn: func() (any, error) {
-				return adapter.SearchByISRC(context.Background(), []string{"", " "})
+				return adapter.SearchAlbumByISRC(context.Background(), []string{"", " "})
 			},
 		},
 		{
 			name: "album metadata search",
 			fn: func() (any, error) {
-				return adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{})
+				return adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{})
 			},
 		},
 		{

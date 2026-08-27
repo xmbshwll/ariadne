@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -18,10 +19,12 @@ var (
 	errUnexpectedAmazonService = errors.New("unexpected amazon music service")
 )
 
-type Adapter struct{}
+type Adapter struct {
+	base.Unsupported
+}
 
 func New(_ *http.Client) *Adapter {
-	return &Adapter{}
+	return &Adapter{Unsupported: base.Unsupported{ServiceName: model.ServiceAmazonMusic}}
 }
 
 func (a *Adapter) Service() model.ServiceName {

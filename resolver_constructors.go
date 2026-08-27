@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/resolve"
 	"github.com/xmbshwll/ariadne/internal/score"
@@ -56,53 +57,22 @@ func New(config Config, opts ...Option) *Resolver {
 	if client == nil {
 		client = httpx.NewClient(config.HTTPTimeout)
 	}
-	adapters := wiring.DefaultResolverAdapters(client, internalConfig(config), config.TargetServices)
+	builtIn := wiring.DefaultResolverAdapters(client, internalConfig(config), config.TargetServices)
 	return newResolver(
-		adapters.AlbumSources,
-		adapters.AlbumTargets,
-		adapters.SongSources,
-		adapters.SongTargets,
+		builtIn.AlbumSources,
+		builtIn.AlbumTargets,
+		builtIn.SongSources,
+		builtIn.SongTargets,
 		config.ScoreWeights,
 		config.SongScoreWeights,
 	)
 }
 
-// AdapterSet carries caller-provided adapters and ranking weights for
-// NewWithAdapters. Zero weights use the defaults.
-type AdapterSet struct {
-	AlbumSources []SourceAdapter
-	AlbumTargets []TargetAdapter
-	SongSources  []SongSourceAdapter
-	SongTargets  []SongTargetAdapter
-	Weights      ScoreWeights
-	SongWeights  SongScoreWeights
-}
-
-// NewWithAdapters builds a Resolver from a caller-provided AdapterSet.
-func NewWithAdapters(set AdapterSet) *Resolver {
-	weights := set.Weights
-	if weights == (ScoreWeights{}) {
-		weights = DefaultScoreWeights()
-	}
-	songWeights := set.SongWeights
-	if songWeights == (SongScoreWeights{}) {
-		songWeights = DefaultSongScoreWeights()
-	}
-	return newResolver(
-		set.AlbumSources,
-		set.AlbumTargets,
-		set.SongSources,
-		set.SongTargets,
-		weights,
-		songWeights,
-	)
-}
-
 func newResolver(
-	albumSources []resolve.SourceAdapter,
-	albumTargets []resolve.TargetAdapter,
-	songSources []resolve.SongSourceAdapter,
-	songTargets []resolve.SongTargetAdapter,
+	albumSources []adapters.Adapter,
+	albumTargets []adapters.Adapter,
+	songSources []adapters.Adapter,
+	songTargets []adapters.Adapter,
 	albumWeights score.Weights,
 	songWeights score.SongWeights,
 ) *Resolver {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -49,9 +50,10 @@ func resolveCommandUsage(timeout time.Duration) string {
 var (
 	defaultResolveCommandUse = resolveCommandUse(defaultResolveTimeout)
 	resolveUsage             = resolveCommandUsage(defaultResolveTimeout)
-	// resolverFactory keeps a non-variadic type so tests can stub it with plain
-	// func(ariadne.Config) factories; production wiring passes no options.
-	resolverFactory func(ariadne.Config) *ariadne.Resolver = func(config ariadne.Config) *ariadne.Resolver {
+	// resolverFactory builds the resolver one CLI run uses. It takes the narrow
+	// entityResolver the resolve command actually calls, so tests can supply any
+	// resolver instead of needing the library to expose adapter authoring.
+	resolverFactory func(ariadne.Config) entityResolver = func(config ariadne.Config) entityResolver {
 		return ariadne.New(config)
 	}
 	valueNormalizer = strings.NewReplacer("-", "", "_", "")
@@ -81,4 +83,12 @@ var matchStrengthByName = map[string]ariadne.MatchStrength{
 	"weak":     ariadne.MatchStrengthWeak,
 	"probable": ariadne.MatchStrengthProbable,
 	"strong":   ariadne.MatchStrengthStrong,
+}
+
+// entityResolver is what the resolve command needs from the library: turn one
+// input URL into a resolved Entity Shape. ariadne.Resolver satisfies it.
+type entityResolver interface {
+	ResolveAlbum(ctx context.Context, inputURL string) (*ariadne.Resolution, error)
+	ResolveSong(ctx context.Context, inputURL string) (*ariadne.SongResolution, error)
+	Resolve(ctx context.Context, inputURL string) (*ariadne.EntityResolution, error)
 }

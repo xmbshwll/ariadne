@@ -153,7 +153,11 @@ func main() {
 Advanced construction is available when you want more control:
 
 - `ariadne.New(config, ariadne.WithHTTPClient(client))`
-- `ariadne.NewWithAdapters(ariadne.AdapterSet{...})`
+
+Which services participate is a property of the library, not of the caller: the
+Provider Catalog in `internal/wiring` decides the Source Adapters and Target
+Search adapters for a config, and the public package does not accept adapters of
+its own.
 
 ## How matching works
 

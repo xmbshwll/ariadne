@@ -75,17 +75,33 @@ Hydration, or resolution metadata. They are the contract for those decisions.
   readable.
 - Use shared test fixtures for repeated service, album, track, candidate, config,
   and HTTP fixture data instead of repeating similar literals.
+- CLI tests stub the resolver through the narrow `entityResolver` behavior
+  interface and describe the `Resolution` or `SongResolution` they want
+  rendered; they do not assemble an Entity Resolution pipeline. The resolver's
+  own behavior is proven in `internal/resolve` and `ariadne_test.go`.
 - Use table-driven tests for Target Search and Candidate Hydration across
   ISRC/UPC/metadata layers, HTTP status codes, API errors, malformed responses,
   nil/empty payloads, weak candidates, and missing optional metadata such as
   versions, copyrights, labels, genres, audio profiles, external IDs, URLs, and
   artist fields.
-- Mockery generates one testify-compatible mock set for the adapter capability
-  interfaces declared in `internal/resolve` (`SourceAdapter`,
-  `AlbumTargetSearcher`, `SongSourceAdapter`, `SongTargetSearcher`) into
-  `internal/mocks` as package `mocks` with `xxx_mock.go` file names. Run
-  `make mocks` after interface changes; the capability-set interfaces exist so
-  one mock can satisfy every Target Search layer assertion.
+- Every provider implements the one `internal/adapters.Adapter` interface and
+  declares what it supports through `Capabilities()`. Callers select by
+  capability and by Service Identity; they never type-assert an adapter to a
+  narrower interface, and an unimplemented method returns
+  `adapters.ErrUnsupported`. Providers embed `internal/adapters/base.Unsupported`
+  and write only the methods their API really offers.
+- Each provider package ships an `adapter_contract_test.go` driven by
+  `internal/adapters/adaptertest`: it pins `Service()`, pins `Capabilities()`
+  against a literal expectation, and proves every undeclared method answers
+  `adapters.ErrUnsupported`. Editing what a provider supports means editing that
+  literal on purpose.
+- Mockery generates one testify-compatible mock, `MockAdapter`, from
+  `internal/adapters.Adapter` into `internal/mocks` as `xxx_mock.go`. Run
+  `make mocks` after Adapter interface changes; the one mock satisfies every
+  Source Input and Target Search layer assertion.
+- The public package exposes no adapter seam: `ariadne.New` plus options is the
+  only construction, and `internal/wiring` chooses adapters from the Provider
+  Catalog. Tests that need specific adapters use the `export_test.go` seam.
 - Every exported identifier in the public `package ariadne` carries a doc
   comment: that package is the library contract. Lint does not enforce this
   (`revive:exported` and `revive:package-comments` are disabled in

@@ -17,7 +17,7 @@ import (
 func TestSearchByUPCWithoutOfficialAuthReturnsNoResults(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.adapter.SearchByUPC(context.Background(), "123")
+	results, err := fixture.adapter.SearchAlbumByUPC(context.Background(), "123")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -25,7 +25,7 @@ func TestSearchByUPCWithoutOfficialAuthReturnsNoResults(t *testing.T) {
 func TestSearchByISRCWithoutOfficialAuthReturnsNoResults(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.adapter.SearchByISRC(context.Background(), []string{"ABC"})
+	results, err := fixture.adapter.SearchAlbumByISRC(context.Background(), []string{"ABC"})
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -48,7 +48,7 @@ func TestSearchAlbumByMetadataKeepsEarlierResultsWhenLaterQueriesFail(t *testing
 	defer server.Close()
 
 	adapter := applemusic.New(server.Client(), applemusic.WithLookupBaseURL(server.URL), applemusic.WithDefaultStorefront("gb"))
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   abbeyRoadRemastered,
 		Artists: []string{"The Beatles"},
 	})

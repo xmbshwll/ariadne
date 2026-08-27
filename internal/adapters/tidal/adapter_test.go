@@ -131,15 +131,15 @@ func TestAdapterRuntimeOperations(t *testing.T) {
 	assert.Equal(t, tidalTrackISRC, album.Tracks[0].ISRC)
 	assert.NotEmpty(t, album.ArtworkURL)
 
-	upcResults, err := adapter.SearchByUPC(context.Background(), "053000502692")
+	upcResults, err := adapter.SearchAlbumByUPC(context.Background(), "053000502692")
 	require.NoError(t, err)
 	assertSingleAlbum(t, upcResults, "156205493")
 
-	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{tidalTrackISRC})
+	isrcResults, err := adapter.SearchAlbumByISRC(context.Background(), []string{tidalTrackISRC})
 	require.NoError(t, err)
 	assertSingleAlbum(t, isrcResults, "156205493")
 
-	metadataResults, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Shadows among trees", Artists: []string{"Fetch"}})
+	metadataResults, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Shadows among trees", Artists: []string{"Fetch"}})
 	require.NoError(t, err)
 	assertSingleAlbum(t, metadataResults, "156205493")
 

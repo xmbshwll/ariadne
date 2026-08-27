@@ -10,17 +10,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 var errSourceInputTest = errors.New("source input test")
 
+// sourceInputTestAdapter is the bare minimum an Adapter can be: it names a
+// service and answers every capability with ErrUnsupported, which is what
+// Source Input recognition needs to see.
 type sourceInputTestAdapter struct {
+	base.Unsupported
 	service model.ServiceName
 }
 
 func (a sourceInputTestAdapter) Service() model.ServiceName {
 	return a.service
+}
+
+func (sourceInputTestAdapter) Capabilities() adapters.Capabilities {
+	return adapters.Capabilities{}
 }
 
 type fatalSourceInputError struct {
@@ -37,9 +47,9 @@ func (e fatalSourceInputError) Unwrap() error {
 
 func TestResolveSourceInputHydratesRecognizedSource(t *testing.T) {
 	parsed, adapter, err := resolve.RecognizeSourceInput(
-		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
+		[]adapters.Adapter{sourceInputTestAdapter{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
-		func(sourceInputTestAdapter) (*model.ParsedURL, error) {
+		func(adapters.Adapter) (*model.ParsedURL, error) {
 			return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "1"}, nil
 		},
 	)
@@ -62,9 +72,9 @@ func TestResolveSourceInputHydratesRecognizedSource(t *testing.T) {
 
 func TestResolveSourceInputPreservesFatalParseFailure(t *testing.T) {
 	_, _, err := resolve.RecognizeSourceInput(
-		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
+		[]adapters.Adapter{sourceInputTestAdapter{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
-		func(sourceInputTestAdapter) (*model.ParsedURL, error) {
+		func(adapters.Adapter) (*model.ParsedURL, error) {
 			return nil, fatalSourceInputError{errSourceInputTest}
 		},
 	)
@@ -75,9 +85,9 @@ func TestResolveSourceInputPreservesFatalParseFailure(t *testing.T) {
 
 func TestResolveSourceInputReportsNilHydration(t *testing.T) {
 	_, adapter, err := resolve.RecognizeSourceInput(
-		[]sourceInputTestAdapter{{service: model.ServiceSpotify}},
+		[]adapters.Adapter{sourceInputTestAdapter{service: model.ServiceSpotify}},
 		"https://open.spotify.com/album/1",
-		func(sourceInputTestAdapter) (*model.ParsedURL, error) {
+		func(adapters.Adapter) (*model.ParsedURL, error) {
 			return &model.ParsedURL{Service: model.ServiceSpotify, EntityType: model.EntityTypeAlbum, ID: "1"}, nil
 		},
 	)

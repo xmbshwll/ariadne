@@ -15,7 +15,7 @@ import (
 func TestSearchAlbumByMetadata(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := fixture.adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:      abbeyRoadRemastered,
 		Artists:    []string{"The Beatles"},
 		RegionHint: "gb",
@@ -33,7 +33,7 @@ func TestSearchAlbumByMetadataUsesAdapterDefaultStorefront(t *testing.T) {
 	fixture := newTestFixture(t, payloads)
 	defaultStorefrontAdapter := applemusic.New(fixture.httpClient, applemusic.WithLookupBaseURL(fixture.serverURL), applemusic.WithDefaultStorefront("gb"))
 
-	results, err := defaultStorefrontAdapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := defaultStorefrontAdapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   abbeyRoadRemastered,
 		Artists: []string{"The Beatles"},
 	})

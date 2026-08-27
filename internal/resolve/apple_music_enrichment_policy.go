@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -22,7 +23,7 @@ func NewAppleMusicEnrichmentPolicy(weights score.Weights) appleMusicEnrichmentPo
 	return appleMusicEnrichmentPolicy{weights: weights}
 }
 
-func (p appleMusicEnrichmentPolicy) collectTargetCandidates(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+func (p appleMusicEnrichmentPolicy) collectTargetCandidates(ctx context.Context, target adapters.Adapter, source model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	if target.Service() != model.ServiceAppleMusic {
 		return collectAlbumTargetCandidates(ctx, target, source)
 	}
@@ -37,7 +38,7 @@ func (p appleMusicEnrichmentPolicy) collectTargetCandidates(ctx context.Context,
 // Identifier Enrichment is best-effort: failures keep the base matches.
 func (p appleMusicEnrichmentPolicy) apply(
 	ctx context.Context,
-	targets []TargetAdapter,
+	targets []adapters.Adapter,
 	source model.CanonicalAlbum,
 	matches map[model.ServiceName]MatchResult,
 ) {
@@ -52,7 +53,7 @@ func (p appleMusicEnrichmentPolicy) apply(
 	}
 
 	var matchesMu sync.Mutex
-	resolveTargetsConcurrently(ctx, enrichmentTargets, func(targetCtx context.Context, target TargetAdapter) {
+	resolveTargetsConcurrently(ctx, enrichmentTargets, func(targetCtx context.Context, target adapters.Adapter) {
 		newResult, err := p.resolveTarget(targetCtx, target, enriched)
 		if err != nil {
 			return
@@ -81,7 +82,7 @@ func (p appleMusicEnrichmentPolicy) EnrichedSource(source model.CanonicalAlbum, 
 // resolveTarget is the single-target half of Identifier Enrichment. It mirrors
 // entityResolution.resolveTarget but returns the failure to the caller, because a
 // failed enrichment search must leave the base matches untouched.
-func (p appleMusicEnrichmentPolicy) resolveTarget(ctx context.Context, target TargetAdapter, source model.CanonicalAlbum) (MatchResult, error) {
+func (p appleMusicEnrichmentPolicy) resolveTarget(ctx context.Context, target adapters.Adapter, source model.CanonicalAlbum) (MatchResult, error) {
 	candidates, err := p.collectTargetCandidates(ctx, target, source)
 	if err != nil {
 		return MatchResult{}, err
@@ -95,8 +96,8 @@ func (p appleMusicEnrichmentPolicy) ShouldReplace(existing MatchResult, newResul
 	return newResult.Best != nil && (existing.Best == nil || newResult.Best.Score > existing.Best.Score)
 }
 
-func appleMusicTargets(targets []TargetAdapter) []TargetAdapter {
-	filtered := make([]TargetAdapter, 0, len(targets))
+func appleMusicTargets(targets []adapters.Adapter) []adapters.Adapter {
+	filtered := make([]adapters.Adapter, 0, len(targets))
 	for _, target := range targets {
 		if target.Service() != model.ServiceAppleMusic {
 			continue

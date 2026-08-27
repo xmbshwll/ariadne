@@ -1,6 +1,7 @@
 package wiring
 
 import (
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -9,9 +10,8 @@ import (
 type (
 	// Binding is the built-in service binding shape under test.
 	Binding = binding
-	// BuiltAdapterSet is one service's built adapter set. It is not the public
-	// ariadne.AdapterSet, which carries caller-supplied adapters.
-	BuiltAdapterSet = adapterSet
+	// BuiltAdapter is one service's built adapter.
+	BuiltAdapter = adapters.Adapter
 )
 
 var (
@@ -19,6 +19,6 @@ var (
 	NewBinding = func(name model.ServiceName, build adapterBuilder) binding {
 		return binding{capability: capabilitySpec{name: name}, build: build}
 	}
-	// BuildAdapterSets exposes the one-per-service adapter construction step.
-	BuildAdapterSets = buildAdapterSets
+	// BuildAdapters exposes the one-per-service adapter construction step.
+	BuildAdapters = buildAdapters
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -14,43 +15,6 @@ var (
 	// ErrNoSourceAdapters indicates that the resolver was created without source adapters.
 	ErrNoSourceAdapters = errors.New("no source adapters configured")
 )
-
-// SourceAdapter fetches canonical album metadata from a parsed source URL.
-type SourceAdapter interface {
-	Service() model.ServiceName
-	ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error)
-	FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error)
-}
-
-// TargetAdapter identifies one album target Music Service.
-type TargetAdapter interface {
-	Service() model.ServiceName
-}
-
-// UPCSearcher searches album targets by UPC.
-type UPCSearcher interface {
-	SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error)
-}
-
-// ISRCSearcher searches album targets by track ISRCs.
-type ISRCSearcher interface {
-	SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error)
-}
-
-// MetadataSearcher searches album targets by canonical metadata.
-type MetadataSearcher interface {
-	SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error)
-}
-
-// AlbumTargetSearcher is the full album Target Search Capability set one Music
-// Service target Adapter may implement. Target Search layers stay optional, so
-// TargetAdapter itself only identifies the service.
-type AlbumTargetSearcher interface {
-	TargetAdapter
-	UPCSearcher
-	ISRCSearcher
-	MetadataSearcher
-}
 
 // ScoredMatchOf is one scored candidate exposed by the resolver.
 type ScoredMatchOf[C any] struct {
@@ -95,12 +59,12 @@ type Resolver struct {
 }
 
 // albumEntityResolutionPolicy is the Entity Resolution pipeline configured for albums.
-type albumEntityResolutionPolicy = entityResolution[model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum, TargetAdapter]
+type albumEntityResolutionPolicy = entityResolution[model.ParsedAlbumURL, model.CanonicalAlbum, model.CandidateAlbum]
 
-func newAlbumEntityResolutionPolicy(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) albumEntityResolutionPolicy {
+func newAlbumEntityResolutionPolicy(sources []adapters.Adapter, targets []adapters.Adapter, weights score.Weights) albumEntityResolutionPolicy {
 	enrichment := NewAppleMusicEnrichmentPolicy(weights)
 	return albumEntityResolutionPolicy{
-		targetAdapters:    append([]TargetAdapter(nil), targets...),
+		targetAdapters:    append([]adapters.Adapter(nil), targets...),
 		collectCandidates: enrichment.collectTargetCandidates,
 		rank: func(album model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking[model.CandidateAlbum] {
 			return score.RankAlbums(album, candidates, weights)
@@ -111,10 +75,10 @@ func newAlbumEntityResolutionPolicy(sources []SourceAdapter, targets []TargetAda
 		afterTargetMatches: enrichment.apply,
 		resolveSourceInput: func(ctx context.Context, inputURL string) (model.ParsedAlbumURL, model.CanonicalAlbum, error) {
 			return resolveEntitySourceInput(ctx, sources, inputURL, albumEntityLabel, ErrNilSourceAlbum,
-				func(source SourceAdapter, rawURL string) (*model.ParsedAlbumURL, error) {
+				func(source adapters.Adapter, rawURL string) (*model.ParsedAlbumURL, error) {
 					return source.ParseAlbumURL(rawURL)
 				},
-				func(ctx context.Context, source SourceAdapter, parsed *model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
+				func(ctx context.Context, source adapters.Adapter, parsed *model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
 					return source.FetchAlbum(ctx, *parsed)
 				})
 		},
@@ -122,7 +86,7 @@ func newAlbumEntityResolutionPolicy(sources []SourceAdapter, targets []TargetAda
 }
 
 // New creates a resolver from registered source and target adapters.
-func New(sources []SourceAdapter, targets []TargetAdapter, weights score.Weights) *Resolver {
+func New(sources []adapters.Adapter, targets []adapters.Adapter, weights score.Weights) *Resolver {
 	return &Resolver{policy: newAlbumEntityResolutionPolicy(sources, targets, weights)}
 }
 

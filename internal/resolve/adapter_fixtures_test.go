@@ -3,8 +3,8 @@ package resolve_test
 import (
 	"context"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/mocks"
-	resolve "github.com/xmbshwll/ariadne/internal/resolve"
 
 	"github.com/stretchr/testify/mock"
 
@@ -43,32 +43,23 @@ type songTargetFixture struct {
 	byMetadata func(context.Context, model.CanonicalSong) ([]model.CandidateSong, error)
 }
 
-func newSourceAdapterMock(service model.ServiceName) *mocks.MockSourceAdapter {
-	adapter := new(mocks.MockSourceAdapter)
+// newAdapterMock builds the one Adapter mock with the identity every fixture
+// needs: the service name and the Capabilities the fixture really implements.
+func newAdapterMock(service model.ServiceName, capabilities adapters.Capabilities) *mocks.MockAdapter {
+	adapter := new(mocks.MockAdapter)
 	adapter.EXPECT().Service().Return(service)
+	adapter.EXPECT().Capabilities().Return(capabilities)
 	return adapter
 }
 
-func newTargetAdapterMock(service model.ServiceName) *mocks.MockAlbumTargetSearcher {
-	adapter := new(mocks.MockAlbumTargetSearcher)
-	adapter.EXPECT().Service().Return(service)
-	return adapter
-}
+// albumTargetCapabilities is what an album Target Search fixture declares.
+var albumTargetCapabilities = adapters.Capabilities{AlbumUPC: true, AlbumISRC: true, AlbumMetadata: true}
 
-func newSongSourceAdapterMock(service model.ServiceName) *mocks.MockSongSourceAdapter {
-	adapter := new(mocks.MockSongSourceAdapter)
-	adapter.EXPECT().Service().Return(service)
-	return adapter
-}
+// songTargetCapabilities is what a song Target Search fixture declares.
+var songTargetCapabilities = adapters.Capabilities{SongISRC: true, SongMetadata: true}
 
-func newSongTargetAdapterMock(service model.ServiceName) *mocks.MockSongTargetSearcher {
-	adapter := new(mocks.MockSongTargetSearcher)
-	adapter.EXPECT().Service().Return(service)
-	return adapter
-}
-
-func newAlbumSourceFixture(fixture albumSourceFixture) resolve.SourceAdapter {
-	adapter := newSourceAdapterMock(fixture.service)
+func newAlbumSourceFixture(fixture albumSourceFixture) adapters.Adapter {
+	adapter := newAdapterMock(fixture.service, adapters.Capabilities{AlbumSource: true})
 	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*model.ParsedURL, error) {
 		if raw != fixture.inputURL {
 			return nil, errUnsupportedTestSource
@@ -88,21 +79,21 @@ func newAlbumSourceFixture(fixture albumSourceFixture) resolve.SourceAdapter {
 	return adapter
 }
 
-func newAlbumTargetFixture(fixture albumTargetFixture) resolve.TargetAdapter {
-	adapter := newTargetAdapterMock(fixture.service)
-	adapter.EXPECT().SearchByUPC(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+func newAlbumTargetFixture(fixture albumTargetFixture) adapters.Adapter {
+	adapter := newAdapterMock(fixture.service, albumTargetCapabilities)
+	adapter.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 		if fixture.byUPC == nil {
 			return nil, nil
 		}
 		return fixture.byUPC(ctx, upc)
 	})
-	adapter.EXPECT().SearchByISRC(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+	adapter.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 		if fixture.byISRC == nil {
 			return nil, nil
 		}
 		return fixture.byISRC(ctx, isrcs)
 	})
-	adapter.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	adapter.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 		if fixture.byMetadata == nil {
 			return nil, nil
 		}
@@ -111,8 +102,8 @@ func newAlbumTargetFixture(fixture albumTargetFixture) resolve.TargetAdapter {
 	return adapter
 }
 
-func newSongSourceFixture(fixture songSourceFixture) resolve.SongSourceAdapter {
-	adapter := newSongSourceAdapterMock(fixture.service)
+func newSongSourceFixture(fixture songSourceFixture) adapters.Adapter {
+	adapter := newAdapterMock(fixture.service, adapters.Capabilities{SongSource: true})
 	adapter.EXPECT().ParseSongURL(mock.Anything).RunAndReturn(func(raw string) (*model.ParsedURL, error) {
 		if raw != fixture.inputURL {
 			return nil, errUnsupportedTestSource
@@ -132,8 +123,8 @@ func newSongSourceFixture(fixture songSourceFixture) resolve.SongSourceAdapter {
 	return adapter
 }
 
-func newSongTargetFixture(fixture songTargetFixture) resolve.SongTargetAdapter {
-	adapter := newSongTargetAdapterMock(fixture.service)
+func newSongTargetFixture(fixture songTargetFixture) adapters.Adapter {
+	adapter := newAdapterMock(fixture.service, songTargetCapabilities)
 	adapter.EXPECT().SearchSongByISRC(mock.Anything, mock.Anything).RunAndReturn(func(ctx context.Context, isrc string) ([]model.CandidateSong, error) {
 		if fixture.byISRC == nil {
 			return nil, nil
@@ -149,7 +140,7 @@ func newSongTargetFixture(fixture songTargetFixture) resolve.SongTargetAdapter {
 	return adapter
 }
 
-func newStubSourceAdapter() resolve.SourceAdapter {
+func newStubSourceAdapter() adapters.Adapter {
 	return newAlbumSourceFixture(albumSourceFixture{
 		service:  model.ServiceDeezer,
 		inputURL: stubAlbumURL,
@@ -164,7 +155,7 @@ func newStubSourceAdapter() resolve.SourceAdapter {
 	})
 }
 
-func newStubTargetAdapter() resolve.TargetAdapter {
+func newStubTargetAdapter() adapters.Adapter {
 	return newAlbumTargetFixture(albumTargetFixture{
 		service: model.ServiceSpotify,
 		byUPC: func(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
@@ -227,7 +218,7 @@ func stubAlbumTwo() model.CandidateAlbum {
 	}
 }
 
-func newBlockingTargetAdapter(service model.ServiceName, started chan<- struct{}, release <-chan struct{}) resolve.TargetAdapter {
+func newBlockingTargetAdapter(service model.ServiceName, started chan<- struct{}, release <-chan struct{}) adapters.Adapter {
 	return newAlbumTargetFixture(albumTargetFixture{
 		service: service,
 		byMetadata: func(ctx context.Context, _ model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
@@ -245,11 +236,11 @@ func newBlockingTargetAdapter(service model.ServiceName, started chan<- struct{}
 	})
 }
 
-func newSourceServiceTargetAdapter() resolve.TargetAdapter {
-	return newTargetAdapterMock(model.ServiceDeezer)
+func newSourceServiceTargetAdapter() adapters.Adapter {
+	return newAdapterMock(model.ServiceDeezer, albumTargetCapabilities)
 }
 
-func newFailingTargetAdapter() resolve.TargetAdapter {
+func newFailingTargetAdapter() adapters.Adapter {
 	return newAlbumTargetFixture(albumTargetFixture{
 		service: model.ServiceBandcamp,
 		byMetadata: func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
@@ -258,8 +249,8 @@ func newFailingTargetAdapter() resolve.TargetAdapter {
 	})
 }
 
-func newFixtureSourceAdapter(albumsByURL map[string]model.CanonicalAlbum) resolve.SourceAdapter {
-	adapter := newSourceAdapterMock("fixture")
+func newFixtureSourceAdapter(albumsByURL map[string]model.CanonicalAlbum) adapters.Adapter {
+	adapter := newAdapterMock("fixture", adapters.Capabilities{AlbumSource: true})
 	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*model.ParsedURL, error) {
 		album, ok := albumsByURL[raw]
 		if !ok {
@@ -278,11 +269,11 @@ func newFixtureSourceAdapter(albumsByURL map[string]model.CanonicalAlbum) resolv
 	return adapter
 }
 
-func newSingleAlbumSourceAdapter(inputURL string, album model.CanonicalAlbum) resolve.SourceAdapter {
+func newSingleAlbumSourceAdapter(inputURL string, album model.CanonicalAlbum) adapters.Adapter {
 	return newFixtureSourceAdapter(map[string]model.CanonicalAlbum{inputURL: album})
 }
 
-func newNilAlbumSourceAdapter() resolve.SourceAdapter {
+func newNilAlbumSourceAdapter() adapters.Adapter {
 	return newAlbumSourceFixture(albumSourceFixture{
 		service:  model.ServiceDeezer,
 		inputURL: stubAlbumURL,
@@ -291,7 +282,7 @@ func newNilAlbumSourceAdapter() resolve.SourceAdapter {
 	})
 }
 
-func newFixtureTargetAdapter(service model.ServiceName, candidatesBySourceID map[string][]model.CandidateAlbum) resolve.TargetAdapter {
+func newFixtureTargetAdapter(service model.ServiceName, candidatesBySourceID map[string][]model.CandidateAlbum) adapters.Adapter {
 	return newAlbumTargetFixture(albumTargetFixture{
 		service: service,
 		byMetadata: func(_ context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
@@ -300,7 +291,7 @@ func newFixtureTargetAdapter(service model.ServiceName, candidatesBySourceID map
 	})
 }
 
-func newStubSongSourceAdapter() resolve.SongSourceAdapter {
+func newStubSongSourceAdapter() adapters.Adapter {
 	return newSongSourceFixture(songSourceFixture{
 		service:  model.ServiceSpotify,
 		inputURL: stubSongURL,
@@ -320,7 +311,7 @@ func newStubSongSourceAdapter() resolve.SongSourceAdapter {
 	})
 }
 
-func newNilSongSourceAdapter() resolve.SongSourceAdapter {
+func newNilSongSourceAdapter() adapters.Adapter {
 	return newSongSourceFixture(songSourceFixture{
 		service:  model.ServiceSpotify,
 		inputURL: stubSongURL,
@@ -329,7 +320,7 @@ func newNilSongSourceAdapter() resolve.SongSourceAdapter {
 	})
 }
 
-func newStubSongTargetAdapter() resolve.SongTargetAdapter {
+func newStubSongTargetAdapter() adapters.Adapter {
 	return newSongTargetFixture(songTargetFixture{
 		service: model.ServiceAppleMusic,
 		byISRC: func(_ context.Context, isrc string) ([]model.CandidateSong, error) {
@@ -393,11 +384,11 @@ func stubSongTwo() model.CandidateSong {
 	}
 }
 
-func newSourceServiceSongTargetAdapter() *mocks.MockSongTargetSearcher {
-	return newSongTargetAdapterMock(model.ServiceSpotify)
+func newSourceServiceSongTargetAdapter() *mocks.MockAdapter {
+	return newAdapterMock(model.ServiceSpotify, songTargetCapabilities)
 }
 
-func newFailingSongTargetAdapter() resolve.SongTargetAdapter {
+func newFailingSongTargetAdapter() adapters.Adapter {
 	return newSongTargetFixture(songTargetFixture{
 		service: model.ServiceDeezer,
 		byMetadata: func(context.Context, model.CanonicalSong) ([]model.CandidateSong, error) {

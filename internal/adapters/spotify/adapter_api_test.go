@@ -82,15 +82,15 @@ func TestAPIBackedAlbumAndSongOperations(t *testing.T) {
 	assert.Equal(t, "602547670342", album.UPC)
 	assert.Equal(t, "GBAYE0601690", album.Tracks[0].ISRC)
 
-	upcResults, err := adapter.SearchByUPC(context.Background(), "602547670342")
+	upcResults, err := adapter.SearchAlbumByUPC(context.Background(), "602547670342")
 	require.NoError(t, err)
 	assertSingleAlbum(t, upcResults, "album-good")
 
-	isrcResults, err := adapter.SearchByISRC(context.Background(), []string{"GBAYE0601690", "GBAYE0601691"})
+	isrcResults, err := adapter.SearchAlbumByISRC(context.Background(), []string{"GBAYE0601690", "GBAYE0601691"})
 	require.NoError(t, err)
 	assertSingleAlbum(t, isrcResults, "album-good")
 
-	metadataResults, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road (Remastered)", Artists: []string{"The Beatles"}})
+	metadataResults, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road (Remastered)", Artists: []string{"The Beatles"}})
 	require.NoError(t, err)
 	require.Len(t, metadataResults, 2)
 	assert.Equal(t, "album-good", metadataResults[0].CandidateID)

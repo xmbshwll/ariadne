@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestAlbumAdapter(t *testing.T) {
@@ -43,7 +43,7 @@ func TestAlbumAdapter(t *testing.T) {
 	})
 
 	t.Run("search by metadata", func(t *testing.T) {
-		results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+		results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 			Title:   "Abbey Road",
 			Artists: []string{"COMRADIATION"},
 		})
@@ -54,8 +54,10 @@ func TestAlbumAdapter(t *testing.T) {
 	})
 
 	t.Run("identifier search unsupported", func(t *testing.T) {
-		assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
-		assert.NotImplements(t, (*resolve.ISRCSearcher)(nil), adapter)
+		_, err := adapter.SearchAlbumByUPC(context.Background(), "00602537184945")
+		assert.ErrorIs(t, err, adapters.ErrUnsupported)
+		_, err = adapter.SearchAlbumByISRC(context.Background(), []string{"GBAYE0601690"})
+		assert.ErrorIs(t, err, adapters.ErrUnsupported)
 	})
 }
 
@@ -76,7 +78,7 @@ func TestSearchByMetadataUsesAutocompleteWhenHTMLSearchIsChallenged(t *testing.T
 	defer server.Close()
 
 	adapter := newBandcampTestAdapter(server)
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   "Fenian",
 		Artists: []string{"Kneecap"},
 	})
@@ -112,7 +114,7 @@ func TestSearchByMetadataReturnsHydratedCandidatesUntruncated(t *testing.T) {
 	defer server.Close()
 
 	adapter := newBandcampTestAdapter(server)
-	results, err := adapter.SearchByMetadata(context.Background(), source)
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), source)
 	require.NoError(t, err)
 	require.Len(t, results, 2)
 	// The adapter no longer ranks by Score Signals; Entity Resolution owns
@@ -132,7 +134,7 @@ func TestSearchByMetadataReturnsFirstHydrationErrorWhenNothingRecovers(t *testin
 	defer server.Close()
 
 	adapter := newBandcampTestAdapter(server)
-	_, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"COMRADIATION"}})
+	_, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{Title: "Abbey Road", Artists: []string{"COMRADIATION"}})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, bandcamp.ErrMalformedBandcampJSONLD)
 }

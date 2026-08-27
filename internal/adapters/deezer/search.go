@@ -12,8 +12,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-// SearchByUPC resolves a Deezer album directly from a UPC when Deezer exposes the lookup path.
-func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByUPC resolves a Deezer album directly from a UPC when Deezer exposes the lookup path.
+func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" {
 		return nil, nil
@@ -30,8 +30,8 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 	return []model.CandidateAlbum{toCandidateAlbum(*canonical)}, nil
 }
 
-// SearchByISRC resolves Deezer albums from one or more track ISRCs.
-func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByISRC resolves Deezer albums from one or more track ISRCs.
+func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
@@ -80,8 +80,8 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	return results, nil
 }
 
-// SearchByMetadata searches Deezer albums using album title and artist metadata.
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+// SearchAlbumByMetadata searches Deezer albums using album title and artist metadata.
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil

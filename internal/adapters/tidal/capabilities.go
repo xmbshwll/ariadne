@@ -1,0 +1,21 @@
+package tidal
+
+import (
+	"github.com/xmbshwll/ariadne/internal/adapters"
+)
+
+// Every provider satisfies the same Adapter interface; what differs is only
+// Capabilities, and the methods this package leaves to base.Unsupported.
+var _ adapters.Adapter = (*Adapter)(nil)
+
+// Capabilities reports which TIDAL Adapter methods Ariadne can use.
+//
+// Every capability. Target Search additionally needs Client Credentials, which the Provider Catalog gates.
+func Capabilities() adapters.Capabilities {
+	return adapters.Capabilities{AlbumSource: true, SongSource: true, AlbumUPC: true, AlbumISRC: true, AlbumMetadata: true, SongISRC: true, SongMetadata: true}
+}
+
+// Capabilities reports which TIDAL Adapter methods Ariadne can use.
+func (a *Adapter) Capabilities() adapters.Capabilities {
+	return Capabilities()
+}

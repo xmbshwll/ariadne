@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	resolve "github.com/xmbshwll/ariadne/internal/resolve"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestResolverResolveAlbum(t *testing.T) {
 		{
 			name: "unsupported url",
 			resolver: resolve.New(
-				[]resolve.SourceAdapter{newStubSourceAdapter()},
+				[]adapters.Adapter{newStubSourceAdapter()},
 				nil,
 				score.DefaultWeights(),
 			),
@@ -56,8 +57,8 @@ func TestResolverResolveAlbum(t *testing.T) {
 		{
 			name: "collect layered candidates and dedupe",
 			resolver: resolve.New(
-				[]resolve.SourceAdapter{newStubSourceAdapter()},
-				[]resolve.TargetAdapter{newStubTargetAdapter()},
+				[]adapters.Adapter{newStubSourceAdapter()},
+				[]adapters.Adapter{newStubTargetAdapter()},
 				score.DefaultWeights(),
 			),
 			inputURL:          "https://www.deezer.com/album/12047952",
@@ -105,7 +106,7 @@ func TestResolverResolveAlbum(t *testing.T) {
 
 func TestResolverResolveAlbumReturnsNilSourceAlbumError(t *testing.T) {
 	resolver := resolve.New(
-		[]resolve.SourceAdapter{newNilAlbumSourceAdapter()},
+		[]adapters.Adapter{newNilAlbumSourceAdapter()},
 		nil,
 		score.DefaultWeights(),
 	)
@@ -123,8 +124,8 @@ func TestResolverResolveAlbumSearchesTargetsInParallel(t *testing.T) {
 	appleMusicStarted := make(chan struct{}, 1)
 
 	resolver := resolve.New(
-		[]resolve.SourceAdapter{newStubSourceAdapter()},
-		[]resolve.TargetAdapter{
+		[]adapters.Adapter{newStubSourceAdapter()},
+		[]adapters.Adapter{
 			newBlockingTargetAdapter(model.ServiceSpotify, spotifyStarted, release),
 			newBlockingTargetAdapter(model.ServiceAppleMusic, appleMusicStarted, release),
 		},
@@ -192,28 +193,28 @@ func TestResolverResolveAlbumCascadesStrongIntermediateIdentifiersToAppleMusic(t
 
 	var appleUPC string
 	var appleISRCs []string
-	spotifyTarget := newTargetAdapterMock(model.ServiceSpotify)
-	spotifyTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
-	spotifyTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
-	spotifyTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
+	spotifyTarget := newAdapterMock(model.ServiceSpotify, albumTargetCapabilities)
+	spotifyTarget.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
 
-	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
-	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
+	appleTarget := newAdapterMock(model.ServiceAppleMusic, albumTargetCapabilities)
+	appleTarget.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, upc string) ([]model.CandidateAlbum, error) {
 		appleUPC = upc
 		if upc != "3618021182192" {
 			return nil, nil
 		}
 		return []model.CandidateAlbum{appleCandidate}, nil
 	})
-	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+	appleTarget.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 		appleISRCs = append([]string(nil), isrcs...)
 		return nil, nil
 	})
-	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
 
 	resolver := resolve.New(
-		[]resolve.SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]resolve.TargetAdapter{spotifyTarget, appleTarget},
+		[]adapters.Adapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]adapters.Adapter{spotifyTarget, appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -261,16 +262,16 @@ func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.
 	})
 	lowerCascadedCandidate.UPC = "3618021182192"
 
-	spotifyTarget := newTargetAdapterMock(model.ServiceSpotify)
-	spotifyTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
-	spotifyTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
-	spotifyTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
+	spotifyTarget := newAdapterMock(model.ServiceSpotify, albumTargetCapabilities)
+	spotifyTarget.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	spotifyTarget.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{spotifyCandidate}, nil)
 
 	metadataCalls := 0
-	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
-	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{lowerCascadedCandidate}, nil)
-	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
-	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	appleTarget := newAdapterMock(model.ServiceAppleMusic, albumTargetCapabilities)
+	appleTarget.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).Return([]model.CandidateAlbum{lowerCascadedCandidate}, nil)
+	appleTarget.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).RunAndReturn(func(context.Context, model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 		metadataCalls++
 		if metadataCalls == 1 {
 			return []model.CandidateAlbum{existingAppleCandidate}, nil
@@ -279,8 +280,8 @@ func TestResolverResolveAlbumKeepsBetterAppleMusicResultAfterCascade(t *testing.
 	})
 
 	resolver := resolve.New(
-		[]resolve.SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]resolve.TargetAdapter{spotifyTarget, appleTarget},
+		[]adapters.Adapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]adapters.Adapter{spotifyTarget, appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -307,16 +308,16 @@ func TestResolverResolveAlbumFiltersAppleMusicMetadataFallbackCandidates(t *test
 		trackCount: 3,
 		explicit:   true,
 	})
-	appleTarget := newTargetAdapterMock(model.ServiceAppleMusic)
-	appleTarget.EXPECT().SearchByUPC(mock.Anything, mock.Anything).Return(nil, nil)
-	appleTarget.EXPECT().SearchByISRC(mock.Anything, mock.Anything).Return(nil, nil)
-	appleTarget.EXPECT().SearchByMetadata(mock.Anything, mock.Anything).Return(
+	appleTarget := newAdapterMock(model.ServiceAppleMusic, albumTargetCapabilities)
+	appleTarget.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	appleTarget.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return(
 		[]model.CandidateAlbum{noTitleArtistCandidate, nonPositiveCandidate},
 		nil,
 	)
 	resolver := resolve.New(
-		[]resolve.SourceAdapter{newSingleAlbumSourceAdapter(inputURL, source)},
-		[]resolve.TargetAdapter{appleTarget},
+		[]adapters.Adapter{newSingleAlbumSourceAdapter(inputURL, source)},
+		[]adapters.Adapter{appleTarget},
 		score.DefaultWeights(),
 	)
 
@@ -580,12 +581,12 @@ func TestResolverCrossServiceFixtures(t *testing.T) {
 		targetCandidates[fixture.targetService][fixture.source.SourceID] = fixture.candidates
 	}
 
-	targets := make([]resolve.TargetAdapter, 0, len(targetCandidates))
+	targets := make([]adapters.Adapter, 0, len(targetCandidates))
 	for service, candidatesBySourceID := range targetCandidates {
 		targets = append(targets, newFixtureTargetAdapter(service, candidatesBySourceID))
 	}
 
-	resolver := resolve.New([]resolve.SourceAdapter{newFixtureSourceAdapter(sourceAlbumsByURL)}, targets, score.DefaultWeights())
+	resolver := resolve.New([]adapters.Adapter{newFixtureSourceAdapter(sourceAlbumsByURL)}, targets, score.DefaultWeights())
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			resolution, err := resolver.ResolveAlbum(context.Background(), fixture.inputURL)

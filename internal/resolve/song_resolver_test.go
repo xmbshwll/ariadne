@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	resolve "github.com/xmbshwll/ariadne/internal/resolve"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestSongResolverResolveSong(t *testing.T) {
 		{
 			name: "unsupported url",
 			resolver: resolve.NewSongs(
-				[]resolve.SongSourceAdapter{newStubSongSourceAdapter()},
+				[]adapters.Adapter{newStubSongSourceAdapter()},
 				nil,
 				score.DefaultSongWeights(),
 			),
@@ -43,8 +44,8 @@ func TestSongResolverResolveSong(t *testing.T) {
 		{
 			name: "collect song candidates and dedupe",
 			resolver: resolve.NewSongs(
-				[]resolve.SongSourceAdapter{newStubSongSourceAdapter()},
-				[]resolve.SongTargetAdapter{newStubSongTargetAdapter()},
+				[]adapters.Adapter{newStubSongSourceAdapter()},
+				[]adapters.Adapter{newStubSongTargetAdapter()},
 				score.DefaultSongWeights(),
 			),
 			inputURL:          "https://open.spotify.com/track/track-1",
@@ -57,7 +58,7 @@ func TestSongResolverResolveSong(t *testing.T) {
 		{
 			name: "nil source song",
 			resolver: resolve.NewSongs(
-				[]resolve.SongSourceAdapter{newNilSongSourceAdapter()},
+				[]adapters.Adapter{newNilSongSourceAdapter()},
 				nil,
 				score.DefaultSongWeights(),
 			),

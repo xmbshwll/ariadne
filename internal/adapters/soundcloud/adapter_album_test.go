@@ -50,7 +50,7 @@ func TestExtractPlaylistHydrationRequiresExactURLMatch(t *testing.T) {
 func TestSearchAlbumByMetadata(t *testing.T) {
 	fixture := newTestFixture(t)
 
-	results, err := fixture.adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := fixture.adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   soundCloudCatsAndDogs,
 		Artists: []string{"Evidence"},
 	})

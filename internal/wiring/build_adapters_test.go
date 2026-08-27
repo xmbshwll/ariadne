@@ -14,12 +14,12 @@ import (
 
 func TestBuildResolverAdaptersBuildsServiceAdapterSetsOnce(t *testing.T) {
 	buildCount := 0
-	bindings := []wiring.Binding{wiring.NewBinding(model.ServiceName("fixture"), func(*http.Client, config.Config) wiring.BuiltAdapterSet {
+	bindings := []wiring.Binding{wiring.NewBinding(model.ServiceName("fixture"), func(*http.Client, config.Config) wiring.BuiltAdapter {
 		buildCount++
-		return wiring.BuiltAdapterSet{}
+		return nil
 	})}
 
-	sets := wiring.BuildAdapterSets(&http.Client{}, config.Config{}, bindings)
+	sets := wiring.BuildAdapters(&http.Client{}, config.Config{}, bindings)
 	require.NotNil(t, sets)
 	assert.Equal(t, 1, buildCount)
 }

@@ -10,8 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/xmbshwll/ariadne"
 )
 
 var errRootBoom = errors.New("boom")
@@ -202,22 +200,8 @@ func TestRunRejectsUnsupportedLogLevel(t *testing.T) {
 }
 
 func TestRunResolveDebugLogIncludesSecretsFromConfig(t *testing.T) {
-	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(ariadne.AdapterSet{
-			AlbumSources: []ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
-				"https://fixture.test/source": {
-					Service:           ariadne.ServiceDeezer,
-					SourceID:          "src-1",
-					SourceURL:         "https://fixture.test/source",
-					Title:             "Fixture Album",
-					NormalizedTitle:   "fixture album",
-					Artists:           []string{"Fixture Artist"},
-					NormalizedArtists: []string{"fixture artist"},
-					ReleaseDate:       "2024-02-03",
-					UPC:               "123456789012",
-				},
-			})},
-		})
+	withFixtureResolver(t, fixtureResolverForCLI{
+		album: fixtureAlbumResolution(fixtureSourceAlbum, nil),
 	})
 
 	configPath := filepath.Join(t.TempDir(), ".env")
@@ -237,17 +221,8 @@ func TestRunResolveDebugLogIncludesSecretsFromConfig(t *testing.T) {
 }
 
 func TestRunResolveInfoLogDoesNotPrintSecrets(t *testing.T) {
-	withResolverFactory(t, func(_ ariadne.Config) *ariadne.Resolver {
-		return ariadne.NewWithAdapters(ariadne.AdapterSet{
-			AlbumSources: []ariadne.SourceAdapter{newFixtureSourceAdapterForCLI(map[string]ariadne.CanonicalAlbum{
-				"https://fixture.test/source": {
-					Service:   ariadne.ServiceDeezer,
-					SourceID:  "src-1",
-					SourceURL: "https://fixture.test/source",
-					Title:     "Fixture Album",
-				},
-			})},
-		})
+	withFixtureResolver(t, fixtureResolverForCLI{
+		album: fixtureAlbumResolution(fixtureSourceAlbum, nil),
 	})
 
 	configPath := filepath.Join(t.TempDir(), ".env")
