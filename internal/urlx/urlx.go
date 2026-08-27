@@ -1,4 +1,6 @@
-package adapterutil
+// Package urlx reads the URL shapes provider URLs share: path segments and the
+// region segment that sits between a service host and an entity id.
+package urlx
 
 import "strings"
 

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -194,7 +195,7 @@ func (s *CredentialTokenSource) refreshAccessToken(ctx context.Context, credenti
 			return token, nil
 		}
 		lastErr = err
-		if attempt == s.config.MaxRefreshAttempts-1 || !IsTransientHTTPError(err) {
+		if attempt == s.config.MaxRefreshAttempts-1 || !httpx.IsTransientHTTPError(err) {
 			break
 		}
 		if waitErr := waitForRefreshRetry(ctx, attempt, s.config.RefreshRetryBackoff); waitErr != nil {

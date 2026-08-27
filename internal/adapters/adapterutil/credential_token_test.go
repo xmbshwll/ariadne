@@ -10,6 +10,7 @@ import (
 	"time"
 
 	adapterutil "github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -237,7 +238,7 @@ func TestCredentialTokenSourceRetriesTransientHTTPErrors(t *testing.T) {
 		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches++
 			if fetches < 3 {
-				return adapterutil.CredentialToken{}, adapterutil.StatusError(errTestTokenSentinel)(http.StatusServiceUnavailable, "temporarily_unavailable")
+				return adapterutil.CredentialToken{}, httpx.StatusError(errTestTokenSentinel)(http.StatusServiceUnavailable, "temporarily_unavailable")
 			}
 			return adapterutil.CredentialToken{AccessToken: "token", ExpiresIn: time.Hour}, nil
 		},
@@ -261,7 +262,7 @@ func TestCredentialTokenSourceDoesNotRetryNonTransientErrors(t *testing.T) {
 		RefreshRetryBackoff: time.Millisecond,
 		Fetch: func(context.Context, adapterutil.ClientCredentials) (adapterutil.CredentialToken, error) {
 			fetches++
-			return adapterutil.CredentialToken{}, adapterutil.StatusError(errTestTokenSentinel)(http.StatusUnauthorized, "unauthorized")
+			return adapterutil.CredentialToken{}, httpx.StatusError(errTestTokenSentinel)(http.StatusUnauthorized, "unauthorized")
 		},
 	})
 

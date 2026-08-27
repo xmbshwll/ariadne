@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/urlx"
 )
 
 var (
@@ -39,7 +39,7 @@ func parseEntityURL(raw string, pathSegment string, entityType string, notEntity
 		return nil, fmt.Errorf("%w: %s", errUnsupportedSpotifyHost, parsed.Host)
 	}
 
-	segments := adapterutil.PathSegments(parsed.Path)
+	segments := urlx.PathSegments(parsed.Path)
 	if len(segments) != 2 || segments[0] != pathSegment {
 		return nil, fmt.Errorf("%w: %s", notEntityErr, raw)
 	}

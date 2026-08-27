@@ -8,8 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 // SearchAlbumByUPC resolves a Deezer album directly from a UPC when Deezer exposes the lookup path.
@@ -32,7 +33,7 @@ func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.Can
 
 // SearchAlbumByISRC resolves Deezer albums from one or more track ISRCs.
 func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	isrcs = normalize.NonEmpty(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
 	}
@@ -82,12 +83,12 @@ func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]mode
 
 // SearchAlbumByMetadata searches Deezer albums using album title and artist metadata.
 func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
+	query := normalize.SearchPrimaryQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[AlbumResponse, model.CandidateAlbum]{
+	targetSearch := search.MetadataQuerySearch[AlbumResponse, model.CandidateAlbum]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]AlbumResponse, error) {
@@ -127,12 +128,12 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 
 // SearchSongByMetadata searches Deezer tracks using song title and artist metadata.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	query := adapterutil.PrimaryMetadataQuery(song.Title, song.Artists)
+	query := normalize.SearchPrimaryQuery(song.Title, song.Artists)
 	if query == "" {
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[trackResponse, model.CandidateSong]{
+	targetSearch := search.MetadataQuerySearch[trackResponse, model.CandidateSong]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]trackResponse, error) {

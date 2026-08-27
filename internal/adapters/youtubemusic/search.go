@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
+	query := normalize.SearchPrimaryQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
@@ -22,7 +23,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 	}
 
 	candidates := extractSearchCandidates(body)
-	results, err := adapterutil.CollectCandidates(
+	results, err := search.CollectCandidates(
 		ctx,
 		candidates,
 		searchLimit,

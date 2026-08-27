@@ -1,21 +1,12 @@
-package adapterutil
+// Package search runs the Target Search of one provider: the Metadata Queries
+// it issues, the per-item fetches each result needs, and the deduplicated
+// candidate list that comes out.
+package search
 
 import (
 	"context"
 	"strings"
 )
-
-func TrimmedNonEmptyStrings(values []string) []string {
-	trimmed := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		trimmed = append(trimmed, value)
-	}
-	return trimmed
-}
 
 // CollectCandidates fetches one candidate per item, skipping items with empty
 // or duplicate IDs and tolerating per-item fetch errors. It returns the first

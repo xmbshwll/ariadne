@@ -8,7 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
@@ -25,7 +26,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 		}
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
-	results, err := adapterutil.CollectCandidates(
+	results, err := search.CollectCandidates(
 		ctx,
 		payload.Collection,
 		searchLimit,
@@ -52,7 +53,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		}
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
-	results, err := adapterutil.CollectCandidates(
+	results, err := search.CollectCandidates(
 		ctx,
 		payload.Collection,
 		searchLimit,
@@ -148,7 +149,7 @@ func (a *Adapter) refreshClientIdentifier(ctx context.Context) (string, error) {
 }
 
 func isSoundCloudClientIDError(err error) bool {
-	if statusErr, ok := errors.AsType[adapterutil.HTTPStatusError](err); ok {
+	if statusErr, ok := errors.AsType[httpx.HTTPStatusError](err); ok {
 		switch statusErr.HTTPStatusCode() {
 		case http.StatusUnauthorized, http.StatusForbidden:
 			return true
@@ -163,14 +164,14 @@ func isSoundCloudClientIDError(err error) bool {
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			URL:          requestURL,
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build soundcloud api request",
 			ExecuteError: "execute soundcloud api request",
-			StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudAPIStatus),
+			StatusError:  httpx.StatusError(errUnexpectedSoundCloudAPIStatus),
 		},
 		DecodeError: "decode soundcloud api response",
 	}, target)

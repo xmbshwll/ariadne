@@ -1,4 +1,4 @@
-package adapterutil
+package httpx
 
 import (
 	"context"

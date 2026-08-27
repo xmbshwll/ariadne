@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/htmlx"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -43,12 +44,12 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
 	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
-	return adapterutil.PageFetcher{
+	return httpx.PageFetcher{
 		Client:       a.client,
-		UserAgent:    adapterutil.BrowserUserAgent,
+		UserAgent:    httpx.BrowserUserAgent,
 		BuildError:   "build soundcloud request",
 		ExecuteError: "execute soundcloud request",
-		StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
+		StatusError:  httpx.StatusError(errUnexpectedSoundCloudStatus),
 		ReadError:    "read soundcloud response",
 	}.Fetch(ctx, requestURL)
 }
@@ -118,7 +119,7 @@ func extractHydrationEntity[T any](
 }
 
 func extractHydrationEntries(body []byte) ([]hydrationEnvelope, error) {
-	return adapterutil.DecodeJSONBlock[[]hydrationEnvelope](
+	return htmlx.DecodeJSONBlock[[]hydrationEnvelope](
 		body,
 		hydrationPattern,
 		errSoundCloudHydrationNotFound,

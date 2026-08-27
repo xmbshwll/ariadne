@@ -6,8 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {
@@ -41,7 +42,7 @@ func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.Can
 }
 
 func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	isrcs = normalize.NonEmpty(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
 	}
@@ -187,7 +188,7 @@ func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, r
 
 func hydrateTIDALCandidates[Input any, Candidate any](ctx context.Context, items []Input, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
+	return search.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
 
 func resourceIDs(resources []APIResource) []string {

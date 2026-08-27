@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -75,14 +75,14 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			URL:          requestURL,
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build apple music request",
 			ExecuteError: "execute apple music request",
-			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicStatus),
+			StatusError:  httpx.StatusError(errUnexpectedAppleMusicStatus),
 		},
 		DecodeError: "decode apple music response",
 	}, target)

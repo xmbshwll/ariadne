@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/applemusicauth"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 // SearchAlbumByUPC uses the official Apple Music catalog API when MusicKit auth is configured.
@@ -36,7 +38,7 @@ func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]mode
 	}
 
 	storefront := a.defaultStorefront
-	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	isrcs = normalize.NonEmpty(isrcs)
 	seenAlbumIDs := make(map[string]struct{}, len(isrcs))
 	albumIDs := make([]string, 0, len(isrcs))
 	var firstErr error
@@ -125,15 +127,15 @@ func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target
 	}
 
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			URL:          requestURL,
 			Headers:      map[string]string{"Authorization": "Bearer " + developerToken},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build apple music official request",
 			ExecuteError: "execute apple music official request",
-			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicOfficialStatus),
+			StatusError:  httpx.StatusError(errUnexpectedAppleMusicOfficialStatus),
 		},
 		DecodeError:       "decode apple music official response",
 		MalformedResponse: ErrMalformedAppleMusicOfficialResponse,
@@ -172,7 +174,7 @@ func (a *Adapter) HydrateSongs(ctx context.Context, songIDs []string, storefront
 
 func hydrateAppleMusicOfficialCandidates[Input any, Candidate any](ctx context.Context, items []Input, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
+	return search.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
 
 func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, storefront string) (*model.CanonicalAlbum, error) {

@@ -1,4 +1,4 @@
-package adapterutil
+package adapters
 
 import (
 	"errors"

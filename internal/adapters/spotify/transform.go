@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -208,7 +207,7 @@ func SongMetadataQueries(song model.CanonicalSong) []string {
 }
 
 func buildMetadataQueries(prefix string, title string, artists []string) []string {
-	return adapterutil.FormattedMetadataQueries(title, artists, func(titleVariant string, artistVariant string) string {
+	return normalize.FormattedSearchQueries(title, artists, func(titleVariant string, artistVariant string) string {
 		return strings.Join([]string{prefix + ":" + titleVariant, "artist:" + artistVariant}, " ")
 	}, func(titleVariant string) string {
 		return prefix + ":" + titleVariant

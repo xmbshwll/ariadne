@@ -4,13 +4,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/htmlx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 func extractSchema(body []byte) (*SchemaAlbum, error) {
-	schema, err := adapterutil.DecodeJSONBlock[SchemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", ErrMalformedBandcampJSONLD)
+	schema, err := htmlx.DecodeJSONBlock[SchemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", ErrMalformedBandcampJSONLD)
 	if err != nil {
 		return nil, err
 	}

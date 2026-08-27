@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -19,7 +19,7 @@ const (
 
 var (
 	// ErrDeferredRuntimeAdapter indicates that a YouTube Music URL parsed successfully, but runtime song hydration is intentionally deferred.
-	ErrDeferredRuntimeAdapter = adapterutil.RuntimeDeferredService(model.ServiceYouTubeMusic)
+	ErrDeferredRuntimeAdapter = adapters.RuntimeDeferredService(model.ServiceYouTubeMusic)
 
 	canonicalURLPattern   = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
 	ogTitlePattern        = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)

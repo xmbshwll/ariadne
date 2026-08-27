@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 const searchHydrationLimit = 8
@@ -37,7 +39,7 @@ type BandcampTargetSearch[Candidate any] struct {
 func (a *Adapter) albumTargetSearch(album model.CanonicalAlbum) BandcampTargetSearch[model.CandidateAlbum] {
 	return BandcampTargetSearch[model.CandidateAlbum]{
 		Adapter: a,
-		Query:   adapterutil.PrimaryMetadataQuery(album.Title, album.Artists),
+		Query:   normalize.SearchPrimaryQuery(album.Title, album.Artists),
 		AutocompleteCandidates: func(response fuzzySearchResponse) []SearchCandidate {
 			return RankSearchCandidates(album, ExtractAutocompleteAlbumSearchCandidates(response))
 		},
@@ -52,7 +54,7 @@ func (a *Adapter) albumTargetSearch(album model.CanonicalAlbum) BandcampTargetSe
 func (a *Adapter) songTargetSearch(song model.CanonicalSong) BandcampTargetSearch[model.CandidateSong] {
 	return BandcampTargetSearch[model.CandidateSong]{
 		Adapter: a,
-		Query:   adapterutil.PrimaryMetadataQuery(song.Title, song.Artists),
+		Query:   normalize.SearchPrimaryQuery(song.Title, song.Artists),
 		AutocompleteCandidates: func(response fuzzySearchResponse) []SearchCandidate {
 			return rankSongSearchCandidates(song, extractAutocompleteSongSearchCandidates(response))
 		},
@@ -125,7 +127,7 @@ func (s BandcampTargetSearch[Candidate]) collectHTML(ctx context.Context) ([]Can
 }
 
 func (s BandcampTargetSearch[Candidate]) collect(ctx context.Context, candidates []SearchCandidate) ([]Candidate, error) {
-	results, err := adapterutil.CollectCandidates(
+	results, err := search.CollectCandidates(
 		ctx,
 		candidates,
 		searchHydrationLimit,
@@ -150,14 +152,14 @@ func (s BandcampTargetSearch[Candidate]) html(ctx context.Context) ([]SearchCand
 func (s BandcampTargetSearch[Candidate]) autocomplete(ctx context.Context) ([]SearchCandidate, error) {
 	searchURL := fmt.Sprintf("%s/api/fuzzysearch/1/app_autocomplete?q=%s", s.Adapter.searchBaseURL, url.QueryEscape(s.Query))
 	var response fuzzySearchResponse
-	if err := adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	if err := httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       s.Adapter.client,
 			URL:          searchURL,
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build bandcamp autocomplete request",
 			ExecuteError: "execute bandcamp autocomplete request",
-			StatusError:  adapterutil.StatusError(errUnexpectedBandcampStatus),
+			StatusError:  httpx.StatusError(errUnexpectedBandcampStatus),
 		},
 		DecodeError:       "decode bandcamp autocomplete response",
 		MalformedResponse: errMalformedBandcampSearchResponse,

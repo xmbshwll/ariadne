@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/htmlx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -130,7 +130,7 @@ func cleanAlbumTitle(value string) string {
 }
 
 func extractFirstGroup(pattern *regexp.Regexp, body []byte) string {
-	value, err := adapterutil.FirstRegexpGroup(body, pattern, nil)
+	value, err := htmlx.FirstRegexpGroup(body, pattern, nil)
 	if err != nil {
 		return ""
 	}

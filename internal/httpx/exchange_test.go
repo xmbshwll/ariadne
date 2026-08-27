@@ -1,4 +1,4 @@
-package adapterutil_test
+package httpx_test
 
 import (
 	"context"
@@ -7,10 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	adapterutil "github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 )
 
 var (
@@ -21,7 +20,7 @@ var (
 
 func TestGetJSONSendsHeadersAndDecodesResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, adapterutil.DefaultUserAgent, r.Header.Get("User-Agent"))
+		assert.Equal(t, httpx.DefaultUserAgent, r.Header.Get("User-Agent"))
 		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(`{"name":"ariadne"}`))
 	}))
@@ -30,15 +29,15 @@ func TestGetJSONSendsHeadersAndDecodesResponse(t *testing.T) {
 	var payload struct {
 		Name string `json:"name"`
 	}
-	err := adapterutil.GetJSON(context.Background(), adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	err := httpx.GetJSON(context.Background(), httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       server.Client(),
 			URL:          server.URL,
 			Headers:      map[string]string{"Authorization": "Bearer token"},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build test request",
 			ExecuteError: "execute test request",
-			StatusError:  adapterutil.StatusError(errHTTPExchangeStatus),
+			StatusError:  httpx.StatusError(errHTTPExchangeStatus),
 		},
 		DecodeError:       "decode test response",
 		MalformedResponse: errHTTPExchangeMalformed,
@@ -56,13 +55,13 @@ func TestGetJSONWrapsStatusAndDecodeErrors(t *testing.T) {
 		defer server.Close()
 
 		var payload struct{}
-		err := adapterutil.GetJSON(context.Background(), adapterutil.JSONRequest{
-			RequestSpec: adapterutil.RequestSpec{
+		err := httpx.GetJSON(context.Background(), httpx.JSONRequest{
+			RequestSpec: httpx.RequestSpec{
 				Client:       server.Client(),
 				URL:          server.URL,
 				BuildError:   "build test request",
 				ExecuteError: "execute test request",
-				StatusError:  adapterutil.StatusError(errHTTPExchangeStatus),
+				StatusError:  httpx.StatusError(errHTTPExchangeStatus),
 			},
 			DecodeError: "decode test response",
 		}, &payload)
@@ -80,13 +79,13 @@ func TestGetJSONWrapsStatusAndDecodeErrors(t *testing.T) {
 		defer server.Close()
 
 		var payload struct{}
-		err := adapterutil.GetJSON(context.Background(), adapterutil.JSONRequest{
-			RequestSpec: adapterutil.RequestSpec{
+		err := httpx.GetJSON(context.Background(), httpx.JSONRequest{
+			RequestSpec: httpx.RequestSpec{
 				Client:       server.Client(),
 				URL:          server.URL,
 				BuildError:   "build test request",
 				ExecuteError: "execute test request",
-				StatusError:  adapterutil.StatusError(errHTTPExchangeStatus),
+				StatusError:  httpx.StatusError(errHTTPExchangeStatus),
 			},
 			DecodeError:       "decode test response",
 			MalformedResponse: errHTTPExchangeMalformed,
@@ -105,13 +104,13 @@ func TestFetchBytesReadsAndLimitsResponseBody(t *testing.T) {
 		}))
 		defer server.Close()
 
-		body, err := adapterutil.FetchBytes(context.Background(), adapterutil.BytesRequest{
-			RequestSpec: adapterutil.RequestSpec{
+		body, err := httpx.FetchBytes(context.Background(), httpx.BytesRequest{
+			RequestSpec: httpx.RequestSpec{
 				Client:       server.Client(),
 				URL:          server.URL,
 				BuildError:   "build test request",
 				ExecuteError: "execute test request",
-				StatusError:  adapterutil.StatusError(errHTTPExchangeStatus),
+				StatusError:  httpx.StatusError(errHTTPExchangeStatus),
 			},
 			ReadError: "read test response",
 		})
@@ -126,13 +125,13 @@ func TestFetchBytesReadsAndLimitsResponseBody(t *testing.T) {
 		}))
 		defer server.Close()
 
-		body, err := adapterutil.FetchBytes(context.Background(), adapterutil.BytesRequest{
-			RequestSpec: adapterutil.RequestSpec{
+		body, err := httpx.FetchBytes(context.Background(), httpx.BytesRequest{
+			RequestSpec: httpx.RequestSpec{
 				Client:       server.Client(),
 				URL:          server.URL,
 				BuildError:   "build test request",
 				ExecuteError: "execute test request",
-				StatusError:  adapterutil.StatusError(errHTTPExchangeStatus),
+				StatusError:  httpx.StatusError(errHTTPExchangeStatus),
 			},
 			ReadError:     "read test response",
 			MaxBodyBytes:  10,
@@ -149,13 +148,13 @@ func TestFetchBytesReadsAndLimitsResponseBody(t *testing.T) {
 		}))
 		defer server.Close()
 
-		_, err := adapterutil.FetchBytes(context.Background(), adapterutil.BytesRequest{
-			RequestSpec: adapterutil.RequestSpec{
+		_, err := httpx.FetchBytes(context.Background(), httpx.BytesRequest{
+			RequestSpec: httpx.RequestSpec{
 				Client:       server.Client(),
 				URL:          server.URL,
 				BuildError:   "build test request",
 				ExecuteError: "execute test request",
-				StatusError:  adapterutil.StatusError(errHTTPExchangeStatus),
+				StatusError:  httpx.StatusError(errHTTPExchangeStatus),
 			},
 			ReadError:     "read test response",
 			MaxBodyBytes:  4,

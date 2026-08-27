@@ -13,10 +13,15 @@ config, and documentation aligned with this file.
   runtime credentials and later provider-specific settings.
 - `internal/applemusicauth/`: Apple Music Media API JWT exchange.
 - `internal/normalize/`: shared canonical text, ISRC, UPC, duration, release
-  date, artist, and title normalization used by adapters and Target Search.
-- `internal/adapters/adapterutil/`: shared provider adapter helpers for
-  metadata query fan-out, ordered concurrent collection, HTTP status handling,
-  and deferred Candidate Hydration.
+  date, artist, and title normalization, plus the Metadata Query variants built
+  from them, used by adapters and Target Search.
+- `internal/adapters/`: the one `Adapter` interface every provider implements,
+  its Capability Set, `ErrUnsupported`, and the deferred-hydration errors.
+- `internal/adapters/base/`: `base.Unsupported`, the embedded zero `Adapter` a
+  provider wraps so it writes only the methods it supports.
+- `internal/adapters/search/`: one provider's Target Search run - Metadata Query
+  fan-out, per-item fetches, deduplicated candidates up to a limit.
+- `internal/adapters/adaptertest/`: the contract harness every provider runs.
 - `internal/resolve/`: Entity Resolution pipeline (Source Input recognition,
   Runtime Hydration, Target Search, ranking, Candidate Hydration) shared by the
   root package through type aliases.
@@ -26,7 +31,12 @@ config, and documentation aligned with this file.
   re-exports these decisions.
 - `internal/model/`: canonical entity, candidate, and service-name types shared
   by every layer, including Candidate SearchKey rules.
-- `internal/httpx/`: shared HTTP client construction.
+- `internal/httpx/`: shared HTTP plumbing - client construction, JSON and byte
+  exchanges with status handling, and HTML page fetches.
+- `internal/htmlx/`: the JSON block a service page assigns to a JavaScript
+  global, which is what the API-less services actually read.
+- `internal/urlx/`: URL path segments and the region segment between a service
+  host and an entity id.
 - `internal/targetsearch/`: album and song Target Search plans that assemble
   service-specific Query Policies and per-query Score Signal weights.
 - `internal/score/`: deterministic scoring of candidate albums against source

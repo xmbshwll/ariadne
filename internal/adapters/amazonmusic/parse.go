@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/urlx"
 )
 
 var (
@@ -24,7 +24,7 @@ func ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 		return nil, err
 	}
 
-	segments := adapterutil.PathSegments(parsed.Path)
+	segments := urlx.PathSegments(parsed.Path)
 	if len(segments) != 2 || segments[0] != "albums" {
 		return nil, fmt.Errorf("%w: %s", errAmazonMusicNotAlbumURL, raw)
 	}
@@ -49,7 +49,7 @@ func ParseSongURL(raw string) (*model.ParsedURL, error) {
 		return nil, err
 	}
 
-	segments := adapterutil.PathSegments(parsed.Path)
+	segments := urlx.PathSegments(parsed.Path)
 	asin := ""
 	switch {
 	case len(segments) == 2 && segments[0] == "tracks":

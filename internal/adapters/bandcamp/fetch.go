@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -64,12 +64,12 @@ func fetchCanonicalPage[Canonical any](
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
 	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
-	return adapterutil.PageFetcher{
+	return httpx.PageFetcher{
 		Client:        a.client,
-		UserAgent:     adapterutil.DefaultUserAgent,
+		UserAgent:     httpx.DefaultUserAgent,
 		BuildError:    "build bandcamp request",
 		ExecuteError:  "execute bandcamp request",
-		StatusError:   adapterutil.StatusError(errUnexpectedBandcampStatus),
+		StatusError:   httpx.StatusError(errUnexpectedBandcampStatus),
 		ReadError:     "read bandcamp response",
 		MaxBodyBytes:  maxBandcampResponseBytes,
 		TooLargeError: errBandcampResponseTooLarge,

@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -34,7 +35,7 @@ func (a *Adapter) FetchSong(_ context.Context, parsed model.ParsedURL) (*model.C
 		return nil, fmt.Errorf("%w: %s", errUnexpectedYouTubeMusicService, parsed.Service)
 	}
 	//nolint:wrapcheck // Preserve the deferred-runtime sentinel for errors.Is callers.
-	return nil, adapterutil.NewRuntimeDeferredError(model.ServiceYouTubeMusic, songRuntimeDeferred)
+	return nil, adapters.NewRuntimeDeferredError(model.ServiceYouTubeMusic, songRuntimeDeferred)
 }
 
 func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*model.CanonicalAlbum, error) {
@@ -48,12 +49,12 @@ func (a *Adapter) fetchAlbumByBrowseID(ctx context.Context, browseID string) (*m
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
 	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
-	return adapterutil.PageFetcher{
+	return httpx.PageFetcher{
 		Client:         a.client,
-		UserAgent:      adapterutil.BrowserUserAgent,
+		UserAgent:      httpx.BrowserUserAgent,
 		BuildError:     "build youtube music request",
 		ExecuteError:   "execute youtube music request",
-		StatusError:    adapterutil.StatusError(errUnexpectedYouTubeMusicStatus),
+		StatusError:    httpx.StatusError(errUnexpectedYouTubeMusicStatus),
 		ErrorBodyLimit: maxYouTubeMusicErrorResponseBytes,
 		ReadError:      "read youtube music response",
 		MaxBodyBytes:   maxYouTubeMusicResponseBytes,

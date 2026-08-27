@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 )
 
 const (
@@ -60,12 +61,12 @@ func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target an
 	}
 
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			URL:          endpoint,
 			Headers:      map[string]string{"Authorization": "Bearer " + token},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build api request",
 			ExecuteError: "execute api request",
 			StatusError: func(statusCode int, body string) error {
@@ -78,7 +79,7 @@ func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target an
 }
 
 func shouldRetrySpotifyAPIError(err error) bool {
-	return adapterutil.IsTransientHTTPError(err)
+	return httpx.IsTransientHTTPError(err)
 }
 
 func waitForSpotifyAPIRetry(ctx context.Context, attempt int) error {
@@ -121,8 +122,8 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 	endpoint := a.authBaseURL + "/token"
 	var token TokenResponse
 	//nolint:wrapcheck // HTTP exchange spec supplies token request/status/decode context.
-	if err := adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	if err := httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client: a.client,
 			Method: http.MethodPost,
 			URL:    endpoint,
@@ -131,10 +132,10 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 				"Content-Type":  "application/x-www-form-urlencoded",
 				"Authorization": credentials.BasicAuthorization(),
 			},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build token request",
 			ExecuteError: "execute token request",
-			StatusError:  adapterutil.StatusError(errUnexpectedSpotifyTokenStatus),
+			StatusError:  httpx.StatusError(errUnexpectedSpotifyTokenStatus),
 		},
 		DecodeError: "decode token response",
 	}, &token); err != nil {

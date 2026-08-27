@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 const (
@@ -27,18 +29,18 @@ func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) e
 		return err
 	}
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client: a.client,
 			URL:    endpoint,
 			Headers: map[string]string{
 				"Authorization": "Bearer " + token,
 				"Accept":        "application/vnd.api+json",
 			},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build api request",
 			ExecuteError: "execute api request",
-			StatusError:  adapterutil.StatusError(errUnexpectedTIDALAPIStatus),
+			StatusError:  httpx.StatusError(errUnexpectedTIDALAPIStatus),
 		},
 		DecodeError:       "decode api response",
 		MalformedResponse: ErrMalformedTIDALAPIResponse,
@@ -72,17 +74,17 @@ func (a *Adapter) fetchAccessToken(ctx context.Context, credentials adapterutil.
 	form.Set("client_secret", credentials.ClientSecret)
 	form.Set("grant_type", "client_credentials")
 	endpoint := a.authBaseURL + "/oauth2/token"
-	body, err := adapterutil.FetchBytes(ctx, adapterutil.BytesRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	body, err := httpx.FetchBytes(ctx, httpx.BytesRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			Method:       http.MethodPost,
 			URL:          endpoint,
 			Body:         strings.NewReader(form.Encode()),
 			Headers:      map[string]string{"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build token request",
 			ExecuteError: "execute token request",
-			StatusError:  adapterutil.StatusError(errUnexpectedTIDALTokenStatus),
+			StatusError:  httpx.StatusError(errUnexpectedTIDALTokenStatus),
 		},
 		ReadError:    "read token response",
 		MaxBodyBytes: maxTIDALTokenResponseBytes,
@@ -121,11 +123,11 @@ func normalizeCountryCode(value string) string {
 }
 
 func metadataQuery(album model.CanonicalAlbum) string {
-	return adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
+	return normalize.SearchPrimaryQuery(album.Title, album.Artists)
 }
 
 func songMetadataQuery(song model.CanonicalSong) string {
-	return adapterutil.PrimaryMetadataQuery(song.Title, song.Artists)
+	return normalize.SearchPrimaryQuery(song.Title, song.Artists)
 }
 
 func firstDataResource(document APIDocument) (APIResource, bool, error) {

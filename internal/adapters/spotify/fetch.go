@@ -11,8 +11,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 // FetchAlbum loads a Spotify album via the Web API when credentials are configured,
@@ -55,7 +56,7 @@ func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.Can
 
 // SearchAlbumByISRC searches Spotify track results by ISRC, then hydrates the owning albums.
 func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	isrcs = normalize.NonEmpty(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
 	}
@@ -106,7 +107,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[APIAlbumSummary, APIAlbumSummary]{
+	targetSearch := search.MetadataQuerySearch[APIAlbumSummary, APIAlbumSummary]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]APIAlbumSummary, error) {
@@ -172,7 +173,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[APITrackSearchItem, APITrackSearchItem]{
+	targetSearch := search.MetadataQuerySearch[APITrackSearchItem, APITrackSearchItem]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]APITrackSearchItem, error) {
@@ -433,5 +434,5 @@ func hydrateSpotifyCandidates[Input any, Candidate any](
 	fetch func(context.Context, Input) (Candidate, error),
 ) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
+	return search.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
