@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/xmbshwll/ariadne/internal/httpx"
 )
 
 const (
@@ -176,34 +177,27 @@ func fetchAccessToken(ctx context.Context, client *http.Client, authBaseURL stri
 	form.Set("grant_type", "client_credentials")
 
 	endpoint := strings.TrimRight(authBaseURL, "/") + "/oauth2/token"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("build tidal token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute tidal token request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read tidal token response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w %d: %s", errTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
 	var payload struct {
 		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		ExpiresIn   int    `json:"expires_in"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", fmt.Errorf("decode tidal token response: %w", err)
+	//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
+	if err := httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
+			Client: client,
+			Method: http.MethodPost,
+			URL:    endpoint,
+			Body:   strings.NewReader(form.Encode()),
+			Headers: map[string]string{
+				"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+			},
+			UserAgent:    httpx.DefaultUserAgent,
+			BuildError:   "build tidal token request",
+			ExecuteError: "execute tidal token request",
+			StatusError:  httpx.StatusError(errTIDALTokenStatus),
+		},
+		DecodeError: "decode tidal token response",
+	}, &payload); err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(payload.AccessToken) == "" {
 		return "", errTIDALTokenMissing
@@ -212,28 +206,19 @@ func fetchAccessToken(ctx context.Context, client *http.Client, authBaseURL stri
 }
 
 func getAPI(ctx context.Context, client *http.Client, endpoint string, accessToken string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build tidal api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute tidal api request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read tidal api response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w %d: %s", errTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return body, nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
+	return httpx.FetchBytes(ctx, httpx.BytesRequest{
+		RequestSpec: httpx.RequestSpec{
+			Client:       client,
+			URL:          endpoint,
+			Headers:      map[string]string{"Authorization": "Bearer " + accessToken, "Accept": "application/vnd.api+json"},
+			UserAgent:    httpx.DefaultUserAgent,
+			BuildError:   "build tidal api request",
+			ExecuteError: "execute tidal api request",
+			StatusError:  httpx.StatusError(errTIDALAPIStatus),
+		},
+		ReadError: "read tidal api response",
+	})
 }
 
 func collectIncludedNames(included []tidalIncludedResource, typ string) []string {

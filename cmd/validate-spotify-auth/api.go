@@ -1,17 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/xmbshwll/ariadne/internal/auth"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 )
 
 const (
@@ -134,34 +134,29 @@ func validateSpotifyAlbumMetadata(ctx context.Context, client *http.Client, apiB
 func fetchToken(ctx context.Context, client *http.Client, authBaseURL, clientID, clientSecret string) (string, error) {
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(authBaseURL, "/")+"/token", bytes.NewBufferString(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("build spotify token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(clientID+":"+clientSecret)))
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute spotify token request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read spotify token response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w %d: %s", errSpotifyTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
+	credentials := auth.ClientCredentials{ClientID: clientID, ClientSecret: clientSecret}
 	var token struct {
 		AccessToken string `json:"access_token"`
 	}
-	if err := json.Unmarshal(body, &token); err != nil {
-		return "", fmt.Errorf("decode spotify token response: %w", err)
+	//nolint:wrapcheck // HTTP exchange spec supplies token request/status/decode context.
+	if err := httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
+			Client: client,
+			Method: http.MethodPost,
+			URL:    strings.TrimRight(authBaseURL, "/") + "/token",
+			Body:   strings.NewReader(form.Encode()),
+			Headers: map[string]string{
+				"Content-Type":  "application/x-www-form-urlencoded",
+				"Authorization": credentials.BasicAuthorization(),
+			},
+			UserAgent:    httpx.DefaultUserAgent,
+			BuildError:   "build spotify token request",
+			ExecuteError: "execute spotify token request",
+			StatusError:  httpx.StatusError(errSpotifyTokenStatus),
+		},
+		DecodeError: "decode spotify token response",
+	}, &token); err != nil {
+		return "", err
 	}
 	if token.AccessToken == "" {
 		return "", errSpotifyTokenMissing
@@ -170,27 +165,19 @@ func fetchToken(ctx context.Context, client *http.Client, authBaseURL, clientID,
 }
 
 func getAPI(ctx context.Context, client *http.Client, endpoint string, token string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build spotify api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute spotify api request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read spotify api response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w %d: %s", errSpotifyAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return body, nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
+	return httpx.FetchBytes(ctx, httpx.BytesRequest{
+		RequestSpec: httpx.RequestSpec{
+			Client:       client,
+			URL:          endpoint,
+			Headers:      map[string]string{"Authorization": "Bearer " + token},
+			UserAgent:    httpx.DefaultUserAgent,
+			BuildError:   "build spotify api request",
+			ExecuteError: "execute spotify api request",
+			StatusError:  httpx.StatusError(errSpotifyAPIStatus),
+		},
+		ReadError: "read spotify api response",
+	})
 }
 
 func metadataQuery(album spotifyAlbumPayload) string {
