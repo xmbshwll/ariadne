@@ -78,11 +78,30 @@ func (p entityResolution[P, E, C]) resolveTargetMatches(
 // resolveTarget collects and ranks one target's candidates, carrying a Target
 // Search failure in the MatchResult instead of returning it.
 func (p entityResolution[P, E, C]) resolveTarget(ctx context.Context, target adapters.Adapter, source E) MatchResultOf[C] {
-	candidates, err := p.collectCandidates(ctx, target, source)
+	result, err := resolveTargetFor(ctx, p.collectCandidates, p.rank, p.candidateURL, target, source)
 	if err != nil {
 		return MatchResultOf[C]{Service: target.Service(), Err: fmt.Errorf("%s: %w", p.collectFailure, err)}
 	}
-	return matchResultFromRanking(target.Service(), p.rank(source, candidates), p.candidateURL)
+	return result
+}
+
+// resolveTargetFor is the single-target collect-and-rank path shared by Entity
+// Resolution and Identifier Enrichment. A Target Search failure returns to the
+// caller: Entity Resolution embeds it in the MatchResult, while a failed
+// enrichment search must leave the base matches untouched.
+func resolveTargetFor[E, C any](
+	ctx context.Context,
+	collect func(context.Context, adapters.Adapter, E) ([]C, error),
+	rank func(E, []C) score.Ranking[C],
+	candidateURL func(C) string,
+	target adapters.Adapter,
+	source E,
+) (MatchResultOf[C], error) {
+	candidates, err := collect(ctx, target, source)
+	if err != nil {
+		return MatchResultOf[C]{}, err
+	}
+	return matchResultFromRanking(target.Service(), rank(source, candidates), candidateURL), nil
 }
 
 // resolveEntitySourceInput runs Source Input recognition and Runtime Hydration

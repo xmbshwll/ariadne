@@ -79,16 +79,17 @@ func (p appleMusicEnrichmentPolicy) EnrichedSource(source model.CanonicalAlbum, 
 	return enriched, albumIdentifiersChanged(source, enriched)
 }
 
-// resolveTarget is the single-target half of Identifier Enrichment. It mirrors
-// entityResolution.resolveTarget but returns the failure to the caller, because a
-// failed enrichment search must leave the base matches untouched.
+// resolveTarget is the single-target half of Identifier Enrichment. It shares
+// Entity Resolution's collect-and-rank path but returns the failure to the
+// caller, because a failed enrichment search must leave the base matches
+// untouched.
 func (p appleMusicEnrichmentPolicy) resolveTarget(ctx context.Context, target adapters.Adapter, source model.CanonicalAlbum) (MatchResult, error) {
-	candidates, err := p.collectTargetCandidates(ctx, target, source)
-	if err != nil {
-		return MatchResult{}, err
-	}
-	ranking := score.RankAlbums(source, candidates, p.weights)
-	return albumMatchResultFromRanking(target.Service(), ranking), nil
+	return resolveTargetFor(ctx, p.collectTargetCandidates,
+		func(album model.CanonicalAlbum, candidates []model.CandidateAlbum) score.Ranking[model.CandidateAlbum] {
+			return score.RankAlbums(album, candidates, p.weights)
+		},
+		func(candidate model.CandidateAlbum) string { return candidate.MatchURL },
+		target, source)
 }
 
 // ShouldReplace reports whether the enriched result beats the base match.

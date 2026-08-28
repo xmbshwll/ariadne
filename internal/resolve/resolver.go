@@ -114,10 +114,6 @@ func collectISRCs(album model.CanonicalAlbum) []string {
 	return isrcs
 }
 
-func albumMatchResultFromRanking(service model.ServiceName, ranking score.Ranking[model.CandidateAlbum]) MatchResult {
-	return matchResultFromRanking(service, ranking, func(candidate model.CandidateAlbum) string { return candidate.MatchURL })
-}
-
 func matchResultFromRanking[C any](service model.ServiceName, ranking score.Ranking[C], urlOf func(C) string) MatchResultOf[C] {
 	result := MatchResultOf[C]{
 		Service:    service,
