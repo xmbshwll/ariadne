@@ -123,14 +123,24 @@ func internalConfig(config Config) internalconfig.Config {
 }
 
 func normalizedConfig(config Config) Config {
-	config.AppleMusicStorefront = internalconfig.NormalizeStorefront(config.AppleMusicStorefront)
-	config.Spotify.ClientID = strings.TrimSpace(config.Spotify.ClientID)
-	config.Spotify.ClientSecret = strings.TrimSpace(config.Spotify.ClientSecret)
-	config.AppleMusic.KeyID = strings.TrimSpace(config.AppleMusic.KeyID)
-	config.AppleMusic.TeamID = strings.TrimSpace(config.AppleMusic.TeamID)
-	config.AppleMusic.PrivateKeyPath = strings.TrimSpace(config.AppleMusic.PrivateKeyPath)
-	config.TIDAL.ClientID = strings.TrimSpace(config.TIDAL.ClientID)
-	config.TIDAL.ClientSecret = strings.TrimSpace(config.TIDAL.ClientSecret)
+	credentials := internalconfig.NormalizeCredentials(internalconfig.CredentialsShape{
+		SpotifyClientID:          config.Spotify.ClientID,
+		SpotifyClientSecret:      config.Spotify.ClientSecret,
+		AppleMusicKeyID:          config.AppleMusic.KeyID,
+		AppleMusicTeamID:         config.AppleMusic.TeamID,
+		AppleMusicPrivateKeyPath: config.AppleMusic.PrivateKeyPath,
+		AppleMusicStorefront:     config.AppleMusicStorefront,
+		TIDALClientID:            config.TIDAL.ClientID,
+		TIDALClientSecret:        config.TIDAL.ClientSecret,
+	})
+	config.Spotify.ClientID = credentials.SpotifyClientID
+	config.Spotify.ClientSecret = credentials.SpotifyClientSecret
+	config.AppleMusic.KeyID = credentials.AppleMusicKeyID
+	config.AppleMusic.TeamID = credentials.AppleMusicTeamID
+	config.AppleMusic.PrivateKeyPath = credentials.AppleMusicPrivateKeyPath
+	config.AppleMusicStorefront = credentials.AppleMusicStorefront
+	config.TIDAL.ClientID = credentials.TIDALClientID
+	config.TIDAL.ClientSecret = credentials.TIDALClientSecret
 	config.HTTPTimeout = normalizeHTTPTimeout(config.HTTPTimeout)
 	config.TargetServices = normalizedTargetServices(config.TargetServices)
 	if config.scoreWeights == (score.Weights{}) {

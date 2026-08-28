@@ -143,12 +143,12 @@ func logRawCLIConfigValues(logger *cliLogger, lookup func(string) string) {
 }
 
 func logNormalizedCLIConfig(logger *cliLogger, cfg ariadne.Config) {
-	appleMusicAuthEnabled := strings.TrimSpace(cfg.AppleMusic.KeyID) != "" && strings.TrimSpace(cfg.AppleMusic.TeamID) != "" && strings.TrimSpace(cfg.AppleMusic.PrivateKeyPath) != ""
+	wiringConfig := toWiringConfig(cfg)
 	logger.Debugf(
 		"normalized config spotify_enabled=%t apple_music_auth_enabled=%t tidal_enabled=%t storefront=%q http_timeout=%s target_services=%q",
-		toWiringConfig(cfg).Spotify.Enabled(),
-		appleMusicAuthEnabled,
-		toWiringConfig(cfg).TIDAL.Enabled(),
+		wiringConfig.Spotify.Enabled(),
+		wiringConfig.AppleMusic.AuthEnabled(),
+		wiringConfig.TIDAL.Enabled(),
 		cfg.AppleMusicStorefront,
 		cfg.HTTPTimeout,
 		strings.Join(serviceNames(cfg.TargetServices), ","),

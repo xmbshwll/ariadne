@@ -18,6 +18,36 @@ type Config struct {
 	TargetServicesRaw string
 }
 
+// CredentialsShape carries the credential fields whose normalization rules are
+// shared between the library and the CLI.
+type CredentialsShape struct {
+	SpotifyClientID          string
+	SpotifyClientSecret      string
+	AppleMusicKeyID          string
+	AppleMusicTeamID         string
+	AppleMusicPrivateKeyPath string
+	AppleMusicStorefront     string
+	TIDALClientID            string
+	TIDALClientSecret        string
+}
+
+// NormalizeCredentials trims the Credential Token fields and normalizes the
+// Apple Music storefront. It is the one credential-normalization rule, shared
+// by the library's config normalization and the CLI's Catalog conversion so
+// the two cannot drift.
+func NormalizeCredentials(in CredentialsShape) CredentialsShape {
+	return CredentialsShape{
+		SpotifyClientID:          strings.TrimSpace(in.SpotifyClientID),
+		SpotifyClientSecret:      strings.TrimSpace(in.SpotifyClientSecret),
+		AppleMusicKeyID:          strings.TrimSpace(in.AppleMusicKeyID),
+		AppleMusicTeamID:         strings.TrimSpace(in.AppleMusicTeamID),
+		AppleMusicPrivateKeyPath: strings.TrimSpace(in.AppleMusicPrivateKeyPath),
+		AppleMusicStorefront:     NormalizeStorefront(in.AppleMusicStorefront),
+		TIDALClientID:            strings.TrimSpace(in.TIDALClientID),
+		TIDALClientSecret:        strings.TrimSpace(in.TIDALClientSecret),
+	}
+}
+
 type Spotify struct {
 	ClientID     string
 	ClientSecret string

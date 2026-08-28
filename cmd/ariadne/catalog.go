@@ -14,20 +14,30 @@ import (
 // of package ariadne's internalConfig: both must normalize identically so a
 // Catalog decision the CLI asks for matches what New would build.
 func toWiringConfig(c ariadne.Config) config.Config {
+	credentials := config.NormalizeCredentials(config.CredentialsShape{
+		SpotifyClientID:          c.Spotify.ClientID,
+		SpotifyClientSecret:      c.Spotify.ClientSecret,
+		AppleMusicKeyID:          c.AppleMusic.KeyID,
+		AppleMusicTeamID:         c.AppleMusic.TeamID,
+		AppleMusicPrivateKeyPath: c.AppleMusic.PrivateKeyPath,
+		AppleMusicStorefront:     c.AppleMusicStorefront,
+		TIDALClientID:            c.TIDAL.ClientID,
+		TIDALClientSecret:        c.TIDAL.ClientSecret,
+	})
 	return config.Config{
 		Spotify: config.Spotify{
-			ClientID:     strings.TrimSpace(c.Spotify.ClientID),
-			ClientSecret: strings.TrimSpace(c.Spotify.ClientSecret),
+			ClientID:     credentials.SpotifyClientID,
+			ClientSecret: credentials.SpotifyClientSecret,
 		},
 		AppleMusic: config.AppleMusic{
-			Storefront:     config.NormalizeStorefront(c.AppleMusicStorefront),
-			KeyID:          strings.TrimSpace(c.AppleMusic.KeyID),
-			TeamID:         strings.TrimSpace(c.AppleMusic.TeamID),
-			PrivateKeyPath: strings.TrimSpace(c.AppleMusic.PrivateKeyPath),
+			Storefront:     credentials.AppleMusicStorefront,
+			KeyID:          credentials.AppleMusicKeyID,
+			TeamID:         credentials.AppleMusicTeamID,
+			PrivateKeyPath: credentials.AppleMusicPrivateKeyPath,
 		},
 		TIDAL: config.TIDAL{
-			ClientID:     strings.TrimSpace(c.TIDAL.ClientID),
-			ClientSecret: strings.TrimSpace(c.TIDAL.ClientSecret),
+			ClientID:     credentials.TIDALClientID,
+			ClientSecret: credentials.TIDALClientSecret,
 		},
 		HTTPTimeout: c.HTTPTimeout,
 	}
