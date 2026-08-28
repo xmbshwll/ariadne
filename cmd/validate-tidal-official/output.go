@@ -1,24 +1,26 @@
 package main
 
 import (
-	"fmt"
-	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 )
 
+// tidalOfficialSummaryFile is the summary artifact the TIDAL tool writes last.
+const tidalOfficialSummaryFile = "official-summary.json"
+
 func buildValidationSummary(inputs validationInputs, title string, artistNames []string, releaseDate string, upc string, trackTitles []string, trackISRCs []string) map[string]any {
 	artifacts := map[string]string{
-		"source_payload_official": filepath.ToSlash(filepath.Join(inputs.outputDir, "source-payload-official.json")),
-		"search_albums_official":  filepath.ToSlash(filepath.Join(inputs.outputDir, "search-albums-official.json")),
-		"official_summary":        filepath.ToSlash(filepath.Join(inputs.outputDir, "official-summary.json")),
+		"source_payload_official": validation.JoinArtifactPath(inputs.outputDir, "source-payload-official.json"),
+		"search_albums_official":  validation.JoinArtifactPath(inputs.outputDir, "search-albums-official.json"),
+		"official_summary":        validation.JoinArtifactPath(inputs.outputDir, "official-summary.json"),
 	}
 	if upc != "" {
-		artifacts["search_upc_official"] = filepath.ToSlash(filepath.Join(inputs.outputDir, "search-upc-official.json"))
+		artifacts["search_upc_official"] = validation.JoinArtifactPath(inputs.outputDir, "search-upc-official.json")
 	}
 	if len(trackISRCs) > 0 {
-		artifacts["search_isrc_official"] = filepath.ToSlash(filepath.Join(inputs.outputDir, "search-isrc-official.json"))
+		artifacts["search_isrc_official"] = validation.JoinArtifactPath(inputs.outputDir, "search-isrc-official.json")
 	}
 
 	return map[string]any{
@@ -39,15 +41,20 @@ func buildValidationSummary(inputs validationInputs, title string, artistNames [
 }
 
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
-	for name, raw := range artifacts.targets {
-		path := filepath.Join(outputDir, name)
-		if err := validation.WritePrettyJSON(path, raw); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
-		}
+	targets := make([]validation.Artifact, 0, len(artifacts.targets))
+	for _, name := range sortedArtifactNames(artifacts.targets) {
+		targets = append(targets, validation.Artifact{Name: name, Body: artifacts.targets[name]})
 	}
-	summaryPath := filepath.Join(outputDir, "official-summary.json")
-	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
-		return fmt.Errorf("write %s: %w", summaryPath, err)
+	return validation.WriteArtifacts(outputDir, targets, tidalOfficialSummaryFile, artifacts.summary)
+}
+
+// sortedArtifactNames keeps artifact write order deterministic; the summary
+// references the paths, so the same run must always write in the same order.
+func sortedArtifactNames(targets map[string][]byte) []string {
+	names := make([]string, 0, len(targets))
+	for name := range targets {
+		names = append(names, name)
 	}
-	return nil
+	sort.Strings(names)
+	return names
 }

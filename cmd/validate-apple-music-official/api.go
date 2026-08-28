@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/httpx"
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 )
 
 const (
@@ -123,8 +123,8 @@ func fetchAppleMusicAlbum(ctx context.Context, client *http.Client, inputs valid
 	}
 
 	var albumPayload appleMusicAlbumDocument
-	if err := json.Unmarshal(albumBody, &albumPayload); err != nil {
-		return nil, appleMusicAlbumResource{}, fmt.Errorf("decode official apple music album payload: %w", err)
+	if err := validation.DecodeJSONInto(albumBody, &albumPayload, "decode official apple music album payload"); err != nil {
+		return nil, appleMusicAlbumResource{}, err
 	}
 	if len(albumPayload.Data) == 0 {
 		return nil, appleMusicAlbumResource{}, errAppleMusicAlbumPayloadMissing
@@ -194,18 +194,14 @@ func mergeAppleMusicSearchBodies(bodies [][]byte) ([]byte, error) {
 }
 
 func getAPI(ctx context.Context, client *http.Client, endpoint string, developerToken string) ([]byte, error) {
-	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
-	return httpx.FetchBytes(ctx, httpx.BytesRequest{
-		RequestSpec: httpx.RequestSpec{
-			Client:       client,
-			URL:          endpoint,
-			Headers:      map[string]string{"Authorization": "Bearer " + developerToken},
-			UserAgent:    httpx.DefaultUserAgent,
-			BuildError:   "build apple music api request",
-			ExecuteError: "execute apple music api request",
-			StatusError:  httpx.StatusError(errAppleMusicAPIStatus),
-		},
-		ReadError: "read apple music api response",
+	return validation.AuthenticatedGet(ctx, validation.GetRequest{
+		Client:       client,
+		URL:          endpoint,
+		Token:        developerToken,
+		BuildError:   "build apple music api request",
+		ExecuteError: "execute apple music api request",
+		StatusError:  errAppleMusicAPIStatus,
+		ReadError:    "read apple music api response",
 	})
 }
 

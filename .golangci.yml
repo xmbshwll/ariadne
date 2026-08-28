@@ -46,6 +46,13 @@ linters:
       # repeat the same sentence in every provider's error text.
       - path: internal/adapters/(base|adaptertest)/
         linters: [wrapcheck]
+      # The validate tools consume cmd/internal/validation's labeled seams; the
+      # labels are already in the message, and re-wrapping would stack prefixes
+      # three deep.
+      - path: (cmd/)?internal/validation/
+        linters: [wrapcheck]
+      - path: cmd/validate-[^/]+/
+        linters: [wrapcheck]
   settings:
     errcheck:
       check-type-assertions: true

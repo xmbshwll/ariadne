@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/httpx"
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 )
 
 const (
@@ -118,8 +117,8 @@ func fetchTIDALAlbum(ctx context.Context, client *http.Client, inputs validation
 	}
 
 	var album tidalAlbumDocument
-	if err := json.Unmarshal(albumBody, &album); err != nil {
-		return nil, tidalAlbumDocument{}, fmt.Errorf("decode tidal album payload: %w", err)
+	if err := validation.DecodeJSONInto(albumBody, &album, "decode tidal album payload"); err != nil {
+		return nil, tidalAlbumDocument{}, err
 	}
 	if strings.TrimSpace(album.Data.ID) == "" {
 		return nil, tidalAlbumDocument{}, errTIDALAlbumPayloadMissing
@@ -171,53 +170,30 @@ func addTIDALISRCArtifact(ctx context.Context, client *http.Client, inputs valid
 }
 
 func fetchAccessToken(ctx context.Context, client *http.Client, authBaseURL string, clientID string, clientSecret string) (string, error) {
-	form := url.Values{}
-	form.Set("client_id", clientID)
-	form.Set("client_secret", clientSecret)
-	form.Set("grant_type", "client_credentials")
-
-	endpoint := strings.TrimRight(authBaseURL, "/") + "/oauth2/token"
-	var payload struct {
-		AccessToken string `json:"access_token"`
-	}
-	//nolint:wrapcheck // HTTP exchange spec supplies token request/status/read context.
-	if err := httpx.GetJSON(ctx, httpx.JSONRequest{
-		RequestSpec: httpx.RequestSpec{
-			Client: client,
-			Method: http.MethodPost,
-			URL:    endpoint,
-			Body:   strings.NewReader(form.Encode()),
-			Headers: map[string]string{
-				"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-			},
-			UserAgent:    httpx.DefaultUserAgent,
-			BuildError:   "build tidal token request",
-			ExecuteError: "execute tidal token request",
-			StatusError:  httpx.StatusError(errTIDALTokenStatus),
-		},
-		DecodeError: "decode tidal token response",
-	}, &payload); err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(payload.AccessToken) == "" {
-		return "", errTIDALTokenMissing
-	}
-	return payload.AccessToken, nil
+	return validation.FetchClientCredentialsToken(ctx, validation.TokenRequest{
+		Client:       client,
+		Endpoint:     strings.TrimRight(authBaseURL, "/") + "/oauth2/token",
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		ContentType:  "application/x-www-form-urlencoded; charset=UTF-8",
+		BuildError:   "build tidal token request",
+		ExecuteError: "execute tidal token request",
+		StatusError:  errTIDALTokenStatus,
+		DecodeError:  "decode tidal token response",
+		MissingError: errTIDALTokenMissing,
+	})
 }
 
 func getAPI(ctx context.Context, client *http.Client, endpoint string, accessToken string) ([]byte, error) {
-	//nolint:wrapcheck // HTTP exchange spec supplies request/status/read context.
-	return httpx.FetchBytes(ctx, httpx.BytesRequest{
-		RequestSpec: httpx.RequestSpec{
-			Client:       client,
-			URL:          endpoint,
-			Headers:      map[string]string{"Authorization": "Bearer " + accessToken, "Accept": "application/vnd.api+json"},
-			UserAgent:    httpx.DefaultUserAgent,
-			BuildError:   "build tidal api request",
-			ExecuteError: "execute tidal api request",
-			StatusError:  httpx.StatusError(errTIDALAPIStatus),
-		},
-		ReadError: "read tidal api response",
+	return validation.AuthenticatedGet(ctx, validation.GetRequest{
+		Client:       client,
+		URL:          endpoint,
+		Token:        accessToken,
+		Headers:      map[string]string{"Accept": "application/vnd.api+json"},
+		BuildError:   "build tidal api request",
+		ExecuteError: "execute tidal api request",
+		StatusError:  errTIDALAPIStatus,
+		ReadError:    "read tidal api response",
 	})
 }
 
