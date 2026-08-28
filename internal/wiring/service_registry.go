@@ -310,6 +310,16 @@ func supportsTarget(capability capabilitySpec, entity EntityShape) bool {
 	return capability.supports(targetRoleFor(entity))
 }
 
+// Services lists every Music Service in the Catalog in built-in order,
+// regardless of Capability. It is the query for "all known services".
+func (c catalog) Services() []model.ServiceName {
+	services := make([]model.ServiceName, 0, len(c.capabilitiesByService))
+	for _, binding := range c.bindings {
+		services = append(services, binding.service)
+	}
+	return services
+}
+
 func (c catalog) TargetServices(cfg *config.Config, entity EntityShape) []model.ServiceName {
 	supports := func(capability capabilitySpec) bool { return supportsTarget(capability, entity) }
 	order := c.order.AlbumTargets

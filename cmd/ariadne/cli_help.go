@@ -62,9 +62,7 @@ Flags:
     Values: comma-separated list drawn from %s.
     Use this to limit which target services are searched.
     Caveats:
-      spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET.
-      tidal requires TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
-      amazonMusic is not a valid target service.
+%s
 
   --min-strength
     Values:
@@ -90,11 +88,9 @@ Flags:
     Sets the overall timeout for one resolve command across parsing, source fetch, and target searches.
 
 Notes:
-  - Spotify target search is enabled only when SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are set.
   - Apple Music UPC and ISRC target search are enabled when APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, and APPLE_MUSIC_PRIVATE_KEY_PATH are set.
-  - TIDAL source fetch and target search require TIDAL_CLIENT_ID and TIDAL_CLIENT_SECRET.
-  - Song resolution currently hydrates Apple Music, Bandcamp, Deezer, SoundCloud, Spotify, and TIDAL.
-  - YouTube Music and Amazon Music song URLs are parse-only today.`
+%s
+%s`
 
 func renderRootHelp(w io.Writer, baseConfig ariadne.Config, configPath string) error {
 	if _, err := io.WriteString(w, rootHelpTextFor(baseConfig, configPath)); err != nil {
@@ -109,9 +105,12 @@ func resolveHelpTextFor(baseConfig ariadne.Config, configPath string) string {
 		defaultResolveCommandUse,
 		helpConfigPath(configPath),
 		targetServiceNamesUsage(),
+		helpServiceCaveats(),
 		helpStorefrontDefault(baseConfig),
 		baseConfig.HTTPTimeout,
 		defaultResolveTimeout,
+		helpSongHydrationNote(),
+		strings.Join(helpServiceNotes(), "\n"),
 	)
 }
 

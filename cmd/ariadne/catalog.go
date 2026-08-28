@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/xmbshwll/ariadne"
@@ -50,4 +51,47 @@ func targetServices(c *ariadne.Config, entity wiring.EntityShape) []ariadne.Serv
 // describe reports the built-in support for one service.
 func describe(service ariadne.ServiceName) (wiring.Capabilities, bool) {
 	return wiring.Default.DescribeService(service)
+}
+
+// services lists every Music Service the Provider Catalog knows, in order.
+func services() []ariadne.ServiceName {
+	return wiring.Default.Services()
+}
+
+// helpServiceNotes renders the song-resolution notes: the hydrating services
+// from the Catalog's song targets, then one deferred line per Music Service
+// that parses song Source Input without a runtime song Target Search role.
+func helpServiceNotes() []string {
+	notes := make([]string, 0)
+	for _, service := range services() {
+		capabilities, ok := describe(service)
+		if ok && capabilities.SupportsRuntimeSongInputURL && !capabilities.SupportsSongTarget {
+			notes = append(notes, fmt.Sprintf("  - %s song URLs are recognized, but runtime hydration remains deferred.", service))
+		}
+	}
+	return notes
+}
+
+// helpSongHydrationNote lists the Music Services whose song Runtime Hydration
+// is available, straight from the Provider Catalog's song targets.
+func helpSongHydrationNote() string {
+	services := serviceNames(targetServices(nil, wiring.EntityShapeSong))
+	return fmt.Sprintf("  - Song resolution currently hydrates %s.", strings.Join(services, ", "))
+}
+
+// helpServiceCaveats renders the --services caveats: one line per target
+// service whose request under an empty config is not plainly available, in
+// Catalog order.
+func helpServiceCaveats() string {
+	caveats := make([]string, 0)
+	for _, service := range targetServices(nil, wiring.EntityShapeAny) {
+		decision := evaluateTarget(ariadne.Config{}, string(service), wiring.EntityShapeAny)
+		switch decision.Status {
+		case wiring.TargetServiceRequestCredentialsRequired:
+			caveats = append(caveats, fmt.Sprintf("      %s target search requires credentials: %s.", service, decision.CredentialHint))
+		case wiring.TargetServiceRequestParseOnly:
+			caveats = append(caveats, fmt.Sprintf("      %s is not available as a target service.", service))
+		}
+	}
+	return strings.Join(caveats, "\n")
 }
