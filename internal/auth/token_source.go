@@ -179,21 +179,16 @@ func (s *TokenSource) cachedAccessToken() (string, bool) {
 }
 
 func (s *TokenSource) refreshAccessToken(ctx context.Context, credentials ClientCredentials) (string, error) {
-	var lastErr error
-	for attempt := range s.config.MaxRefreshAttempts {
-		token, err := s.fetchAndCacheToken(ctx, credentials)
-		if err == nil {
-			return token, nil
-		}
-		lastErr = err
-		if attempt == s.config.MaxRefreshAttempts-1 || !httpx.IsTransientHTTPError(err) {
-			break
-		}
-		if waitErr := waitForRefreshRetry(ctx, attempt, s.config.RefreshRetryBackoff); waitErr != nil {
-			return "", waitErr
-		}
+	var accessToken string
+	err := httpx.Retry(ctx, s.config.MaxRefreshAttempts, s.config.RefreshRetryBackoff, func(ctx context.Context) error {
+		token, fetchErr := s.fetchAndCacheToken(ctx, credentials)
+		accessToken = token
+		return fetchErr
+	})
+	if err != nil {
+		return "", fmt.Errorf("refresh credential token: %w", err)
 	}
-	return "", lastErr
+	return accessToken, nil
 }
 
 func (s *TokenSource) fetchAndCacheToken(ctx context.Context, credentials ClientCredentials) (string, error) {
@@ -216,20 +211,6 @@ func (s *TokenSource) fetchAndCacheToken(ctx context.Context, credentials Client
 	}
 	s.cached = cachedToken{accessToken: token.AccessToken, expiresAt: expiresAt}
 	return s.cached.accessToken, nil
-}
-
-// waitForRefreshRetry backs off exponentially between token fetch attempts.
-func waitForRefreshRetry(ctx context.Context, attempt int, baseBackoff time.Duration) error {
-	delay := baseBackoff * time.Duration(1<<attempt)
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("wait for token refresh retry: %w", ctx.Err())
-	case <-timer.C:
-		return nil
-	}
 }
 
 func (s *TokenSource) refreshContext(ctx context.Context) (context.Context, context.CancelFunc) {

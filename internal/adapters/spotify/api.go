@@ -18,6 +18,7 @@ import (
 const (
 	spotifyTokenRefreshTimeout = 30 * time.Second
 	spotifyAPIMaxAttempts      = 6
+	spotifyAPIRetryBackoff     = 250 * time.Millisecond
 )
 
 type spotifyAPIError struct {
@@ -38,20 +39,13 @@ func (e *spotifyAPIError) HTTPStatusCode() int {
 }
 
 func (a *Adapter) getAPIJSON(ctx context.Context, endpoint string, target any) error {
-	var lastErr error
-	for attempt := range spotifyAPIMaxAttempts {
-		lastErr = a.getAPIJSONOnce(ctx, endpoint, target)
-		if lastErr == nil {
-			return nil
-		}
-		if attempt == spotifyAPIMaxAttempts-1 || !shouldRetrySpotifyAPIError(lastErr) {
-			return lastErr
-		}
-		if err := waitForSpotifyAPIRetry(ctx, attempt); err != nil {
-			return err
-		}
+	err := httpx.Retry(ctx, spotifyAPIMaxAttempts, spotifyAPIRetryBackoff, func(ctx context.Context) error {
+		return a.getAPIJSONOnce(ctx, endpoint, target)
+	})
+	if err != nil {
+		return fmt.Errorf("spotify api request: %w", err)
 	}
-	return lastErr
+	return nil
 }
 
 func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target any) error {
@@ -76,23 +70,6 @@ func (a *Adapter) getAPIJSONOnce(ctx context.Context, endpoint string, target an
 		DecodeError:       "decode api response",
 		MalformedResponse: ErrMalformedSpotifyAPIResponse,
 	}, target)
-}
-
-func shouldRetrySpotifyAPIError(err error) bool {
-	return httpx.IsTransientHTTPError(err)
-}
-
-func waitForSpotifyAPIRetry(ctx context.Context, attempt int) error {
-	delay := 250 * time.Millisecond * time.Duration(1<<attempt)
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("wait for spotify api retry: %w", ctx.Err())
-	case <-timer.C:
-		return nil
-	}
 }
 
 func (a *Adapter) AccessToken(ctx context.Context) (string, error) {

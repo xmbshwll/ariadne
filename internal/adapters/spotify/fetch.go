@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -332,7 +333,7 @@ func (a *Adapter) fetchTrackDetailsAPI(ctx context.Context, trackIDs []string) (
 }
 
 func shouldSkipSpotifyTrackDetailError(err error) bool {
-	return errors.Is(err, errSpotifyTrackNotFound) || shouldRetrySpotifyAPIError(err)
+	return errors.Is(err, errSpotifyTrackNotFound) || httpx.IsTransientHTTPError(err)
 }
 
 func (a *Adapter) FetchAlbumBootstrap(ctx context.Context, parsed model.ParsedAlbumURL) (*model.CanonicalAlbum, error) {

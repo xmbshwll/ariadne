@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -187,4 +188,33 @@ func statusError(resp *http.Response, spec RequestSpec) error {
 		statusCode: resp.StatusCode,
 		body:       message,
 	}
+}
+
+// Retry runs fn up to attempts times, retrying only transient HTTP failures
+// (IsTransientHTTPError) with exponential backoff from base. It returns the
+// first success, the last non-transient error immediately, or the last
+// transient error once attempts are exhausted. The wait aborts on ctx
+// cancellation.
+func Retry(ctx context.Context, attempts int, base time.Duration, fn func(context.Context) error) error {
+	var lastErr error
+	for attempt := range attempts {
+		err := fn(ctx)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt == attempts-1 || !IsTransientHTTPError(err) {
+			break
+		}
+		delay := base * time.Duration(1<<attempt)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			//nolint:wrapcheck // Return caller cancellation unchanged.
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return lastErr
 }
