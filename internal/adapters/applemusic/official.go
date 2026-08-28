@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
-	"github.com/xmbshwll/ariadne/internal/auth/appleauth"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -91,37 +89,19 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 }
 
 func (a *Adapter) authEnabled() bool {
-	return a.appleMusicKeyID != "" && a.appleMusicTeamID != "" && a.appleMusicPrivateKeyPath != ""
+	return a.developerTokens.Configured()
 }
 
-func (a *Adapter) developerToken() (string, error) {
+func (a *Adapter) developerToken(ctx context.Context) (string, error) {
 	if !a.authEnabled() {
 		return "", ErrCredentialsNotConfigured
 	}
-
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-	now := time.Now()
-	if a.cachedToken != "" && now.Before(a.tokenExpiresAt) {
-		return a.cachedToken, nil
-	}
-
-	token, err := appleauth.GenerateDeveloperToken(appleauth.Config{
-		KeyID:          a.appleMusicKeyID,
-		TeamID:         a.appleMusicTeamID,
-		PrivateKeyPath: a.appleMusicPrivateKeyPath,
-		TTL:            time.Hour,
-	}, now.UTC())
-	if err != nil {
-		return "", fmt.Errorf("generate apple music developer token: %w", err)
-	}
-	a.cachedToken = token
-	a.tokenExpiresAt = now.Add(55 * time.Minute)
-	return a.cachedToken, nil
+	//nolint:wrapcheck // The token source preserves its own error identity.
+	return a.developerTokens.AccessToken(ctx)
 }
 
 func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target any) error {
-	developerToken, err := a.developerToken()
+	developerToken, err := a.developerToken(ctx)
 	if err != nil {
 		return err
 	}

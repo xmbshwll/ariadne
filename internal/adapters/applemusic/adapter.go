@@ -4,10 +4,9 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/base"
+	"github.com/xmbshwll/ariadne/internal/auth/appleauth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -62,9 +61,11 @@ func WithAPIBaseURL(baseURL string) Option {
 // MusicKit developer tokens from the provided .p8 key material.
 func WithDeveloperTokenAuth(keyID string, teamID string, privateKeyPath string) Option {
 	return func(adapter *Adapter) {
-		adapter.appleMusicKeyID = strings.TrimSpace(keyID)
-		adapter.appleMusicTeamID = strings.TrimSpace(teamID)
-		adapter.appleMusicPrivateKeyPath = strings.TrimSpace(privateKeyPath)
+		adapter.developerTokens = appleauth.NewTokenSource(appleauth.Config{
+			KeyID:          strings.TrimSpace(keyID),
+			TeamID:         strings.TrimSpace(teamID),
+			PrivateKeyPath: strings.TrimSpace(privateKeyPath),
+		})
 	}
 }
 
@@ -72,16 +73,11 @@ func WithDeveloperTokenAuth(keyID string, teamID string, privateKeyPath string) 
 type Adapter struct {
 	base.Unsupported
 
-	client                   *http.Client
-	lookupBaseURL            string
-	apiBaseURL               string
-	defaultStorefront        string
-	appleMusicKeyID          string
-	appleMusicTeamID         string
-	appleMusicPrivateKeyPath string
-	tokenMu                  sync.Mutex
-	cachedToken              string
-	tokenExpiresAt           time.Time
+	client            *http.Client
+	lookupBaseURL     string
+	apiBaseURL        string
+	defaultStorefront string
+	developerTokens   *appleauth.TokenSource
 }
 
 // New creates an Apple Music adapter.
