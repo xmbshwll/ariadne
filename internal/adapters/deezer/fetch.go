@@ -2,12 +2,10 @@ package deezer
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -90,37 +88,17 @@ func (a *Adapter) fetchAlbumByLookup(ctx context.Context, endpoint string, parse
 }
 
 func (a *Adapter) getJSON(ctx context.Context, endpoint string, target any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-
-	resp, err := a.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("execute request: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		closeErr := resp.Body.Close()
-		if closeErr != nil {
-			return fmt.Errorf("unexpected status %d and close body: %w", resp.StatusCode, closeErr)
-		}
-		return fmt.Errorf("%w: %d", errUnexpectedDeezerStatus, resp.StatusCode)
-	}
-
-	decodeErr := json.NewDecoder(resp.Body).Decode(target)
-	closeErr := resp.Body.Close()
-	if decodeErr != nil {
-		if closeErr != nil {
-			return errors.Join(
-				fmt.Errorf("decode response: %w", errors.Join(ErrMalformedDeezerResponse, decodeErr)),
-				fmt.Errorf("close response body: %w", closeErr),
-			)
-		}
-		return fmt.Errorf("decode response: %w", errors.Join(ErrMalformedDeezerResponse, decodeErr))
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close response body: %w", closeErr)
-	}
-	return nil
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
+			Client:       a.client,
+			URL:          endpoint,
+			UserAgent:    httpx.DefaultUserAgent,
+			BuildError:   "build deezer request",
+			ExecuteError: "execute deezer request",
+			StatusError:  httpx.StatusError(errUnexpectedDeezerStatus),
+		},
+		DecodeError:       "decode deezer response",
+		MalformedResponse: ErrMalformedDeezerResponse,
+	}, target)
 }
