@@ -70,23 +70,14 @@ func (c Config) TIDALEnabled() bool {
 	return internalConfig(c).TIDAL.Enabled()
 }
 
-const (
-	// MatchScoreStrong is the minimum score for the highest-confidence band.
-	MatchScoreStrong = 100
-	// MatchScoreProbable is the minimum score for likely-good matches.
-	MatchScoreProbable = 70
-	// MatchScoreWeak is the minimum score for low-confidence but retained matches.
-	MatchScoreWeak = 50
-)
-
 // MatchStrengthForScore maps a raw score to a user-facing confidence band.
 func MatchStrengthForScore(score int) MatchStrength {
 	switch {
-	case score >= MatchScoreStrong:
+	case score >= 100:
 		return MatchStrengthStrong
-	case score >= MatchScoreProbable:
+	case score >= 70:
 		return MatchStrengthProbable
-	case score >= MatchScoreWeak:
+	case score >= 50:
 		return MatchStrengthWeak
 	default:
 		return MatchStrengthVeryWeak
@@ -101,11 +92,6 @@ func DefaultConfig() Config {
 		scoreWeights:         score.DefaultWeights(),
 		songScoreWeights:     score.DefaultSongWeights(),
 	}
-}
-
-// LoadConfig loads configuration from the default sources.
-func LoadConfig() Config {
-	return configFromInternal(internalconfig.Load())
 }
 
 // LoadConfigFromEnv loads configuration using the supplied getenv function.

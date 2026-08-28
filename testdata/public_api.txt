@@ -1,9 +1,6 @@
 const EntityShapeAlbum
 const EntityShapeAny
 const EntityShapeSong
-const MatchScoreProbable
-const MatchScoreStrong
-const MatchScoreWeak
 const MatchStrengthProbable
 const MatchStrengthStrong
 const MatchStrengthVeryWeak
@@ -27,7 +24,6 @@ func DefaultConfig
 func Describe
 func DescribeEnabled
 func EvaluateTarget
-func LoadConfig
 func LoadConfigFromEnv
 func LookupServiceName
 func MatchStrengthForScore
@@ -52,7 +48,6 @@ type MatchResultOf
 type MatchStrength
 type Option
 type ParsedAlbumURL
-type ParsedSongURL
 type ParsedURL
 type Resolution
 type Resolver
