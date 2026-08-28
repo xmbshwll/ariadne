@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -69,6 +70,8 @@ func WithDeveloperTokenAuth(keyID string, teamID string, privateKeyPath string) 
 
 // Adapter implements Apple Music source operations using the public lookup API.
 type Adapter struct {
+	base.Unsupported
+
 	client                   *http.Client
 	lookupBaseURL            string
 	apiBaseURL               string
@@ -87,6 +90,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported:       base.Unsupported{ServiceName: model.ServiceAppleMusic},
 		client:            client,
 		lookupBaseURL:     defaultLookupBaseURL,
 		apiBaseURL:        defaultAPIBaseURL,
@@ -96,11 +100,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		opt(adapter)
 	}
 	return adapter
-}
-
-// Service returns the service implemented by this adapter.
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceAppleMusic
 }
 
 // ParseAlbumURL parses an Apple Music album URL.

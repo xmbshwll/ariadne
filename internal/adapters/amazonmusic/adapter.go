@@ -27,10 +27,6 @@ func New(_ *http.Client) *Adapter {
 	return &Adapter{Unsupported: base.Unsupported{ServiceName: model.ServiceAmazonMusic}}
 }
 
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceAmazonMusic
-}
-
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return ParseAlbumURL(raw)
 }

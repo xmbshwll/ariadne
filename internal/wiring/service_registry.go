@@ -11,16 +11,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
-// capabilitySpec is one Provider Catalog entry. Capability support itself comes
-// from the service adapter's adapters.Capabilities, so a service states its own
-// support once; the Catalog adds only aliases, ordering, and credential gating.
-type capabilitySpec struct {
-	name                model.ServiceName
-	aliases             []string
-	capabilities        adapters.Capabilities
-	targetSearchEnabled func(config.Config) bool
-}
-
 func (c capabilitySpec) describe() Capabilities {
 	return Capabilities{
 		Aliases:                     append([]string(nil), c.aliases...),
@@ -75,13 +65,28 @@ func (c capabilitySpec) supports(role adapterRole) bool {
 // adapterBuilder builds one service's adapter under one config.
 type adapterBuilder func(client *http.Client, cfg config.Config) adapters.Adapter
 
-// binding describes Ariadne's built-in service support. The capability
-// metadata is config-independent and feeds the Supported* helpers, while build
-// applies config.Config-specific credential gating to the adapter set used by the
-// Enabled* helpers and default resolver wiring.
-type binding struct {
-	capability capabilitySpec
-	build      adapterBuilder
+// capabilitySpec is one Provider Catalog entry. Capability support comes from
+// the built service adapter's adapters.Capabilities, so a service states its own
+// support once; the Catalog adds only aliases and credential gating.
+type capabilitySpec struct {
+	name                model.ServiceName
+	aliases             []string
+	capabilities        adapters.Capabilities
+	targetSearchEnabled func(config.Config) bool
+}
+
+// capabilitySpecFor builds one Catalog entry from a binding and the adapter it
+// built, so capabilities are never restated in wiring.
+func capabilitySpecFor(binding bindingSpec, adapter adapters.Adapter) capabilitySpec {
+	spec := capabilitySpec{
+		name:                binding.service,
+		aliases:             append([]string(nil), binding.aliases...),
+		targetSearchEnabled: binding.targetSearchEnabled,
+	}
+	if adapter != nil {
+		spec.capabilities = adapter.Capabilities()
+	}
+	return spec
 }
 
 type serviceOrder struct {
@@ -104,7 +109,7 @@ func (o serviceOrder) clone() serviceOrder {
 // Service capabilities, default ordering, credential gating, runtime URL parsing,
 // and service name resolution.
 type catalog struct {
-	bindings              []binding
+	bindings              []bindingSpec
 	order                 serviceOrder
 	capabilitiesByService map[model.ServiceName]capabilitySpec
 	servicesByLookupKey   map[string]model.ServiceName
@@ -121,31 +126,32 @@ type ResolverAdapters struct {
 	SongTargets  []adapters.Adapter
 }
 
-func newProviderCatalog(bindings []binding, order serviceOrder) catalog {
+func newProviderCatalog(bindings []bindingSpec, order serviceOrder) catalog {
 	catalog := catalog{
-		bindings:              append([]binding(nil), bindings...),
+		bindings:              append([]bindingSpec(nil), bindings...),
 		order:                 order.clone(),
 		capabilitiesByService: make(map[model.ServiceName]capabilitySpec, len(bindings)),
 		servicesByLookupKey:   make(map[string]model.ServiceName, len(bindings)*3),
 	}
 
+	// Construction is cheap struct wiring with zero config — no network, no
+	// credentials — so the Catalog builds the built-in adapters once and reads
+	// each service's Capabilities from them, for URL recognition and the
+	// Supported* helpers without waiting for a Resolver to be built.
+	catalog.defaultAdapters = buildAdapters(httpx.NewClient(0), config.Config{}, catalog.bindings)
+
 	for _, binding := range catalog.bindings {
-		service := binding.capability.name
+		service := binding.service
 		if _, exists := catalog.capabilitiesByService[service]; exists {
 			panic("duplicate default service binding: " + string(service))
 		}
-		capability := binding.capability
+		capability := capabilitySpecFor(binding, catalog.defaultAdapters[service])
 		catalog.capabilitiesByService[service] = capability
 		catalog.addServiceLookup(service, string(service))
 		for _, alias := range capability.aliases {
 			catalog.addServiceLookup(service, alias)
 		}
 	}
-
-	// Construction is cheap struct wiring with zero config — no network, no
-	// credentials — so the Catalog can hold the built-in adapters for URL
-	// recognition without waiting for a Resolver to be built.
-	catalog.defaultAdapters = buildAdapters(httpx.NewClient(0), config.Config{}, catalog.bindings)
 
 	catalog.validateOrder(catalog.order.AlbumSources)
 	catalog.validateOrder(catalog.order.AlbumTargets)

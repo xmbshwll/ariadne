@@ -92,7 +92,7 @@ func jsonError(status int, body string) jsonRoute {
 }
 
 func newTestAdapter(server *httptest.Server) *deezer.Adapter {
-	return deezer.NewAdapter(server.Client(), server.URL)
+	return deezer.New(server.Client(), deezer.WithBaseURL(server.URL))
 }
 
 func mustReadDeezerAlbumFixtures(t *testing.T) ([]byte, []byte) {

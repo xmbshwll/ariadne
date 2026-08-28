@@ -8,14 +8,9 @@ import (
 // Capabilities, and the methods this package leaves to base.Unsupported.
 var _ adapters.Adapter = (*Adapter)(nil)
 
-// Capabilities reports which SoundCloud Adapter methods Ariadne can use.
+// Capabilities reports which methods this service supports.
 //
 // Source Input for both Entity Shapes and metadata Target Search; SoundCloud exposes no UPC or ISRC lookup.
-func Capabilities() adapters.Capabilities {
-	return adapters.Capabilities{AlbumSource: true, SongSource: true, AlbumMetadata: true, SongMetadata: true}
-}
-
-// Capabilities reports which SoundCloud Adapter methods Ariadne can use.
 func (a *Adapter) Capabilities() adapters.Capabilities {
-	return Capabilities()
+	return adapters.Capabilities{AlbumSource: true, SongSource: true, AlbumMetadata: true, SongMetadata: true}
 }

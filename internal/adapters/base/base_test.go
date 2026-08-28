@@ -17,6 +17,8 @@ import (
 // the message names both the service and the capability it lacks.
 func TestUnsupportedAnswersEveryMethodWithErrUnsupported(t *testing.T) {
 	unsupported := base.Unsupported{ServiceName: model.ServiceBandcamp}
+	assert.Equal(t, model.ServiceBandcamp, unsupported.Service())
+
 	calls := []struct {
 		name       string
 		capability string

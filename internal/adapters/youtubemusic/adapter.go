@@ -65,10 +65,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	return adapter
 }
 
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceYouTubeMusic
-}
-
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {
 	return ParseAlbumURL(raw)
 }

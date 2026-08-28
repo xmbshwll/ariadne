@@ -19,8 +19,9 @@ type Unsupported struct {
 }
 
 // Compile-time proof that Unsupported alone satisfies the full Adapter contract
-// apart from Service and Capabilities, which every provider states itself.
+// apart from Capabilities, which every provider states itself.
 var _ interface {
+	Service() model.ServiceName
 	ParseAlbumURL(string) (*model.ParsedAlbumURL, error)
 	FetchAlbum(context.Context, model.ParsedAlbumURL) (*model.CanonicalAlbum, error)
 	ParseSongURL(string) (*model.ParsedURL, error)
@@ -31,6 +32,13 @@ var _ interface {
 	SearchSongByISRC(context.Context, string) ([]model.CandidateSong, error)
 	SearchSongByMetadata(context.Context, model.CanonicalSong) ([]model.CandidateSong, error)
 } = Unsupported{}
+
+// Service returns the service name the embedding adapter set on Unsupported.
+// It is the only method every adapter inherits outright; an adapter overrides
+// the capability methods its service really implements.
+func (u Unsupported) Service() model.ServiceName {
+	return u.ServiceName
+}
 
 // ParseAlbumURL reports that the service has no album Source Input.
 func (u Unsupported) ParseAlbumURL(string) (*model.ParsedAlbumURL, error) {

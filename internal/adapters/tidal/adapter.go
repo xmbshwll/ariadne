@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -50,6 +51,8 @@ func WithAuthBaseURL(baseURL string) Option {
 }
 
 type Adapter struct {
+	base.Unsupported
+
 	client             *http.Client
 	clientID           string
 	clientSecret       string
@@ -65,6 +68,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported:        base.Unsupported{ServiceName: model.ServiceTIDAL},
 		client:             client,
 		apiBaseURL:         defaultAPIBaseURL,
 		authBaseURL:        defaultAuthBaseURL,
@@ -75,10 +79,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	}
 	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
-}
-
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceTIDAL
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {

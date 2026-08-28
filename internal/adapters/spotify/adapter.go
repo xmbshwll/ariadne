@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
@@ -69,6 +70,8 @@ func WithWebBaseURL(baseURL string) Option {
 
 // Adapter implements Spotify source and target operations.
 type Adapter struct {
+	base.Unsupported
+
 	client       *http.Client
 	clientID     string
 	clientSecret string
@@ -85,6 +88,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceSpotify},
 		client:      client,
 		apiBaseURL:  defaultAPIBaseURL,
 		authBaseURL: defaultAuthBaseURL,
@@ -95,11 +99,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	}
 	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
-}
-
-// Service returns the service implemented by this adapter.
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceSpotify
 }
 
 // ParseAlbumURL parses a Spotify album URL.

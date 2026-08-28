@@ -9,15 +9,15 @@ import (
 // shapes are internal wiring detail with no reason to be exported.
 type (
 	// Binding is the built-in service binding shape under test.
-	Binding = binding
+	Binding = bindingSpec
 	// BuiltAdapter is one service's built adapter.
 	BuiltAdapter = adapters.Adapter
 )
 
 var (
 	// NewBinding builds a single-service binding for wiring tests.
-	NewBinding = func(name model.ServiceName, build adapterBuilder) binding {
-		return binding{capability: capabilitySpec{name: name}, build: build}
+	NewBinding = func(name model.ServiceName, build adapterBuilder) bindingSpec {
+		return bindingSpec{service: name, build: build}
 	}
 	// BuildAdapters exposes the one-per-service adapter construction step.
 	BuildAdapters = buildAdapters
