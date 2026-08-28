@@ -21,20 +21,24 @@ type TestAdapters struct {
 	AlbumTargets []adapters.Adapter
 	SongSources  []adapters.Adapter
 	SongTargets  []adapters.Adapter
-	Weights      score.Weights
-	SongWeights  score.SongWeights
 }
 
-// NewWithAdapters builds a Resolver from test-supplied adapters. Zero weights
-// use the defaults, matching the documented behavior of the default set.
+// NewWithAdapters builds a Resolver from test-supplied adapters with the
+// built-in Scoring weights, which no caller overrides.
 func NewWithAdapters(set TestAdapters) *Resolver {
-	weights := set.Weights
-	if weights == (score.Weights{}) {
-		weights = score.DefaultWeights()
-	}
-	songWeights := set.SongWeights
-	if songWeights == (score.SongWeights{}) {
-		songWeights = score.DefaultSongWeights()
-	}
-	return newResolver(set.AlbumSources, set.AlbumTargets, set.SongSources, set.SongTargets, weights, songWeights)
+	return newResolver(
+		set.AlbumSources,
+		set.AlbumTargets,
+		set.SongSources,
+		set.SongTargets,
+		score.DefaultWeights(),
+		score.DefaultSongWeights(),
+	)
+}
+
+// ConfigWeights reports the Scoring weights a Config resolves to. Ranking is
+// Ariadne's decision rather than a caller knob, so the weights are unexported
+// fields and only this seam can read them.
+func ConfigWeights(config Config) (score.Weights, score.SongWeights) {
+	return config.scoreWeights, config.songScoreWeights
 }

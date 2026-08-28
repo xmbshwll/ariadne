@@ -48,8 +48,6 @@ A few useful fields:
 - `cfg.AppleMusicStorefront` — default Apple Music storefront
 - `cfg.HTTPTimeout` — per-request timeout for Ariadne's default HTTP client
 - `cfg.TargetServices` — which target services to search
-- `cfg.ScoreWeights` — album scoring weights
-- `cfg.SongScoreWeights` — song scoring weights
 
 If `cfg.HTTPTimeout` is zero or negative, Ariadne falls back to built-in default.
 

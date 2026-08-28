@@ -230,9 +230,6 @@ Common exported errors:
 - `ariadne.ErrAppleMusicCredentialsNotConfigured`
 - `ariadne.ErrSpotifyCredentialsNotConfigured`
 - `ariadne.ErrTIDALCredentialsNotConfigured`
-- `ariadne.ErrSourceAdapterReturnedNilParsedURL`
-- `ariadne.ErrSourceAdapterReturnedNilAlbum`
-- `ariadne.ErrSourceAdapterReturnedNilSong`
 
 Example:
 

@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xmbshwll/ariadne/internal/adapters"
+	"github.com/xmbshwll/ariadne/internal/resolve"
+	"github.com/xmbshwll/ariadne/internal/score"
 )
 
 const testLibrarySourceURL = "https://fixture.test/source"
@@ -74,8 +76,9 @@ func TestLoadConfigFromEnvCanonicalizesTargetServiceAliases(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	config := ariadne.DefaultConfig()
 	assert.Equal(t, "us", config.AppleMusicStorefront)
-	assert.NotEqual(t, ariadne.ScoreWeights{}, config.ScoreWeights)
-	assert.NotEqual(t, ariadne.SongScoreWeights{}, config.SongScoreWeights)
+	albumWeights, songWeights := ariadne.ConfigWeights(config)
+	assert.NotEqual(t, score.Weights{}, albumWeights)
+	assert.NotEqual(t, score.SongWeights{}, songWeights)
 	assert.Equal(t, 15*time.Second, config.HTTPTimeout)
 }
 
@@ -388,8 +391,8 @@ func TestEnabledServiceLists(t *testing.T) {
 }
 
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
-	config := ariadne.NormalizedConfig(ariadne.Config{})
-	assert.NotEqual(t, ariadne.SongScoreWeights{}, config.SongScoreWeights)
+	_, songWeights := ariadne.ConfigWeights(ariadne.NormalizedConfig(ariadne.Config{}))
+	assert.NotEqual(t, score.SongWeights{}, songWeights)
 }
 
 func TestMatchStrengthForScore(t *testing.T) {
@@ -473,23 +476,23 @@ func TestResolveReturnsErrorForUninitializedResolver(t *testing.T) {
 	}
 }
 
-func TestResolveReturnsPublicSentinelWhenCustomSourceViolatesContract(t *testing.T) {
+func TestResolveSurfacesAdapterContractViolations(t *testing.T) {
 	tests := []struct {
 		name     string
 		resolve  func() error
 		sentinel error
 	}{
-		{name: "album source returns nil parsed url", sentinel: ariadne.ErrSourceAdapterReturnedNilParsedURL, resolve: func() error {
+		{name: "album source returns nil parsed url", sentinel: resolve.ErrSourceAdapterReturnedNilParsedURL, resolve: func() error {
 			resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{AlbumSources: []adapters.Adapter{newNilParsedSourceAdapter()}, AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
-		{name: "album source returns nil album", sentinel: ariadne.ErrSourceAdapterReturnedNilAlbum, resolve: func() error {
+		{name: "album source returns nil album", sentinel: resolve.ErrSourceAdapterReturnedNilAlbum, resolve: func() error {
 			resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{AlbumSources: []adapters.Adapter{newNilAlbumSourceAdapter()}, AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
-		{name: "song source returns nil song", sentinel: ariadne.ErrSourceAdapterReturnedNilSong, resolve: func() error {
+		{name: "song source returns nil song", sentinel: resolve.ErrSourceAdapterReturnedNilSong, resolve: func() error {
 			resolver := ariadne.NewWithAdapters(ariadne.TestAdapters{SongSources: []adapters.Adapter{newNilSongSourceAdapter()}, SongTargets: []adapters.Adapter{newLibrarySongTargetAdapter()}})
 			_, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 			return err

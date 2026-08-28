@@ -32,13 +32,4 @@ var (
 	ErrSpotifyCredentialsNotConfigured = spotifyadapter.ErrCredentialsNotConfigured
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
-	// ErrSourceAdapterReturnedNilParsedURL indicates that a source adapter answered a parse with a
-	// nil parsed URL and no error, which breaks the adapter contract.
-	ErrSourceAdapterReturnedNilParsedURL = resolve.ErrSourceAdapterReturnedNilParsedURL
-	// ErrSourceAdapterReturnedNilAlbum indicates that an album source adapter returned a nil album
-	// and no error, which breaks the adapter contract.
-	ErrSourceAdapterReturnedNilAlbum = resolve.ErrSourceAdapterReturnedNilAlbum
-	// ErrSourceAdapterReturnedNilSong indicates that a song source adapter returned a nil song and
-	// no error, which breaks the adapter contract.
-	ErrSourceAdapterReturnedNilSong = resolve.ErrSourceAdapterReturnedNilSong
 )

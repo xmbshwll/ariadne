@@ -10,12 +10,6 @@ import (
 	"github.com/xmbshwll/ariadne/internal/wiring"
 )
 
-// ScoreWeights configures how ranking signals contribute to match scores.
-type ScoreWeights = score.Weights
-
-// SongScoreWeights configures how ranking signals contribute to song match scores.
-type SongScoreWeights = score.SongWeights
-
 // Config configures the default library resolver.
 type Config struct {
 	// Spotify holds Spotify credentials for official source and target access.
@@ -32,10 +26,10 @@ type Config struct {
 	// TargetServices limits the default resolver to the listed target services.
 	// When empty, Ariadne uses all available default targets.
 	TargetServices []ServiceName
-	// ScoreWeights controls how the album ranking algorithm weights matching signals.
-	ScoreWeights ScoreWeights
-	// SongScoreWeights controls how the song ranking algorithm weights matching signals.
-	SongScoreWeights SongScoreWeights
+	// scoreWeights and songScoreWeights are the built-in Scoring signals. They
+	// stay internal: ranking is Ariadne's decision, not a caller knob.
+	scoreWeights     score.Weights
+	songScoreWeights score.SongWeights
 }
 
 // SpotifyConfig holds Spotify app credentials used for target search and preferred source fetches.
@@ -76,16 +70,6 @@ func (c Config) TIDALEnabled() bool {
 	return internalConfig(c).TIDAL.Enabled()
 }
 
-// DefaultScoreWeights returns the built-in album ranking weights.
-func DefaultScoreWeights() ScoreWeights {
-	return score.DefaultWeights()
-}
-
-// DefaultSongScoreWeights returns the built-in song ranking weights.
-func DefaultSongScoreWeights() SongScoreWeights {
-	return score.DefaultSongWeights()
-}
-
 const (
 	// MatchScoreStrong is the minimum score for the highest-confidence band.
 	MatchScoreStrong = 100
@@ -114,8 +98,8 @@ func DefaultConfig() Config {
 	return Config{
 		AppleMusicStorefront: "us",
 		HTTPTimeout:          httpx.DefaultTimeout(),
-		ScoreWeights:         DefaultScoreWeights(),
-		SongScoreWeights:     DefaultSongScoreWeights(),
+		scoreWeights:         score.DefaultWeights(),
+		songScoreWeights:     score.DefaultSongWeights(),
 	}
 }
 
@@ -178,11 +162,11 @@ func normalizedConfig(config Config) Config {
 	config.TIDAL.ClientSecret = strings.TrimSpace(config.TIDAL.ClientSecret)
 	config.HTTPTimeout = normalizeHTTPTimeout(config.HTTPTimeout)
 	config.TargetServices = normalizedTargetServices(config.TargetServices)
-	if config.ScoreWeights == (ScoreWeights{}) {
-		config.ScoreWeights = DefaultScoreWeights()
+	if config.scoreWeights == (score.Weights{}) {
+		config.scoreWeights = score.DefaultWeights()
 	}
-	if config.SongScoreWeights == (SongScoreWeights{}) {
-		config.SongScoreWeights = DefaultSongScoreWeights()
+	if config.songScoreWeights == (score.SongWeights{}) {
+		config.songScoreWeights = score.DefaultSongWeights()
 	}
 	return config
 }
