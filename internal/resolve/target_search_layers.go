@@ -54,8 +54,7 @@ func buildTargetSearchPlan[Entity, Candidate any](
 		})
 	}
 	return targetsearch.Plan[Candidate]{
-		Target:       target,
-		Service:      string(target.Service()),
+		Target:       string(target.Service()),
 		CandidateKey: candidateKey,
 		Layers:       planLayers,
 	}

@@ -28,12 +28,9 @@ const (
 	targetSearchAlbum3 = "album-3"
 )
 
-type testTarget struct{}
-
 func TestPlanPreservesOrderAndDeduplicates(t *testing.T) {
 	plan := targetsearch.Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
+		Target:       string(model.ServiceSpotify),
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
@@ -103,8 +100,7 @@ func TestPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.T) {
 
 func planWithRecoverableTimeout(err error) targetsearch.Plan[model.CandidateAlbum] {
 	return targetsearch.Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
+		Target:       string(model.ServiceSpotify),
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
@@ -129,8 +125,7 @@ func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	plan := targetsearch.Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
+		Target:       string(model.ServiceSpotify),
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
@@ -151,8 +146,7 @@ func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 
 func TestPlanWrapsLayerErrors(t *testing.T) {
 	plan := targetsearch.Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
+		Target:       string(model.ServiceSpotify),
 		CandidateKey: model.CandidateAlbum.SearchKey,
 		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{

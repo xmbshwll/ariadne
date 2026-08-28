@@ -7,7 +7,9 @@ import (
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-var editionMarkerCandidates = []string{"super deluxe", "deluxe", "remix", "mix", "anniversary", "live", "acoustic"}
+// editionMarkerCandidates is the comparison subset of the edition vocabulary:
+// content flags stay out so explicit and clean editions keep distinct titles.
+var editionMarkerCandidates = normalize.EditionComparisonMarkers()
 
 // MatchEvidence describes structured match signals used by resolvers for behavioral decisions.
 type MatchEvidence struct {
