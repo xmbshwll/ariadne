@@ -4,7 +4,7 @@ This guide covers normal Ariadne setup for both library and CLI use.
 
 If you only need quick answer:
 
-- use `ariadne.LoadConfig()` in library code
+- use `ariadne.LoadConfigFromEnv(os.Getenv)` in library code
 - use `.env` or environment variables for CLI use
 - add Spotify or TIDAL credentials only when you need those official APIs
 - add Apple Music key material only when you want MusicKit UPC or ISRC search
@@ -13,7 +13,7 @@ If you only need quick answer:
 
 | Need | What to set |
 |---|---|
-| Use library with defaults | nothing; start from `ariadne.LoadConfig()` or `ariadne.DefaultConfig()` |
+| Use library with defaults | nothing; start from `ariadne.DefaultConfig()` |
 | Change default Apple Music storefront | `APPLE_MUSIC_STOREFRONT` or `--apple-music-storefront` |
 | Change per-request timeout | `ARIADNE_HTTP_TIMEOUT` or `--http-timeout` |
 | Limit target services | `ARIADNE_TARGET_SERVICES` or `--services` |
@@ -24,10 +24,10 @@ If you only need quick answer:
 
 ## Library setup
 
-Library code reads environment variables through `ariadne.LoadConfig()`:
+Library code reads environment variables through `ariadne.LoadConfigFromEnv(os.Getenv)`:
 
 ```go
-cfg := ariadne.LoadConfig()
+cfg := ariadne.LoadConfigFromEnv(os.Getenv)
 resolver := ariadne.New(cfg)
 ```
 

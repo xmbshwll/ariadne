@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/xmbshwll/ariadne"
+	"github.com/xmbshwll/ariadne/internal/wiring"
 )
 
 func defaultResolveConfig(baseConfig ariadne.Config) resolveConfig {
@@ -92,8 +93,8 @@ func validateResolveConfig(config resolveConfig) error {
 	}
 
 	for _, service := range config.resolverConfig.TargetServices {
-		decision := ariadne.EvaluateTarget(config.resolverConfig, string(service), ariadne.EntityShapeSong)
-		if decision.Status == ariadne.TargetServiceRequestAvailable {
+		decision := evaluateTarget(config.resolverConfig, string(service), wiring.EntityShapeSong)
+		if decision.Status == wiring.TargetServiceRequestAvailable {
 			continue
 		}
 		return targetServiceDecisionError(errUnsupportedSongService, decision)
@@ -106,7 +107,7 @@ func requiresSongTargetValidation(config resolveConfig) bool {
 	case resolveModeSong:
 		return true
 	case resolveModeAuto:
-		return ariadne.SupportsRuntimeSongInputURL(config.inputURL)
+		return wiring.Default.SupportsRuntimeSongInputURL(config.inputURL)
 	default:
 		return false
 	}

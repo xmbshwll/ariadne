@@ -11,12 +11,12 @@ func ExampleDefaultConfig() {
 	cfg := ariadne.DefaultConfig()
 
 	fmt.Println(cfg.AppleMusicStorefront)
-	fmt.Println(cfg.SpotifyEnabled())
-	fmt.Println(cfg.TIDALEnabled())
+	fmt.Println(cfg.Spotify.ClientID)
+	fmt.Println(cfg.TIDAL.ClientSecret)
 	// Output:
 	// us
-	// false
-	// false
+	//
+	//
 }
 
 func ExampleLoadConfigFromEnv() {
@@ -38,12 +38,12 @@ func ExampleLoadConfigFromEnv() {
 	})
 
 	fmt.Println(cfg.AppleMusicStorefront)
-	fmt.Println(cfg.SpotifyEnabled())
-	fmt.Println(cfg.TIDALEnabled())
+	fmt.Println(cfg.Spotify.ClientID)
+	fmt.Println(cfg.TIDAL.ClientSecret)
 	// Output:
 	// gb
-	// true
-	// true
+	// spotify-client
+	// tidal-secret
 }
 
 func ExampleConfig_targetServices() {

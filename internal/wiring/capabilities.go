@@ -1,7 +1,7 @@
 // Package wiring owns the Provider Catalog: the single module that decides which
 // Music Service can act as Source Adapter or Target Search adapter, under which
-// Credential Token, in which order. The public package only re-exports its
-// decisions; adapter construction never lives there.
+// Credential Token, in which order. Adapter construction never lives in the
+// public package; the CLI reaches these queries directly through this package.
 package wiring
 
 import (

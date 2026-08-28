@@ -125,7 +125,7 @@ import (
 )
 
 func main() {
-	cfg := ariadne.LoadConfig()
+	cfg := ariadne.LoadConfigFromEnv(func(key string) string { return "" })
 	cfg.TargetServices = []ariadne.ServiceName{
 		ariadne.ServiceSpotify,
 		ariadne.ServiceAppleMusic,
@@ -195,7 +195,7 @@ For detailed runtime behavior by service, see [`docs/service-resolution.md`](./d
 
 Ariadne can read configuration from:
 
-- environment variables through `ariadne.LoadConfig()` in library code
+- environment variables through `ariadne.LoadConfigFromEnv(os.Getenv)` in library code
 - environment variables in CLI use
 - `.env` file or other Viper-supported config file formats in CLI use
 

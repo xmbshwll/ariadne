@@ -30,8 +30,9 @@ config, and documentation aligned with this file.
   root package through type aliases.
 - `internal/wiring/`: the Provider Catalog. Which Music Service can act as
   Source Adapter or Target Search adapter, under which Credential Token, in
-  which order, plus the built-in adapter construction. The root package only
-  re-exports these decisions.
+  which order, plus the built-in adapter construction. The root package reads
+  it to build the default resolver; the CLI reaches it directly (same import
+  path prefix, so `internal/` is visible) instead of re-exporting its queries.
 - `internal/model/`: canonical entity, candidate, and service-name types shared
   by every layer, including Candidate SearchKey rules.
 - `internal/httpx/`: shared HTTP plumbing - client construction, JSON and byte
@@ -119,6 +120,10 @@ Hydration, or resolution metadata. They are the contract for those decisions.
 - The public package exposes no adapter seam: `ariadne.New` plus options is the
   only construction, and `internal/wiring` chooses adapters from the Provider
   Catalog. Tests that need specific adapters use the `export_test.go` seam.
+- The public package carries only the resolve surface - Config, New, Resolver,
+  result types, MatchStrength, and error sentinels. Provider Catalog queries
+  (Describe, EvaluateTarget, TargetServices, service aliases, enablement) are
+  the CLI's concern and live in `internal/wiring`, which `cmd` imports directly.
 - Every exported identifier in the public `package ariadne` carries a doc
   comment: that package is the library contract. Lint does not enforce this
   (`revive:exported` and `revive:package-comments` are disabled in

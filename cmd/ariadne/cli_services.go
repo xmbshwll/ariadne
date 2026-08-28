@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne"
+	"github.com/xmbshwll/ariadne/internal/wiring"
 )
 
 func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.ServiceName, error) {
@@ -25,7 +26,7 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 		if part == "" {
 			continue
 		}
-		decision := ariadne.EvaluateTarget(appConfig, part, ariadne.EntityShapeAny)
+		decision := evaluateTarget(appConfig, part, wiring.EntityShapeAny)
 		if err := targetServiceRequestError(part, decision); err != nil {
 			return nil, err
 		}
@@ -42,16 +43,16 @@ func parseRequestedServices(raw string, appConfig ariadne.Config) ([]ariadne.Ser
 	return services, nil
 }
 
-func targetServiceRequestError(raw string, decision ariadne.TargetServiceRequestDecision) error {
+func targetServiceRequestError(raw string, decision wiring.TargetServiceRequestDecision) error {
 	if strings.TrimSpace(raw) == "" {
 		return errNoTargetServicesSelected
 	}
 	switch decision.Status {
-	case ariadne.TargetServiceRequestAvailable:
+	case wiring.TargetServiceRequestAvailable:
 		return nil
-	case ariadne.TargetServiceRequestParseOnly:
+	case wiring.TargetServiceRequestParseOnly:
 		return targetServiceDecisionError(errAmazonMusicTargetService, decision)
-	case ariadne.TargetServiceRequestCredentialsRequired:
+	case wiring.TargetServiceRequestCredentialsRequired:
 		return targetServiceCredentialError(decision)
 	default:
 		return targetServiceDecisionError(errUnsupportedTargetService, decision)
@@ -76,19 +77,19 @@ func withDetail(sentinel error, format string, args ...any) error {
 	return cliError{sentinel: sentinel, message: fmt.Sprintf(sentinel.Error()+format, args...)}
 }
 
-func targetServiceDecisionError(sentinel error, decision ariadne.TargetServiceRequestDecision) error {
+func targetServiceDecisionError(sentinel error, decision wiring.TargetServiceRequestDecision) error {
 	if decision.Message == "" {
 		return sentinel
 	}
 	return withDetail(sentinel, " %s", decision.Message)
 }
 
-func targetServiceCredentialError(decision ariadne.TargetServiceRequestDecision) error {
+func targetServiceCredentialError(decision wiring.TargetServiceRequestDecision) error {
 	return withDetail(errTargetServiceCredentials, ": %s", decision.CredentialHint)
 }
 
 func validateRequestedService(service ariadne.ServiceName, appConfig ariadne.Config) error {
-	decision := ariadne.EvaluateTarget(appConfig, string(service), ariadne.EntityShapeAny)
+	decision := evaluateTarget(appConfig, string(service), wiring.EntityShapeAny)
 	return targetServiceRequestError(string(service), decision)
 }
 
@@ -130,9 +131,9 @@ func serviceNames(services []ariadne.ServiceName) []string {
 func targetServiceNamesUsage() string {
 	names := make([]string, 0)
 	seen := map[string]struct{}{}
-	for _, service := range ariadne.TargetServices(nil, ariadne.EntityShapeAny) {
+	for _, service := range targetServices(nil, wiring.EntityShapeAny) {
 		names = appendUniqueServiceName(names, seen, string(service))
-		capabilities, ok := ariadne.Describe(service)
+		capabilities, ok := describe(service)
 		if !ok {
 			continue
 		}

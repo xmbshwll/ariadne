@@ -24,7 +24,7 @@ type Spotify struct {
 }
 
 func (s Spotify) Enabled() bool {
-	return s.ClientID != "" && s.ClientSecret != ""
+	return strings.TrimSpace(s.ClientID) != "" && strings.TrimSpace(s.ClientSecret) != ""
 }
 
 type AppleMusic struct {
@@ -35,7 +35,7 @@ type AppleMusic struct {
 }
 
 func (a AppleMusic) AuthEnabled() bool {
-	return a.KeyID != "" && a.TeamID != "" && a.PrivateKeyPath != ""
+	return strings.TrimSpace(a.KeyID) != "" && strings.TrimSpace(a.TeamID) != "" && strings.TrimSpace(a.PrivateKeyPath) != ""
 }
 
 type TIDAL struct {
@@ -44,7 +44,7 @@ type TIDAL struct {
 }
 
 func (t TIDAL) Enabled() bool {
-	return t.ClientID != "" && t.ClientSecret != ""
+	return strings.TrimSpace(t.ClientID) != "" && strings.TrimSpace(t.ClientSecret) != ""
 }
 
 func Load() Config {
@@ -70,7 +70,7 @@ func LoadFromLookup(lookup func(string) string) Config {
 			ClientSecret: trimmed("SPOTIFY_CLIENT_SECRET"),
 		},
 		AppleMusic: AppleMusic{
-			Storefront:     normalizedStorefront(trimmed("APPLE_MUSIC_STOREFRONT")),
+			Storefront:     NormalizeStorefront(trimmed("APPLE_MUSIC_STOREFRONT")),
 			KeyID:          trimmed("APPLE_MUSIC_KEY_ID"),
 			TeamID:         trimmed("APPLE_MUSIC_TEAM_ID"),
 			PrivateKeyPath: trimmed("APPLE_MUSIC_PRIVATE_KEY_PATH"),
@@ -84,7 +84,10 @@ func LoadFromLookup(lookup func(string) string) Config {
 	}
 }
 
-func normalizedStorefront(value string) string {
+// NormalizeStorefront trims and lower-cases a storefront, defaulting to the
+// built-in "us". It is the one rule for storefronts, shared by the library's
+// config normalization and the CLI's Catalog queries so the two cannot drift.
+func NormalizeStorefront(value string) string {
 	storefront := strings.ToLower(strings.TrimSpace(value))
 	if storefront == "" {
 		return defaultAppleMusicStorefront

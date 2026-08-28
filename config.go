@@ -58,18 +58,6 @@ type TIDALConfig struct {
 	ClientSecret string
 }
 
-// SpotifyEnabled reports whether Spotify credential-gated features are available.
-// The check is the internal config rule, so the public answer can never disagree
-// with what the Provider Catalog enables.
-func (c Config) SpotifyEnabled() bool {
-	return internalConfig(c).Spotify.Enabled()
-}
-
-// TIDALEnabled reports whether TIDAL credential-gated features are available.
-func (c Config) TIDALEnabled() bool {
-	return internalConfig(c).TIDAL.Enabled()
-}
-
 // MatchStrengthForScore maps a raw score to a user-facing confidence band.
 func MatchStrengthForScore(score int) MatchStrength {
 	switch {
@@ -135,10 +123,7 @@ func internalConfig(config Config) internalconfig.Config {
 }
 
 func normalizedConfig(config Config) Config {
-	config.AppleMusicStorefront = strings.ToLower(strings.TrimSpace(config.AppleMusicStorefront))
-	if config.AppleMusicStorefront == "" {
-		config.AppleMusicStorefront = "us"
-	}
+	config.AppleMusicStorefront = internalconfig.NormalizeStorefront(config.AppleMusicStorefront)
 	config.Spotify.ClientID = strings.TrimSpace(config.Spotify.ClientID)
 	config.Spotify.ClientSecret = strings.TrimSpace(config.Spotify.ClientSecret)
 	config.AppleMusic.KeyID = strings.TrimSpace(config.AppleMusic.KeyID)
