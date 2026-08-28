@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -50,191 +49,17 @@ type testFixture struct {
 func buildTestPayloads(t *testing.T) testPayloads {
 	t.Helper()
 
-	lookupPayload := mustReadTestFile(t, "testdata/source-payload.json")
-	searchAlbumPayload := `{
-		"resultCount": 2,
-		"results": [
-			{
-				"wrapperType": "collection",
-				"collectionType": "Album",
-				"artistId": 136975,
-				"collectionId": 1474815798,
-				"artistName": "The Beatles",
-				"collectionName": "Abbey Road (2019 Mix)",
-				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-2019-mix/1474815798?uo=4"
-			},
-			{
-				"wrapperType": "collection",
-				"collectionType": "Album",
-				"artistId": 136975,
-				"collectionId": 1441164426,
-				"artistName": "The Beatles",
-				"collectionName": "Abbey Road (Remastered)",
-				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4"
-			}
-		]
-	}`
-	lookup2019MixPayload := `{
-		"resultCount": 2,
-		"results": [
-			{
-				"wrapperType": "collection",
-				"collectionType": "Album",
-				"artistId": 136975,
-				"collectionId": 1474815798,
-				"artistName": "The Beatles",
-				"collectionName": "Abbey Road (2019 Mix)",
-				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-2019-mix/1474815798?uo=4",
-				"artworkUrl100": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/48/53/43/485343e3-dd6a-0034-faec-f4b6403f8108/13UMGIM63890.rgb.jpg/100x100bb.jpg",
-				"trackCount": 17,
-				"copyright": "℗ 2019 Calderstone Productions Limited",
-				"releaseDate": "1969-09-26T07:00:00Z",
-				"collectionExplicitness": "notExplicit"
-			},
-			{
-				"wrapperType": "track",
-				"kind": "song",
-				"collectionId": 1474815798,
-				"artistName": "The Beatles",
-				"trackName": "Come Together",
-				"discNumber": 1,
-				"trackNumber": 1,
-				"trackTimeMillis": 259227,
-				"trackExplicitness": "notExplicit"
-			}
-		]
-	}`
-	officialAlbumPayload := fmt.Sprintf(`{
-		"data": [{
-			"id": "1441164426",
-			"type": "albums",
-			"attributes": {
-				"artistName": "The Beatles",
-				"name": "Abbey Road (Remastered)",
-				"recordLabel": "UMC (Universal Music Catalogue)",
-				"releaseDate": "1969-09-26",
-				"trackCount": 18,
-				"upc": "00602567713449",
-				"url": "https://music.apple.com/gb/album/abbey-road-remastered/1441164426",
-				"artwork": {"url": "https://image.test/{w}x{h}bb.jpg"}
-			},
-			"relationships": {
-				"tracks": {"data": [
-					{"id":"1441164430","type":"songs","attributes":{"artistName":"The Beatles","name":"Come Together","discNumber":1,"trackNumber":1,"durationInMillis":258947,"isrc":"%s","url":"https://music.apple.com/gb/album/come-together/1441164426?i=1441164430"}},
-					{"id":"1441164582","type":"songs","attributes":{"artistName":"The Beatles","name":"Something","discNumber":1,"trackNumber":2,"durationInMillis":182293,"isrc":"GBAYE0601691","url":"https://music.apple.com/gb/album/something/1441164426?i=1441164582"}}
-				]}
-			}
-		}]
-	}`,
-		comeTogetherISRC,
-	)
-	officialUPCSearchPayload := `{
-		"data": [{
-			"id": "401186200",
-			"type": "albums",
-			"attributes": {
-				"artistName": "The Beatles",
-				"name": "Abbey Road (Remastered)",
-				"upc": "00602567713449",
-				"url": "https://music.apple.com/gb/album/abbey-road-remastered/1441164426",
-				"playParams": {"id": "401186200", "kind": "album"}
-			}
-		}]
-	}`
-	officialISRCSearchPayload := fmt.Sprintf(`{
-		"data": [{
-			"id": "1441164430",
-			"type": "songs",
-			"attributes": {
-				"artistName": "The Beatles",
-				"name": "Come Together",
-				"isrc": "%s"
-			},
-			"relationships": {
-				"albums": {"data": [{"id": "1441164426", "type": "albums"}]}
-			}
-		}]
-	}`,
-		comeTogetherISRC,
-	)
-	lookupSongPayload := fmt.Sprintf(`{
-		"resultCount": 1,
-		"results": [{
-			"wrapperType": "track",
-			"kind": "song",
-			"artistId": 136975,
-			"collectionId": 1441164426,
-			"trackId": 1441164430,
-			"artistName": "The Beatles",
-			"collectionName": "Abbey Road (Remastered)",
-			"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4",
-			"trackName": "Come Together",
-			"discNumber": 1,
-			"trackNumber": 1,
-			"trackTimeMillis": 258947,
-			"trackIsrc": "%s",
-			"releaseDate": "1969-09-26T07:00:00Z",
-			"artworkUrl100": "https://image.test/100x100bb.jpg",
-			"trackExplicitness": "notExplicit"
-		}]
-	}`,
-		comeTogetherISRC,
-	)
-	searchSongPayload := fmt.Sprintf(`{
-		"resultCount": 2,
-		"results": [
-			{
-				"wrapperType": "track",
-				"kind": "song",
-				"artistId": 136975,
-				"collectionId": 1441164426,
-				"trackId": 1441164430,
-				"artistName": "The Beatles",
-				"collectionName": "Abbey Road (Remastered)",
-				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4",
-				"trackName": "Come Together",
-				"discNumber": 1,
-				"trackNumber": 1,
-				"trackTimeMillis": 258947,
-				"trackIsrc": "%s",
-				"releaseDate": "1969-09-26T07:00:00Z",
-				"artworkUrl100": "https://image.test/100x100bb.jpg",
-				"trackExplicitness": "notExplicit"
-			},
-			{
-				"wrapperType": "track",
-				"kind": "song",
-				"artistId": 999,
-				"collectionId": 555,
-				"trackId": 999999,
-				"artistName": "Tribute Band",
-				"collectionName": "Abbey Road Live",
-				"collectionViewUrl": "https://music.apple.com/us/album/abbey-road-live/555?uo=4",
-				"trackName": "Come Together (Live)",
-				"discNumber": 1,
-				"trackNumber": 8,
-				"trackTimeMillis": 300000,
-				"trackIsrc": "LIVE0000001",
-				"releaseDate": "2021-01-01T07:00:00Z",
-				"artworkUrl100": "https://image.test/weak.jpg",
-				"trackExplicitness": "notExplicit"
-			}
-		]
-	}`,
-		comeTogetherISRC,
-	)
-
 	return testPayloads{
-		lookup:         lookupPayload,
-		lookup2019Mix:  []byte(lookup2019MixPayload),
-		officialAlbum:  []byte(officialAlbumPayload),
-		officialUPC:    []byte(officialUPCSearchPayload),
-		officialISRC:   []byte(officialISRCSearchPayload),
-		lookupSong:     []byte(lookupSongPayload),
-		searchAlbum:    []byte(searchAlbumPayload),
-		searchSong:     []byte(searchSongPayload),
-		lookupWeakSong: []byte(`{"resultCount":1,"results":[{"wrapperType":"track","kind":"song","artistId":999,"collectionId":555,"trackId":999999,"artistName":"Tribute Band","collectionName":"Abbey Road Live","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-live/555?uo=4","trackName":"Come Together (Live)","discNumber":1,"trackNumber":8,"trackTimeMillis":300000,"trackIsrc":"LIVE0000001","releaseDate":"2021-01-01T07:00:00Z","artworkUrl100":"https://image.test/weak.jpg","trackExplicitness":"notExplicit"}]}`),
-		lookupNonSong:  []byte(`{"resultCount":1,"results":[{"wrapperType":"collection","collectionType":"Album","artistId":136975,"collectionId":1441164426,"artistName":"The Beatles","collectionName":"Abbey Road (Remastered)","collectionViewUrl":"https://music.apple.com/us/album/abbey-road-remastered/1441164426?uo=4"}]}`),
+		lookup:         mustReadTestFile(t, "testdata/source-payload.json"),
+		lookup2019Mix:  mustReadTestFile(t, "testdata/lookup-2019-mix.json"),
+		officialAlbum:  mustReadTestFile(t, "testdata/official-album.json"),
+		officialUPC:    mustReadTestFile(t, "testdata/official-upc-search.json"),
+		officialISRC:   mustReadTestFile(t, "testdata/official-isrc-search.json"),
+		lookupSong:     mustReadTestFile(t, "testdata/lookup-song.json"),
+		searchAlbum:    mustReadTestFile(t, "testdata/search-album.json"),
+		searchSong:     mustReadTestFile(t, "testdata/search-song.json"),
+		lookupWeakSong: mustReadTestFile(t, "testdata/lookup-weak-song.json"),
+		lookupNonSong:  mustReadTestFile(t, "testdata/lookup-non-song.json"),
 	}
 }
 

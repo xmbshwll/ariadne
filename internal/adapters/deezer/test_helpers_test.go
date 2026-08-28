@@ -16,16 +16,28 @@ import (
 )
 
 const (
-	deezerAlbumPath                = "/album/12047952"
-	deezerAlbumTracksPath          = "/album/12047952/tracks"
-	deezerAlbumSearchPath          = "/search/album"
-	deezerTrackSearchPath          = "/search/track"
-	deezerComeTogetherISRC         = "GBAYE0601690"
-	deezerTrackSearchPayload       = `{"data":[{"id":116348128,"title":"Come Together (Remastered 2009)"},{"id":999999,"title":"Come Together"}]}`
-	deezerComeTogetherTrackPayload = `{"id":116348128,"title":"Come Together (Remastered 2009)","link":"https://www.deezer.com/track/116348128","isrc":"GBAYE0601690","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","cover_xl":"https://e-cdns-images.dzcdn.net/images/cover/test/1000x1000.jpg","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":258,"track_position":1,"disk_number":1,"explicit_lyrics":false}`
-	deezerLiveTrackPayload         = `{"id":999999,"title":"Come Together","link":"https://www.deezer.com/track/999999","isrc":"OTHER0001","album":{"id":555,"title":"Abbey Road Live","link":"https://www.deezer.com/album/555","release_date":"2020-01-01"},"artist":{"id":2,"name":"Tribute Band"},"duration":200,"track_position":8,"disk_number":1,"explicit_lyrics":false}`
-	deezerSomethingTrackPayload    = `{"id":116348454,"title":"Something (Remastered 2009)","link":"https://www.deezer.com/track/116348454","isrc":"GBAYE0601691","album":{"id":12047952,"title":"Abbey Road (Remastered)","link":"https://www.deezer.com/album/12047952","release_date":"1969-09-26"},"artist":{"id":1,"name":"The Beatles"},"duration":182,"track_position":2,"disk_number":1,"explicit_lyrics":false}`
+	deezerAlbumPath        = "/album/12047952"
+	deezerAlbumTracksPath  = "/album/12047952/tracks"
+	deezerAlbumSearchPath  = "/search/album"
+	deezerTrackSearchPath  = "/search/track"
+	deezerComeTogetherISRC = "GBAYE0601690"
 )
+
+// Deezer's fixture payloads live in testdata so the JSON is real, not Go.
+var (
+	deezerTrackSearchPayload       = deezerFixture("track-search.json")
+	deezerComeTogetherTrackPayload = deezerFixture("track-come-together.json")
+	deezerLiveTrackPayload         = deezerFixture("track-live.json")
+	deezerSomethingTrackPayload    = deezerFixture("track-something.json")
+)
+
+func deezerFixture(name string) string {
+	content, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		panic(err)
+	}
+	return string(content)
+}
 
 type jsonRoute struct {
 	status int

@@ -19,7 +19,7 @@ import (
 const (
 	youtubeMusicBrowsePath        = "/browse/MPREb_tQfaWH32ovE"
 	youtubeMusicSearchPath        = "/search"
-	youtubeMusicBrokenPageHTML    = `<html><head></head><body>broken</body></html>`
+	youtubeMusicBrokenFixturePath = "testdata/broken-page.html"
 	youtubeMusicSourceFixturePath = "testdata/source-page.html"
 	youtubeMusicSearchFixturePath = "testdata/search-page.html"
 	youtubeMusicAbbeyRoadTitle    = "Abbey Road"
@@ -74,7 +74,7 @@ func mustReadYouTubeMusicSearchPage(t *testing.T) []byte {
 }
 
 func youTubeMusicBrokenBrowsePage() []byte {
-	return []byte(youtubeMusicBrokenPageHTML)
+	return readYouTubeMusicFixture(youtubeMusicBrokenFixturePath)
 }
 
 func youTubeMusicAlbumSearchPage(results ...youTubeMusicSearchResult) []byte {
@@ -99,5 +99,14 @@ func mustReadYouTubeMusicFixture(t *testing.T, relativePath string) []byte {
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
+	return content
+}
+
+func readYouTubeMusicFixture(relativePath string) []byte {
+	path := filepath.Clean(relativePath)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
 	return content
 }
