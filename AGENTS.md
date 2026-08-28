@@ -88,6 +88,10 @@ Hydration, or resolution metadata. They are the contract for those decisions.
   readable.
 - Use shared test fixtures for repeated service, album, track, candidate, config,
   and HTTP fixture data instead of repeating similar literals.
+- Full fixture payloads - HTML pages, API JSON response bodies - live in
+  `testdata/` under the package that consumes them, loaded through a small
+  `mustRead...Fixture` helper. One-line literals built from runtime values
+  (a server URL, a generated id) are test logic, not fixtures, and stay inline.
 - CLI tests stub the resolver through the narrow `entityResolver` behavior
   interface and describe the `Resolution` or `SongResolution` they want
   rendered; they do not assemble an Entity Resolution pipeline. The resolver's
