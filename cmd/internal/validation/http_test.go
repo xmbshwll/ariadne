@@ -249,3 +249,26 @@ func TestWriteArtifacts(t *testing.T) {
 		})
 	}
 }
+
+// TestJoinURL pins the tools' URL-joining rule: exactly one slash between the
+// base and each fragment, tolerating trailing slashes anywhere.
+func TestJoinURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		base  string
+		parts []string
+		want  string
+	}{
+		{name: "joins one fragment", base: "https://api.test/v1", parts: []string{"albums", "123"}, want: "https://api.test/v1/albums/123"},
+		{name: "tolerates trailing slashes on the base", base: "https://api.test/v1/", parts: []string{"albums"}, want: "https://api.test/v1/albums"},
+		{name: "tolerates leading and trailing slashes on fragments", base: "https://api.test/v1", parts: []string{"/catalog/", "us/"}, want: "https://api.test/v1/catalog/us"},
+		{name: "keeps query strings in fragments", base: "https://api.test/v1", parts: []string{"search"}, want: "https://api.test/v1/search"},
+		{name: "an empty fragment list returns the trimmed base", base: "https://api.test/v1/", want: "https://api.test/v1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, validation.JoinURL(tt.base, tt.parts...), tt.name)
+		})
+	}
+}

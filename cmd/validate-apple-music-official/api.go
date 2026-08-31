@@ -80,7 +80,7 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 	}
 
 	catalogBaseURL := appleMusicCatalogBaseURL(inputs)
-	metadataURL := catalogBaseURL + "/search?types=albums&limit=" + strconv.Itoa(defaultSearchLimit) + "&term=" + url.QueryEscape(metadataTerm)
+	metadataURL := validation.JoinURL(catalogBaseURL, "search") + "?types=albums&limit=" + strconv.Itoa(defaultSearchLimit) + "&term=" + url.QueryEscape(metadataTerm)
 	metadataBody, err := getAPI(ctx, client, metadataURL, inputs.developerToken)
 	if err != nil {
 		return validationArtifacts{}, fmt.Errorf("search official apple music metadata: %w", err)
@@ -116,7 +116,7 @@ func resolveStorefront(flagValue, parsedRegion, configuredStorefront string) str
 }
 
 func fetchAppleMusicAlbum(ctx context.Context, client *http.Client, inputs validationInputs) ([]byte, appleMusicAlbumResource, error) {
-	albumURL := appleMusicCatalogBaseURL(inputs) + "/albums/" + inputs.parsed.ID + "?include=tracks"
+	albumURL := validation.JoinURL(appleMusicCatalogBaseURL(inputs), "albums", inputs.parsed.ID) + "?include=tracks"
 	albumBody, err := getAPI(ctx, client, albumURL, inputs.developerToken)
 	if err != nil {
 		return nil, appleMusicAlbumResource{}, fmt.Errorf("fetch official apple music album payload: %w", err)
@@ -136,7 +136,7 @@ func fetchAppleMusicUPCSearch(ctx context.Context, client *http.Client, inputs v
 	if upc == "" {
 		return nil, nil
 	}
-	upcURL := appleMusicCatalogBaseURL(inputs) + "/albums?filter[upc]=" + url.QueryEscape(upc)
+	upcURL := validation.JoinURL(appleMusicCatalogBaseURL(inputs), "albums") + "?filter[upc]=" + url.QueryEscape(upc)
 	upcBody, err := getAPI(ctx, client, upcURL, inputs.developerToken)
 	if err != nil {
 		return nil, fmt.Errorf("search official apple music by upc: %w", err)
@@ -151,7 +151,7 @@ func fetchAppleMusicISRCSearch(ctx context.Context, client *http.Client, inputs 
 
 	bodies := make([][]byte, 0, len(isrcs))
 	for _, isrc := range isrcs {
-		isrcURL := appleMusicCatalogBaseURL(inputs) + "/songs?filter[isrc]=" + url.QueryEscape(isrc)
+		isrcURL := validation.JoinURL(appleMusicCatalogBaseURL(inputs), "songs") + "?filter[isrc]=" + url.QueryEscape(isrc)
 		isrcBody, err := getAPI(ctx, client, isrcURL, inputs.developerToken)
 		if err != nil {
 			return nil, fmt.Errorf("search official apple music by isrc: %w", err)
@@ -166,7 +166,7 @@ func fetchAppleMusicISRCSearch(ctx context.Context, client *http.Client, inputs 
 }
 
 func appleMusicCatalogBaseURL(inputs validationInputs) string {
-	return inputs.opts.apiBaseURL + "/catalog/" + inputs.storefront
+	return validation.JoinURL(inputs.opts.apiBaseURL, "catalog", inputs.storefront)
 }
 
 func mergeAppleMusicSearchBodies(bodies [][]byte) ([]byte, error) {

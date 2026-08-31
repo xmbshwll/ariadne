@@ -186,3 +186,16 @@ func DecodeJSONInto(raw []byte, target any, decodeError string) error {
 	}
 	return nil
 }
+
+// JoinURL joins a base URL and path fragments with exactly one slash between
+// each, tolerating trailing slashes on the base. It is the one URL-joining
+// rule for the tools' endpoints.
+func JoinURL(base string, parts ...string) string {
+	var joined strings.Builder
+	joined.WriteString(strings.TrimRight(base, "/"))
+	for _, part := range parts {
+		joined.WriteString("/")
+		joined.WriteString(strings.TrimLeft(strings.TrimRight(part, "/"), "/"))
+	}
+	return joined.String()
+}

@@ -57,7 +57,7 @@ type spotifyTrackPayload struct {
 
 func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
 	client := &http.Client{Timeout: inputs.appConfig.HTTPTimeout}
-	apiBaseURL := normalizeBaseURL(inputs.opts.apiBaseURL)
+	apiBaseURL := validation.JoinURL(inputs.opts.apiBaseURL)
 	token, err := fetchToken(ctx, client, inputs.opts.authBaseURL, inputs.appConfig.Spotify.ClientID, inputs.appConfig.Spotify.ClientSecret)
 	if err != nil {
 		return validationArtifacts{}, err
@@ -96,7 +96,7 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 }
 
 func fetchSpotifyAlbum(ctx context.Context, client *http.Client, apiBaseURL, albumID, token string) ([]byte, spotifyAlbumPayload, error) {
-	albumBody, err := getAPI(ctx, client, apiURL(apiBaseURL, "/albums/"+albumID), token)
+	albumBody, err := getAPI(ctx, client, validation.JoinURL(apiBaseURL, "albums", albumID), token)
 	if err != nil {
 		return nil, spotifyAlbumPayload{}, fmt.Errorf("fetch spotify album payload: %w", err)
 	}
@@ -168,7 +168,7 @@ func collectTrackISRCs(ctx context.Context, client *http.Client, apiBaseURL stri
 		if trackID == "" {
 			continue
 		}
-		body, err := getAPI(ctx, client, apiURL(apiBaseURL, "/tracks/"+trackID), token)
+		body, err := getAPI(ctx, client, validation.JoinURL(apiBaseURL, "tracks", trackID), token)
 		if err != nil {
 			return nil, err
 		}

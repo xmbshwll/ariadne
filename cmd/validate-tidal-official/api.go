@@ -110,7 +110,7 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 }
 
 func fetchTIDALAlbum(ctx context.Context, client *http.Client, inputs validationInputs, accessToken string) ([]byte, tidalAlbumDocument, error) {
-	albumURL := fmt.Sprintf("%s/albums/%s?countryCode=%s&include=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(inputs.parsed.ID), url.QueryEscape(inputs.countryCode), url.QueryEscape("artists,items,coverArt"))
+	albumURL := validation.JoinURL(inputs.opts.apiBaseURL, "albums", inputs.parsed.ID) + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&include=" + url.QueryEscape("artists,items,coverArt")
 	albumBody, err := getAPI(ctx, client, albumURL, accessToken)
 	if err != nil {
 		return nil, tidalAlbumDocument{}, fmt.Errorf("fetch tidal album payload: %w", err)
@@ -127,7 +127,7 @@ func fetchTIDALAlbum(ctx context.Context, client *http.Client, inputs validation
 }
 
 func buildTIDALQuery(title string, artistNames []string, albumID string) string {
-	query := strings.TrimSpace(strings.Join([]string{title, firstArtist(artistNames)}, " "))
+	query := strings.TrimSpace(strings.Join([]string{title, firstNonEmpty(artistNames...)}, " "))
 	if query != "" {
 		return query
 	}
@@ -135,7 +135,7 @@ func buildTIDALQuery(title string, artistNames []string, albumID string) string 
 }
 
 func fetchTIDALAlbumSearch(ctx context.Context, client *http.Client, inputs validationInputs, accessToken, query string) ([]byte, error) {
-	searchURL := fmt.Sprintf("%s/searchResults?countryCode=%s&filter[query]=%s&include=albums", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(query))
+	searchURL := validation.JoinURL(inputs.opts.apiBaseURL, "searchResults") + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&filter[query]=" + url.QueryEscape(query) + "&include=albums"
 	searchBody, err := getAPI(ctx, client, searchURL, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("search tidal albums: %w", err)
@@ -147,7 +147,7 @@ func addTIDALUPCArtifact(ctx context.Context, client *http.Client, inputs valida
 	if upc == "" {
 		return nil
 	}
-	upcSearchURL := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(upc))
+	upcSearchURL := validation.JoinURL(inputs.opts.apiBaseURL, "albums") + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&filter[barcodeId]=" + url.QueryEscape(upc)
 	upcSearchBody, err := getAPI(ctx, client, upcSearchURL, accessToken)
 	if err != nil {
 		return fmt.Errorf("search tidal albums by upc: %w", err)
@@ -160,7 +160,7 @@ func addTIDALISRCArtifact(ctx context.Context, client *http.Client, inputs valid
 	if len(trackISRCs) == 0 {
 		return nil
 	}
-	isrcSearchURL := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(trackISRCs[0]))
+	isrcSearchURL := validation.JoinURL(inputs.opts.apiBaseURL, "tracks") + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&filter[isrc]=" + url.QueryEscape(trackISRCs[0])
 	isrcSearchBody, err := getAPI(ctx, client, isrcSearchURL, accessToken)
 	if err != nil {
 		return fmt.Errorf("search tidal tracks by isrc: %w", err)
@@ -172,7 +172,7 @@ func addTIDALISRCArtifact(ctx context.Context, client *http.Client, inputs valid
 func fetchAccessToken(ctx context.Context, client *http.Client, authBaseURL string, clientID string, clientSecret string) (string, error) {
 	return validation.FetchClientCredentialsToken(ctx, validation.TokenRequest{
 		Client:       client,
-		Endpoint:     strings.TrimRight(authBaseURL, "/") + "/oauth2/token",
+		Endpoint:     validation.JoinURL(authBaseURL, "oauth2/token"),
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		ContentType:  "application/x-www-form-urlencoded; charset=UTF-8",
@@ -266,13 +266,6 @@ func collectIncludedValues(included []tidalIncludedResource, typ string, limit i
 
 func includedISRC(attrs tidalAttributes) string {
 	return strings.TrimSpace(attrs.ISRC)
-}
-
-func firstArtist(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
 }
 
 func firstNonEmpty(values ...string) string {
