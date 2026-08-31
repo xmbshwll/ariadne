@@ -65,6 +65,7 @@ func newRootCmd(stdout io.Writer, stderr io.Writer, baseConfig ariadne.Config, c
 	cmd := &cobra.Command{
 		Use:           "ariadne",
 		Short:         "Resolve music URLs across services.",
+		Version:       currentVersion().String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
