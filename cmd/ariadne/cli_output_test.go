@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -416,4 +417,36 @@ func findCSVRow(t *testing.T, rows [][]string, match func([]string) bool) []stri
 	}
 	t.Fatalf("matching CSV row not found")
 	return nil
+}
+
+// TestWriteFormattedOutputJSONKeepsRawText pins the JSON encoding contract:
+// titles and URLs are raw text, so < and & reach readers as themselves rather
+// than HTML escapes.
+func TestWriteFormattedOutputJSONKeepsRawText(t *testing.T) {
+	tests := []struct {
+		name       string
+		resolution ariadne.Resolution
+		wantSub    string
+	}{
+		{
+			name:       "angle brackets and ampersands stay literal",
+			resolution: ariadne.Resolution{InputURL: "https://fixture.test/x", Source: ariadne.CanonicalAlbum{Title: `AC/DC <Live> & Riff`}},
+			wantSub:    `AC/DC <Live> & Riff`,
+		},
+		{
+			name:       "urls stay literal",
+			resolution: ariadne.Resolution{InputURL: "https://fixture.test/x", Source: ariadne.CanonicalAlbum{Title: "ok", SourceURL: "https://fixture.test/a?b=1&c=2"}},
+			wantSub:    "https://fixture.test/a?b=1&c=2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			require.NoError(t, writeFormattedOutput(&buf, newCLIResolution(tt.resolution), outputFormatJSON, func() error { return nil }), tt.name)
+			assert.Contains(t, buf.String(), tt.wantSub, tt.name)
+			assert.NotContains(t, buf.String(), "\\u003c", tt.name)
+			assert.NotContains(t, buf.String(), "\\u0026", tt.name)
+		})
+	}
 }

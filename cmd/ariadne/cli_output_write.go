@@ -56,6 +56,9 @@ func writeFormattedOutput(w io.Writer, output any, format string, writeCSV func(
 	case outputFormatJSON:
 		encoder := json.NewEncoder(w)
 		encoder.SetIndent("", "  ")
+		// Titles and URLs carry raw text, not HTML; escaping would turn < and &
+		// into \u003c and \u0026 for every script reading the output.
+		encoder.SetEscapeHTML(false)
 		if err := encoder.Encode(output); err != nil {
 			return fmt.Errorf("encode output json: %w", err)
 		}
