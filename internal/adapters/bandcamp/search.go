@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/score"
 )
 
 var (
@@ -100,16 +100,15 @@ func appendUniqueSearchCandidate(results []SearchCandidate, seen map[string]stru
 	return append(results, candidate)
 }
 
-func RankSearchCandidates(source model.CanonicalAlbum, candidates []SearchCandidate) []SearchCandidate {
-	return rankCandidates(candidates, func(candidate SearchCandidate) int {
-		return scoreSearchCandidate(source, candidate)
-	})
-}
+// preSelectionMarkers is the edition-word subset Bandcamp's pre-selection
+// strips: the ones that appear in Bandcamp listing titles.
+var preSelectionMarkers = []string{"super deluxe", "remastered", "remix", "mix", "deluxe", "live"}
 
-func rankSongSearchCandidates(source model.CanonicalSong, candidates []SearchCandidate) []SearchCandidate {
-	return rankCandidates(candidates, func(candidate SearchCandidate) int {
-		return scoreSongSearchCandidate(source, candidate)
-	})
+// scoreSearchMetadata sums the pre-selection ranks for one wire candidate.
+func scoreSearchMetadata(sourceTitle string, sourceArtists []string, sourceReleaseDate string, candidate SearchCandidate) int {
+	return score.PreSelectionTitleRank(sourceTitle, candidate.Title, preSelectionMarkers) +
+		score.PreSelectionArtistRank(sourceArtists, candidate.Artist) +
+		score.PreSelectionReleaseYearRank(sourceReleaseDate, candidate.ReleaseDate)
 }
 
 func rankCandidates(candidates []SearchCandidate, scoreCandidate func(SearchCandidate) int) []SearchCandidate {
@@ -133,6 +132,18 @@ func rankCandidates(candidates []SearchCandidate, scoreCandidate func(SearchCand
 		ordered = append(ordered, candidate.Candidate)
 	}
 	return ordered
+}
+
+func RankSearchCandidates(source model.CanonicalAlbum, candidates []SearchCandidate) []SearchCandidate {
+	return rankCandidates(candidates, func(candidate SearchCandidate) int {
+		return scoreSearchCandidate(source, candidate)
+	})
+}
+
+func rankSongSearchCandidates(source model.CanonicalSong, candidates []SearchCandidate) []SearchCandidate {
+	return rankCandidates(candidates, func(candidate SearchCandidate) int {
+		return scoreSongSearchCandidate(source, candidate)
+	})
 }
 
 func scoreSearchCandidate(source model.CanonicalAlbum, candidate SearchCandidate) int {
@@ -160,56 +171,6 @@ func scoreSearchCandidate(source model.CanonicalAlbum, candidate SearchCandidate
 
 func scoreSongSearchCandidate(source model.CanonicalSong, candidate SearchCandidate) int {
 	return scoreSearchMetadata(source.Title, source.Artists, source.ReleaseDate, candidate)
-}
-
-func scoreSearchMetadata(sourceTitle string, sourceArtists []string, sourceReleaseDate string, candidate SearchCandidate) int {
-	score := scoreTitle(sourceTitle, candidate.Title)
-	score += scoreArtist(sourceArtists, candidate.Artist)
-	score += scoreReleaseDate(sourceReleaseDate, candidate.ReleaseDate)
-	return score
-}
-
-func scoreTitle(sourceTitle string, candidateTitle string) int {
-	sourceTitle = normalize.Text(sourceTitle)
-	candidateTitle = normalize.Text(candidateTitle)
-	sourceCoreTitle := coreTitle(sourceTitle)
-	candidateCoreTitle := coreTitle(candidateTitle)
-	switch {
-	case sourceTitle != "" && sourceTitle == candidateTitle:
-		return 40
-	case sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle:
-		return 25
-	case strings.Contains(candidateTitle, sourceTitle) || strings.Contains(sourceTitle, candidateTitle):
-		return 10
-	default:
-		return 0
-	}
-}
-
-func scoreArtist(sourceArtists []string, candidateArtist string) int {
-	sourceArtist := ""
-	if len(sourceArtists) > 0 {
-		sourceArtist = normalize.Text(sourceArtists[0])
-	}
-	candidateArtist = normalize.Text(candidateArtist)
-	switch {
-	case sourceArtist != "" && sourceArtist == candidateArtist:
-		return 45
-	case sourceArtist != "" && strings.Contains(candidateArtist, sourceArtist):
-		return 20
-	default:
-		return 0
-	}
-}
-
-func scoreReleaseDate(sourceReleaseDate string, candidateReleaseDate string) int {
-	if sourceReleaseDate == "" || candidateReleaseDate == "" || len(sourceReleaseDate) < 4 || len(candidateReleaseDate) < 4 {
-		return 0
-	}
-	if sourceReleaseDate[:4] == candidateReleaseDate[:4] {
-		return 5
-	}
-	return 0
 }
 
 func cleanSearchText(value string) string {
@@ -266,12 +227,4 @@ func parseReleasedText(value string) string {
 		}
 	}
 	return ""
-}
-
-func coreTitle(value string) string {
-	normalized := normalize.Text(value)
-	for _, marker := range []string{" remastered", " remix", " mix", " deluxe", " super deluxe", " live"} {
-		normalized = strings.ReplaceAll(normalized, marker, "")
-	}
-	return strings.Join(strings.Fields(normalized), " ")
 }
