@@ -12,7 +12,10 @@ config, and documentation aligned with this file.
 - `internal/config/`: project-local `.ariadne/config.yml` normalization for
   runtime credentials and later provider-specific settings.
 - `internal/auth/`: client credentials and the shared token source - fetch once,
-  cache until near expiry, share one in-flight refresh across callers.
+  cache until near expiry, share one in-flight refresh across callers - plus
+  `DiscoveredCredential`, the same discipline for credentials discovered from
+  service pages rather than fetched from a token endpoint (SoundCloud's web
+  client id).
 - `internal/auth/appleauth/`: the Apple Music Media API developer token, which is
   a signed JWT rather than a fetched bearer token.
 - `internal/normalize/`: shared canonical text, ISRC, UPC, duration, release
@@ -25,6 +28,9 @@ config, and documentation aligned with this file.
 - `internal/adapters/search/`: one provider's Target Search run - Metadata Query
   fan-out, per-item fetches, deduplicated candidates up to a limit.
 - `internal/adapters/adaptertest/`: the contract harness every provider runs.
+- `internal/adapters/canonical/`: the shared canonical-mapping helpers -
+  FirstNonEmpty, SingleArtistList, DateOnly, the Candidate constructors, and
+  ISO 8601 duration parsing. Providers must not re-declare these.
 - `internal/resolve/`: Entity Resolution pipeline (Source Input recognition,
   Runtime Hydration, Target Search, ranking, Candidate Hydration) shared by the
   root package through type aliases.
