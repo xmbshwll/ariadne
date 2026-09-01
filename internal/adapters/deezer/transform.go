@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -37,7 +38,7 @@ func (a *Adapter) ToCanonicalAlbum(parsed model.ParsedAlbumURL, album AlbumRespo
 		trackCount = len(canonicalTracks)
 	}
 
-	artworkURL := firstNonEmpty(album.CoverXL, album.CoverBig, album.CoverMedium, album.Cover)
+	artworkURL := canonical.FirstNonEmpty(album.CoverXL, album.CoverBig, album.CoverMedium, album.Cover)
 
 	return &model.CanonicalAlbum{
 		Service:           model.ServiceDeezer,
@@ -65,11 +66,11 @@ func (a *Adapter) toCanonicalSong(track trackLookupResponse) *model.CanonicalSon
 	if track.Artist.Name != "" {
 		artists = append(artists, track.Artist.Name)
 	}
-	artworkURL := firstNonEmpty(track.Album.CoverXL, track.Album.CoverBig, track.Album.CoverMedium, track.Album.Cover)
+	artworkURL := canonical.FirstNonEmpty(track.Album.CoverXL, track.Album.CoverBig, track.Album.CoverMedium, track.Album.Cover)
 	return &model.CanonicalSong{
 		Service:                model.ServiceDeezer,
 		SourceID:               strconv.Itoa(track.ID),
-		SourceURL:              firstNonEmpty(track.Link, canonicalTrackURL(track.ID)),
+		SourceURL:              canonical.FirstNonEmpty(track.Link, canonicalTrackURL(track.ID)),
 		Title:                  track.Title,
 		NormalizedTitle:        normalize.Text(track.Title),
 		Artists:                artists,
@@ -104,22 +105,6 @@ func contributorNames(album AlbumResponse) []string {
 	return artists
 }
 
-func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
-	return model.CandidateAlbum{
-		CanonicalAlbum: album,
-		CandidateID:    album.SourceID,
-		MatchURL:       album.SourceURL,
-	}
-}
-
-func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
-	return model.CandidateSong{
-		CanonicalSong: song,
-		CandidateID:   song.SourceID,
-		MatchURL:      song.SourceURL,
-	}
-}
-
 func canonicalAlbumURL(albumID int) string {
 	return fmt.Sprintf("https://www.deezer.com/album/%d", albumID)
 }
@@ -130,13 +115,4 @@ func canonicalAlbumURLString(albumID string) string {
 
 func canonicalTrackURL(trackID int) string {
 	return fmt.Sprintf("https://www.deezer.com/track/%d", trackID)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

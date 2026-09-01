@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -32,7 +33,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 		},
 		ItemID: appleMusicAlbumSearchItemID,
 		BuildCandidate: func(ctx context.Context, item lookupItem) (model.CandidateAlbum, error) {
-			canonical, err := a.fetchAlbumByID(
+			mapped, err := a.fetchAlbumByID(
 				ctx,
 				strconv.FormatInt(item.CollectionID, 10),
 				canonicalCollectionURL(item.CollectionViewURL, ""),
@@ -41,7 +42,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 			if err != nil {
 				return model.CandidateAlbum{}, fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
 			}
-			return toCandidateAlbum(*canonical), nil
+			return canonical.CandidateAlbum(*mapped), nil
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
@@ -73,7 +74,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		},
 		ItemID: appleMusicSongSearchItemID,
 		BuildCandidate: func(ctx context.Context, item lookupItem) (model.CandidateSong, error) {
-			canonical, err := a.fetchSongByID(
+			mapped, err := a.fetchSongByID(
 				ctx,
 				strconv.FormatInt(item.TrackID, 10),
 				canonicalTrackURL(item.CollectionViewURL, item.TrackID),
@@ -82,7 +83,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 			if err != nil {
 				return model.CandidateSong{}, fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
 			}
-			return toCandidateSong(*canonical), nil
+			return canonical.CandidateSong(*mapped), nil
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}

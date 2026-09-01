@@ -3,8 +3,8 @@ package tidal
 import (
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -32,9 +32,9 @@ func ToCanonicalAlbum(resource APIResource, included []APIResource, canonicalURL
 		NormalizedArtists: normalize.Artists(artistNames),
 		ReleaseDate:       resource.Attributes.ReleaseDate,
 		Label:             resource.Attributes.Copyright.Text,
-		UPC:               firstNonEmpty(resource.Attributes.BarcodeID, resource.Attributes.UPC),
+		UPC:               canonical.FirstNonEmpty(resource.Attributes.BarcodeID, resource.Attributes.UPC),
 		TrackCount:        trackCount,
-		TotalDurationMS:   parseISODurationMilliseconds(resource.Attributes.Duration),
+		TotalDurationMS:   canonical.ISODurationMilliseconds(resource.Attributes.Duration),
 		ArtworkURL:        artworkURL,
 		Explicit:          resource.Attributes.Explicit,
 		EditionHints:      normalize.EditionHints(resource.Attributes.Title),
@@ -74,7 +74,7 @@ func toCanonicalSong(resource APIResource, included []APIResource, canonicalURL 
 		NormalizedTitle:        normalize.Text(resource.Attributes.Title),
 		Artists:                artistNames,
 		NormalizedArtists:      normalize.Artists(artistNames),
-		DurationMS:             parseISODurationMilliseconds(resource.Attributes.Duration),
+		DurationMS:             canonical.ISODurationMilliseconds(resource.Attributes.Duration),
 		ISRC:                   strings.TrimSpace(resource.Attributes.ISRC),
 		Explicit:               resource.Attributes.Explicit,
 		DiscNumber:             firstTrackVolumeNumber(resource.Relationships.Albums.Data),
@@ -101,7 +101,7 @@ func IncludedArtistNames(resourceByID map[string]APIResource, relations []Relati
 		if !ok {
 			continue
 		}
-		Name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
+		Name := canonical.FirstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
 		if Name == "" {
 			continue
 		}
@@ -176,7 +176,7 @@ func tracksFromIncluded(included []APIResource, relations []RelationshipData, fa
 			TrackNumber:     relation.Meta.TrackNumber,
 			Title:           resource.Attributes.Title,
 			NormalizedTitle: normalize.Text(resource.Attributes.Title),
-			DurationMS:      parseISODurationMilliseconds(resource.Attributes.Duration),
+			DurationMS:      canonical.ISODurationMilliseconds(resource.Attributes.Duration),
 			ISRC:            strings.TrimSpace(resource.Attributes.ISRC),
 			Artists:         trackArtists,
 		})
@@ -228,65 +228,10 @@ func includedRelationKey(relation RelationshipData) string {
 	return includedResourceKey(relation.Type, relation.ID)
 }
 
-func parseISODurationMilliseconds(value string) int {
-	if value == "" {
-		return 0
-	}
-	duration, err := time.ParseDuration(strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(value, "P"), "T")))
-	if err == nil {
-		return int(duration.Milliseconds())
-	}
-	value = strings.TrimPrefix(value, "P")
-	value = strings.TrimPrefix(value, "T")
-	var hours, minutes int
-	var seconds float64
-	for len(value) > 0 {
-		index := strings.IndexAny(value, "HMS")
-		if index <= 0 {
-			break
-		}
-		number := value[:index]
-		unit := value[index]
-		value = value[index+1:]
-		switch unit {
-		case 'H':
-			parsed, _ := time.ParseDuration(number + "h")
-			hours = int(parsed.Hours())
-		case 'M':
-			parsed, _ := time.ParseDuration(number + "m")
-			minutes = int(parsed.Minutes()) % 60
-		case 'S':
-			parsed, err := time.ParseDuration(number + "s")
-			if err == nil {
-				seconds = parsed.Seconds()
-			}
-		}
-	}
-	return int((float64(hours*3600+minutes*60) + seconds) * 1000)
-}
-
 func canonicalAlbumURL(albumID string) string {
 	return "https://tidal.com/album/" + albumID
 }
 
 func canonicalTrackURL(trackID string) string {
 	return "https://tidal.com/track/" + trackID
-}
-
-func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
-	return model.CandidateAlbum{CanonicalAlbum: album, CandidateID: album.SourceID, MatchURL: album.SourceURL}
-}
-
-func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
-	return model.CandidateSong{CanonicalSong: song, CandidateID: song.SourceID, MatchURL: song.SourceURL}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/htmlx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -31,7 +32,7 @@ func extractAlbum(body []byte, fallbackURL string) (*model.CanonicalAlbum, error
 
 	artist := html.UnescapeString(extractFirstGroup(subtitleArtistPattern, body))
 	trackTitles := ExtractTrackTitles(body)
-	artists := nonEmptyArtistList(artist)
+	artists := canonical.SingleArtistList(artist)
 	sourceID := youTubeMusicAlbumSourceID(canonicalURL)
 
 	tracks := make([]model.CanonicalTrack, 0, len(trackTitles))
@@ -135,16 +136,4 @@ func extractFirstGroup(pattern *regexp.Regexp, body []byte) string {
 		return ""
 	}
 	return string(value)
-}
-
-func nonEmptyArtistList(artist string) []string {
-	artist = strings.TrimSpace(artist)
-	if artist == "" {
-		return nil
-	}
-	return []string{artist}
-}
-
-func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
-	return model.CandidateAlbum{CanonicalAlbum: album, CandidateID: album.SourceID, MatchURL: album.SourceURL}
 }

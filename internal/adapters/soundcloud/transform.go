@@ -3,12 +3,13 @@ package soundcloud
 import (
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
 func ToCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
-	artists := nonEmptyArtistList(firstNonEmpty(playlist.User.Username, trackArtist(playlist.Tracks)))
+	artists := canonical.SingleArtistList(canonical.FirstNonEmpty(playlist.User.Username, trackArtist(playlist.Tracks)))
 	tracks := make([]model.CanonicalTrack, 0, len(playlist.Tracks))
 	totalDurationMS := playlist.Duration
 	explicit := false
@@ -20,7 +21,7 @@ func ToCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
 		if durationMS != 0 && playlist.Duration == 0 {
 			totalDurationMS += durationMS
 		}
-		artistNames := nonEmptyArtistList(firstNonEmpty(track.PublisherMetadata.Artist, track.User.Username, playlist.User.Username))
+		artistNames := canonical.SingleArtistList(canonical.FirstNonEmpty(track.PublisherMetadata.Artist, track.User.Username, playlist.User.Username))
 		tracks = append(tracks, model.CanonicalTrack{
 			TrackNumber:     index + 1,
 			Title:           track.Title,
@@ -39,10 +40,10 @@ func ToCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
 		}
 	}
 	upc := consistentUPC(playlist.Tracks)
-	label := firstNonEmpty(playlist.LabelName, trackLabel(playlist.Tracks), trackPLine(playlist.Tracks))
+	label := canonical.FirstNonEmpty(playlist.LabelName, trackLabel(playlist.Tracks), trackPLine(playlist.Tracks))
 	canonicalURL := canonicalizeSoundCloudURL(playlist.PermalinkURL)
 	sourceID := soundCloudSourceID(canonicalURL)
-	releaseDate := firstNonEmpty(dateOnly(playlist.ReleaseDate), dateOnly(playlist.PublishedAt), dateOnly(playlist.DisplayDate))
+	releaseDate := canonical.FirstNonEmpty(canonical.DateOnly(playlist.ReleaseDate), canonical.DateOnly(playlist.PublishedAt), canonical.DateOnly(playlist.DisplayDate))
 	return &model.CanonicalAlbum{
 		Service:           model.ServiceSoundCloud,
 		SourceID:          sourceID,
@@ -64,12 +65,12 @@ func ToCanonicalAlbum(playlist soundPlaylist) *model.CanonicalAlbum {
 }
 
 func ToCanonicalSong(track SoundTrack) *model.CanonicalSong {
-	artists := nonEmptyArtistList(firstNonEmpty(track.PublisherMetadata.Artist, track.User.Username))
+	artists := canonical.SingleArtistList(canonical.FirstNonEmpty(track.PublisherMetadata.Artist, track.User.Username))
 	durationMS := track.FullDuration
 	if durationMS == 0 {
 		durationMS = track.Duration
 	}
-	albumTitle := firstNonEmpty(track.PublisherMetadata.AlbumTitle)
+	albumTitle := canonical.FirstNonEmpty(track.PublisherMetadata.AlbumTitle)
 	albumArtists := []string(nil)
 	albumNormalizedArtists := []string(nil)
 	if albumTitle != "" {
@@ -92,7 +93,7 @@ func ToCanonicalSong(track SoundTrack) *model.CanonicalSong {
 		AlbumNormalizedTitle:   normalize.Text(albumTitle),
 		AlbumArtists:           albumArtists,
 		AlbumNormalizedArtists: albumNormalizedArtists,
-		ReleaseDate:            firstNonEmpty(dateOnly(track.ReleaseDate), dateOnly(track.DisplayDate)),
+		ReleaseDate:            canonical.FirstNonEmpty(canonical.DateOnly(track.ReleaseDate), canonical.DateOnly(track.DisplayDate)),
 		ArtworkURL:             strings.TrimSpace(track.ArtworkURL),
 		EditionHints:           normalize.EditionHints(track.Title),
 	}
@@ -136,7 +137,7 @@ func consistentUPC(tracks []SoundTrack) string {
 
 func trackArtist(tracks []SoundTrack) string {
 	for _, track := range tracks {
-		if artist := firstNonEmpty(track.PublisherMetadata.Artist, track.User.Username); artist != "" {
+		if artist := canonical.FirstNonEmpty(track.PublisherMetadata.Artist, track.User.Username); artist != "" {
 			return artist
 		}
 	}
@@ -145,7 +146,7 @@ func trackArtist(tracks []SoundTrack) string {
 
 func trackLabel(tracks []SoundTrack) string {
 	for _, track := range tracks {
-		if label := firstNonEmpty(track.LabelName); label != "" {
+		if label := canonical.FirstNonEmpty(track.LabelName); label != "" {
 			return label
 		}
 	}
@@ -154,27 +155,11 @@ func trackLabel(tracks []SoundTrack) string {
 
 func trackPLine(tracks []SoundTrack) string {
 	for _, track := range tracks {
-		if pLine := firstNonEmpty(track.PublisherMetadata.PLineForDisplay, track.PublisherMetadata.CLineForDisplay); pLine != "" {
+		if pLine := canonical.FirstNonEmpty(track.PublisherMetadata.PLineForDisplay, track.PublisherMetadata.CLineForDisplay); pLine != "" {
 			return pLine
 		}
 	}
 	return ""
-}
-
-func dateOnly(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) >= 10 {
-		return trimmed[:10]
-	}
-	return trimmed
-}
-
-func nonEmptyArtistList(artist string) []string {
-	artist = strings.TrimSpace(artist)
-	if artist == "" {
-		return nil
-	}
-	return []string{artist}
 }
 
 func extractClientID(body []byte) string {
@@ -182,22 +167,6 @@ func extractClientID(body []byte) string {
 		return string(matches[1])
 	}
 	return ""
-}
-
-func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
-	return model.CandidateAlbum{
-		CanonicalAlbum: album,
-		CandidateID:    album.SourceID,
-		MatchURL:       album.SourceURL,
-	}
-}
-
-func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
-	return model.CandidateSong{
-		CanonicalSong: song,
-		CandidateID:   song.SourceID,
-		MatchURL:      song.SourceURL,
-	}
 }
 
 func soundCloudSourceID(canonicalURL string) string {
@@ -208,14 +177,4 @@ func soundCloudSourceID(canonicalURL string) string {
 		return parsed.ID
 	}
 	return canonicalURL
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

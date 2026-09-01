@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -20,7 +21,7 @@ func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.Can
 		return nil, nil
 	}
 
-	canonical, err := a.fetchAlbumByLookup(ctx, a.baseURL+"/album/upc:"+url.PathEscape(upc))
+	mapped, err := a.fetchAlbumByLookup(ctx, a.baseURL+"/album/upc:"+url.PathEscape(upc))
 	if err != nil {
 		if isDeezerAlbumLookupMiss(err) {
 			return nil, nil
@@ -28,7 +29,7 @@ func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.Can
 		return nil, fmt.Errorf("search deezer by upc %s: %w", upc, err)
 	}
 
-	return []model.CandidateAlbum{toCandidateAlbum(*canonical)}, nil
+	return []model.CandidateAlbum{canonical.CandidateAlbum(*mapped)}, nil
 }
 
 // SearchAlbumByISRC resolves Deezer albums from one or more track ISRCs.
@@ -123,7 +124,7 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		}
 		return nil, fmt.Errorf("search deezer song by isrc %s: %w", isrc, err)
 	}
-	return []model.CandidateSong{toCandidateSong(*a.toCanonicalSong(*track))}, nil
+	return []model.CandidateSong{canonical.CandidateSong(*a.toCanonicalSong(*track))}, nil
 }
 
 // SearchSongByMetadata searches Deezer tracks using song title and artist metadata.
@@ -194,17 +195,17 @@ func (a *Adapter) hydrateDeezerSongSearchCandidate(ctx context.Context, candidat
 }
 
 func (a *Adapter) hydrateAlbumCandidate(ctx context.Context, albumID int) (model.CandidateAlbum, error) {
-	canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(albumID))
+	mapped, err := a.fetchAlbumByID(ctx, strconv.Itoa(albumID))
 	if err != nil {
 		return model.CandidateAlbum{}, err
 	}
-	return toCandidateAlbum(*canonical), nil
+	return canonical.CandidateAlbum(*mapped), nil
 }
 
 func (a *Adapter) hydrateSongCandidate(ctx context.Context, trackID int) (model.CandidateSong, error) {
-	canonical, err := a.fetchSongByID(ctx, strconv.Itoa(trackID))
+	mapped, err := a.fetchSongByID(ctx, strconv.Itoa(trackID))
 	if err != nil {
 		return model.CandidateSong{}, err
 	}
-	return toCandidateSong(*canonical), nil
+	return canonical.CandidateSong(*mapped), nil
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 
 	"github.com/stretchr/testify/assert"
 
@@ -11,15 +12,15 @@ import (
 )
 
 func TestParseISODurationMillisecondsAccumulatesTotalMinutes(t *testing.T) {
-	assert.Equal(t, 5400000, bandcamp.ParseISODurationMilliseconds("PT90M"))
-	assert.Equal(t, 9000000, bandcamp.ParseISODurationMilliseconds("PT1H90M"))
+	assert.Equal(t, 5400000, canonical.ISODurationMilliseconds("PT90M"))
+	assert.Equal(t, 9000000, canonical.ISODurationMilliseconds("PT1H90M"))
 }
 
 func TestParseISODurationMillisecondsEdgeCases(t *testing.T) {
-	assert.Equal(t, 0, bandcamp.ParseISODurationMilliseconds(""))
-	assert.Equal(t, 1500, bandcamp.ParseISODurationMilliseconds("PT1.5S"))
-	assert.Equal(t, 3723000, bandcamp.ParseISODurationMilliseconds("PT1H2M3S"))
-	assert.Equal(t, 0, bandcamp.ParseISODurationMilliseconds("invalid"))
+	assert.Equal(t, 0, canonical.ISODurationMilliseconds(""))
+	assert.Equal(t, 1500, canonical.ISODurationMilliseconds("PT1.5S"))
+	assert.Equal(t, 3723000, canonical.ISODurationMilliseconds("PT1H2M3S"))
+	assert.Equal(t, 0, canonical.ISODurationMilliseconds("invalid"))
 }
 
 func TestToCanonicalAlbumSkipsEmptyArtist(t *testing.T) {

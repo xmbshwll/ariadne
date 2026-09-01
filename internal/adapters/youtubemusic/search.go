@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -41,12 +42,12 @@ func youTubeMusicSearchCandidateID(candidate searchCandidate) string {
 }
 
 func (a *Adapter) hydrateYouTubeMusicAlbumSearchCandidate(ctx context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
-	canonical, err := a.fetchAlbumByBrowseID(ctx, candidate.BrowseID)
+	mapped, err := a.fetchAlbumByBrowseID(ctx, candidate.BrowseID)
 	if err != nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, err)
 	}
-	if canonical == nil {
+	if mapped == nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, errNilYouTubeMusicCanonicalAlbum)
 	}
-	return toCandidateAlbum(*canonical), nil
+	return canonical.CandidateAlbum(*mapped), nil
 }

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -99,13 +100,13 @@ func soundCloudCandidateID(rawURL string) string {
 }
 
 func soundCloudAlbumSearchCandidate(playlist soundPlaylist) (model.CandidateAlbum, error) {
-	canonical := ToCanonicalAlbum(playlist)
-	return toCandidateAlbum(*canonical), nil
+	mapped := ToCanonicalAlbum(playlist)
+	return canonical.CandidateAlbum(*mapped), nil
 }
 
 func soundCloudSongSearchCandidate(track SoundTrack) (model.CandidateSong, error) {
-	canonical := ToCanonicalSong(track)
-	return toCandidateSong(*canonical), nil
+	mapped := ToCanonicalSong(track)
+	return canonical.CandidateSong(*mapped), nil
 }
 
 func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, target any) error {

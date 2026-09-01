@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
@@ -168,21 +169,21 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 
 func (a *Adapter) hydrateAlbumCandidates(ctx context.Context, albumIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateAlbum, error) {
 	return hydrateTIDALCandidates(ctx, albumIDs, func(albumID string) string { return albumID }, func(ctx context.Context, albumID string) (model.CandidateAlbum, error) {
-		canonical, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
+		mapped, err := a.fetchAlbumByID(ctx, albumID, canonicalAlbumURL(albumID), regionHint)
 		if err != nil {
 			return model.CandidateAlbum{}, fmt.Errorf("%s: %w", errorMessage(albumID), err)
 		}
-		return toCandidateAlbum(*canonical), nil
+		return canonical.CandidateAlbum(*mapped), nil
 	})
 }
 
 func (a *Adapter) hydrateSongCandidates(ctx context.Context, songIDs []string, regionHint string, errorMessage func(string) string) ([]model.CandidateSong, error) {
 	return hydrateTIDALCandidates(ctx, songIDs, func(songID string) string { return songID }, func(ctx context.Context, songID string) (model.CandidateSong, error) {
-		canonical, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
+		mapped, err := a.fetchSongByID(ctx, songID, canonicalTrackURL(songID), regionHint)
 		if err != nil {
 			return model.CandidateSong{}, fmt.Errorf("%s: %w", errorMessage(songID), err)
 		}
-		return toCandidateSong(*canonical), nil
+		return canonical.CandidateSong(*mapped), nil
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
 	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
@@ -132,7 +133,7 @@ func (a *Adapter) HydrateOfficialAlbums(ctx context.Context, albumIDs []string, 
 			if err != nil {
 				return model.CandidateAlbum{}, err
 			}
-			return toCandidateAlbum(*album), nil
+			return canonical.CandidateAlbum(*album), nil
 		},
 	)
 }
@@ -147,7 +148,7 @@ func (a *Adapter) HydrateSongs(ctx context.Context, songIDs []string, storefront
 			if err != nil {
 				return model.CandidateSong{}, err
 			}
-			return toCandidateSong(*song), nil
+			return canonical.CandidateSong(*song), nil
 		},
 	)
 }
