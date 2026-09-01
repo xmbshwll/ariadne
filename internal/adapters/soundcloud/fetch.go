@@ -22,7 +22,7 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	if err != nil {
 		return nil, fmt.Errorf("extract soundcloud playlist hydration: %w", err)
 	}
-	a.maybeCacheClientIDFromPage(body)
+	a.clientIDs.Observe(extractClientID(body))
 	return ToCanonicalAlbum(*playlist), nil
 }
 
@@ -38,7 +38,7 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 	if err != nil {
 		return nil, fmt.Errorf("extract soundcloud track hydration: %w", err)
 	}
-	a.maybeCacheClientIDFromPage(body)
+	a.clientIDs.Observe(extractClientID(body))
 	return ToCanonicalSong(*track), nil
 }
 

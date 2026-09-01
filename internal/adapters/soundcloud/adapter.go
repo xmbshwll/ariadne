@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/xmbshwll/ariadne/internal/adapters/base"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -52,8 +52,7 @@ type Adapter struct {
 	siteBaseURL string
 	apiBaseURL  string
 
-	clientIDMu sync.Mutex
-	clientID   string
+	clientIDs *auth.DiscoveredCredential
 }
 
 func New(client *http.Client, opts ...Option) *Adapter {
@@ -69,6 +68,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	for _, opt := range opts {
 		opt(adapter)
 	}
+	adapter.clientIDs = auth.NewDiscoveredCredential(adapter.discoverClientID, isSoundCloudClientIDError)
 	return adapter
 }
 
