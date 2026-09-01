@@ -307,7 +307,7 @@ func TestFilterResolutionByStrength(t *testing.T) {
 }
 
 func TestVerboseCSVRowsIncludeAlternatesWithoutBest(t *testing.T) {
-	albumRows := newVerboseCSVRows(ariadne.Resolution{
+	albumRows := verboseCSVRows(albumCSVColumns, ariadne.Resolution{
 		InputURL: "https://fixture.test/album",
 		Source:   ariadne.CanonicalAlbum{Service: ariadne.ServiceDeezer, SourceID: "src", SourceURL: "https://fixture.test/album"},
 		Matches: map[ariadne.ServiceName]ariadne.MatchResult{
@@ -326,7 +326,7 @@ func TestVerboseCSVRowsIncludeAlternatesWithoutBest(t *testing.T) {
 	})
 	assert.Equal(t, "https://open.spotify.com/album/alt", albumAlternate[3])
 
-	songRows := newVerboseSongCSVRows(ariadne.SongResolution{
+	songRows := verboseSongCSVRows(songCSVColumns, ariadne.SongResolution{
 		InputURL: "https://fixture.test/song",
 		Source:   ariadne.CanonicalSong{Service: ariadne.ServiceSpotify, SourceID: "src", SourceURL: "https://fixture.test/song"},
 		Matches: map[ariadne.ServiceName]ariadne.SongMatchResult{

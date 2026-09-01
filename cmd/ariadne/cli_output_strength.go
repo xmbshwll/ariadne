@@ -33,17 +33,11 @@ func filterMatchesByStrength[C any](
 	return filtered
 }
 
-func pruneAlbumMatchByStrength(match ariadne.MatchResult, minStrength ariadne.MatchStrength) (ariadne.MatchResult, bool) {
-	pruned := match
-	pruned.Alternates = filterScoredByStrength(match.Alternates, minStrength)
-
-	if match.Best == nil || !meetsMinimumStrength(match.Best.Score, minStrength) {
-		return ariadne.MatchResult{}, false
-	}
-	return pruned, true
-}
-
-func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne.MatchStrength) (ariadne.SongMatchResult, bool) {
+// pruneMatchByStrength filters alternates below the threshold, then applies the
+// entity shape's keep policy for a best that no longer qualifies: album output
+// drops the whole service, while songs keep the service when strong alternates
+// remain by promoting the best alternate into the best slot.
+func pruneMatchByStrength[C any](match ariadne.MatchResultOf[C], minStrength ariadne.MatchStrength, promoteAlternate bool) (ariadne.MatchResultOf[C], bool) {
 	pruned := match
 	pruned.Alternates = filterScoredByStrength(match.Alternates, minStrength)
 
@@ -52,18 +46,22 @@ func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne
 		pruned.Best = &best
 		return pruned, true
 	}
-
-	// Songs intentionally keep the service when strong alternates remain, even if
-	// the original Best candidate falls below the threshold. Album output is
-	// stricter and drops the whole service when Best is pruned.
-	if len(pruned.Alternates) == 0 {
-		return ariadne.SongMatchResult{}, false
+	if !promoteAlternate || len(pruned.Alternates) == 0 {
+		return ariadne.MatchResultOf[C]{}, false
 	}
 
 	best, alternates := promoteBestAlternate(pruned.Alternates)
 	pruned.Best = &best
 	pruned.Alternates = alternates
 	return pruned, true
+}
+
+func pruneAlbumMatchByStrength(match ariadne.MatchResult, minStrength ariadne.MatchStrength) (ariadne.MatchResult, bool) {
+	return pruneMatchByStrength(match, minStrength, false)
+}
+
+func pruneSongMatchByStrength(match ariadne.SongMatchResult, minStrength ariadne.MatchStrength) (ariadne.SongMatchResult, bool) {
+	return pruneMatchByStrength(match, minStrength, true)
 }
 
 // promoteBestAlternate requires at least one entry; callers check beforehand.
