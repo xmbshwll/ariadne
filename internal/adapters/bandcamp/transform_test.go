@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 
 	"github.com/stretchr/testify/assert"
 

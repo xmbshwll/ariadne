@@ -1,4 +1,4 @@
-package search_test
+package targetsearch_test
 
 // CollectCandidates is the seam seven providers lean on to hydrate wire items
 // into candidates; this unit table pins its selection rules directly instead
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 var errCollectFetchFailed = errors.New("fetch failed")
@@ -96,7 +96,7 @@ func TestCollectCandidates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var calls []string
-			candidates, err := search.CollectCandidates(
+			candidates, err := targetsearch.CollectCandidates(
 				context.Background(),
 				tt.items,
 				tt.limit,
@@ -124,7 +124,7 @@ func TestCollectCandidatesCarriesTheContext(t *testing.T) {
 	cancel()
 
 	var gotCtx context.Context
-	candidates, err := search.CollectCandidates(ctx,
+	candidates, err := targetsearch.CollectCandidates(ctx,
 		[]collectItem{{id: "a", ok: true}}, 5,
 		func(item collectItem) string { return item.id },
 		func(ctx context.Context, item collectItem) (string, error) {

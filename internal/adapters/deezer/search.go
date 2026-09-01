@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 // SearchAlbumByUPC resolves a Deezer album directly from a UPC when Deezer exposes the lookup path.
@@ -89,7 +89,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 		return nil, nil
 	}
 
-	targetSearch := search.MetadataQuerySearch[AlbumResponse, model.CandidateAlbum]{
+	targetSearch := targetsearch.MetadataQuerySearch[AlbumResponse, model.CandidateAlbum]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]AlbumResponse, error) {
@@ -134,7 +134,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, nil
 	}
 
-	targetSearch := search.MetadataQuerySearch[trackResponse, model.CandidateSong]{
+	targetSearch := targetsearch.MetadataQuerySearch[trackResponse, model.CandidateSong]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]trackResponse, error) {

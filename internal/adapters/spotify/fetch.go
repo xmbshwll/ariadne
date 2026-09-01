@@ -11,10 +11,10 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 // FetchAlbum loads a Spotify album via the Web API when credentials are configured,
@@ -108,7 +108,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := search.MetadataQuerySearch[APIAlbumSummary, APIAlbumSummary]{
+	targetSearch := targetsearch.MetadataQuerySearch[APIAlbumSummary, APIAlbumSummary]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]APIAlbumSummary, error) {
@@ -174,7 +174,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		return nil, ErrCredentialsNotConfigured
 	}
 
-	targetSearch := search.MetadataQuerySearch[APITrackSearchItem, APITrackSearchItem]{
+	targetSearch := targetsearch.MetadataQuerySearch[APITrackSearchItem, APITrackSearchItem]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]APITrackSearchItem, error) {
@@ -435,5 +435,5 @@ func hydrateSpotifyCandidates[Input any, Candidate any](
 	fetch func(context.Context, Input) (Candidate, error),
 ) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return search.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
+	return targetsearch.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }

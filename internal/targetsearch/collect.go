@@ -1,7 +1,7 @@
 // Package search runs the Target Search of one provider: the Metadata Queries
 // it issues, the per-item fetches each result needs, and the deduplicated
 // candidate list that comes out.
-package search
+package targetsearch
 
 import (
 	"context"

@@ -8,8 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/targetsearch"
@@ -27,7 +26,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 		}
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
-	results, err := search.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		payload.Collection,
 		searchLimit,
@@ -54,7 +53,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		}
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
-	results, err := search.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		payload.Collection,
 		searchLimit,

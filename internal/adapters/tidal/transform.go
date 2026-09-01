@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )

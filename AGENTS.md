@@ -23,12 +23,16 @@ config, and documentation aligned with this file.
   from them, used by adapters and Target Search.
 - `internal/adapters/`: the one `Adapter` interface every provider implements,
   its Capability Set, `ErrUnsupported`, and the deferred-hydration errors.
+  Providers own only platform code: wire types, endpoints, parsing, transforms,
+  and their Adapter methods. Shared machinery lives elsewhere.
 - `internal/adapters/base/`: `base.Unsupported`, the embedded zero `Adapter` a
   provider wraps so it writes only the methods it supports.
-- `internal/adapters/search/`: one provider's Target Search run - Metadata Query
-  fan-out, per-item fetches, deduplicated candidates up to a limit.
+- `internal/targetsearch/`: the Target Search module - the provider-facing
+  Plan, Layer, Metadata Query fan-out, per-item fetch, and deduplication, plus
+  the Unavailable/timeout error classification. The only Target Search
+  machinery outside the providers themselves.
 - `internal/adapters/adaptertest/`: the contract harness every provider runs.
-- `internal/adapters/canonical/`: the shared canonical-mapping helpers -
+- `internal/canonical/`: the shared canonical-mapping helpers -
   FirstNonEmpty, SingleArtistList, DateOnly, the Candidate constructors, and
   ISO 8601 duration parsing. Providers must not re-declare these.
 - `internal/resolve/`: Entity Resolution pipeline (Source Input recognition,

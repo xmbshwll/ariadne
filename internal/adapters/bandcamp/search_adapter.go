@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 const searchHydrationLimit = 8
@@ -127,7 +127,7 @@ func (s BandcampTargetSearch[Candidate]) collectHTML(ctx context.Context) ([]Can
 }
 
 func (s BandcampTargetSearch[Candidate]) collect(ctx context.Context, candidates []SearchCandidate) ([]Candidate, error) {
-	results, err := search.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		candidates,
 		searchHydrationLimit,

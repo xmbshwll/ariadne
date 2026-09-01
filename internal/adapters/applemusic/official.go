@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 // SearchAlbumByUPC uses the official Apple Music catalog API when MusicKit auth is configured.
@@ -155,7 +155,7 @@ func (a *Adapter) HydrateSongs(ctx context.Context, songIDs []string, storefront
 
 func hydrateAppleMusicOfficialCandidates[Input any, Candidate any](ctx context.Context, items []Input, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return search.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
+	return targetsearch.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
 
 func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, storefront string) (*model.CanonicalAlbum, error) {

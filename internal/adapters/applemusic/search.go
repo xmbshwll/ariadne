@@ -6,10 +6,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 // SearchAlbumByMetadata searches Apple Music albums by title and artist metadata via the public search API.
@@ -20,7 +20,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 	}
 
 	storefront := a.storefrontFor(album.RegionHint)
-	targetSearch := search.MetadataQuerySearch[lookupItem, model.CandidateAlbum]{
+	targetSearch := targetsearch.MetadataQuerySearch[lookupItem, model.CandidateAlbum]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
@@ -61,7 +61,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 
 	storefront := a.storefrontFor(song.RegionHint)
-	targetSearch := search.MetadataQuerySearch[lookupItem, model.CandidateSong]{
+	targetSearch := targetsearch.MetadataQuerySearch[lookupItem, model.CandidateSong]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {

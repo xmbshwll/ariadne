@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
-	"github.com/xmbshwll/ariadne/internal/adapters/search"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
 func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
@@ -24,7 +24,7 @@ func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.Canonic
 	}
 
 	candidates := extractSearchCandidates(body)
-	results, err := search.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		candidates,
 		searchLimit,

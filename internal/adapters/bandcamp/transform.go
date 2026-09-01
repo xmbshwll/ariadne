@@ -3,7 +3,7 @@ package bandcamp
 import (
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/canonical"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/htmlx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
