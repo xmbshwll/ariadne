@@ -12,7 +12,8 @@ import (
 	"github.com/xmbshwll/ariadne/internal/wiring"
 )
 
-// Resolver wraps the internal resolvers with a public library-facing API.
+// Resolver is the library entry point: it resolves one input URL against the
+// Provider Catalog's adapter set and returns ranked matches per service.
 type Resolver struct {
 	inner     *resolve.Resolver
 	songInner *resolve.SongResolver
@@ -138,8 +139,6 @@ func (r *Resolver) ResolveAlbum(ctx context.Context, inputURL string) (*Resoluti
 //     requires app credentials
 //   - ErrTIDALCredentialsNotConfigured when a TIDAL source or target operation
 //     requires credentials that are not configured
-//   - ErrSourceAdapterReturnedNilParsedURL or ErrSourceAdapterReturnedNilSong
-//     when a caller-provided custom song source adapter violates the adapter contract
 func (r *Resolver) ResolveSong(ctx context.Context, inputURL string) (*SongResolution, error) {
 	resolver, err := r.songResolver()
 	if err != nil {
