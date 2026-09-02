@@ -4,7 +4,6 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/xmbshwll/ariadne/ci.yml?branch=main)](https://github.com/xmbshwll/ariadne/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/xmbshwll/ariadne)](./LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/xmbshwll/ariadne.svg)](https://pkg.go.dev/github.com/xmbshwll/ariadne)
-[![Go Report Card](https://goreportcard.com/badge/github.com/xmbshwll/ariadne)](https://goreportcard.com/report/github.com/xmbshwll/ariadne)
 
 Ariadne is a Go library and CLI for turning one music URL into matching album or song links on other services.
 
