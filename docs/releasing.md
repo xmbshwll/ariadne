@@ -16,7 +16,6 @@ make verify
 make verify-release
 ```
 
-The library's exported surface is guarded by `testdata/public_api.txt`; a name added, renamed, or removed fails `go test` until the diff is reviewed and re-baselined with `go test -run TestPublicAPISurfaceIsAnIntent -update`. Treat that diff as part of the release review, and record it in `CHANGELOG.md` when it is caller-visible.
 
 Then confirm tree is clean:
 

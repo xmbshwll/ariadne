@@ -21,7 +21,7 @@ Use Ariadne when you need to:
 
 ## Current status
 
-Public Go API is stable and guarded by a golden test (`testdata/public_api.txt`); releases are at `v0.7.0` (library) and `cmd/v0.7.0` (CLI), approaching `v1.0.0`.
+Public Go API releases are at `v0.7.0` (library) and `cmd/v0.7.0` (CLI), approaching `v1.0.0`; the exported surface is kept deliberately small.
 
 - Spotify, Apple Music, and Deezer are strongest services today
 - Bandcamp, SoundCloud, YouTube Music, and TIDAL are more likely to break or drift
@@ -199,8 +199,6 @@ case err != nil:
 	// transport or API failure
 }
 ```
-
-The full list is guarded: adding, renaming, or removing an exported name fails a test until reviewed (`testdata/public_api.txt`).
 
 ## Repository layout
 
