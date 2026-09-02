@@ -1,4 +1,4 @@
-.PHONY: help build run validate-spotify-auth validate-apple-music-official validate-tidal-official test test-race test-release lint lint-fix fmt mocks verify verify-release deps clean
+.PHONY: help build run validate-spotify-auth validate-apple-music-official validate-tidal-official test test-race test-coverage test-release lint lint-fix fmt mocks verify verify-release deps clean
 
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
@@ -54,6 +54,16 @@ test:
 test-race:
 	$(GO) test -race ./...
 	cd $(CMD_MODULE_DIR) && $(GO) test -race ./...
+
+# test-coverage reports whole-module coverage: every package counts as both a
+# test owner and a coverage target, so code exercised across package seams
+# (for example the public package driving internal/wiring) is not lost.
+# Generated mocks are excluded: they are test doubles, not product statements.
+COVER_TARGETS = $(shell $(GO) list ./... | grep -v '/internal/mocks' | tr '\n' ',')
+
+test-coverage:
+	$(GO) test -coverpkg=$(COVER_TARGETS) -coverprofile=coverage.out ./...
+	$(GO) tool cover -func=coverage.out | tail -1
 
 test-release:
 	GOWORK=off $(GO) test ./...

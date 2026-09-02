@@ -1,4 +1,4 @@
-package validation
+package validation_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	validation "github.com/xmbshwll/ariadne/cmd/internal/validation"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,7 @@ func TestLoadSampleURL(t *testing.T) {
 	t.Run("returns explicit url", func(t *testing.T) {
 		t.Parallel()
 
-		url, err := LoadSampleURL(" https://example.test/album/1 ", filepath.Join(t.TempDir(), "missing.txt"), "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
+		url, err := validation.LoadSampleURL(" https://example.test/album/1 ", filepath.Join(t.TempDir(), "missing.txt"), "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
 		require.NoError(t, err)
 		assert.Equal(t, "https://example.test/album/1", url)
 	})
@@ -40,7 +42,7 @@ func TestLoadSampleURL(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "sample.txt")
 		require.NoError(t, os.WriteFile(path, []byte("\nhttps://example.test/album/2\n"), 0o600))
 
-		url, err := LoadSampleURL("", path, "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
+		url, err := validation.LoadSampleURL("", path, "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
 		require.NoError(t, err)
 		assert.Equal(t, "https://example.test/album/2", url)
 	})
@@ -48,7 +50,7 @@ func TestLoadSampleURL(t *testing.T) {
 	t.Run("errors when url and path missing", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := LoadSampleURL("", "", "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
+		_, err := validation.LoadSampleURL("", "", "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, errTestSampleURLRequired)
 	})
@@ -59,7 +61,7 @@ func TestLoadSampleURL(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "sample.txt")
 		require.NoError(t, os.WriteFile(path, []byte(" \n\t "), 0o600))
 
-		_, err := LoadSampleURL("", path, "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
+		_, err := validation.LoadSampleURL("", path, "spotify", errTestSampleURLRequired, errTestSampleURLEmpty)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, errTestSampleURLEmpty)
 		assert.Contains(t, err.Error(), path)
@@ -73,7 +75,7 @@ func TestResolveOutputDir(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "artifacts")
-		resolved, err := ResolveOutputDir(path, "unused-")
+		resolved, err := validation.ResolveOutputDir(path, "unused-")
 		require.NoError(t, err)
 		assert.Equal(t, path, resolved)
 		info, statErr := os.Stat(resolved)
@@ -84,7 +86,7 @@ func TestResolveOutputDir(t *testing.T) {
 	t.Run("creates temp dir when missing", func(t *testing.T) {
 		t.Parallel()
 
-		resolved, err := ResolveOutputDir("", "ariadne-validation-")
+		resolved, err := validation.ResolveOutputDir("", "ariadne-validation-")
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = os.RemoveAll(resolved) })
 		assert.Contains(t, filepath.Base(resolved), "ariadne-validation-")
@@ -98,7 +100,7 @@ func TestWriteJSON(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "summary.json")
-	err := WriteJSON(path, map[string]string{"z": "last", "a": "first"})
+	err := validation.WriteJSON(path, map[string]string{"z": "last", "a": "first"})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -113,7 +115,7 @@ func TestWritePrettyJSON(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "payload.json")
-		err := WritePrettyJSON(path, []byte(`{"name":"fixture","nested":{"count":2}}`))
+		err := validation.WritePrettyJSON(path, []byte(`{"name":"fixture","nested":{"count":2}}`))
 		require.NoError(t, err)
 
 		content, readErr := os.ReadFile(path)
@@ -125,7 +127,7 @@ func TestWritePrettyJSON(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "payload.json")
-		err := WritePrettyJSON(path, []byte(`{"name":`))
+		err := validation.WritePrettyJSON(path, []byte(`{"name":`))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "decode raw json")
 		assert.Contains(t, err.Error(), path)
@@ -153,12 +155,12 @@ func TestRun(t *testing.T) {
 
 		tests := []struct {
 			name string
-			cfg  RunConfig[testRunInputs, string]
+			cfg  validation.RunConfig[testRunInputs, string]
 			want string
 		}{
 			{
 				name: "load",
-				cfg: RunConfig[testRunInputs, string]{
+				cfg: validation.RunConfig[testRunInputs, string]{
 					Collect: func(context.Context, testRunInputs) (string, error) { return testArtifact, nil },
 					Write:   func(string, string) error { return nil },
 				},
@@ -166,7 +168,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name: "collect",
-				cfg: RunConfig[testRunInputs, string]{
+				cfg: validation.RunConfig[testRunInputs, string]{
 					Load:  func([]string) (testRunInputs, error) { return testRunInputs{}, nil },
 					Write: func(string, string) error { return nil },
 				},
@@ -174,7 +176,7 @@ func TestRun(t *testing.T) {
 			},
 			{
 				name: "write",
-				cfg: RunConfig[testRunInputs, string]{
+				cfg: validation.RunConfig[testRunInputs, string]{
 					Load:    func([]string) (testRunInputs, error) { return testRunInputs{}, nil },
 					Collect: func(context.Context, testRunInputs) (string, error) { return testArtifact, nil },
 				},
@@ -185,7 +187,7 @@ func TestRun(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				err := Run(tt.cfg)
+				err := validation.Run(tt.cfg)
 				require.EqualError(t, err, tt.want)
 			})
 		}
@@ -200,7 +202,7 @@ func TestRun(t *testing.T) {
 		collectCalled := false
 		writeCalled := false
 
-		err := Run(RunConfig[testRunInputs, string]{
+		err := validation.Run(validation.RunConfig[testRunInputs, string]{
 			Args:    []string{"--flag"},
 			Stdout:  &stdout,
 			Timeout: 100 * time.Millisecond,
@@ -234,7 +236,7 @@ func TestRun(t *testing.T) {
 	t.Run("uses background context when timeout non positive", func(t *testing.T) {
 		t.Parallel()
 
-		err := Run(RunConfig[testRunInputs, string]{
+		err := validation.Run(validation.RunConfig[testRunInputs, string]{
 			Timeout: 0,
 			Load: func([]string) (testRunInputs, error) {
 				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil
@@ -257,7 +259,7 @@ func TestRun(t *testing.T) {
 		collectCalled := false
 		writeCalled := false
 
-		err := Run(RunConfig[testRunInputs, string]{
+		err := validation.Run(validation.RunConfig[testRunInputs, string]{
 			Stdout:  nil,
 			Timeout: time.Second,
 			Load: func([]string) (testRunInputs, error) {
@@ -282,7 +284,7 @@ func TestRun(t *testing.T) {
 
 		writeCalled := false
 
-		err := Run(RunConfig[testRunInputs, string]{
+		err := validation.Run(validation.RunConfig[testRunInputs, string]{
 			Timeout: time.Second,
 			Load: func([]string) (testRunInputs, error) {
 				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil
@@ -302,7 +304,7 @@ func TestRun(t *testing.T) {
 	t.Run("returns write error", func(t *testing.T) {
 		t.Parallel()
 
-		err := Run(RunConfig[testRunInputs, string]{
+		err := validation.Run(validation.RunConfig[testRunInputs, string]{
 			Timeout: time.Second,
 			Load: func([]string) (testRunInputs, error) {
 				return testRunInputs{outputDir: t.TempDir(), successMessage: "done"}, nil

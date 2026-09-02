@@ -11,41 +11,41 @@ type fuzzySearchResult struct {
 	URL      string `json:"url"`
 }
 
-type schemaAlbum struct {
+type SchemaAlbum struct {
 	ID            string              `json:"@id"`
 	Type          string              `json:"@type"`
 	Name          string              `json:"name"`
 	DatePublished string              `json:"datePublished"`
 	Image         any                 `json:"image"`
-	ByArtist      schemaMusicGroup    `json:"byArtist"`
-	Publisher     schemaMusicGroup    `json:"publisher"`
-	Track         schemaTrackList     `json:"track"`
-	InAlbum       schemaAlbumRelation `json:"inAlbum"`
+	ByArtist      SchemaMusicGroup    `json:"byArtist"`
+	Publisher     SchemaMusicGroup    `json:"publisher"`
+	Track         SchemaTrackList     `json:"track"`
+	InAlbum       SchemaAlbumRelation `json:"inAlbum"`
 	Duration      string              `json:"duration"`
 }
 
-type schemaAlbumRelation struct {
+type SchemaAlbumRelation struct {
 	ID       string           `json:"@id"`
 	Name     string           `json:"name"`
-	ByArtist schemaMusicGroup `json:"byArtist"`
+	ByArtist SchemaMusicGroup `json:"byArtist"`
 }
 
-type schemaMusicGroup struct {
+type SchemaMusicGroup struct {
 	ID   string `json:"@id"`
 	Name string `json:"name"`
 }
 
-type schemaTrackList struct {
+type SchemaTrackList struct {
 	NumberOfItems   int               `json:"numberOfItems"`
-	ItemListElement []schemaTrackItem `json:"itemListElement"`
+	ItemListElement []SchemaTrackItem `json:"itemListElement"`
 }
 
-type schemaTrackItem struct {
+type SchemaTrackItem struct {
 	Position int                  `json:"position"`
-	Item     schemaMusicRecording `json:"item"`
+	Item     SchemaMusicRecording `json:"item"`
 }
 
-type schemaMusicRecording struct {
+type SchemaMusicRecording struct {
 	ID       string `json:"@id"`
 	Name     string `json:"name"`
 	Duration string `json:"duration"`

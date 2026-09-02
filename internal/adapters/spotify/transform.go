@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
@@ -51,7 +50,7 @@ func toCanonicalAlbumBootstrap(parsed model.ParsedAlbumURL, album spotifyAlbumEn
 	}
 }
 
-func toCanonicalAlbumAPI(sourceURL string, album *apiAlbumResponse) *model.CanonicalAlbum {
+func toCanonicalAlbumAPI(sourceURL string, album *APIAlbumResponse) *model.CanonicalAlbum {
 	artists := spotifyArtistNamesAPI(album.Artists)
 	tracks := make([]model.CanonicalTrack, 0, len(album.Tracks.Items))
 	totalDurationMS := 0
@@ -100,7 +99,7 @@ func toCanonicalAlbumAPI(sourceURL string, album *apiAlbumResponse) *model.Canon
 	}
 }
 
-func toCanonicalSongAPI(sourceURL string, track *apiTrack) *model.CanonicalSong {
+func toCanonicalSongAPI(sourceURL string, track *APITrack) *model.CanonicalSong {
 	artists := spotifyArtistNamesAPI(track.Artists)
 	albumArtists := spotifyArtistNamesAPI(track.Album.Artists)
 	albumTitle := track.Album.Name
@@ -139,7 +138,7 @@ func spotifyArtistNamesBootstrap(list spotifyArtistList) []string {
 	return out
 }
 
-func spotifyArtistNamesAPI(artists []apiArtist) []string {
+func spotifyArtistNamesAPI(artists []APIArtist) []string {
 	out := make([]string, 0, len(artists))
 	for _, artist := range artists {
 		if artist.Name == "" {
@@ -188,37 +187,37 @@ func spotifyArtworkURLBootstrap(cover spotifyCoverArt) string {
 	return sorted[0].URL
 }
 
-func spotifyArtworkURLAPI(images []apiImage) string {
+func spotifyArtworkURLAPI(images []APIImage) string {
 	if len(images) == 0 {
 		return ""
 	}
-	sorted := append([]apiImage(nil), images...)
+	sorted := append([]APIImage(nil), images...)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Width > sorted[j].Width
 	})
 	return sorted[0].URL
 }
 
-func metadataQueries(album model.CanonicalAlbum) []string {
+func MetadataQueries(album model.CanonicalAlbum) []string {
 	return buildMetadataQueries("album", album.Title, album.Artists)
 }
 
-func songMetadataQueries(song model.CanonicalSong) []string {
+func SongMetadataQueries(song model.CanonicalSong) []string {
 	return buildMetadataQueries("track", song.Title, song.Artists)
 }
 
 func buildMetadataQueries(prefix string, title string, artists []string) []string {
-	return adapterutil.FormattedMetadataQueries(title, artists, func(titleVariant string, artistVariant string) string {
+	return normalize.FormattedSearchQueries(title, artists, func(titleVariant string, artistVariant string) string {
 		return strings.Join([]string{prefix + ":" + titleVariant, "artist:" + artistVariant}, " ")
 	}, func(titleVariant string) string {
 		return prefix + ":" + titleVariant
 	})
 }
 
-func albumIDsToSummaries(ids []string) []apiAlbumSummary {
-	items := make([]apiAlbumSummary, 0, len(ids))
+func albumIDsToSummaries(ids []string) []APIAlbumSummary {
+	items := make([]APIAlbumSummary, 0, len(ids))
 	for _, id := range ids {
-		items = append(items, apiAlbumSummary{ID: id})
+		items = append(items, APIAlbumSummary{ID: id})
 	}
 	return items
 }

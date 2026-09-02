@@ -1,6 +1,6 @@
 package deezer
 
-type albumResponse struct {
+type AlbumResponse struct {
 	ID             int            `json:"id"`
 	Title          string         `json:"title"`
 	UPC            string         `json:"upc"`
@@ -14,18 +14,18 @@ type albumResponse struct {
 	Duration       int            `json:"duration"`
 	ReleaseDate    string         `json:"release_date"`
 	TracklistURL   string         `json:"tracklist"`
-	Tracks         tracksResponse `json:"tracks"`
+	Tracks         TracksResponse `json:"tracks"`
 	ExplicitLyrics bool           `json:"explicit_lyrics"`
 	Artist         artistRef      `json:"artist"`
 	Contributors   []contributor  `json:"contributors"`
 }
 
-type tracksResponse struct {
+type TracksResponse struct {
 	Data []trackResponse `json:"data"`
 }
 
 type albumSearchResponse struct {
-	Data []albumResponse `json:"data"`
+	Data []AlbumResponse `json:"data"`
 }
 
 type trackLookupResponse struct {

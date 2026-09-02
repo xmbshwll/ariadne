@@ -1,4 +1,4 @@
-package targetsearch
+package targetsearch_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/url"
 	"testing"
+
+	targetsearch "github.com/xmbshwll/ariadne/internal/targetsearch"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,9 +20,9 @@ func (timeoutError) Error() string { return "timeout" }
 func (timeoutError) Timeout() bool { return true }
 
 func TestUnavailablePreservesErrorChain(t *testing.T) {
-	err := Unavailable(errTargetSearchUnavailable)
+	err := targetsearch.Unavailable(errTargetSearchUnavailable)
 
-	assert.True(t, IsUnavailable(err))
+	assert.True(t, targetsearch.IsUnavailable(err))
 	assert.ErrorIs(t, err, errTargetSearchUnavailable)
 }
 
@@ -47,7 +49,7 @@ func TestIsRecoverableTimeout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, IsRecoverableTimeout(tt.ctx, tt.err))
+			assert.Equal(t, tt.want, targetsearch.IsRecoverableTimeout(tt.ctx, tt.err))
 		})
 	}
 }

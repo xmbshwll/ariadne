@@ -3,7 +3,7 @@ package ariadne
 import (
 	"errors"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	amazonmusicadapter "github.com/xmbshwll/ariadne/internal/adapters/amazonmusic"
 	applemusicadapter "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 	spotifyadapter "github.com/xmbshwll/ariadne/internal/adapters/spotify"
@@ -15,12 +15,13 @@ import (
 var (
 	// ErrUnsupportedURL indicates that no registered source adapter recognized the input URL.
 	ErrUnsupportedURL = resolve.ErrUnsupportedURL
-	// ErrNoSourceAdapters indicates that a resolver was created without source adapters.
+	// ErrNoSourceAdapters indicates that no source adapter was registered for the Entity Shape
+	// of the input. Auto mode treats it as "not a song URL" and falls back to albums.
 	ErrNoSourceAdapters = resolve.ErrNoSourceAdapters
 	// ErrResolverNotInitialized indicates that a public Resolver receiver or inner resolver was nil.
 	ErrResolverNotInitialized = errors.New("resolver not initialized")
 	// ErrRuntimeDeferred indicates that a recognized URL can be parsed, but runtime hydration remains intentionally deferred.
-	ErrRuntimeDeferred = adapterutil.ErrRuntimeDeferred
+	ErrRuntimeDeferred = adapters.ErrRuntimeDeferred
 	// ErrAmazonMusicDeferred indicates that Amazon Music URLs are recognized, but runtime resolution remains intentionally deferred.
 	ErrAmazonMusicDeferred = amazonmusicadapter.ErrDeferredRuntimeAdapter
 	// ErrYouTubeMusicDeferred indicates that YouTube Music song URLs are recognized, but runtime song hydration remains intentionally deferred.
@@ -31,10 +32,4 @@ var (
 	ErrSpotifyCredentialsNotConfigured = spotifyadapter.ErrCredentialsNotConfigured
 	// ErrTIDALCredentialsNotConfigured indicates that a TIDAL operation requires app credentials that were not configured.
 	ErrTIDALCredentialsNotConfigured = tidaladapter.ErrCredentialsNotConfigured
-	// ErrSourceAdapterReturnedNilParsedURL indicates that a caller-provided source adapter returned a nil parsed URL instead of either a parsed value or an error.
-	ErrSourceAdapterReturnedNilParsedURL = resolve.ErrSourceAdapterReturnedNilParsedURL
-	// ErrSourceAdapterReturnedNilAlbum indicates that a caller-provided album source adapter returned a nil album without an error.
-	ErrSourceAdapterReturnedNilAlbum = resolve.ErrSourceAdapterReturnedNilAlbum
-	// ErrSourceAdapterReturnedNilSong indicates that a caller-provided song source adapter returned a nil song without an error.
-	ErrSourceAdapterReturnedNilSong = resolve.ErrSourceAdapterReturnedNilSong
 )

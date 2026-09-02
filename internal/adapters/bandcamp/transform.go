@@ -1,28 +1,28 @@
 package bandcamp
 
 import (
-	"strings"
 	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/canonical"
+	"github.com/xmbshwll/ariadne/internal/htmlx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func extractSchema(body []byte) (*schemaAlbum, error) {
-	schema, err := adapterutil.DecodeJSONBlock[schemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", errMalformedBandcampJSONLD)
+func extractSchema(body []byte) (*SchemaAlbum, error) {
+	schema, err := htmlx.DecodeJSONBlock[SchemaAlbum](body, jsonLDPattern, errBandcampJSONLDNotFound, "unmarshal bandcamp json-ld", ErrMalformedBandcampJSONLD)
 	if err != nil {
 		return nil, err
 	}
 	return &schema, nil
 }
 
-func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.CanonicalAlbum {
-	artists := nonEmptyArtistList(album.ByArtist.Name)
+func ToCanonicalAlbum(parsed model.ParsedAlbumURL, album *SchemaAlbum) *model.CanonicalAlbum {
+	artists := canonical.SingleArtistList(album.ByArtist.Name)
 	tracks := make([]model.CanonicalTrack, 0, len(album.Track.ItemListElement))
 	totalDurationMS := 0
 	for _, item := range album.Track.ItemListElement {
-		durationMS := parseISODurationMilliseconds(item.Item.Duration)
+		durationMS := canonical.ISODurationMilliseconds(item.Item.Duration)
 		totalDurationMS += durationMS
 		tracks = append(tracks, model.CanonicalTrack{
 			TrackNumber:     item.Position,
@@ -42,7 +42,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 		NormalizedTitle:   normalize.Text(album.Name),
 		Artists:           artists,
 		NormalizedArtists: normalize.Artists(artists),
-		ReleaseDate:       dateOnly(album.DatePublished),
+		ReleaseDate:       displayDateOnly(album.DatePublished),
 		Label:             album.Publisher.Name,
 		TrackCount:        len(tracks),
 		TotalDurationMS:   totalDurationMS,
@@ -52,9 +52,9 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, album *schemaAlbum) *model.Ca
 	}
 }
 
-func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.CanonicalSong {
-	artists := nonEmptyArtistList(track.ByArtist.Name)
-	albumArtists := nonEmptyArtistList(track.InAlbum.ByArtist.Name)
+func ToCanonicalSong(parsed model.ParsedURL, track *SchemaAlbum) *model.CanonicalSong {
+	artists := canonical.SingleArtistList(track.ByArtist.Name)
+	albumArtists := canonical.SingleArtistList(track.InAlbum.ByArtist.Name)
 	albumID := ""
 	if parsedAlbum, err := ParseAlbumURL(track.InAlbum.ID); err == nil {
 		albumID = parsedAlbum.ID
@@ -68,13 +68,13 @@ func toCanonicalSong(parsed model.ParsedURL, track *schemaAlbum) *model.Canonica
 		NormalizedTitle:        normalize.Text(track.Name),
 		Artists:                artists,
 		NormalizedArtists:      normalize.Artists(artists),
-		DurationMS:             parseISODurationMilliseconds(track.Duration),
+		DurationMS:             canonical.ISODurationMilliseconds(track.Duration),
 		AlbumID:                albumID,
 		AlbumTitle:             track.InAlbum.Name,
 		AlbumNormalizedTitle:   normalize.Text(track.InAlbum.Name),
 		AlbumArtists:           albumArtists,
 		AlbumNormalizedArtists: normalize.Artists(albumArtists),
-		ReleaseDate:            dateOnly(track.DatePublished),
+		ReleaseDate:            displayDateOnly(track.DatePublished),
 		ArtworkURL:             schemaImageURL(track.Image),
 		EditionHints:           normalize.EditionHints(track.Name),
 	}
@@ -94,44 +94,7 @@ func schemaImageURL(value any) string {
 	return ""
 }
 
-func parseISODurationMilliseconds(value string) int {
-	if value == "" {
-		return 0
-	}
-	value = strings.TrimPrefix(value, "P")
-	value = strings.TrimPrefix(value, "T")
-	var totalSeconds float64
-	for len(value) > 0 {
-		index := strings.IndexAny(value, "HMS")
-		if index <= 0 {
-			break
-		}
-		number := value[:index]
-		unit := value[index]
-		value = value[index+1:]
-
-		suffix := ""
-		switch unit {
-		case 'H':
-			suffix = "h"
-		case 'M':
-			suffix = "m"
-		case 'S':
-			suffix = "s"
-		default:
-			continue
-		}
-
-		parsed, err := time.ParseDuration(number + suffix)
-		if err != nil {
-			continue
-		}
-		totalSeconds += parsed.Seconds()
-	}
-	return int(totalSeconds * 1000)
-}
-
-func dateOnly(value string) string {
+func displayDateOnly(value string) string {
 	if len(value) < 10 {
 		return value
 	}
@@ -148,12 +111,4 @@ func dateOnly(value string) string {
 		return prefix
 	}
 	return value
-}
-
-func nonEmptyArtistList(artist string) []string {
-	artist = strings.TrimSpace(artist)
-	if artist == "" {
-		return nil
-	}
-	return []string{artist}
 }

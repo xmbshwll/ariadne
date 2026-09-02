@@ -1,4 +1,4 @@
-package soundcloud
+package soundcloud_test
 
 import (
 	"context"
@@ -8,16 +8,20 @@ import (
 	"strings"
 	"testing"
 
+	soundcloud "github.com/xmbshwll/ariadne/internal/adapters/soundcloud"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/xmbshwll/ariadne/internal/adapters"
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/resolve"
 )
 
 func TestIdentifierSongSearchIsUnsupported(t *testing.T) {
 	fixture := newTestFixture(t)
 
-	assert.NotImplements(t, (*resolve.SongISRCSearcher)(nil), fixture.adapter)
+	_, err := fixture.adapter.SearchSongByISRC(context.Background(), "GBAYE0601690")
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
 }
 
 func TestSearchSongByMetadataSkipsMalformedHits(t *testing.T) {
@@ -39,7 +43,7 @@ func TestSearchSongByMetadataSkipsMalformedHits(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
 	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Good Track", Artists: []string{"Artist"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -75,7 +79,7 @@ func TestSearchSongByMetadataFindsClientIDInLaterScriptAsset(t *testing.T) {
 	}))
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
 	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Good Track", Artists: []string{"Artist"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -86,7 +90,7 @@ func TestSearchSongByMetadataReturnsNoResultsWhenClientIDUnavailable(t *testing.
 	server := newSoundCloudServerWithoutClientID()
 	defer server.Close()
 
-	adapter := New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL))
+	adapter := soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL))
 	results, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "FENIAN", Artists: []string{"KNEECAP"}})
 
 	require.NoError(t, err)
@@ -94,11 +98,11 @@ func TestSearchSongByMetadataReturnsNoResultsWhenClientIDUnavailable(t *testing.
 }
 
 func TestToCanonicalSongLeavesAlbumArtistsEmptyWithoutAlbumTitle(t *testing.T) {
-	song := toCanonicalSong(soundTrack{
+	song := soundcloud.ToCanonicalSong(soundcloud.SoundTrack{
 		Title:        "Loose Track",
 		PermalinkURL: "https://soundcloud.com/example/loose-track",
-		User:         soundUser{Username: "Example Artist"},
-		PublisherMetadata: publisherMetadata{
+		User:         soundcloud.SoundUser{Username: "Example Artist"},
+		PublisherMetadata: soundcloud.PublisherMetadata{
 			Artist:     "Example Artist",
 			AlbumTitle: "",
 		},

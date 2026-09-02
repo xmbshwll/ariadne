@@ -1,8 +1,10 @@
-package youtubemusic
+package youtubemusic_test
 
 import (
 	"context"
 	"testing"
+
+	youtubemusic "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +21,7 @@ func TestSearchByMetadataHydratesBrowseResult(t *testing.T) {
 	defer server.Close()
 
 	adapter := newYouTubeMusicTestAdapter(server)
-	results, err := adapter.SearchByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", results[0].CandidateID)
@@ -42,7 +44,7 @@ func TestSearchByMetadataKeepsEarlierResultsWhenLaterHydrationFails(t *testing.T
 	defer server.Close()
 
 	adapter := newYouTubeMusicTestAdapter(server)
-	results, err := adapter.SearchByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "OLAK5uy_lqcFZTOPHGwcnP0nYMzNuY0IES0fl7Fe4", results[0].CandidateID)
@@ -58,7 +60,7 @@ func TestSearchByMetadataReturnsMalformedPageErrorWhenNothingRecovers(t *testing
 	defer server.Close()
 
 	adapter := newYouTubeMusicTestAdapter(server)
-	_, err := adapter.SearchByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
+	_, err := adapter.SearchAlbumByMetadata(context.Background(), youTubeMusicAbbeyRoadAlbum())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedYouTubeMusicPage)
+	assert.ErrorIs(t, err, youtubemusic.ErrMalformedYouTubeMusicPage)
 }

@@ -6,7 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -22,11 +23,11 @@ var (
 
 	errUnexpectedSpotifyService       = errors.New("unexpected spotify service")
 	errUnexpectedSpotifyStatus        = errors.New("unexpected spotify status")
-	errSpotifyAlbumNotFound           = errors.New("spotify album not found")
+	ErrSpotifyAlbumNotFound           = errors.New("spotify album not found")
 	errSpotifyTrackNotFound           = errors.New("spotify track not found")
 	errUnexpectedSpotifyAPIStatus     = errors.New("unexpected spotify api status")
 	errUnexpectedSpotifyTokenStatus   = errors.New("unexpected spotify token status")
-	errMalformedSpotifyAPIResponse    = errors.New("malformed spotify api response")
+	ErrMalformedSpotifyAPIResponse    = errors.New("malformed spotify api response")
 	errMalformedSpotifyBootstrapState = errors.New("malformed spotify bootstrap state")
 	errEmptySpotifyAccessToken        = errors.New("empty spotify access token")
 	errInitialStateScriptNotFound     = errors.New("initial state script not found")
@@ -69,6 +70,8 @@ func WithWebBaseURL(baseURL string) Option {
 
 // Adapter implements Spotify source and target operations.
 type Adapter struct {
+	base.Unsupported
+
 	client       *http.Client
 	clientID     string
 	clientSecret string
@@ -76,7 +79,7 @@ type Adapter struct {
 	authBaseURL  string
 	webBaseURL   string
 
-	tokenSource *adapterutil.CredentialTokenSource
+	tokenSource *auth.TokenSource
 }
 
 // New creates a Spotify adapter.
@@ -85,6 +88,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceSpotify},
 		client:      client,
 		apiBaseURL:  defaultAPIBaseURL,
 		authBaseURL: defaultAuthBaseURL,
@@ -95,11 +99,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	}
 	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
-}
-
-// Service returns the service implemented by this adapter.
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceSpotify
 }
 
 // ParseAlbumURL parses a Spotify album URL.

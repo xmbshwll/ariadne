@@ -21,9 +21,8 @@ Use Ariadne when you need to:
 
 ## Current status
 
-Ariadne is still **pre-v1**.
+Public Go API releases are at `v0.7.0` (library) and `cmd/v0.7.0` (CLI), approaching `v1.0.0`; the exported surface is kept deliberately small.
 
-- public Go API is usable, but may still change before `v1.0.0`
 - Spotify, Apple Music, and Deezer are strongest services today
 - Bandcamp, SoundCloud, YouTube Music, and TIDAL are more likely to break or drift
 - Amazon Music parsing exists, but runtime resolution is intentionally deferred
@@ -50,39 +49,25 @@ go install github.com/xmbshwll/ariadne/cmd/ariadne@latest
 
 ### CLI
 
-Resolve album URL:
-
 ```bash
 ariadne resolve https://www.deezer.com/album/12047952
 ```
 
-Resolve song URL:
-
-```bash
-ariadne resolve --song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
-```
-
-Let Ariadne auto-detect album vs song:
+Auto-detect album vs song (song URL in, album URL falls through):
 
 ```bash
 ariadne resolve https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
 ```
 
-Restrict target services:
+Force the resource type, restrict services, or get full details:
 
 ```bash
+ariadne resolve --song https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B
 ariadne resolve --services=spotify,appleMusic https://www.deezer.com/album/12047952
-```
-
-Ask for full details instead of compact links:
-
-```bash
 ariadne resolve --verbose https://www.deezer.com/album/12047952
 ```
 
-By default, CLI prints compact JSON with the best URL for each service.
-
-Example:
+By default the CLI prints compact JSON with the best URL per service:
 
 ```json
 {
@@ -94,21 +79,21 @@ Example:
 
 Useful flags:
 
-- `--song` or `--album` to force resource type
-- `--verbose` to include metadata, scores, reasons, and alternates
-- `--format=json|yaml|csv` to change output format
-- `--services=spotify,deezer` to limit target services
-- `--min-strength=probable` to hide weaker matches
-- `--apple-music-storefront=us` to pick default Apple Music storefront when source URL does not include one
-- `--http-timeout=30s` to change per-request timeout
-- `--resolution-timeout=20s` to cap the whole resolve run
-- `--log-level=debug` to print CLI diagnostics to stderr
-- `--config=.env` or `--config=path/to/config.yaml` to load config from file
+- `--song` / `--album` — force resource type
+- `--verbose` — include metadata, scores, reasons, and alternates
+- `--format=json|yaml|csv` — output format
+- `--services=spotify,deezer` — limit target services
+- `--min-strength=probable` — hide weaker matches
+- `--apple-music-storefront=us` — default storefront when the URL has none
+- `--http-timeout=30s` / `--resolution-timeout=20s` — per-request and whole-run timeouts
+- `--log-level=debug` — CLI diagnostics on stderr
+- `--config=path/to/file` — load config from `.env`, yaml, json, or toml
+- `--version` — print CLI and library versions
 
-Full command shape:
+Which service is enabled under your config:
 
 ```bash
-ariadne resolve [--log-level=debug] [--song|--album] [--verbose] [--format=json|yaml|csv] [--services=spotify,deezer] [--min-strength=probable] [--apple-music-storefront=us] [--http-timeout=30s] [--resolution-timeout=20s] <url>
+ariadne help resolve
 ```
 
 ### Library
@@ -125,7 +110,7 @@ import (
 )
 
 func main() {
-	cfg := ariadne.LoadConfig()
+	cfg := ariadne.DefaultConfig()
 	cfg.TargetServices = []ariadne.ServiceName{
 		ariadne.ServiceSpotify,
 		ariadne.ServiceAppleMusic,
@@ -133,46 +118,35 @@ func main() {
 
 	resolver := ariadne.New(cfg)
 
-	albumResolution, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
+	album, err := resolver.ResolveAlbum(context.Background(), "https://www.deezer.com/album/12047952")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println("album:", albumResolution.Source.Title)
-	fmt.Println("spotify:", albumResolution.Matches[ariadne.ServiceSpotify].Best.URL)
-
-	songResolution, err := resolver.ResolveSong(context.Background(), "https://open.spotify.com/track/2takcwOaAZWiXQijPHIx7B")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("song:", songResolution.Source.Title)
+	fmt.Println("album:", album.Source.Title)
+	fmt.Println("spotify:", album.Matches[ariadne.ServiceSpotify].Best.URL)
 }
 ```
 
-Advanced construction is available when you want more control:
-
-- `ariadne.New(config, ariadne.WithHTTPClient(client))`
-- `ariadne.NewWithAdapters(ariadne.AdapterSet{...})`
+Construction options are minimal by design: `ariadne.New(config, ariadne.WithHTTPClient(client))` is the only knob. Which services participate is the library's decision — the Provider Catalog picks the adapters for a config, and the public package accepts no adapters of its own.
 
 ## How matching works
 
-At a high level, Ariadne does the same thing for every service:
+For every service the pipeline is the same:
 
-1. parse input URL
-2. fetch canonical metadata from source service
+1. parse the input URL
+2. fetch canonical metadata from the source service
 3. search each target service
 4. deduplicate candidates per service
-5. score candidates and return best match plus alternates
+5. score candidates and return the best match plus alternates
 
-When identifiers are available, Ariadne prefers them first:
+Identifiers come first, because they are exact:
 
-- album matching prefers `UPC`, then track `ISRC`, then metadata
-- song matching prefers `ISRC`, then metadata
+- albums: `UPC`, then track `ISRC`, then metadata
+- songs: `ISRC`, then metadata
 
-That means Spotify, Apple Music, and Deezer usually match more easily than services that rely mostly on fuzzy metadata search.
+That is why Spotify, Apple Music, and Deezer usually match more easily than metadata-only services. A failing target service never fails the whole run — its result carries the error while the others resolve normally.
 
-For detailed runtime behavior by service, see [`docs/service-resolution.md`](./docs/service-resolution.md).
+Per-service runtime behavior: [`docs/service-resolution.md`](./docs/service-resolution.md).
 
 ## Service support
 
@@ -189,75 +163,60 @@ For detailed runtime behavior by service, see [`docs/service-resolution.md`](./d
 
 ## Configuration
 
-Ariadne can read configuration from:
+Configuration comes from:
 
-- environment variables through `ariadne.LoadConfig()` in library code
-- environment variables in CLI use
-- `.env` file or other Viper-supported config file formats in CLI use
+- environment variables in library code: `ariadne.LoadConfigFromEnv(os.Getenv)`
+- environment variables, `.env` files, or Viper-supported config files in CLI use
 
-Common settings:
+Common settings: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `APPLE_MUSIC_STOREFRONT`, `APPLE_MUSIC_KEY_ID`, `APPLE_MUSIC_TEAM_ID`, `APPLE_MUSIC_PRIVATE_KEY_PATH`, `TIDAL_CLIENT_ID`, `TIDAL_CLIENT_SECRET`, `ARIADNE_HTTP_TIMEOUT`, `ARIADNE_TARGET_SERVICES`, `ARIADNE_LOG_LEVEL` (CLI).
 
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
-- `APPLE_MUSIC_STOREFRONT`
-- `APPLE_MUSIC_KEY_ID`
-- `APPLE_MUSIC_TEAM_ID`
-- `APPLE_MUSIC_PRIVATE_KEY_PATH`
-- `TIDAL_CLIENT_ID`
-- `TIDAL_CLIENT_SECRET`
-- `ARIADNE_HTTP_TIMEOUT`
-- `ARIADNE_TARGET_SERVICES`
-- `ARIADNE_LOG_LEVEL` for CLI diagnostics
-
-Full configuration guide: [`docs/configuration.md`](./docs/configuration.md)
+Full guide: [`docs/configuration.md`](./docs/configuration.md).
 
 ## Error handling
 
-If you use the library API, branch on exported errors with `errors.Is`, not string matching.
+Branch on exported errors with `errors.Is`, never string matching:
 
-Common exported errors:
-
-- `ariadne.ErrUnsupportedURL`
-- `ariadne.ErrNoSourceAdapters`
-- `ariadne.ErrResolverNotInitialized`
-- `ariadne.ErrRuntimeDeferred`
-- `ariadne.ErrAmazonMusicDeferred`
-- `ariadne.ErrYouTubeMusicDeferred`
-- `ariadne.ErrAppleMusicCredentialsNotConfigured`
-- `ariadne.ErrSpotifyCredentialsNotConfigured`
-- `ariadne.ErrTIDALCredentialsNotConfigured`
-- `ariadne.ErrSourceAdapterReturnedNilParsedURL`
-- `ariadne.ErrSourceAdapterReturnedNilAlbum`
-- `ariadne.ErrSourceAdapterReturnedNilSong`
-
-Example:
+| Error | When |
+|---|---|
+| `ariadne.ErrUnsupportedURL` | no source adapter recognized the input URL |
+| `ariadne.ErrNoSourceAdapters` | resolver built without source adapters; auto mode treats it as "not a song URL" |
+| `ariadne.ErrResolverNotInitialized` | resolve called on a nil or zero Resolver |
+| `ariadne.ErrRuntimeDeferred` | URL parses, but hydration is intentionally deferred for that service |
+| `ariadne.ErrAmazonMusicDeferred` | Amazon Music variant of the deferred sentinel |
+| `ariadne.ErrYouTubeMusicDeferred` | YouTube Music song variant of the deferred sentinel |
+| `ariadne.ErrAppleMusicCredentialsNotConfigured` | an Apple Music official API operation needs key material |
+| `ariadne.ErrSpotifyCredentialsNotConfigured` | a Spotify Web API operation needs app credentials |
+| `ariadne.ErrTIDALCredentialsNotConfigured` | a TIDAL operation needs app credentials |
 
 ```go
-resolution, err := resolver.ResolveAlbum(ctx, inputURL)
-if err != nil {
-	if errors.Is(err, ariadne.ErrUnsupportedURL) {
-		return err
-	}
-	if errors.Is(err, ariadne.ErrRuntimeDeferred) {
-		return err
-	}
-	if errors.Is(err, ariadne.ErrSpotifyCredentialsNotConfigured) {
-		return err
-	}
-	return err
+album, err := resolver.ResolveAlbum(ctx, inputURL)
+switch {
+case errors.Is(err, ariadne.ErrUnsupportedURL):
+	// not a URL any source adapter knows
+case errors.Is(err, ariadne.ErrSpotifyCredentialsNotConfigured):
+	// set SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET
+case err != nil:
+	// transport or API failure
 }
-
-_ = resolution
 ```
 
 ## Repository layout
 
-This repository contains two Go modules:
+Two Go modules:
 
 - library: `github.com/xmbshwll/ariadne`
 - CLI: `github.com/xmbshwll/ariadne/cmd`
 
-Most users can ignore this. It mainly matters for contributors and releases.
+Inside the library, `package ariadne` is the resolve surface — `Config`, `New`, `Resolver`, result types, and errors. Everything else lives under `internal/`:
+
+- `internal/wiring/` — the Provider Catalog: which services act as sources or targets, credential gating, ordering, adapter construction
+- `internal/resolve/` — the Entity Resolution pipeline
+- `internal/targetsearch/` — Target Search Plans, layer collection, and per-provider candidate collection
+- `internal/adapters/` — the eight Music Service adapters (platform code only)
+- `internal/canonical/`, `internal/normalize/`, `internal/score/`, `internal/model/` — shared canonical-mapping helpers, text normalization, Scoring, and domain types
+- `internal/auth/` — Credential Tokens: the client-credentials token source, Apple Music's signed developer token, and discovered credentials
+
+The CLI reads the Provider Catalog directly through `internal/wiring`; `package ariadne` carries no catalog surface.
 
 ## More docs
 

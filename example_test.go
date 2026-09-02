@@ -1,9 +1,6 @@
 package ariadne_test
 
 import (
-	"github.com/xmbshwll/ariadne/internal/model"
-
-	"context"
 	"fmt"
 	"net/http"
 
@@ -14,12 +11,12 @@ func ExampleDefaultConfig() {
 	cfg := ariadne.DefaultConfig()
 
 	fmt.Println(cfg.AppleMusicStorefront)
-	fmt.Println(cfg.SpotifyEnabled())
-	fmt.Println(cfg.TIDALEnabled())
+	fmt.Println(cfg.Spotify.ClientID)
+	fmt.Println(cfg.TIDAL.ClientSecret)
 	// Output:
 	// us
-	// false
-	// false
+	//
+	//
 }
 
 func ExampleLoadConfigFromEnv() {
@@ -41,12 +38,12 @@ func ExampleLoadConfigFromEnv() {
 	})
 
 	fmt.Println(cfg.AppleMusicStorefront)
-	fmt.Println(cfg.SpotifyEnabled())
-	fmt.Println(cfg.TIDALEnabled())
+	fmt.Println(cfg.Spotify.ClientID)
+	fmt.Println(cfg.TIDAL.ClientSecret)
 	// Output:
 	// gb
-	// true
-	// true
+	// spotify-client
+	// tidal-secret
 }
 
 func ExampleConfig_targetServices() {
@@ -76,205 +73,9 @@ func ExampleNew_withHTTPClient() {
 	// true
 }
 
-func ExampleResolver_ResolveAlbum() {
-	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
-		AlbumSources: []ariadne.SourceAdapter{exampleSourceAdapter{}},
-		AlbumTargets: []ariadne.TargetAdapter{exampleTargetAdapter{}},
-	})
-
-	resolution, err := resolver.ResolveAlbum(context.Background(), "https://example.test/albums/1")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(resolution.Source.Title)
-	fmt.Println(resolution.Matches[ariadne.ServiceSpotify].Best.URL)
-	// Output:
-	// Example Album
-	// https://open.spotify.com/album/example-1
-}
-
-func ExampleResolver_ResolveSong() {
-	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
-		SongSources: []ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
-		SongTargets: []ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
-	})
-
-	resolution, err := resolver.ResolveSong(context.Background(), "https://example.test/songs/1")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(resolution.Source.Title)
-	fmt.Println(resolution.Matches[ariadne.ServiceAppleMusic].Best.URL)
-	// Output:
-	// Example Song
-	// https://music.apple.com/us/album/example-album/2?i=3
-}
-
-func ExampleResolver_Resolve() {
-	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
-		AlbumSources: []ariadne.SourceAdapter{exampleSourceAdapter{}},
-		AlbumTargets: []ariadne.TargetAdapter{exampleTargetAdapter{}},
-		SongSources:  []ariadne.SongSourceAdapter{exampleSongSourceAdapter{}},
-		SongTargets:  []ariadne.SongTargetAdapter{exampleSongTargetAdapter{}},
-	})
-
-	resolution, err := resolver.Resolve(context.Background(), "https://example.test/songs/1")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(resolution.Parsed.EntityType)
-	fmt.Println(resolution.Song.Source.Title)
-	// Output:
-	// song
-	// Example Song
-}
-
-func ExampleNewWithAdapters_customWeights() {
-	weights := ariadne.DefaultScoreWeights()
-	weights.TrackTitleStrong = 40
-
-	resolver := ariadne.NewWithAdapters(ariadne.AdapterSet{
-		AlbumSources: []ariadne.SourceAdapter{exampleSourceAdapter{}},
-		AlbumTargets: []ariadne.TargetAdapter{exampleTargetAdapter{}},
-		Weights:      weights,
-	})
-
-	resolution, err := resolver.ResolveAlbum(context.Background(), "https://example.test/albums/1")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(resolution.Matches[ariadne.ServiceSpotify].Best.URL)
-	// Output:
-	// https://open.spotify.com/album/example-1
-}
-
-type exampleSourceAdapter struct{}
-
-func (exampleSourceAdapter) Service() ariadne.ServiceName {
-	return ariadne.ServiceDeezer
-}
-
-func (exampleSourceAdapter) ParseAlbumURL(raw string) (*ariadne.ParsedAlbumURL, error) {
-	return &ariadne.ParsedAlbumURL{
-		Service:      ariadne.ServiceDeezer,
-		EntityType:   model.EntityTypeAlbum,
-		ID:           "example-1",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (exampleSourceAdapter) FetchAlbum(_ context.Context, parsed ariadne.ParsedAlbumURL) (*ariadne.CanonicalAlbum, error) {
-	return &ariadne.CanonicalAlbum{
-		Service:           parsed.Service,
-		SourceID:          parsed.ID,
-		SourceURL:         parsed.CanonicalURL,
-		Title:             "Example Album",
-		NormalizedTitle:   "example album",
-		Artists:           []string{"Example Artist"},
-		NormalizedArtists: []string{"example artist"},
-		UPC:               "123456789012",
-		Tracks: []ariadne.CanonicalTrack{
-			{Title: "Intro", NormalizedTitle: "intro", ISRC: "ISRC0001"},
-		},
-	}, nil
-}
-
-type exampleTargetAdapter struct{}
-
-func (exampleTargetAdapter) Service() ariadne.ServiceName {
-	return ariadne.ServiceSpotify
-}
-
-func (exampleTargetAdapter) SearchByUPC(_ context.Context, upc string) ([]ariadne.CandidateAlbum, error) {
-	return []ariadne.CandidateAlbum{{
-		CanonicalAlbum: ariadne.CanonicalAlbum{
-			Service:           ariadne.ServiceSpotify,
-			SourceID:          "example-1",
-			SourceURL:         "https://open.spotify.com/album/example-1",
-			Title:             "Example Album",
-			NormalizedTitle:   "example album",
-			Artists:           []string{"Example Artist"},
-			NormalizedArtists: []string{"example artist"},
-			UPC:               upc,
-		},
-		CandidateID: "example-1",
-		MatchURL:    "https://open.spotify.com/album/example-1",
-	}}, nil
-}
-
-func (exampleTargetAdapter) SearchByISRC(_ context.Context, _ []string) ([]ariadne.CandidateAlbum, error) {
-	return nil, nil
-}
-
-func (exampleTargetAdapter) SearchByMetadata(_ context.Context, _ ariadne.CanonicalAlbum) ([]ariadne.CandidateAlbum, error) {
-	return nil, nil
-}
-
-type exampleSongSourceAdapter struct{}
-
-func (exampleSongSourceAdapter) Service() ariadne.ServiceName {
-	return ariadne.ServiceSpotify
-}
-
-func (exampleSongSourceAdapter) ParseSongURL(raw string) (*ariadne.ParsedURL, error) {
-	return &ariadne.ParsedURL{
-		Service:      ariadne.ServiceSpotify,
-		EntityType:   model.EntityTypeSong,
-		ID:           "song-1",
-		CanonicalURL: raw,
-		RawURL:       raw,
-	}, nil
-}
-
-func (exampleSongSourceAdapter) FetchSong(_ context.Context, parsed ariadne.ParsedURL) (*ariadne.CanonicalSong, error) {
-	return &ariadne.CanonicalSong{
-		Service:              parsed.Service,
-		SourceID:             parsed.ID,
-		SourceURL:            parsed.CanonicalURL,
-		Title:                "Example Song",
-		NormalizedTitle:      "example song",
-		Artists:              []string{"Example Artist"},
-		NormalizedArtists:    []string{"example artist"},
-		DurationMS:           180000,
-		ISRC:                 "ISRCSONG001",
-		TrackNumber:          1,
-		AlbumTitle:           "Example Album",
-		AlbumNormalizedTitle: "example album",
-	}, nil
-}
-
-type exampleSongTargetAdapter struct{}
-
-func (exampleSongTargetAdapter) Service() ariadne.ServiceName {
-	return ariadne.ServiceAppleMusic
-}
-
-func (exampleSongTargetAdapter) SearchSongByISRC(_ context.Context, isrc string) ([]ariadne.CandidateSong, error) {
-	return []ariadne.CandidateSong{{
-		CanonicalSong: ariadne.CanonicalSong{
-			Service:              ariadne.ServiceAppleMusic,
-			SourceID:             "apple-song-1",
-			SourceURL:            "https://music.apple.com/us/album/example-album/2?i=3",
-			Title:                "Example Song",
-			NormalizedTitle:      "example song",
-			Artists:              []string{"Example Artist"},
-			NormalizedArtists:    []string{"example artist"},
-			DurationMS:           180050,
-			ISRC:                 isrc,
-			TrackNumber:          1,
-			AlbumTitle:           "Example Album",
-			AlbumNormalizedTitle: "example album",
-		},
-		CandidateID: "apple-song-1",
-		MatchURL:    "https://music.apple.com/us/album/example-album/2?i=3",
-	}}, nil
-}
-
-func (exampleSongTargetAdapter) SearchSongByMetadata(_ context.Context, _ ariadne.CanonicalSong) ([]ariadne.CandidateSong, error) {
-	return nil, nil
-}
+// The remaining Resolver behavior — Entity Resolution over a source adapter and
+// Target Search over a target adapter, plus custom ranking weights — is covered
+// by the package tests, which build adapters from the internal adapter
+// interface. It is not shown as an example here because authoring an adapter is
+// no longer part of the public API: callers get the built-in Provider Catalog
+// adapters through New and customize behavior with Config and WithHTTPClient.

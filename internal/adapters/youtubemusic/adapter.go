@@ -6,7 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters"
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -18,7 +19,7 @@ const (
 
 var (
 	// ErrDeferredRuntimeAdapter indicates that a YouTube Music URL parsed successfully, but runtime song hydration is intentionally deferred.
-	ErrDeferredRuntimeAdapter = adapterutil.RuntimeDeferredService(model.ServiceYouTubeMusic)
+	ErrDeferredRuntimeAdapter = adapters.RuntimeDeferredService(model.ServiceYouTubeMusic)
 
 	canonicalURLPattern   = regexp.MustCompile(`(?i)<link rel="canonical" href="([^"]+)"`)
 	ogTitlePattern        = regexp.MustCompile(`(?i)<meta property="og:title" content="([^"]+)"`)
@@ -29,7 +30,7 @@ var (
 
 	errUnexpectedYouTubeMusicService  = errors.New("unexpected youtube music service")
 	errUnexpectedYouTubeMusicStatus   = errors.New("unexpected youtube music status")
-	errMalformedYouTubeMusicPage      = errors.New("malformed youtube music page")
+	ErrMalformedYouTubeMusicPage      = errors.New("malformed youtube music page")
 	errYouTubeMusicAlbumTitleNotFound = errors.New("youtube music album title not found")
 	errNilYouTubeMusicCanonicalAlbum  = errors.New("youtube music adapter returned nil canonical album")
 )
@@ -43,6 +44,8 @@ func WithBaseURL(baseURL string) Option {
 }
 
 type Adapter struct {
+	base.Unsupported
+
 	client  *http.Client
 	baseURL string
 }
@@ -51,15 +54,15 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	adapter := &Adapter{client: client, baseURL: defaultBaseURL}
+	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceYouTubeMusic},
+		client:      client,
+		baseURL:     defaultBaseURL,
+	}
 	for _, opt := range opts {
 		opt(adapter)
 	}
 	return adapter
-}
-
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceYouTubeMusic
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {

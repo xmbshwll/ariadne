@@ -1,4 +1,4 @@
-package applemusic
+package applemusic_test
 
 import (
 	"context"
@@ -6,15 +6,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestSearchByUPCWithoutOfficialAuthReturnsNoResults(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.adapter.SearchByUPC(context.Background(), "123")
+	results, err := fixture.adapter.SearchAlbumByUPC(context.Background(), "123")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -22,7 +25,7 @@ func TestSearchByUPCWithoutOfficialAuthReturnsNoResults(t *testing.T) {
 func TestSearchByISRCWithoutOfficialAuthReturnsNoResults(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.adapter.SearchByISRC(context.Background(), []string{"ABC"})
+	results, err := fixture.adapter.SearchAlbumByISRC(context.Background(), []string{"ABC"})
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -44,8 +47,8 @@ func TestSearchAlbumByMetadataKeepsEarlierResultsWhenLaterQueriesFail(t *testing
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	adapter := New(server.Client(), WithLookupBaseURL(server.URL), WithDefaultStorefront("gb"))
-	results, err := adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	adapter := applemusic.New(server.Client(), applemusic.WithLookupBaseURL(server.URL), applemusic.WithDefaultStorefront("gb"))
+	results, err := adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   abbeyRoadRemastered,
 		Artists: []string{"The Beatles"},
 	})
@@ -55,7 +58,7 @@ func TestSearchAlbumByMetadataKeepsEarlierResultsWhenLaterQueriesFail(t *testing
 }
 
 func TestBuildMetadataQueriesPrefersArtistQueriesBeforeTitleOnlyFallbacks(t *testing.T) {
-	queries := buildMetadataQueries("Solid Static (Deluxe Edition)", []string{"Musica Transonic + Mainliner"})
+	queries := applemusic.BuildMetadataQueries("Solid Static (Deluxe Edition)", []string{"Musica Transonic + Mainliner"})
 	require.GreaterOrEqual(t, len(queries), 4)
 	assert.Equal(t, "Solid Static (Deluxe Edition) Musica Transonic + Mainliner", queries[0])
 	assert.Equal(t, "Solid Static (Deluxe Edition)", queries[len(queries)-2])

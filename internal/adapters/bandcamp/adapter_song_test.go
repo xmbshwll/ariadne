@@ -1,11 +1,14 @@
-package bandcamp
+package bandcamp_test
 
 import (
 	"context"
 	"testing"
 
+	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -21,7 +24,7 @@ func TestSearchSongByMetadataReturnsFirstHydrationErrorWhenNothingRecovers(t *te
 	adapter := newBandcampTestAdapter(server)
 	_, err := adapter.SearchSongByMetadata(context.Background(), model.CanonicalSong{Title: "Come Together", Artists: []string{"COMRADIATION"}})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedBandcampJSONLD)
+	assert.ErrorIs(t, err, bandcamp.ErrMalformedBandcampJSONLD)
 }
 
 func TestSongAdapter(t *testing.T) {

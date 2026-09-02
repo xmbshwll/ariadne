@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
-	"github.com/xmbshwll/ariadne/internal/applemusicauth"
+	"github.com/xmbshwll/ariadne/internal/canonical"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
-// SearchByUPC uses the official Apple Music catalog API when MusicKit auth is configured.
-func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByUPC uses the official Apple Music catalog API when MusicKit auth is configured.
+func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" || !a.authEnabled() {
 		return nil, nil
@@ -26,17 +27,17 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, fmt.Errorf("search apple music by upc: %w", err)
 	}
 	albumIDs := officialAlbumIDs(payload)
-	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+	return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
 
-// SearchByISRC uses the official Apple Music catalog API when MusicKit auth is configured.
-func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByISRC uses the official Apple Music catalog API when MusicKit auth is configured.
+func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
 	if !a.authEnabled() {
 		return nil, nil
 	}
 
 	storefront := a.defaultStorefront
-	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+	isrcs = normalize.NonEmpty(isrcs)
 	seenAlbumIDs := make(map[string]struct{}, len(isrcs))
 	albumIDs := make([]string, 0, len(isrcs))
 	var firstErr error
@@ -51,13 +52,13 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 		}
 		albumIDs = appendUniqueOfficialAlbumIDs(albumIDs, seenAlbumIDs, officialAlbumIDsFromSongs(payload))
 		if len(albumIDs) >= searchLimit {
-			return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+			return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 		}
 	}
 	if len(albumIDs) == 0 && firstErr != nil {
 		return nil, fmt.Errorf("search apple music by isrc: %w", firstErr)
 	}
-	return a.hydrateOfficialAlbums(ctx, albumIDs, storefront)
+	return a.HydrateOfficialAlbums(ctx, albumIDs, storefront)
 }
 
 func appendUniqueOfficialAlbumIDs(dst []string, seen map[string]struct{}, ids []string) []string {
@@ -85,62 +86,44 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		return nil, fmt.Errorf("search apple music song by isrc: %w", err)
 	}
 	songIDs := officialSongIDs(payload)
-	return a.hydrateSongs(ctx, songIDs, storefront)
+	return a.HydrateSongs(ctx, songIDs, storefront)
 }
 
 func (a *Adapter) authEnabled() bool {
-	return a.appleMusicKeyID != "" && a.appleMusicTeamID != "" && a.appleMusicPrivateKeyPath != ""
+	return a.developerTokens.Configured()
 }
 
-func (a *Adapter) developerToken() (string, error) {
+func (a *Adapter) developerToken(ctx context.Context) (string, error) {
 	if !a.authEnabled() {
 		return "", ErrCredentialsNotConfigured
 	}
-
-	a.tokenMu.Lock()
-	defer a.tokenMu.Unlock()
-	now := time.Now()
-	if a.cachedToken != "" && now.Before(a.tokenExpiresAt) {
-		return a.cachedToken, nil
-	}
-
-	token, err := applemusicauth.GenerateDeveloperToken(applemusicauth.Config{
-		KeyID:          a.appleMusicKeyID,
-		TeamID:         a.appleMusicTeamID,
-		PrivateKeyPath: a.appleMusicPrivateKeyPath,
-		TTL:            time.Hour,
-	}, now.UTC())
-	if err != nil {
-		return "", fmt.Errorf("generate apple music developer token: %w", err)
-	}
-	a.cachedToken = token
-	a.tokenExpiresAt = now.Add(55 * time.Minute)
-	return a.cachedToken, nil
+	//nolint:wrapcheck // The token source preserves its own error identity.
+	return a.developerTokens.AccessToken(ctx)
 }
 
 func (a *Adapter) getOfficialJSON(ctx context.Context, requestURL string, target any) error {
-	developerToken, err := a.developerToken()
+	developerToken, err := a.developerToken(ctx)
 	if err != nil {
 		return err
 	}
 
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			URL:          requestURL,
 			Headers:      map[string]string{"Authorization": "Bearer " + developerToken},
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build apple music official request",
 			ExecuteError: "execute apple music official request",
-			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicOfficialStatus),
+			StatusError:  httpx.StatusError(errUnexpectedAppleMusicOfficialStatus),
 		},
 		DecodeError:       "decode apple music official response",
-		MalformedResponse: errMalformedAppleMusicOfficialResponse,
+		MalformedResponse: ErrMalformedAppleMusicOfficialResponse,
 	}, target)
 }
 
-func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
+func (a *Adapter) HydrateOfficialAlbums(ctx context.Context, albumIDs []string, storefront string) ([]model.CandidateAlbum, error) {
 	return hydrateAppleMusicOfficialCandidates(
 		ctx,
 		albumIDs,
@@ -150,12 +133,12 @@ func (a *Adapter) hydrateOfficialAlbums(ctx context.Context, albumIDs []string, 
 			if err != nil {
 				return model.CandidateAlbum{}, err
 			}
-			return toCandidateAlbum(*album), nil
+			return canonical.CandidateAlbum(*album), nil
 		},
 	)
 }
 
-func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
+func (a *Adapter) HydrateSongs(ctx context.Context, songIDs []string, storefront string) ([]model.CandidateSong, error) {
 	return hydrateAppleMusicOfficialCandidates(
 		ctx,
 		songIDs,
@@ -165,14 +148,14 @@ func (a *Adapter) hydrateSongs(ctx context.Context, songIDs []string, storefront
 			if err != nil {
 				return model.CandidateSong{}, err
 			}
-			return toCandidateSong(*song), nil
+			return canonical.CandidateSong(*song), nil
 		},
 	)
 }
 
 func hydrateAppleMusicOfficialCandidates[Input any, Candidate any](ctx context.Context, items []Input, itemID func(Input) string, fetch func(context.Context, Input) (Candidate, error)) ([]Candidate, error) {
 	//nolint:wrapcheck // Preserve per-item fetch errors from the shared candidate collector.
-	return adapterutil.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
+	return targetsearch.CollectCandidates(ctx, items, searchLimit, itemID, fetch)
 }
 
 func (a *Adapter) fetchOfficialAlbumByID(ctx context.Context, albumID string, storefront string) (*model.CanonicalAlbum, error) {

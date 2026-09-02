@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/xmbshwll/ariadne/internal/model"
-	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/score"
 )
 
 var (
@@ -17,7 +17,7 @@ var (
 	songSearchResultPattern  = regexp.MustCompile(`(?s)<li class="searchresult data-search".*?<div class="itemtype">\s*TRACK\s*</div>.*?<div class="heading">\s*<a href="([^"]+)">\s*(.*?)\s*</a>.*?(?:<div class="subhead">\s*by\s*(.*?)\s*</div>)?.*?(?:<div class="released">\s*released\s*(.*?)\s*</div>)?.*?</li>`)
 )
 
-type searchCandidate struct {
+type SearchCandidate struct {
 	URL         string
 	Title       string
 	Artist      string
@@ -26,14 +26,14 @@ type searchCandidate struct {
 }
 
 type rankedSearchCandidate struct {
-	Candidate searchCandidate
+	Candidate SearchCandidate
 	Score     int
 }
 
-func extractSearchCandidates(body []byte) []searchCandidate {
+func ExtractSearchCandidates(body []byte) []SearchCandidate {
 	matches := albumSearchResultPattern.FindAllSubmatch(body, -1)
-	return collectSearchCandidates(matches, func(match [][]byte) searchCandidate {
-		return searchCandidate{
+	return collectSearchCandidates(matches, func(match [][]byte) SearchCandidate {
+		return SearchCandidate{
 			URL:         canonicalizeAlbumSearchURL(string(match[1])),
 			Title:       cleanSearchText(string(match[2])),
 			Artist:      cleanSearchText(string(match[3])),
@@ -43,10 +43,10 @@ func extractSearchCandidates(body []byte) []searchCandidate {
 	})
 }
 
-func extractSongSearchCandidates(body []byte) []searchCandidate {
+func ExtractSongSearchCandidates(body []byte) []SearchCandidate {
 	matches := songSearchResultPattern.FindAllSubmatch(body, -1)
-	return collectSearchCandidates(matches, func(match [][]byte) searchCandidate {
-		return searchCandidate{
+	return collectSearchCandidates(matches, func(match [][]byte) SearchCandidate {
+		return SearchCandidate{
 			URL:         canonicalizeSongSearchURL(string(match[1])),
 			Title:       cleanSearchText(string(match[2])),
 			Artist:      cleanSearchText(string(match[3])),
@@ -55,22 +55,22 @@ func extractSongSearchCandidates(body []byte) []searchCandidate {
 	})
 }
 
-func extractAutocompleteAlbumSearchCandidates(response fuzzySearchResponse) []searchCandidate {
+func ExtractAutocompleteAlbumSearchCandidates(response fuzzySearchResponse) []SearchCandidate {
 	return collectAutocompleteSearchCandidates(response, "a", canonicalizeAlbumSearchURL)
 }
 
-func extractAutocompleteSongSearchCandidates(response fuzzySearchResponse) []searchCandidate {
+func extractAutocompleteSongSearchCandidates(response fuzzySearchResponse) []SearchCandidate {
 	return collectAutocompleteSearchCandidates(response, "t", canonicalizeSongSearchURL)
 }
 
-func collectAutocompleteSearchCandidates(response fuzzySearchResponse, resultType string, canonicalize func(string) string) []searchCandidate {
-	results := make([]searchCandidate, 0, len(response.Results))
+func collectAutocompleteSearchCandidates(response fuzzySearchResponse, resultType string, canonicalize func(string) string) []SearchCandidate {
+	results := make([]SearchCandidate, 0, len(response.Results))
 	seen := make(map[string]struct{}, len(response.Results))
 	for _, result := range response.Results {
 		if result.Type != resultType {
 			continue
 		}
-		candidate := searchCandidate{
+		candidate := SearchCandidate{
 			URL:    canonicalize(result.URL),
 			Title:  cleanSearchText(result.Name),
 			Artist: cleanSearchText(result.BandName),
@@ -80,8 +80,8 @@ func collectAutocompleteSearchCandidates(response fuzzySearchResponse, resultTyp
 	return results
 }
 
-func collectSearchCandidates(matches [][][]byte, build func(match [][]byte) searchCandidate) []searchCandidate {
-	results := make([]searchCandidate, 0, len(matches))
+func collectSearchCandidates(matches [][][]byte, build func(match [][]byte) SearchCandidate) []SearchCandidate {
+	results := make([]SearchCandidate, 0, len(matches))
 	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
 		results = appendUniqueSearchCandidate(results, seen, build(match))
@@ -89,7 +89,7 @@ func collectSearchCandidates(matches [][][]byte, build func(match [][]byte) sear
 	return results
 }
 
-func appendUniqueSearchCandidate(results []searchCandidate, seen map[string]struct{}, candidate searchCandidate) []searchCandidate {
+func appendUniqueSearchCandidate(results []SearchCandidate, seen map[string]struct{}, candidate SearchCandidate) []SearchCandidate {
 	if candidate.URL == "" {
 		return results
 	}
@@ -100,19 +100,18 @@ func appendUniqueSearchCandidate(results []searchCandidate, seen map[string]stru
 	return append(results, candidate)
 }
 
-func rankSearchCandidates(source model.CanonicalAlbum, candidates []searchCandidate) []searchCandidate {
-	return rankCandidates(candidates, func(candidate searchCandidate) int {
-		return scoreSearchCandidate(source, candidate)
-	})
+// preSelectionMarkers is the edition-word subset Bandcamp's pre-selection
+// strips: the ones that appear in Bandcamp listing titles.
+var preSelectionMarkers = []string{"super deluxe", "remastered", "remix", "mix", "deluxe", "live"}
+
+// scoreSearchMetadata sums the pre-selection ranks for one wire candidate.
+func scoreSearchMetadata(sourceTitle string, sourceArtists []string, sourceReleaseDate string, candidate SearchCandidate) int {
+	return score.PreSelectionTitleRank(sourceTitle, candidate.Title, preSelectionMarkers) +
+		score.PreSelectionArtistRank(sourceArtists, candidate.Artist) +
+		score.PreSelectionReleaseYearRank(sourceReleaseDate, candidate.ReleaseDate)
 }
 
-func rankSongSearchCandidates(source model.CanonicalSong, candidates []searchCandidate) []searchCandidate {
-	return rankCandidates(candidates, func(candidate searchCandidate) int {
-		return scoreSongSearchCandidate(source, candidate)
-	})
-}
-
-func rankCandidates(candidates []searchCandidate, scoreCandidate func(searchCandidate) int) []searchCandidate {
+func rankCandidates(candidates []SearchCandidate, scoreCandidate func(SearchCandidate) int) []SearchCandidate {
 	ranked := make([]rankedSearchCandidate, 0, len(candidates))
 	for _, candidate := range candidates {
 		ranked = append(ranked, rankedSearchCandidate{
@@ -128,14 +127,26 @@ func rankCandidates(candidates []searchCandidate, scoreCandidate func(searchCand
 		return ranked[i].Score > ranked[j].Score
 	})
 
-	ordered := make([]searchCandidate, 0, len(ranked))
+	ordered := make([]SearchCandidate, 0, len(ranked))
 	for _, candidate := range ranked {
 		ordered = append(ordered, candidate.Candidate)
 	}
 	return ordered
 }
 
-func scoreSearchCandidate(source model.CanonicalAlbum, candidate searchCandidate) int {
+func RankSearchCandidates(source model.CanonicalAlbum, candidates []SearchCandidate) []SearchCandidate {
+	return rankCandidates(candidates, func(candidate SearchCandidate) int {
+		return scoreSearchCandidate(source, candidate)
+	})
+}
+
+func rankSongSearchCandidates(source model.CanonicalSong, candidates []SearchCandidate) []SearchCandidate {
+	return rankCandidates(candidates, func(candidate SearchCandidate) int {
+		return scoreSongSearchCandidate(source, candidate)
+	})
+}
+
+func scoreSearchCandidate(source model.CanonicalAlbum, candidate SearchCandidate) int {
 	score := scoreSearchMetadata(source.Title, source.Artists, source.ReleaseDate, candidate)
 
 	if source.TrackCount <= 0 || candidate.TrackCount <= 0 {
@@ -158,58 +169,8 @@ func scoreSearchCandidate(source model.CanonicalAlbum, candidate searchCandidate
 	return score
 }
 
-func scoreSongSearchCandidate(source model.CanonicalSong, candidate searchCandidate) int {
+func scoreSongSearchCandidate(source model.CanonicalSong, candidate SearchCandidate) int {
 	return scoreSearchMetadata(source.Title, source.Artists, source.ReleaseDate, candidate)
-}
-
-func scoreSearchMetadata(sourceTitle string, sourceArtists []string, sourceReleaseDate string, candidate searchCandidate) int {
-	score := scoreTitle(sourceTitle, candidate.Title)
-	score += scoreArtist(sourceArtists, candidate.Artist)
-	score += scoreReleaseDate(sourceReleaseDate, candidate.ReleaseDate)
-	return score
-}
-
-func scoreTitle(sourceTitle string, candidateTitle string) int {
-	sourceTitle = normalize.Text(sourceTitle)
-	candidateTitle = normalize.Text(candidateTitle)
-	sourceCoreTitle := coreTitle(sourceTitle)
-	candidateCoreTitle := coreTitle(candidateTitle)
-	switch {
-	case sourceTitle != "" && sourceTitle == candidateTitle:
-		return 40
-	case sourceCoreTitle != "" && sourceCoreTitle == candidateCoreTitle:
-		return 25
-	case strings.Contains(candidateTitle, sourceTitle) || strings.Contains(sourceTitle, candidateTitle):
-		return 10
-	default:
-		return 0
-	}
-}
-
-func scoreArtist(sourceArtists []string, candidateArtist string) int {
-	sourceArtist := ""
-	if len(sourceArtists) > 0 {
-		sourceArtist = normalize.Text(sourceArtists[0])
-	}
-	candidateArtist = normalize.Text(candidateArtist)
-	switch {
-	case sourceArtist != "" && sourceArtist == candidateArtist:
-		return 45
-	case sourceArtist != "" && strings.Contains(candidateArtist, sourceArtist):
-		return 20
-	default:
-		return 0
-	}
-}
-
-func scoreReleaseDate(sourceReleaseDate string, candidateReleaseDate string) int {
-	if sourceReleaseDate == "" || candidateReleaseDate == "" || len(sourceReleaseDate) < 4 || len(candidateReleaseDate) < 4 {
-		return 0
-	}
-	if sourceReleaseDate[:4] == candidateReleaseDate[:4] {
-		return 5
-	}
-	return 0
 }
 
 func cleanSearchText(value string) string {
@@ -266,12 +227,4 @@ func parseReleasedText(value string) string {
 		}
 	}
 	return ""
-}
-
-func coreTitle(value string) string {
-	normalized := normalize.Text(value)
-	for _, marker := range []string{" remastered", " remix", " mix", " deluxe", " super deluxe", " live"} {
-		normalized = strings.ReplaceAll(normalized, marker, "")
-	}
-	return strings.Join(strings.Fields(normalized), " ")
 }

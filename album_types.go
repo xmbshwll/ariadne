@@ -11,9 +11,6 @@ type ParsedURL = model.ParsedURL
 // ParsedAlbumURL keeps album-specific APIs readable while sharing the common parsed URL shape.
 type ParsedAlbumURL = model.ParsedAlbumURL
 
-// ParsedSongURL keeps song-specific APIs readable while sharing the common parsed URL shape.
-type ParsedSongURL = model.ParsedURL
-
 // CanonicalTrack is the normalized track representation shared across services.
 type CanonicalTrack = model.CanonicalTrack
 

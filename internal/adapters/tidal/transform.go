@@ -3,17 +3,17 @@ package tidal
 import (
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalAlbum {
-	resourceByID := includedResourceIndex(included)
-	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+func ToCanonicalAlbum(resource APIResource, included []APIResource, canonicalURL string, regionHint string) *model.CanonicalAlbum {
+	resourceByID := IncludedResourceIndex(included)
+	artistNames := IncludedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 	tracks := tracksFromIncluded(included, resource.Relationships.Items.Data, artistNames)
-	artworkURL := artworkURLFromIncluded(resourceByID, resource.Relationships.CoverArt.Data)
+	artworkURL := ArtworkURLFromIncluded(resourceByID, resource.Relationships.CoverArt.Data)
 	trackCount := resource.Attributes.NumberOfItems
 	if trackCount == 0 {
 		trackCount = len(tracks)
@@ -32,9 +32,9 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 		NormalizedArtists: normalize.Artists(artistNames),
 		ReleaseDate:       resource.Attributes.ReleaseDate,
 		Label:             resource.Attributes.Copyright.Text,
-		UPC:               firstNonEmpty(resource.Attributes.BarcodeID, resource.Attributes.UPC),
+		UPC:               canonical.FirstNonEmpty(resource.Attributes.BarcodeID, resource.Attributes.UPC),
 		TrackCount:        trackCount,
-		TotalDurationMS:   parseISODurationMilliseconds(resource.Attributes.Duration),
+		TotalDurationMS:   canonical.ISODurationMilliseconds(resource.Attributes.Duration),
 		ArtworkURL:        artworkURL,
 		Explicit:          resource.Attributes.Explicit,
 		EditionHints:      normalize.EditionHints(resource.Attributes.Title),
@@ -42,10 +42,10 @@ func toCanonicalAlbum(resource apiResource, included []apiResource, canonicalURL
 	}
 }
 
-func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL string, regionHint string) *model.CanonicalSong {
-	resourceByID := includedResourceIndex(included)
-	artistNames := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
-	albumResource := firstRelatedResource(resourceByID, resource.Relationships.Albums.Data, "albums")
+func toCanonicalSong(resource APIResource, included []APIResource, canonicalURL string, regionHint string) *model.CanonicalSong {
+	resourceByID := IncludedResourceIndex(included)
+	artistNames := IncludedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+	albumResource := FirstRelatedResource(resourceByID, resource.Relationships.Albums.Data, "albums")
 	albumTitle := ""
 	albumNormalizedTitle := ""
 	albumArtists := []string{}
@@ -55,12 +55,12 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	if albumResource != nil {
 		albumTitle = albumResource.Attributes.Title
 		albumNormalizedTitle = normalize.Text(albumTitle)
-		albumArtists = includedArtistNames(resourceByID, albumResource.Relationships.Artists.Data)
+		albumArtists = IncludedArtistNames(resourceByID, albumResource.Relationships.Artists.Data)
 		albumNormalizedArtists = normalize.Artists(albumArtists)
 		if releaseDate == "" {
 			releaseDate = albumResource.Attributes.ReleaseDate
 		}
-		artworkURL = artworkURLFromIncluded(resourceByID, albumResource.Relationships.CoverArt.Data)
+		artworkURL = ArtworkURLFromIncluded(resourceByID, albumResource.Relationships.CoverArt.Data)
 	}
 	if canonicalURL == "" {
 		canonicalURL = canonicalTrackURL(resource.ID)
@@ -74,7 +74,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 		NormalizedTitle:        normalize.Text(resource.Attributes.Title),
 		Artists:                artistNames,
 		NormalizedArtists:      normalize.Artists(artistNames),
-		DurationMS:             parseISODurationMilliseconds(resource.Attributes.Duration),
+		DurationMS:             canonical.ISODurationMilliseconds(resource.Attributes.Duration),
 		ISRC:                   strings.TrimSpace(resource.Attributes.ISRC),
 		Explicit:               resource.Attributes.Explicit,
 		DiscNumber:             firstTrackVolumeNumber(resource.Relationships.Albums.Data),
@@ -90,7 +90,7 @@ func toCanonicalSong(resource apiResource, included []apiResource, canonicalURL 
 	}
 }
 
-func includedArtistNames(resourceByID map[string]apiResource, relations []relationshipData) []string {
+func IncludedArtistNames(resourceByID map[string]APIResource, relations []RelationshipData) []string {
 	results := make([]string, 0, len(relations))
 	seen := make(map[string]struct{}, len(relations))
 	for _, relation := range relations {
@@ -101,20 +101,20 @@ func includedArtistNames(resourceByID map[string]apiResource, relations []relati
 		if !ok {
 			continue
 		}
-		name := firstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
-		if name == "" {
+		Name := canonical.FirstNonEmpty(resource.Attributes.Name, resource.Attributes.Title)
+		if Name == "" {
 			continue
 		}
-		if _, ok := seen[name]; ok {
+		if _, ok := seen[Name]; ok {
 			continue
 		}
-		seen[name] = struct{}{}
-		results = append(results, name)
+		seen[Name] = struct{}{}
+		results = append(results, Name)
 	}
 	return results
 }
 
-func firstRelatedResource(resourceByID map[string]apiResource, relations []relationshipData, typ string) *apiResource {
+func FirstRelatedResource(resourceByID map[string]APIResource, relations []RelationshipData, typ string) *APIResource {
 	for _, relation := range relations {
 		if relation.Type != typ {
 			continue
@@ -129,7 +129,7 @@ func firstRelatedResource(resourceByID map[string]apiResource, relations []relat
 	return nil
 }
 
-func firstRelatedID(relations []relationshipData, typ string) string {
+func firstRelatedID(relations []RelationshipData, typ string) string {
 	for _, relation := range relations {
 		if relation.Type == typ && relation.ID != "" {
 			return relation.ID
@@ -138,7 +138,7 @@ func firstRelatedID(relations []relationshipData, typ string) string {
 	return ""
 }
 
-func firstTrackNumber(relations []relationshipData) int {
+func firstTrackNumber(relations []RelationshipData) int {
 	for _, relation := range relations {
 		if relation.Meta.TrackNumber > 0 {
 			return relation.Meta.TrackNumber
@@ -147,7 +147,7 @@ func firstTrackNumber(relations []relationshipData) int {
 	return 0
 }
 
-func firstTrackVolumeNumber(relations []relationshipData) int {
+func firstTrackVolumeNumber(relations []RelationshipData) int {
 	for _, relation := range relations {
 		if relation.Meta.VolumeNumber > 0 {
 			return relation.Meta.VolumeNumber
@@ -156,8 +156,8 @@ func firstTrackVolumeNumber(relations []relationshipData) int {
 	return 0
 }
 
-func tracksFromIncluded(included []apiResource, relations []relationshipData, fallbackArtists []string) []model.CanonicalTrack {
-	resourceByID := includedResourceIndex(included)
+func tracksFromIncluded(included []APIResource, relations []RelationshipData, fallbackArtists []string) []model.CanonicalTrack {
+	resourceByID := IncludedResourceIndex(included)
 	tracks := make([]model.CanonicalTrack, 0, len(relations))
 	for _, relation := range relations {
 		if relation.Type != "tracks" {
@@ -167,7 +167,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 		if !ok {
 			continue
 		}
-		trackArtists := includedArtistNames(resourceByID, resource.Relationships.Artists.Data)
+		trackArtists := IncludedArtistNames(resourceByID, resource.Relationships.Artists.Data)
 		if len(trackArtists) == 0 {
 			trackArtists = append([]string(nil), fallbackArtists...)
 		}
@@ -176,7 +176,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 			TrackNumber:     relation.Meta.TrackNumber,
 			Title:           resource.Attributes.Title,
 			NormalizedTitle: normalize.Text(resource.Attributes.Title),
-			DurationMS:      parseISODurationMilliseconds(resource.Attributes.Duration),
+			DurationMS:      canonical.ISODurationMilliseconds(resource.Attributes.Duration),
 			ISRC:            strings.TrimSpace(resource.Attributes.ISRC),
 			Artists:         trackArtists,
 		})
@@ -190,7 +190,7 @@ func tracksFromIncluded(included []apiResource, relations []relationshipData, fa
 	return tracks
 }
 
-func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []relationshipData) string {
+func ArtworkURLFromIncluded(resourceByID map[string]APIResource, relations []RelationshipData) string {
 	for _, relation := range relations {
 		if relation.Type != "artworks" {
 			continue
@@ -199,7 +199,7 @@ func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []rel
 		if !ok {
 			continue
 		}
-		files := append([]resourceFile(nil), resource.Attributes.Files...)
+		files := append([]ResourceFile(nil), resource.Attributes.Files...)
 		sort.Slice(files, func(i, j int) bool {
 			return files[i].Meta.Width > files[j].Meta.Width
 		})
@@ -212,8 +212,8 @@ func artworkURLFromIncluded(resourceByID map[string]apiResource, relations []rel
 	return ""
 }
 
-func includedResourceIndex(included []apiResource) map[string]apiResource {
-	resourceByID := make(map[string]apiResource, len(included))
+func IncludedResourceIndex(included []APIResource) map[string]APIResource {
+	resourceByID := make(map[string]APIResource, len(included))
 	for _, resource := range included {
 		resourceByID[includedResourceKey(resource.Type, resource.ID)] = resource
 	}
@@ -224,45 +224,8 @@ func includedResourceKey(resourceType string, resourceID string) string {
 	return resourceType + ":" + resourceID
 }
 
-func includedRelationKey(relation relationshipData) string {
+func includedRelationKey(relation RelationshipData) string {
 	return includedResourceKey(relation.Type, relation.ID)
-}
-
-func parseISODurationMilliseconds(value string) int {
-	if value == "" {
-		return 0
-	}
-	duration, err := time.ParseDuration(strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(value, "P"), "T")))
-	if err == nil {
-		return int(duration.Milliseconds())
-	}
-	value = strings.TrimPrefix(value, "P")
-	value = strings.TrimPrefix(value, "T")
-	var hours, minutes int
-	var seconds float64
-	for len(value) > 0 {
-		index := strings.IndexAny(value, "HMS")
-		if index <= 0 {
-			break
-		}
-		number := value[:index]
-		unit := value[index]
-		value = value[index+1:]
-		switch unit {
-		case 'H':
-			parsed, _ := time.ParseDuration(number + "h")
-			hours = int(parsed.Hours())
-		case 'M':
-			parsed, _ := time.ParseDuration(number + "m")
-			minutes = int(parsed.Minutes()) % 60
-		case 'S':
-			parsed, err := time.ParseDuration(number + "s")
-			if err == nil {
-				seconds = parsed.Seconds()
-			}
-		}
-	}
-	return int((float64(hours*3600+minutes*60) + seconds) * 1000)
 }
 
 func canonicalAlbumURL(albumID string) string {
@@ -271,22 +234,4 @@ func canonicalAlbumURL(albumID string) string {
 
 func canonicalTrackURL(trackID string) string {
 	return "https://tidal.com/track/" + trackID
-}
-
-func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
-	return model.CandidateAlbum{CanonicalAlbum: album, CandidateID: album.SourceID, MatchURL: album.SourceURL}
-}
-
-func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
-	return model.CandidateSong{CanonicalSong: song, CandidateID: song.SourceID, MatchURL: song.SourceURL}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

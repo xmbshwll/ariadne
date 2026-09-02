@@ -1,9 +1,11 @@
-package applemusic
+package applemusic_test
 
 import (
 	"context"
 	"net/http"
 	"testing"
+
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +14,7 @@ import (
 func TestSearchByUPCWithOfficialAuth(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.authAdapter.SearchByUPC(context.Background(), "00602567713449")
+	results, err := fixture.authAdapter.SearchAlbumByUPC(context.Background(), "00602567713449")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "1441164426", results[0].CandidateID)
@@ -24,7 +26,7 @@ func TestSearchByUPCWithOfficialAuth(t *testing.T) {
 func TestSearchByISRCWithOfficialAuth(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.authAdapter.SearchByISRC(context.Background(), []string{comeTogetherISRC})
+	results, err := fixture.authAdapter.SearchAlbumByISRC(context.Background(), []string{comeTogetherISRC})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "1441164426", results[0].CandidateID)
@@ -68,7 +70,7 @@ func TestSearchByISRCWithOfficialAuthKeepsGoingAfterEarlierQueryFailure(t *testi
 		mux.HandleFunc("/catalog/gb/albums/1441164426", officialAlbumHandler(payloads))
 	})
 
-	results, err := adapter.SearchByISRC(context.Background(), []string{"BADISRC", comeTogetherISRC})
+	results, err := adapter.SearchAlbumByISRC(context.Background(), []string{"BADISRC", comeTogetherISRC})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "1441164426", results[0].CandidateID)
@@ -86,5 +88,5 @@ func TestSearchSongByISRCReturnsMalformedOfficialResponseError(t *testing.T) {
 
 	_, err := adapter.SearchSongByISRC(context.Background(), comeTogetherISRC)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errMalformedAppleMusicOfficialResponse)
+	assert.ErrorIs(t, err, applemusic.ErrMalformedAppleMusicOfficialResponse)
 }

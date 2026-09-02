@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/adapters"
 )
 
 var (
@@ -16,11 +16,13 @@ var (
 	// ErrSourceAdapterReturnedNilSong indicates that a song source adapter returned nil song without an error.
 	ErrSourceAdapterReturnedNilSong = errors.New("source adapter returned nil song")
 
-	errNilSourceAlbum = sourceAdapterContractError{
+	// ErrNilSourceAlbum indicates a Source Adapter returned a nil album with a nil error.
+	ErrNilSourceAlbum = sourceAdapterContractError{
 		message: "fetch source album returned nil",
 		target:  ErrSourceAdapterReturnedNilAlbum,
 	}
-	errNilSourceSong = sourceAdapterContractError{
+	// ErrNilSourceSong indicates a Source Adapter returned a nil song with a nil error.
+	ErrNilSourceSong = sourceAdapterContractError{
 		message: "fetch source song returned nil",
 		target:  ErrSourceAdapterReturnedNilSong,
 	}
@@ -43,10 +45,10 @@ type fatalParseFailure interface {
 	FatalParseFailure() bool
 }
 
-// recognizeSourceInput returns the first Source Adapter that parses inputURL.
+// RecognizeSourceInput returns the first Source Adapter that parses inputURL.
 // Fatal parse failures stop recognition; nil parses violate the adapter contract.
-func recognizeSourceInput[S any, P any](sources []S, inputURL string, parse func(S) (*P, error)) (*P, S, error) {
-	var zero S
+func RecognizeSourceInput[P any](sources []adapters.Adapter, inputURL string, parse func(adapters.Adapter) (*P, error)) (*P, adapters.Adapter, error) {
+	var zero adapters.Adapter
 	if len(sources) == 0 {
 		return nil, zero, ErrNoSourceAdapters
 	}
@@ -67,11 +69,11 @@ func recognizeSourceInput[S any, P any](sources []S, inputURL string, parse func
 	return nil, zero, fmt.Errorf("%w: %s", ErrUnsupportedURL, inputURL)
 }
 
-// hydrateSourceInput runs Runtime Hydration for a recognized Source Input and
+// HydrateSourceInput runs Runtime Hydration for a recognized Source Input and
 // normalizes the nil-entity adapter contract violation to a contract error.
-func hydrateSourceInput[S interface{ Service() model.ServiceName }, Entity any](
+func HydrateSourceInput[Entity any](
 	ctx context.Context,
-	adapter S,
+	adapter adapters.Adapter,
 	entityLabel string,
 	nilEntityErr error,
 	hydrate func(context.Context) (*Entity, error),

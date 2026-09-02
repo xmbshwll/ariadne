@@ -1,17 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 )
 
 const (
@@ -59,7 +57,7 @@ type spotifyTrackPayload struct {
 
 func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (validationArtifacts, error) {
 	client := &http.Client{Timeout: inputs.appConfig.HTTPTimeout}
-	apiBaseURL := normalizeBaseURL(inputs.opts.apiBaseURL)
+	apiBaseURL := validation.JoinURL(inputs.opts.apiBaseURL)
 	token, err := fetchToken(ctx, client, inputs.opts.authBaseURL, inputs.appConfig.Spotify.ClientID, inputs.appConfig.Spotify.ClientSecret)
 	if err != nil {
 		return validationArtifacts{}, err
@@ -98,14 +96,14 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 }
 
 func fetchSpotifyAlbum(ctx context.Context, client *http.Client, apiBaseURL, albumID, token string) ([]byte, spotifyAlbumPayload, error) {
-	albumBody, err := getAPI(ctx, client, apiURL(apiBaseURL, "/albums/"+albumID), token)
+	albumBody, err := getAPI(ctx, client, validation.JoinURL(apiBaseURL, "albums", albumID), token)
 	if err != nil {
 		return nil, spotifyAlbumPayload{}, fmt.Errorf("fetch spotify album payload: %w", err)
 	}
 
 	var album spotifyAlbumPayload
-	if err := json.Unmarshal(albumBody, &album); err != nil {
-		return nil, spotifyAlbumPayload{}, fmt.Errorf("decode album payload: %w", err)
+	if err := validation.DecodeJSONInto(albumBody, &album, "decode album payload"); err != nil {
+		return nil, spotifyAlbumPayload{}, err
 	}
 	return albumBody, album, nil
 }
@@ -132,65 +130,71 @@ func validateSpotifyAlbumMetadata(ctx context.Context, client *http.Client, apiB
 }
 
 func fetchToken(ctx context.Context, client *http.Client, authBaseURL, clientID, clientSecret string) (string, error) {
-	form := url.Values{}
-	form.Set("grant_type", "client_credentials")
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(authBaseURL, "/")+"/token", bytes.NewBufferString(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("build spotify token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(clientID+":"+clientSecret)))
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute spotify token request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read spotify token response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w %d: %s", errSpotifyTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var token struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(body, &token); err != nil {
-		return "", fmt.Errorf("decode spotify token response: %w", err)
-	}
-	if token.AccessToken == "" {
-		return "", errSpotifyTokenMissing
-	}
-	return token.AccessToken, nil
+	return validation.FetchClientCredentialsToken(ctx, validation.TokenRequest{
+		Client:       client,
+		Endpoint:     strings.TrimRight(authBaseURL, "/") + "/token",
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		UseBasicAuth: true,
+		BuildError:   "build spotify token request",
+		ExecuteError: "execute spotify token request",
+		StatusError:  errSpotifyTokenStatus,
+		DecodeError:  "decode spotify token response",
+		MissingError: errSpotifyTokenMissing,
+	})
 }
 
 func getAPI(ctx context.Context, client *http.Client, endpoint string, token string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build spotify api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
+	return validation.AuthenticatedGet(ctx, validation.GetRequest{
+		Client:       client,
+		URL:          endpoint,
+		Token:        token,
+		BuildError:   "build spotify api request",
+		ExecuteError: "execute spotify api request",
+		StatusError:  errSpotifyAPIStatus,
+		ReadError:    "read spotify api response",
+	})
+}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute spotify api request: %w", err)
+func collectTrackISRCs(ctx context.Context, client *http.Client, apiBaseURL string, token string, album spotifyAlbumPayload) ([]string, error) {
+	if len(album.Tracks.Items) == 0 {
+		return nil, nil
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read spotify api response: %w", err)
+	seen := map[string]struct{}{}
+	isrcs := make([]string, 0, len(album.Tracks.Items))
+	for _, track := range album.Tracks.Items {
+		trackID := strings.TrimSpace(track.ID)
+		if trackID == "" {
+			continue
+		}
+		body, err := getAPI(ctx, client, validation.JoinURL(apiBaseURL, "tracks", trackID), token)
+		if err != nil {
+			return nil, err
+		}
+		var payload spotifyTrackPayload
+		if err := validation.DecodeJSONInto(body, &payload, "decode spotify track details payload"); err != nil {
+			return nil, err
+		}
+		isrc := strings.TrimSpace(payload.ExternalIDs.ISRC)
+		if isrc == "" {
+			continue
+		}
+		if _, exists := seen[isrc]; exists {
+			continue
+		}
+		seen[isrc] = struct{}{}
+		isrcs = append(isrcs, isrc)
+		if len(isrcs) >= isrcSampleLimit {
+			return isrcs, nil
+		}
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w %d: %s", errSpotifyAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return body, nil
+	return isrcs, nil
+}
+
+func spotifySearchURL(apiBaseURL string, query string, entityType string) string {
+	path := "/search?q=" + url.QueryEscape(query) + "&type=" + entityType + "&limit=" + strconv.Itoa(searchLimit)
+	return apiURL(apiBaseURL, path)
 }
 
 func metadataQuery(album spotifyAlbumPayload) string {
@@ -212,47 +216,6 @@ func albumArtists(album spotifyAlbumPayload) []string {
 		artists = append(artists, name)
 	}
 	return artists
-}
-
-func collectTrackISRCs(ctx context.Context, client *http.Client, apiBaseURL string, token string, album spotifyAlbumPayload) ([]string, error) {
-	if len(album.Tracks.Items) == 0 {
-		return nil, nil
-	}
-
-	seen := map[string]struct{}{}
-	isrcs := make([]string, 0, len(album.Tracks.Items))
-	for _, track := range album.Tracks.Items {
-		trackID := strings.TrimSpace(track.ID)
-		if trackID == "" {
-			continue
-		}
-		body, err := getAPI(ctx, client, apiURL(apiBaseURL, "/tracks/"+trackID), token)
-		if err != nil {
-			return nil, err
-		}
-		var payload spotifyTrackPayload
-		if err := json.Unmarshal(body, &payload); err != nil {
-			return nil, fmt.Errorf("decode spotify track details payload: %w", err)
-		}
-		isrc := strings.TrimSpace(payload.ExternalIDs.ISRC)
-		if isrc == "" {
-			continue
-		}
-		if _, exists := seen[isrc]; exists {
-			continue
-		}
-		seen[isrc] = struct{}{}
-		isrcs = append(isrcs, isrc)
-		if len(isrcs) >= isrcSampleLimit {
-			return isrcs, nil
-		}
-	}
-	return isrcs, nil
-}
-
-func spotifySearchURL(apiBaseURL string, query string, entityType string) string {
-	path := "/search?q=" + url.QueryEscape(query) + "&type=" + entityType + "&limit=" + strconv.Itoa(searchLimit)
-	return apiURL(apiBaseURL, path)
 }
 
 func normalizeBaseURL(baseURL string) string {

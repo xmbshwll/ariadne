@@ -91,6 +91,25 @@ type CandidateAlbum struct {
 	MatchURL    string
 }
 
+// SearchKey identifies this Candidate across Target Search layers: the service
+// Candidate ID when the service returned one, otherwise the match URL.
+func (c CandidateAlbum) SearchKey() string {
+	return candidateSearchKey(c.Service, c.CandidateID, c.MatchURL)
+}
+
+// SearchKey identifies this Candidate across Target Search layers: the service
+// Candidate ID when the service returned one, otherwise the match URL.
+func (c CandidateSong) SearchKey() string {
+	return candidateSearchKey(c.Service, c.CandidateID, c.MatchURL)
+}
+
+func candidateSearchKey(service ServiceName, candidateID string, matchURL string) string {
+	if candidateID != "" {
+		return string(service) + ":id:" + candidateID
+	}
+	return string(service) + ":url:" + matchURL
+}
+
 // CandidateSong is a service-specific song search result converted into canonical form.
 type CandidateSong struct {
 	CanonicalSong

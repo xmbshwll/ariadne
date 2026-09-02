@@ -56,19 +56,19 @@ func RankSongs(source model.CanonicalSong, candidates []model.CandidateSong, wei
 func scoreSongCandidate(source model.CanonicalSong, candidate model.CandidateSong, weights SongWeights) Ranked[model.CandidateSong] {
 	song := candidate.CanonicalSong
 	titleWeights := titleSignalWeights{
-		exact: weights.TitleExact,
-		core:  weights.CoreTitleExact,
+		Exact: weights.TitleExact,
+		Core:  weights.CoreTitleExact,
 	}
 	artistWeights := artistSignalWeights{
-		primaryExact: weights.PrimaryArtistExact,
-		overlap:      weights.ArtistOverlap,
+		PrimaryExact: weights.PrimaryArtistExact,
+		Overlap:      weights.ArtistOverlap,
 	}
 	releaseWeights := releaseDateSignalWeights{
-		exact: weights.ReleaseDateExact,
-		year:  weights.ReleaseYearExact,
+		Exact: weights.ReleaseDateExact,
+		Year:  weights.ReleaseYearExact,
 	}
 
-	score, reasons, evidence := collectScoreContributions(
+	score, reasons, Evidence := collectScoreContributions(
 		scoreTitleSignal(source.Title, source.NormalizedTitle, song.Title, song.NormalizedTitle, titleWeights),
 		scoreArtistSignal(source.Artists, source.NormalizedArtists, song.Artists, song.NormalizedArtists, artistWeights),
 		scoreSongISRC(source, song, weights),
@@ -81,12 +81,12 @@ func scoreSongCandidate(source model.CanonicalSong, candidate model.CandidateSon
 		scoreEditionMarkerSignal(source.Title, song.Title, weights.EditionMarkerPenalty, weights.EditionMismatch),
 	)
 
-	return Ranked[model.CandidateSong]{Candidate: candidate, Score: score, Reasons: reasons, Evidence: evidence}
+	return Ranked[model.CandidateSong]{Candidate: candidate, Score: score, Reasons: reasons, Evidence: Evidence}
 }
 
 func scoreSongISRC(source model.CanonicalSong, candidate model.CanonicalSong, weights SongWeights) scoreContribution {
 	if source.ISRC != "" && candidate.ISRC != "" && strings.EqualFold(source.ISRC, candidate.ISRC) {
-		return scoreContribution{value: weights.ISRCExact, reason: "isrc exact match"}
+		return scoreContribution{Value: weights.ISRCExact, Reason: "isrc exact match"}
 	}
 	return scoreContribution{}
 }
@@ -94,8 +94,8 @@ func scoreSongISRC(source model.CanonicalSong, candidate model.CanonicalSong, we
 func scoreSongTrackNumber(source model.CanonicalSong, candidate model.CanonicalSong, weights SongWeights) scoreContribution {
 	if source.TrackNumber > 0 && candidate.TrackNumber > 0 && source.TrackNumber == candidate.TrackNumber {
 		return scoreContribution{
-			value:  weights.TrackNumberExact,
-			reason: fmt.Sprintf("track number exact match (%d)", source.TrackNumber),
+			Value:  weights.TrackNumberExact,
+			Reason: fmt.Sprintf("track number exact match (%d)", source.TrackNumber),
 		}
 	}
 	return scoreContribution{}

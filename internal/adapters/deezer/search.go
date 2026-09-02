@@ -8,18 +8,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
-// SearchByUPC resolves a Deezer album directly from a UPC when Deezer exposes the lookup path.
-func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
+// SearchAlbumByUPC resolves a Deezer album directly from a UPC when Deezer exposes the lookup path.
+func (a *Adapter) SearchAlbumByUPC(ctx context.Context, upc string) ([]model.CandidateAlbum, error) {
 	upc = strings.TrimSpace(upc)
 	if upc == "" {
 		return nil, nil
 	}
 
-	canonical, err := a.fetchAlbumByLookup(ctx, a.baseURL+"/album/upc:"+url.PathEscape(upc))
+	mapped, err := a.fetchAlbumByLookup(ctx, a.baseURL+"/album/upc:"+url.PathEscape(upc))
 	if err != nil {
 		if isDeezerAlbumLookupMiss(err) {
 			return nil, nil
@@ -27,12 +29,12 @@ func (a *Adapter) SearchByUPC(ctx context.Context, upc string) ([]model.Candidat
 		return nil, fmt.Errorf("search deezer by upc %s: %w", upc, err)
 	}
 
-	return []model.CandidateAlbum{toCandidateAlbum(*canonical)}, nil
+	return []model.CandidateAlbum{canonical.CandidateAlbum(*mapped)}, nil
 }
 
-// SearchByISRC resolves Deezer albums from one or more track ISRCs.
-func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
-	isrcs = adapterutil.TrimmedNonEmptyStrings(isrcs)
+// SearchAlbumByISRC resolves Deezer albums from one or more track ISRCs.
+func (a *Adapter) SearchAlbumByISRC(ctx context.Context, isrcs []string) ([]model.CandidateAlbum, error) {
+	isrcs = normalize.NonEmpty(isrcs)
 	if len(isrcs) == 0 {
 		return nil, nil
 	}
@@ -80,17 +82,17 @@ func (a *Adapter) SearchByISRC(ctx context.Context, isrcs []string) ([]model.Can
 	return results, nil
 }
 
-// SearchByMetadata searches Deezer albums using album title and artist metadata.
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
+// SearchAlbumByMetadata searches Deezer albums using album title and artist metadata.
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	query := normalize.SearchPrimaryQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[albumResponse, model.CandidateAlbum]{
+	targetSearch := targetsearch.MetadataQuerySearch[AlbumResponse, model.CandidateAlbum]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
-		Search: func(ctx context.Context, query string) ([]albumResponse, error) {
+		Search: func(ctx context.Context, query string) ([]AlbumResponse, error) {
 			var searchResults albumSearchResponse
 			endpoint := a.baseURL + "/search/album?q=" + url.QueryEscape(query)
 			if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
@@ -122,21 +124,21 @@ func (a *Adapter) SearchSongByISRC(ctx context.Context, isrc string) ([]model.Ca
 		}
 		return nil, fmt.Errorf("search deezer song by isrc %s: %w", isrc, err)
 	}
-	return []model.CandidateSong{toCandidateSong(*a.toCanonicalSong(*track))}, nil
+	return []model.CandidateSong{canonical.CandidateSong(*a.toCanonicalSong(*track))}, nil
 }
 
 // SearchSongByMetadata searches Deezer tracks using song title and artist metadata.
 func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.CanonicalSong) ([]model.CandidateSong, error) {
-	query := adapterutil.PrimaryMetadataQuery(song.Title, song.Artists)
+	query := normalize.SearchPrimaryQuery(song.Title, song.Artists)
 	if query == "" {
 		return nil, nil
 	}
 
-	targetSearch := adapterutil.MetadataQuerySearch[trackResponse, model.CandidateSong]{
+	targetSearch := targetsearch.MetadataQuerySearch[trackResponse, model.CandidateSong]{
 		Queries: []string{query},
 		Limit:   metadataSearchLimit,
 		Search: func(ctx context.Context, query string) ([]trackResponse, error) {
-			var searchResults tracksResponse
+			var searchResults TracksResponse
 			endpoint := a.baseURL + "/search/track?q=" + url.QueryEscape(query)
 			if err := a.getJSON(ctx, endpoint, &searchResults); err != nil {
 				return nil, fmt.Errorf("search deezer song by metadata %q: %w", query, err)
@@ -161,7 +163,7 @@ func isDeezerTrackLookupMiss(err error) bool {
 	return errors.Is(err, errDeezerTrackNotFound)
 }
 
-func deezerAlbumSearchCandidateID(candidate albumResponse) string {
+func deezerAlbumSearchCandidateID(candidate AlbumResponse) string {
 	return deezerCandidateID(candidate.ID)
 }
 
@@ -176,7 +178,7 @@ func deezerCandidateID(id int) string {
 	return strconv.Itoa(id)
 }
 
-func (a *Adapter) hydrateDeezerAlbumSearchCandidate(ctx context.Context, candidate albumResponse) (model.CandidateAlbum, error) {
+func (a *Adapter) hydrateDeezerAlbumSearchCandidate(ctx context.Context, candidate AlbumResponse) (model.CandidateAlbum, error) {
 	hydrated, err := a.hydrateAlbumCandidate(ctx, candidate.ID)
 	if err != nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate deezer candidate %d: %w", candidate.ID, err)
@@ -193,17 +195,17 @@ func (a *Adapter) hydrateDeezerSongSearchCandidate(ctx context.Context, candidat
 }
 
 func (a *Adapter) hydrateAlbumCandidate(ctx context.Context, albumID int) (model.CandidateAlbum, error) {
-	canonical, err := a.fetchAlbumByID(ctx, strconv.Itoa(albumID))
+	mapped, err := a.fetchAlbumByID(ctx, strconv.Itoa(albumID))
 	if err != nil {
 		return model.CandidateAlbum{}, err
 	}
-	return toCandidateAlbum(*canonical), nil
+	return canonical.CandidateAlbum(*mapped), nil
 }
 
 func (a *Adapter) hydrateSongCandidate(ctx context.Context, trackID int) (model.CandidateSong, error) {
-	canonical, err := a.fetchSongByID(ctx, strconv.Itoa(trackID))
+	mapped, err := a.fetchSongByID(ctx, strconv.Itoa(trackID))
 	if err != nil {
 		return model.CandidateSong{}, err
 	}
-	return toCandidateSong(*canonical), nil
+	return canonical.CandidateSong(*mapped), nil
 }

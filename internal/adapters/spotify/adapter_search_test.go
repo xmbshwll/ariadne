@@ -1,9 +1,12 @@
-package spotify
+package spotify_test
 
 import (
 	"testing"
 
+	spotify "github.com/xmbshwll/ariadne/internal/adapters/spotify"
+
 	"github.com/stretchr/testify/assert"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -45,7 +48,7 @@ func TestMetadataQueries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, metadataQueries(tt.album))
+			assert.Equal(t, tt.want, spotify.MetadataQueries(tt.album))
 		})
 	}
 }
@@ -64,5 +67,5 @@ func TestSongMetadataQueries(t *testing.T) {
 		"track:Thelema",
 		"track:ΘΕΛΗΜΑ",
 	}
-	assert.Equal(t, want, songMetadataQueries(song))
+	assert.Equal(t, want, spotify.SongMetadataQueries(song))
 }

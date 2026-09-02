@@ -6,19 +6,21 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
-// SearchByMetadata searches Apple Music albums by title and artist metadata via the public search API.
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	queries := metadataQueries(album)
+// SearchAlbumByMetadata searches Apple Music albums by title and artist metadata via the public search API.
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	queries := MetadataQueries(album)
 	if len(queries) == 0 {
 		return nil, nil
 	}
 
 	storefront := a.storefrontFor(album.RegionHint)
-	targetSearch := adapterutil.MetadataQuerySearch[lookupItem, model.CandidateAlbum]{
+	targetSearch := targetsearch.MetadataQuerySearch[lookupItem, model.CandidateAlbum]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
@@ -31,7 +33,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		},
 		ItemID: appleMusicAlbumSearchItemID,
 		BuildCandidate: func(ctx context.Context, item lookupItem) (model.CandidateAlbum, error) {
-			canonical, err := a.fetchAlbumByID(
+			mapped, err := a.fetchAlbumByID(
 				ctx,
 				strconv.FormatInt(item.CollectionID, 10),
 				canonicalCollectionURL(item.CollectionViewURL, ""),
@@ -40,7 +42,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 			if err != nil {
 				return model.CandidateAlbum{}, fmt.Errorf("hydrate apple music album %d: %w", item.CollectionID, err)
 			}
-			return toCandidateAlbum(*canonical), nil
+			return canonical.CandidateAlbum(*mapped), nil
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
@@ -59,11 +61,11 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 	}
 
 	storefront := a.storefrontFor(song.RegionHint)
-	targetSearch := adapterutil.MetadataQuerySearch[lookupItem, model.CandidateSong]{
+	targetSearch := targetsearch.MetadataQuerySearch[lookupItem, model.CandidateSong]{
 		Queries: queries,
 		Limit:   searchLimit,
 		Search: func(ctx context.Context, query string) ([]lookupItem, error) {
-			searchURL := a.metadataSearchURL(query, entitySong, storefront)
+			searchURL := a.metadataSearchURL(query, EntitySong, storefront)
 			var payload lookupResponse
 			if err := a.getJSON(ctx, searchURL, &payload); err != nil {
 				return nil, fmt.Errorf("search apple music song metadata %q: %w", query, err)
@@ -72,7 +74,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		},
 		ItemID: appleMusicSongSearchItemID,
 		BuildCandidate: func(ctx context.Context, item lookupItem) (model.CandidateSong, error) {
-			canonical, err := a.fetchSongByID(
+			mapped, err := a.fetchSongByID(
 				ctx,
 				strconv.FormatInt(item.TrackID, 10),
 				canonicalTrackURL(item.CollectionViewURL, item.TrackID),
@@ -81,7 +83,7 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 			if err != nil {
 				return model.CandidateSong{}, fmt.Errorf("hydrate apple music song %d: %w", item.TrackID, err)
 			}
-			return toCandidateSong(*canonical), nil
+			return canonical.CandidateSong(*mapped), nil
 		},
 		ContinueAfterSearchError: continueAppleMusicMetadataSearchAfterError,
 	}
@@ -111,7 +113,7 @@ func appleMusicAlbumSearchItemID(item lookupItem) string {
 }
 
 func appleMusicSongSearchItemID(item lookupItem) string {
-	if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong || item.TrackID == 0 {
+	if item.WrapperType != wrapperTypeTrack || item.Kind != EntitySong || item.TrackID == 0 {
 		return ""
 	}
 	return strconv.FormatInt(item.TrackID, 10)
@@ -121,14 +123,14 @@ func continueAppleMusicMetadataSearchAfterError(collected int) bool {
 	return collected > 0
 }
 
-func metadataQueries(album model.CanonicalAlbum) []string {
-	return buildMetadataQueries(album.Title, album.Artists)
+func MetadataQueries(album model.CanonicalAlbum) []string {
+	return BuildMetadataQueries(album.Title, album.Artists)
 }
 
 func songMetadataQueries(song model.CanonicalSong) []string {
-	return buildMetadataQueries(song.Title, song.Artists)
+	return BuildMetadataQueries(song.Title, song.Artists)
 }
 
-func buildMetadataQueries(title string, artists []string) []string {
-	return adapterutil.MetadataQueries(title, artists)
+func BuildMetadataQueries(title string, artists []string) []string {
+	return normalize.SearchQueries(title, artists)
 }

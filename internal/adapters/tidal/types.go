@@ -1,25 +1,25 @@
 package tidal
 
-type tokenResponse struct {
+type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-type apiDocument struct {
+type APIDocument struct {
 	Data     any            `json:"data"`
-	Included []apiResource  `json:"included"`
+	Included []APIResource  `json:"included"`
 	Links    map[string]any `json:"links"`
 }
 
-type apiResource struct {
+type APIResource struct {
 	ID            string                `json:"id"`
 	Type          string                `json:"type"`
-	Attributes    resourceAttributes    `json:"attributes"`
-	Relationships resourceRelationships `json:"relationships"`
+	Attributes    ResourceAttributes    `json:"attributes"`
+	Relationships ResourceRelationships `json:"relationships"`
 }
 
-type resourceAttributes struct {
+type ResourceAttributes struct {
 	Title         string            `json:"title"`
 	Name          string            `json:"name"`
 	Version       string            `json:"version"`
@@ -29,44 +29,44 @@ type resourceAttributes struct {
 	Duration      string            `json:"duration"`
 	Explicit      bool              `json:"explicit"`
 	NumberOfItems int               `json:"numberOfItems"`
-	Copyright     resourceCopyright `json:"copyright"`
-	Files         []resourceFile    `json:"files"`
+	Copyright     ResourceCopyright `json:"copyright"`
+	Files         []ResourceFile    `json:"files"`
 	ISRC          string            `json:"isrc"`
 }
 
-type resourceCopyright struct {
+type ResourceCopyright struct {
 	Text string `json:"text"`
 }
 
-type resourceFile struct {
+type ResourceFile struct {
 	Href string   `json:"href"`
-	Meta fileMeta `json:"meta"`
+	Meta FileMeta `json:"meta"`
 }
 
-type fileMeta struct {
+type FileMeta struct {
 	Width  int `json:"width"`
 	Height int `json:"height"`
 }
 
-type resourceRelationships struct {
-	Artists  relationship `json:"artists"`
-	Items    relationship `json:"items"`
-	CoverArt relationship `json:"coverArt"`
-	Albums   relationship `json:"albums"`
-	Tracks   relationship `json:"tracks"`
+type ResourceRelationships struct {
+	Artists  Relationship `json:"artists"`
+	Items    Relationship `json:"items"`
+	CoverArt Relationship `json:"coverArt"`
+	Albums   Relationship `json:"albums"`
+	Tracks   Relationship `json:"tracks"`
 }
 
-type relationship struct {
-	Data []relationshipData `json:"data"`
+type Relationship struct {
+	Data []RelationshipData `json:"data"`
 }
 
-type relationshipData struct {
+type RelationshipData struct {
 	ID   string           `json:"id"`
 	Type string           `json:"type"`
-	Meta relationshipMeta `json:"meta"`
+	Meta RelationshipMeta `json:"meta"`
 }
 
-type relationshipMeta struct {
+type RelationshipMeta struct {
 	TrackNumber  int `json:"trackNumber"`
 	VolumeNumber int `json:"volumeNumber"`
 }

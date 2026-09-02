@@ -1,15 +1,18 @@
-package deezer
+package deezer_test
 
 import (
 	"testing"
 
+	deezer "github.com/xmbshwll/ariadne/internal/adapters/deezer"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestAdapterIdentityAndParsing(t *testing.T) {
-	adapter := New(nil)
+	adapter := deezer.New(nil)
 
 	assert.Equal(t, model.ServiceDeezer, adapter.Service())
 

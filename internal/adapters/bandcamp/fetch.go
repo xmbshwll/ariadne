@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -30,11 +30,11 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 }
 
 func (a *Adapter) fetchAlbumPage(ctx context.Context, rawURL string) (*model.CanonicalAlbum, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "album", ParseAlbumURL, toCanonicalAlbum)
+	return fetchCanonicalPage(a, ctx, rawURL, "album", ParseAlbumURL, ToCanonicalAlbum)
 }
 
 func (a *Adapter) fetchSongPage(ctx context.Context, rawURL string) (*model.CanonicalSong, error) {
-	return fetchCanonicalPage(a, ctx, rawURL, "song", ParseSongURL, toCanonicalSong)
+	return fetchCanonicalPage(a, ctx, rawURL, "song", ParseSongURL, ToCanonicalSong)
 }
 
 func fetchCanonicalPage[Canonical any](
@@ -43,7 +43,7 @@ func fetchCanonicalPage[Canonical any](
 	rawURL string,
 	entity string,
 	parseURL func(string) (*model.ParsedURL, error),
-	toCanonical func(model.ParsedURL, *schemaAlbum) *Canonical,
+	toCanonical func(model.ParsedURL, *SchemaAlbum) *Canonical,
 ) (*Canonical, error) {
 	parsed, err := parseURL(rawURL)
 	if err != nil {
@@ -64,12 +64,12 @@ func fetchCanonicalPage[Canonical any](
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
 	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
-	return adapterutil.PageFetcher{
+	return httpx.PageFetcher{
 		Client:        a.client,
-		UserAgent:     adapterutil.DefaultUserAgent,
+		UserAgent:     httpx.DefaultUserAgent,
 		BuildError:    "build bandcamp request",
 		ExecuteError:  "execute bandcamp request",
-		StatusError:   adapterutil.StatusError(errUnexpectedBandcampStatus),
+		StatusError:   httpx.StatusError(errUnexpectedBandcampStatus),
 		ReadError:     "read bandcamp response",
 		MaxBodyBytes:  maxBandcampResponseBytes,
 		TooLargeError: errBandcampResponseTooLarge,

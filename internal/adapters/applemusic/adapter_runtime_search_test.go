@@ -1,18 +1,21 @@
-package applemusic
+package applemusic_test
 
 import (
 	"context"
 	"testing"
 
+	applemusic "github.com/xmbshwll/ariadne/internal/adapters/applemusic"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestSearchAlbumByMetadata(t *testing.T) {
 	fixture := newTestFixture(t, buildTestPayloads(t))
 
-	results, err := fixture.adapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := fixture.adapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:      abbeyRoadRemastered,
 		Artists:    []string{"The Beatles"},
 		RegionHint: "gb",
@@ -28,9 +31,9 @@ func TestSearchAlbumByMetadata(t *testing.T) {
 func TestSearchAlbumByMetadataUsesAdapterDefaultStorefront(t *testing.T) {
 	payloads := buildTestPayloads(t)
 	fixture := newTestFixture(t, payloads)
-	defaultStorefrontAdapter := New(fixture.httpClient, WithLookupBaseURL(fixture.serverURL), WithDefaultStorefront("gb"))
+	defaultStorefrontAdapter := applemusic.New(fixture.httpClient, applemusic.WithLookupBaseURL(fixture.serverURL), applemusic.WithDefaultStorefront("gb"))
 
-	results, err := defaultStorefrontAdapter.SearchByMetadata(context.Background(), model.CanonicalAlbum{
+	results, err := defaultStorefrontAdapter.SearchAlbumByMetadata(context.Background(), model.CanonicalAlbum{
 		Title:   abbeyRoadRemastered,
 		Artists: []string{"The Beatles"},
 	})

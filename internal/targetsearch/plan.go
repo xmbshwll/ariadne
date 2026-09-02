@@ -7,8 +7,8 @@ import (
 
 // Plan runs ordered Target Search layers for one Music Service target.
 type Plan[T any] struct {
-	Target       any
-	Service      string
+	// Target labels the service in layer errors; the plan never calls it.
+	Target       string
 	CandidateKey func(T) string
 	Layers       []Layer[T]
 }
@@ -50,7 +50,7 @@ func (p Plan[T]) runLayer(ctx context.Context, layer Layer[T]) layerOutcome[T] {
 		if IsRecoverableTimeout(ctx, err) {
 			return layerOutcome[T]{}
 		}
-		return layerOutcome[T]{err: fmt.Errorf("%s %s (%T) failed: %w", layer.Name, p.Service, p.Target, err)}
+		return layerOutcome[T]{err: fmt.Errorf("%s %s failed: %w", layer.Name, p.Target, err)}
 	}
 	if layer.Filter != nil {
 		candidates = layer.Filter(candidates)

@@ -5,11 +5,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/normalize"
 )
 
-func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
+func ToCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.CanonicalAlbum {
 	const explicitTrack = "explicit"
 
 	if len(items) == 0 {
@@ -23,7 +24,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 	explicit := false
 
 	for _, item := range items[1:] {
-		if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong {
+		if item.WrapperType != wrapperTypeTrack || item.Kind != EntitySong {
 			continue
 		}
 		trackCount++
@@ -54,7 +55,7 @@ func toCanonicalAlbum(parsed model.ParsedAlbumURL, items []lookupItem) *model.Ca
 		NormalizedTitle:   normalize.Text(collection.CollectionName),
 		Artists:           []string{collection.ArtistName},
 		NormalizedArtists: normalize.Artists([]string{collection.ArtistName}),
-		ReleaseDate:       dateOnly(collection.ReleaseDate),
+		ReleaseDate:       canonical.DateOnly(collection.ReleaseDate),
 		Label:             collection.Copyright,
 		TrackCount:        trackCount,
 		TotalDurationMS:   totalDurationMS,
@@ -72,14 +73,14 @@ func toCanonicalSong(parsed model.ParsedURL, track lookupItem) *model.CanonicalS
 	return &model.CanonicalSong{
 		Service:                model.ServiceAppleMusic,
 		SourceID:               strconv.FormatInt(track.TrackID, 10),
-		SourceURL:              firstNonEmpty(canonicalTrackURL(track.CollectionViewURL, track.TrackID), parsed.CanonicalURL),
+		SourceURL:              canonical.FirstNonEmpty(canonicalTrackURL(track.CollectionViewURL, track.TrackID), parsed.CanonicalURL),
 		RegionHint:             parsed.RegionHint,
 		Title:                  track.TrackName,
 		NormalizedTitle:        normalize.Text(track.TrackName),
 		Artists:                artists,
 		NormalizedArtists:      normalize.Artists(artists),
 		DurationMS:             track.TrackTimeMillis,
-		ISRC:                   firstNonEmpty(track.TrackISRC, track.ISRC),
+		ISRC:                   canonical.FirstNonEmpty(track.TrackISRC, track.ISRC),
 		Explicit:               track.TrackExplicitness == explicitTrack,
 		DiscNumber:             track.DiscNumber,
 		TrackNumber:            track.TrackNumber,
@@ -88,7 +89,7 @@ func toCanonicalSong(parsed model.ParsedURL, track lookupItem) *model.CanonicalS
 		AlbumNormalizedTitle:   normalize.Text(track.CollectionName),
 		AlbumArtists:           artists,
 		AlbumNormalizedArtists: normalize.Artists(artists),
-		ReleaseDate:            dateOnly(track.ReleaseDate),
+		ReleaseDate:            canonical.DateOnly(track.ReleaseDate),
 		ArtworkURL:             preferredArtworkURL(track),
 		EditionHints:           normalize.EditionHints(track.TrackName),
 	}
@@ -119,13 +120,6 @@ func preferredArtworkURL(item lookupItem) string {
 		return strings.Replace(item.ArtworkURL100, "100x100bb", "1000x1000bb", 1)
 	}
 	return item.ArtworkURL60
-}
-
-func dateOnly(value string) string {
-	if len(value) >= 10 {
-		return value[:10]
-	}
-	return value
 }
 
 func officialAlbumID(resource map[string]any) string {
@@ -162,7 +156,7 @@ func officialResourceToCanonicalAlbum(resource map[string]any, storefront string
 	if label == "" {
 		label = officialString(attributes, "copyright")
 	}
-	artists := nonEmptyArtistList(artist)
+	artists := canonical.SingleArtistList(artist)
 	releaseDate := officialString(attributes, "releaseDate")
 	upc := officialString(attributes, "upc")
 	artworkURL := officialArtworkURL(officialMap(attributes, "artwork"))
@@ -208,7 +202,7 @@ func officialTracks(resource map[string]any) []model.CanonicalTrack {
 			NormalizedTitle: normalize.Text(title),
 			DurationMS:      officialInt(attributes, "durationInMillis"),
 			ISRC:            officialString(attributes, "isrc"),
-			Artists:         nonEmptyArtistList(artist),
+			Artists:         canonical.SingleArtistList(artist),
 		})
 	}
 	return tracks
@@ -255,30 +249,6 @@ func officialInt(root map[string]any, key string) int {
 	}
 }
 
-func nonEmptyArtistList(artist string) []string {
-	artist = strings.TrimSpace(artist)
-	if artist == "" {
-		return nil
-	}
-	return []string{artist}
-}
-
-func toCandidateAlbum(album model.CanonicalAlbum) model.CandidateAlbum {
-	return model.CandidateAlbum{
-		CanonicalAlbum: album,
-		CandidateID:    album.SourceID,
-		MatchURL:       album.SourceURL,
-	}
-}
-
-func toCandidateSong(song model.CanonicalSong) model.CandidateSong {
-	return model.CandidateSong{
-		CanonicalSong: song,
-		CandidateID:   song.SourceID,
-		MatchURL:      song.SourceURL,
-	}
-}
-
 func appendUniqueString(values []string, seen map[string]struct{}, value string) []string {
 	if value == "" {
 		return values
@@ -288,14 +258,4 @@ func appendUniqueString(values []string, seen map[string]struct{}, value string)
 	}
 	seen[value] = struct{}{}
 	return append(values, value)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

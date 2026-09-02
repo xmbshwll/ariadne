@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -44,32 +43,12 @@ func buildValidationArtifactPaths(outputDir string) map[string]string {
 }
 
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
-	if err := writePrettyJSONArtifact(outputDir, spotifySourcePayloadFile, artifacts.albumBody); err != nil {
-		return err
-	}
-	if err := writePrettyJSONArtifact(outputDir, spotifySearchUPCFile, artifacts.upcBody); err != nil {
-		return err
-	}
-	if err := writePrettyJSONArtifact(outputDir, spotifySearchISRCFile, artifacts.isrcBody); err != nil {
-		return err
-	}
-	if err := writePrettyJSONArtifact(outputDir, spotifySearchMetadataFile, artifacts.metadataBody); err != nil {
-		return err
-	}
-
-	summaryPath := filepath.Join(outputDir, spotifyAuthenticatedReport)
-	if err := validation.WriteJSON(summaryPath, artifacts.summary); err != nil {
-		return fmt.Errorf("write %s: %w", summaryPath, err)
-	}
-	return nil
-}
-
-func writePrettyJSONArtifact(outputDir, name string, body []byte) error {
-	path := filepath.Join(outputDir, name)
-	if err := validation.WritePrettyJSON(path, body); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	return nil
+	return validation.WriteArtifacts(outputDir, []validation.Artifact{
+		{Name: spotifySourcePayloadFile, Body: artifacts.albumBody},
+		{Name: spotifySearchUPCFile, Body: artifacts.upcBody},
+		{Name: spotifySearchISRCFile, Body: artifacts.isrcBody},
+		{Name: spotifySearchMetadataFile, Body: artifacts.metadataBody},
+	}, spotifyAuthenticatedReport, artifacts.summary)
 }
 
 func validationArtifactPath(outputDir, name string) string {

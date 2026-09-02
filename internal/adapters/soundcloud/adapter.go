@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -26,8 +27,8 @@ var (
 	errUnexpectedSoundCloudAPIStatus = errors.New("unexpected soundcloud api status")
 	errSoundCloudClientIDNotFound    = errors.New("soundcloud client id not found")
 	errSoundCloudHydrationNotFound   = errors.New("soundcloud hydration payload not found")
-	errSoundCloudPlaylistNotFound    = errors.New("soundcloud playlist hydration not found")
-	errSoundCloudTrackNotFound       = errors.New("soundcloud track hydration not found")
+	ErrSoundCloudPlaylistNotFound    = errors.New("soundcloud playlist hydration not found")
+	ErrSoundCloudTrackNotFound       = errors.New("soundcloud track hydration not found")
 )
 
 type Option func(*Adapter)
@@ -45,12 +46,13 @@ func WithAPIBaseURL(baseURL string) Option {
 }
 
 type Adapter struct {
+	base.Unsupported
+
 	client      *http.Client
 	siteBaseURL string
 	apiBaseURL  string
 
-	clientIDMu sync.Mutex
-	clientID   string
+	clientIDs *auth.DiscoveredCredential
 }
 
 func New(client *http.Client, opts ...Option) *Adapter {
@@ -58,6 +60,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceSoundCloud},
 		client:      client,
 		siteBaseURL: defaultSiteBaseURL,
 		apiBaseURL:  defaultAPIBaseURL,
@@ -65,11 +68,8 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	for _, opt := range opts {
 		opt(adapter)
 	}
+	adapter.clientIDs = auth.NewDiscoveredCredential(adapter.discoverClientID, isSoundCloudClientIDError)
 	return adapter
-}
-
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceSoundCloud
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {

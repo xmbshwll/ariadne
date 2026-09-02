@@ -1,10 +1,13 @@
-package resolve
+package resolve_test
 
 import (
 	"testing"
 
+	resolve "github.com/xmbshwll/ariadne/internal/resolve"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/score"
 )
@@ -43,19 +46,19 @@ func TestAppleMusicEnrichmentPolicyCopiesIdentifiersFromStrongMatches(t *testing
 			UPC:     "APPLE_SHOULD_NOT_COPY",
 		},
 	}
-	matches := map[model.ServiceName]MatchResult{
+	matches := map[model.ServiceName]resolve.MatchResult{
 		model.ServiceSpotify: {
-			Best: &ScoredMatch{Score: appleMusicCascadeMinimumScore, Candidate: spotifyCandidate},
+			Best: &resolve.ScoredMatch{Score: resolve.AppleMusicCascadeMinimumScore, Candidate: spotifyCandidate},
 		},
 		model.ServiceDeezer: {
-			Best: &ScoredMatch{Score: appleMusicCascadeMinimumScore - 1, Candidate: weakDeezerCandidate},
+			Best: &resolve.ScoredMatch{Score: resolve.AppleMusicCascadeMinimumScore - 1, Candidate: weakDeezerCandidate},
 		},
 		model.ServiceAppleMusic: {
-			Best: &ScoredMatch{Score: 999, Candidate: appleCandidate},
+			Best: &resolve.ScoredMatch{Score: 999, Candidate: appleCandidate},
 		},
 	}
 
-	enriched, changed := newAppleMusicEnrichmentPolicy(score.DefaultWeights()).enrichedSource(source, matches)
+	enriched, changed := resolve.NewAppleMusicEnrichmentPolicy(score.DefaultWeights()).EnrichedSource(source, matches)
 
 	require.True(t, changed)
 	assert.Equal(t, "3618021182192", enriched.UPC)
@@ -76,7 +79,7 @@ func TestMergeTrackISRCsWithEmptySourceTracksCopiesOnlyISRCs(t *testing.T) {
 		{Title: "Candidate Track 2", TrackNumber: 2, DurationMS: 123000, ISRC: "QZHN92500002"},
 	}
 
-	mergeTrackISRCs(&album, tracks)
+	resolve.MergeTrackISRCs(&album, tracks)
 
 	assert.Equal(t, []model.CanonicalTrack{
 		{ISRC: "QZHN92500001"},
@@ -89,18 +92,18 @@ func TestCloneAlbumDeepCopiesTrackArtists(t *testing.T) {
 		Tracks: []model.CanonicalTrack{{Title: "Song", Artists: []string{"Original Artist"}}},
 	}
 
-	clone := cloneAlbum(album)
+	clone := resolve.CloneAlbum(album)
 	clone.Tracks[0].Artists[0] = "Mutated Artist"
 
 	assert.Equal(t, "Original Artist", album.Tracks[0].Artists[0])
 }
 
 func TestAppleMusicEnrichmentPolicyOnlyReplacesWithBetterResult(t *testing.T) {
-	policy := newAppleMusicEnrichmentPolicy(score.DefaultWeights())
-	existing := MatchResult{Best: &ScoredMatch{Score: 90}}
+	policy := resolve.NewAppleMusicEnrichmentPolicy(score.DefaultWeights())
+	existing := resolve.MatchResult{Best: &resolve.ScoredMatch{Score: 90}}
 
-	assert.False(t, policy.shouldReplace(existing, MatchResult{}))
-	assert.False(t, policy.shouldReplace(existing, MatchResult{Best: &ScoredMatch{Score: 80}}))
-	assert.True(t, policy.shouldReplace(existing, MatchResult{Best: &ScoredMatch{Score: 91}}))
-	assert.True(t, policy.shouldReplace(MatchResult{}, MatchResult{Best: &ScoredMatch{Score: 1}}))
+	assert.False(t, policy.ShouldReplace(existing, resolve.MatchResult{}))
+	assert.False(t, policy.ShouldReplace(existing, resolve.MatchResult{Best: &resolve.ScoredMatch{Score: 80}}))
+	assert.True(t, policy.ShouldReplace(existing, resolve.MatchResult{Best: &resolve.ScoredMatch{Score: 91}}))
+	assert.True(t, policy.ShouldReplace(resolve.MatchResult{}, resolve.MatchResult{Best: &resolve.ScoredMatch{Score: 1}}))
 }

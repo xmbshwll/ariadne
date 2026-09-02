@@ -1,0 +1,220 @@
+package httpx
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+const (
+	DefaultUserAgent = "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)"
+	BrowserUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+)
+
+var errUnexpectedHTTPStatus = errors.New("unexpected http status")
+
+type StatusErrorFunc func(statusCode int, body string) error
+
+type TooLargeErrorFunc func(maxBytes int64) error
+
+type RequestSpec struct {
+	Client         *http.Client
+	Method         string
+	URL            string
+	Body           io.Reader
+	Headers        map[string]string
+	UserAgent      string
+	BuildError     string
+	ExecuteError   string
+	StatusError    StatusErrorFunc
+	ErrorBodyLimit int64
+}
+
+type JSONRequest struct {
+	RequestSpec
+	DecodeError       string
+	MalformedResponse error
+}
+
+type BytesRequest struct {
+	RequestSpec
+	ReadError     string
+	MaxBodyBytes  int64
+	TooLargeError error
+	TooLarge      TooLargeErrorFunc
+}
+
+// HTTPStatusError is an error that carries an HTTP response status code.
+type HTTPStatusError interface {
+	error
+	HTTPStatusCode() int
+}
+
+// IsTransientHTTPError reports whether err carries an HTTP status code
+// matching StatusBadGateway, StatusServiceUnavailable, or StatusGatewayTimeout.
+func IsTransientHTTPError(err error) bool {
+	var statusErr HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		return false
+	}
+	switch statusErr.HTTPStatusCode() {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
+}
+
+type httpStatusError struct {
+	sentinel   error
+	statusCode int
+	body       string
+}
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("%s %d: %s", e.sentinel, e.statusCode, e.body)
+}
+
+func (e *httpStatusError) Unwrap() error {
+	return e.sentinel
+}
+
+func (e *httpStatusError) HTTPStatusCode() int {
+	return e.statusCode
+}
+
+func StatusError(sentinel error) StatusErrorFunc {
+	return func(statusCode int, body string) error {
+		return &httpStatusError{
+			sentinel:   sentinel,
+			statusCode: statusCode,
+			body:       body,
+		}
+	}
+}
+
+func GetJSON(ctx context.Context, spec JSONRequest, target any) error {
+	resp, err := doRequest(ctx, spec.RequestSpec)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if err := statusError(resp, spec.RequestSpec); err != nil {
+		return err
+	}
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		if spec.MalformedResponse != nil {
+			return fmt.Errorf("%s: %w", spec.DecodeError, errors.Join(spec.MalformedResponse, err))
+		}
+		return fmt.Errorf("%s: %w", spec.DecodeError, err)
+	}
+	return nil
+}
+
+func FetchBytes(ctx context.Context, spec BytesRequest) ([]byte, error) {
+	resp, err := doRequest(ctx, spec.RequestSpec)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if err := statusError(resp, spec.RequestSpec); err != nil {
+		return nil, err
+	}
+
+	var reader io.Reader = resp.Body
+	if spec.MaxBodyBytes > 0 {
+		reader = io.LimitReader(resp.Body, spec.MaxBodyBytes+1)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", spec.ReadError, err)
+	}
+	if spec.MaxBodyBytes > 0 && len(body) > int(spec.MaxBodyBytes) {
+		if spec.TooLarge != nil {
+			return nil, spec.TooLarge(spec.MaxBodyBytes)
+		}
+		return nil, fmt.Errorf("%w: exceeded %d bytes", spec.TooLargeError, spec.MaxBodyBytes)
+	}
+	return body, nil
+}
+
+func doRequest(ctx context.Context, spec RequestSpec) (*http.Response, error) {
+	method := spec.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	req, err := http.NewRequestWithContext(ctx, method, spec.URL, spec.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", spec.BuildError, err)
+	}
+	if spec.UserAgent != "" {
+		req.Header.Set("User-Agent", spec.UserAgent)
+	}
+	for Name, value := range spec.Headers {
+		req.Header.Set(Name, value)
+	}
+	client := spec.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", spec.ExecuteError, err)
+	}
+	return resp, nil
+}
+
+func statusError(resp *http.Response, spec RequestSpec) error {
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		return nil
+	}
+	limit := spec.ErrorBodyLimit
+	if limit == 0 {
+		limit = 4096
+	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, limit))
+	message := strings.TrimSpace(string(body))
+	if spec.StatusError != nil {
+		return spec.StatusError(resp.StatusCode, message)
+	}
+	return &httpStatusError{
+		sentinel:   errUnexpectedHTTPStatus,
+		statusCode: resp.StatusCode,
+		body:       message,
+	}
+}
+
+// Retry runs fn up to attempts times, retrying only transient HTTP failures
+// (IsTransientHTTPError) with exponential backoff from base. It returns the
+// first success, the last non-transient error immediately, or the last
+// transient error once attempts are exhausted. The wait aborts on ctx
+// cancellation.
+func Retry(ctx context.Context, attempts int, base time.Duration, fn func(context.Context) error) error {
+	var lastErr error
+	for attempt := range attempts {
+		err := fn(ctx)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if attempt == attempts-1 || !IsTransientHTTPError(err) {
+			break
+		}
+		delay := base * time.Duration(1<<attempt)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			//nolint:wrapcheck // Return caller cancellation unchanged.
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return lastErr
+}

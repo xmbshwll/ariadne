@@ -7,13 +7,8 @@ import (
 	internalconfig "github.com/xmbshwll/ariadne/internal/config"
 	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/score"
+	"github.com/xmbshwll/ariadne/internal/wiring"
 )
-
-// ScoreWeights configures how ranking signals contribute to match scores.
-type ScoreWeights = score.Weights
-
-// SongScoreWeights configures how ranking signals contribute to song match scores.
-type SongScoreWeights = score.SongWeights
 
 // Config configures the default library resolver.
 type Config struct {
@@ -31,10 +26,10 @@ type Config struct {
 	// TargetServices limits the default resolver to the listed target services.
 	// When empty, Ariadne uses all available default targets.
 	TargetServices []ServiceName
-	// ScoreWeights controls how the album ranking algorithm weights matching signals.
-	ScoreWeights ScoreWeights
-	// SongScoreWeights controls how the song ranking algorithm weights matching signals.
-	SongScoreWeights SongScoreWeights
+	// scoreWeights and songScoreWeights are the built-in Scoring signals. They
+	// stay internal: ranking is Ariadne's decision, not a caller knob.
+	scoreWeights     score.Weights
+	songScoreWeights score.SongWeights
 }
 
 // SpotifyConfig holds Spotify app credentials used for target search and preferred source fetches.
@@ -63,47 +58,14 @@ type TIDALConfig struct {
 	ClientSecret string
 }
 
-// SpotifyEnabled reports whether Spotify credential-gated features are available.
-func (c Config) SpotifyEnabled() bool {
-	clientID := strings.TrimSpace(c.Spotify.ClientID)
-	clientSecret := strings.TrimSpace(c.Spotify.ClientSecret)
-	return clientID != "" && clientSecret != ""
-}
-
-// TIDALEnabled reports whether TIDAL credential-gated features are available.
-func (c Config) TIDALEnabled() bool {
-	clientID := strings.TrimSpace(c.TIDAL.ClientID)
-	clientSecret := strings.TrimSpace(c.TIDAL.ClientSecret)
-	return clientID != "" && clientSecret != ""
-}
-
-// DefaultScoreWeights returns the built-in album ranking weights.
-func DefaultScoreWeights() ScoreWeights {
-	return score.DefaultWeights()
-}
-
-// DefaultSongScoreWeights returns the built-in song ranking weights.
-func DefaultSongScoreWeights() SongScoreWeights {
-	return score.DefaultSongWeights()
-}
-
-const (
-	// MatchScoreStrong is the minimum score for the highest-confidence band.
-	MatchScoreStrong = 100
-	// MatchScoreProbable is the minimum score for likely-good matches.
-	MatchScoreProbable = 70
-	// MatchScoreWeak is the minimum score for low-confidence but retained matches.
-	MatchScoreWeak = 50
-)
-
 // MatchStrengthForScore maps a raw score to a user-facing confidence band.
 func MatchStrengthForScore(score int) MatchStrength {
 	switch {
-	case score >= MatchScoreStrong:
+	case score >= 100:
 		return MatchStrengthStrong
-	case score >= MatchScoreProbable:
+	case score >= 70:
 		return MatchStrengthProbable
-	case score >= MatchScoreWeak:
+	case score >= 50:
 		return MatchStrengthWeak
 	default:
 		return MatchStrengthVeryWeak
@@ -115,14 +77,9 @@ func DefaultConfig() Config {
 	return Config{
 		AppleMusicStorefront: "us",
 		HTTPTimeout:          httpx.DefaultTimeout(),
-		ScoreWeights:         DefaultScoreWeights(),
-		SongScoreWeights:     DefaultSongScoreWeights(),
+		scoreWeights:         score.DefaultWeights(),
+		songScoreWeights:     score.DefaultSongWeights(),
 	}
-}
-
-// LoadConfig loads configuration from the default sources.
-func LoadConfig() Config {
-	return configFromInternal(internalconfig.Load())
 }
 
 // LoadConfigFromEnv loads configuration using the supplied getenv function.
@@ -151,25 +108,46 @@ func configFromInternal(cfg internalconfig.Config) Config {
 	})
 }
 
-func normalizedConfig(config Config) Config {
-	config.AppleMusicStorefront = strings.ToLower(strings.TrimSpace(config.AppleMusicStorefront))
-	if config.AppleMusicStorefront == "" {
-		config.AppleMusicStorefront = "us"
+// internalConfig converts the public Config DTO into the shape the Provider
+// Catalog consumes. It is the single public-to-internal seam, so it normalizes:
+// every Catalog query and the default adapter build see trimmed credentials and
+// defaults exactly as New does.
+func internalConfig(config Config) internalconfig.Config {
+	config = normalizedConfig(config)
+	return internalconfig.Config{
+		Spotify:     internalconfig.Spotify{ClientID: config.Spotify.ClientID, ClientSecret: config.Spotify.ClientSecret},
+		AppleMusic:  internalconfig.AppleMusic{Storefront: config.AppleMusicStorefront, KeyID: config.AppleMusic.KeyID, TeamID: config.AppleMusic.TeamID, PrivateKeyPath: config.AppleMusic.PrivateKeyPath},
+		TIDAL:       internalconfig.TIDAL{ClientID: config.TIDAL.ClientID, ClientSecret: config.TIDAL.ClientSecret},
+		HTTPTimeout: config.HTTPTimeout,
 	}
-	config.Spotify.ClientID = strings.TrimSpace(config.Spotify.ClientID)
-	config.Spotify.ClientSecret = strings.TrimSpace(config.Spotify.ClientSecret)
-	config.AppleMusic.KeyID = strings.TrimSpace(config.AppleMusic.KeyID)
-	config.AppleMusic.TeamID = strings.TrimSpace(config.AppleMusic.TeamID)
-	config.AppleMusic.PrivateKeyPath = strings.TrimSpace(config.AppleMusic.PrivateKeyPath)
-	config.TIDAL.ClientID = strings.TrimSpace(config.TIDAL.ClientID)
-	config.TIDAL.ClientSecret = strings.TrimSpace(config.TIDAL.ClientSecret)
+}
+
+func normalizedConfig(config Config) Config {
+	credentials := internalconfig.NormalizeCredentials(internalconfig.CredentialsShape{
+		SpotifyClientID:          config.Spotify.ClientID,
+		SpotifyClientSecret:      config.Spotify.ClientSecret,
+		AppleMusicKeyID:          config.AppleMusic.KeyID,
+		AppleMusicTeamID:         config.AppleMusic.TeamID,
+		AppleMusicPrivateKeyPath: config.AppleMusic.PrivateKeyPath,
+		AppleMusicStorefront:     config.AppleMusicStorefront,
+		TIDALClientID:            config.TIDAL.ClientID,
+		TIDALClientSecret:        config.TIDAL.ClientSecret,
+	})
+	config.Spotify.ClientID = credentials.SpotifyClientID
+	config.Spotify.ClientSecret = credentials.SpotifyClientSecret
+	config.AppleMusic.KeyID = credentials.AppleMusicKeyID
+	config.AppleMusic.TeamID = credentials.AppleMusicTeamID
+	config.AppleMusic.PrivateKeyPath = credentials.AppleMusicPrivateKeyPath
+	config.AppleMusicStorefront = credentials.AppleMusicStorefront
+	config.TIDAL.ClientID = credentials.TIDALClientID
+	config.TIDAL.ClientSecret = credentials.TIDALClientSecret
 	config.HTTPTimeout = normalizeHTTPTimeout(config.HTTPTimeout)
 	config.TargetServices = normalizedTargetServices(config.TargetServices)
-	if config.ScoreWeights == (ScoreWeights{}) {
-		config.ScoreWeights = DefaultScoreWeights()
+	if config.scoreWeights == (score.Weights{}) {
+		config.scoreWeights = score.DefaultWeights()
 	}
-	if config.SongScoreWeights == (SongScoreWeights{}) {
-		config.SongScoreWeights = DefaultSongScoreWeights()
+	if config.songScoreWeights == (score.SongWeights{}) {
+		config.songScoreWeights = score.DefaultSongWeights()
 	}
 	return config
 }
@@ -201,7 +179,7 @@ func normalizedTargetServices(services []ServiceName) []ServiceName {
 	normalized := make([]ServiceName, 0, len(services))
 	seen := make(map[ServiceName]struct{}, len(services))
 	for _, service := range services {
-		service, ok := defaultProviderCatalog.lookupSupportedTargetService(string(service))
+		service, ok := wiring.Default.LookupSupportedTargetService(string(service))
 		if !ok {
 			continue
 		}

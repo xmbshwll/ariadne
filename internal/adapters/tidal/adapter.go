@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
+	"github.com/xmbshwll/ariadne/internal/auth"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -21,10 +22,10 @@ var (
 
 	errUnexpectedTIDALService     = errors.New("unexpected tidal service")
 	errTIDALAlbumNotFound         = errors.New("tidal album not found")
-	errTIDALTrackNotFound         = errors.New("tidal track not found")
+	ErrTIDALTrackNotFound         = errors.New("tidal track not found")
 	errUnexpectedTIDALAPIStatus   = errors.New("unexpected tidal api status")
 	errUnexpectedTIDALTokenStatus = errors.New("unexpected tidal token status")
-	errMalformedTIDALAPIResponse  = errors.New("malformed tidal api response")
+	ErrMalformedTIDALAPIResponse  = errors.New("malformed tidal api response")
 	errEmptyTIDALAccessToken      = errors.New("empty tidal access token")
 )
 
@@ -50,6 +51,8 @@ func WithAuthBaseURL(baseURL string) Option {
 }
 
 type Adapter struct {
+	base.Unsupported
+
 	client             *http.Client
 	clientID           string
 	clientSecret       string
@@ -57,7 +60,7 @@ type Adapter struct {
 	authBaseURL        string
 	defaultCountryCode string
 
-	tokenSource *adapterutil.CredentialTokenSource
+	tokenSource *auth.TokenSource
 }
 
 func New(client *http.Client, opts ...Option) *Adapter {
@@ -65,6 +68,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported:        base.Unsupported{ServiceName: model.ServiceTIDAL},
 		client:             client,
 		apiBaseURL:         defaultAPIBaseURL,
 		authBaseURL:        defaultAuthBaseURL,
@@ -75,10 +79,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 	}
 	adapter.tokenSource = adapter.newTokenSource()
 	return adapter
-}
-
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceTIDAL
 }
 
 func (a *Adapter) ParseAlbumURL(raw string) (*model.ParsedAlbumURL, error) {

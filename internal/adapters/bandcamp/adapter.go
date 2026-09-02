@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -14,7 +15,7 @@ var (
 	errUnexpectedBandcampService       = errors.New("unexpected bandcamp service")
 	errUnexpectedBandcampStatus        = errors.New("unexpected bandcamp status")
 	errBandcampJSONLDNotFound          = errors.New("bandcamp json-ld not found")
-	errMalformedBandcampJSONLD         = errors.New("malformed bandcamp json-ld")
+	ErrMalformedBandcampJSONLD         = errors.New("malformed bandcamp json-ld")
 	errMalformedBandcampSearchResponse = errors.New("malformed bandcamp search response")
 )
 
@@ -30,6 +31,8 @@ func WithSearchBaseURL(baseURL string) Option {
 
 // Adapter implements Bandcamp source and metadata target operations.
 type Adapter struct {
+	base.Unsupported
+
 	client        *http.Client
 	searchBaseURL string
 }
@@ -40,6 +43,7 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		client = http.DefaultClient
 	}
 	adapter := &Adapter{
+		Unsupported:   base.Unsupported{ServiceName: model.ServiceBandcamp},
 		client:        client,
 		searchBaseURL: "https://bandcamp.com",
 	}
@@ -47,11 +51,6 @@ func New(client *http.Client, opts ...Option) *Adapter {
 		opt(adapter)
 	}
 	return adapter
-}
-
-// Service returns the service implemented by this adapter.
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceBandcamp
 }
 
 // ParseAlbumURL parses a Bandcamp album URL.

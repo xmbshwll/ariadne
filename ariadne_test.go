@@ -1,4 +1,4 @@
-package ariadne
+package ariadne_test
 
 import (
 	"context"
@@ -6,9 +6,186 @@ import (
 	"testing"
 	"time"
 
+	ariadne "github.com/xmbshwll/ariadne"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/xmbshwll/ariadne/internal/adapters"
+	"github.com/xmbshwll/ariadne/internal/mocks"
+	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/resolve"
+	"github.com/xmbshwll/ariadne/internal/score"
+	"github.com/xmbshwll/ariadne/internal/wiring"
 )
+
+func newLibrarySourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceDeezer)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumSource: true})
+	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
+		if raw != testLibrarySourceURL {
+			return nil, errUnsupportedLibrarySource
+		}
+		return &ariadne.ParsedURL{Service: ariadne.ServiceDeezer, EntityType: model.EntityTypeAlbum, ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
+	})
+	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed ariadne.ParsedURL) (*ariadne.CanonicalAlbum, error) {
+		return &ariadne.CanonicalAlbum{
+			Service:           parsed.Service,
+			SourceID:          parsed.ID,
+			SourceURL:         parsed.CanonicalURL,
+			Title:             "Fixture Album",
+			NormalizedTitle:   "fixture album",
+			Artists:           []string{"Fixture Artist"},
+			NormalizedArtists: []string{"fixture artist"},
+			UPC:               "123456789012",
+			TrackCount:        2,
+			Tracks:            []ariadne.CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
+		}, nil
+	})
+	return adapter
+}
+
+func newNilParsedSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceDeezer)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumSource: true})
+	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
+		if raw != testLibrarySourceURL {
+			return nil, errUnsupportedLibrarySource
+		}
+		return nil, nil //nolint:nilnil // Exercise adapter contract validation for invalid nil parsed URLs.
+	})
+	return adapter
+}
+
+func newNilAlbumSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceDeezer)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumSource: true})
+	adapter.EXPECT().ParseAlbumURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
+		if raw != testLibrarySourceURL {
+			return nil, errUnsupportedLibrarySource
+		}
+		return &ariadne.ParsedURL{Service: ariadne.ServiceDeezer, EntityType: model.EntityTypeAlbum, ID: "src-1", CanonicalURL: raw, RawURL: raw}, nil
+	})
+	adapter.EXPECT().FetchAlbum(mock.Anything, mock.Anything).Return(nil, nil)
+	return adapter
+}
+
+func newLibraryTargetAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumUPC: true, AlbumISRC: true, AlbumMetadata: true})
+	adapter.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, upc string) ([]ariadne.CandidateAlbum, error) {
+		if upc == "" {
+			return nil, nil
+		}
+		return []ariadne.CandidateAlbum{{
+			CanonicalAlbum: ariadne.CanonicalAlbum{
+				Service:           ariadne.ServiceSpotify,
+				SourceID:          "spotify-1",
+				SourceURL:         "https://open.spotify.com/album/spotify-1",
+				Title:             "Fixture Album",
+				NormalizedTitle:   "fixture album",
+				Artists:           []string{"Fixture Artist"},
+				NormalizedArtists: []string{"fixture artist"},
+				UPC:               upc,
+				TrackCount:        2,
+				Tracks:            []ariadne.CanonicalTrack{{Title: "Alpha", NormalizedTitle: "alpha", ISRC: "ISRC001"}, {Title: "Beta", NormalizedTitle: "beta"}},
+			},
+			CandidateID: "spotify-1",
+			MatchURL:    "https://open.spotify.com/album/spotify-1",
+		}}, nil
+	})
+	adapter.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
+	return adapter
+}
+
+func newFailingLibraryTargetAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{AlbumUPC: true, AlbumISRC: true, AlbumMetadata: true})
+	adapter.EXPECT().SearchAlbumByUPC(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByISRC(mock.Anything, mock.Anything).Return(nil, nil)
+	adapter.EXPECT().SearchAlbumByMetadata(mock.Anything, mock.Anything).Return(nil, errLibraryTargetBoom)
+	return adapter
+}
+
+func newLibrarySongSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{SongSource: true})
+	adapter.EXPECT().ParseSongURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
+		if raw != "https://fixture.test/songs/1" {
+			return nil, errUnsupportedLibrarySource
+		}
+		return &ariadne.ParsedURL{Service: ariadne.ServiceSpotify, EntityType: model.EntityTypeSong, ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
+	})
+	adapter.EXPECT().FetchSong(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, parsed ariadne.ParsedURL) (*ariadne.CanonicalSong, error) {
+		return &ariadne.CanonicalSong{
+			Service:              parsed.Service,
+			SourceID:             parsed.ID,
+			SourceURL:            parsed.CanonicalURL,
+			Title:                "Fixture Song",
+			NormalizedTitle:      "fixture song",
+			Artists:              []string{"Fixture Artist"},
+			NormalizedArtists:    []string{"fixture artist"},
+			DurationMS:           180000,
+			ISRC:                 "ISRCSONG001",
+			TrackNumber:          1,
+			AlbumTitle:           "Fixture Album",
+			AlbumNormalizedTitle: "fixture album",
+		}, nil
+	})
+	return adapter
+}
+
+func newNilSongSourceAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceSpotify)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{SongSource: true})
+	adapter.EXPECT().ParseSongURL(mock.Anything).RunAndReturn(func(raw string) (*ariadne.ParsedURL, error) {
+		if raw != "https://fixture.test/songs/1" {
+			return nil, errUnsupportedLibrarySource
+		}
+		return &ariadne.ParsedURL{Service: ariadne.ServiceSpotify, EntityType: model.EntityTypeSong, ID: "song-1", CanonicalURL: raw, RawURL: raw}, nil
+	})
+	adapter.EXPECT().FetchSong(mock.Anything, mock.Anything).Return(nil, nil)
+	return adapter
+}
+
+func newLibrarySongTargetAdapter() adapters.Adapter {
+	adapter := new(mocks.MockAdapter)
+	adapter.EXPECT().Service().Return(ariadne.ServiceAppleMusic)
+	adapter.EXPECT().Capabilities().Return(adapters.Capabilities{SongISRC: true, SongMetadata: true})
+	adapter.EXPECT().SearchSongByISRC(mock.Anything, mock.Anything).RunAndReturn(func(_ context.Context, isrc string) ([]ariadne.CandidateSong, error) {
+		if isrc == "" {
+			return nil, nil
+		}
+		return []ariadne.CandidateSong{{
+			CanonicalSong: ariadne.CanonicalSong{
+				Service:              ariadne.ServiceAppleMusic,
+				SourceID:             "apple-song-1",
+				SourceURL:            "https://music.apple.com/us/song/apple-song-1",
+				Title:                "Fixture Song",
+				NormalizedTitle:      "fixture song",
+				Artists:              []string{"Fixture Artist"},
+				NormalizedArtists:    []string{"fixture artist"},
+				DurationMS:           180100,
+				ISRC:                 isrc,
+				TrackNumber:          1,
+				AlbumTitle:           "Fixture Album",
+				AlbumNormalizedTitle: "fixture album",
+			},
+			CandidateID: "apple-song-1",
+			MatchURL:    "https://music.apple.com/us/song/apple-song-1",
+		}}, nil
+	})
+	adapter.EXPECT().SearchSongByMetadata(mock.Anything, mock.Anything).Return(nil, nil)
+	return adapter
+}
 
 const testLibrarySourceURL = "https://fixture.test/source"
 
@@ -17,8 +194,26 @@ var (
 	errLibraryTargetBoom        = errors.New("target boom")
 )
 
+// TestAdapters is the adapter set ariadne_test hands to NewWithAdapters: the
+// mock Source Adapters and Target Search adapters a test wants the Resolver to
+// run, split by Entity Shape and role.
+type TestAdapters struct {
+	AlbumSources []adapters.Adapter
+	AlbumTargets []adapters.Adapter
+	SongSources  []adapters.Adapter
+	SongTargets  []adapters.Adapter
+}
+
+// NewWithAdapters builds a Resolver from test-supplied adapters with the
+// built-in Scoring weights, which no caller overrides. It goes through the
+// NewResolverForTest seam in export_test.go, because the public API has no
+// adapter-authoring surface.
+func NewWithAdapters(set TestAdapters) *ariadne.Resolver {
+	return ariadne.NewResolverForTest(set.AlbumSources, set.AlbumTargets, set.SongSources, set.SongTargets)
+}
+
 func TestLoadConfigFromEnv(t *testing.T) {
-	config := LoadConfigFromEnv(func(key string) string {
+	config := ariadne.LoadConfigFromEnv(func(key string) string {
 		switch key {
 		case "SPOTIFY_CLIENT_ID":
 			return " spotify-client "
@@ -54,302 +249,60 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "tidal-client", config.TIDAL.ClientID)
 	assert.Equal(t, "tidal-secret", config.TIDAL.ClientSecret)
 	assert.Equal(t, 45*time.Second, config.HTTPTimeout)
-	assert.Equal(t, []ServiceName{ServiceSpotify, ServiceAppleMusic}, config.TargetServices)
+	assert.Equal(t, []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceAppleMusic}, config.TargetServices)
 }
 
 func TestLoadConfigFromEnvCanonicalizesTargetServiceAliases(t *testing.T) {
-	config := LoadConfigFromEnv(func(key string) string {
+	config := ariadne.LoadConfigFromEnv(func(key string) string {
 		if key == "ARIADNE_TARGET_SERVICES" {
 			return " spotify , ytmusic , amazonMusic , unknown "
 		}
 		return ""
 	})
 
-	assert.Equal(t, []ServiceName{ServiceSpotify, ServiceYouTubeMusic}, config.TargetServices)
+	assert.Equal(t, []ariadne.ServiceName{ariadne.ServiceSpotify, ariadne.ServiceYouTubeMusic}, config.TargetServices)
 }
 
 func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
+	config := ariadne.DefaultConfig()
 	assert.Equal(t, "us", config.AppleMusicStorefront)
-	assert.NotEqual(t, ScoreWeights{}, config.ScoreWeights)
-	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
+	albumWeights, songWeights := ariadne.ConfigWeights(config)
+	assert.NotEqual(t, score.Weights{}, albumWeights)
+	assert.NotEqual(t, score.SongWeights{}, songWeights)
 	assert.Equal(t, 15*time.Second, config.HTTPTimeout)
 }
 
-func TestCredentialEnablementTrimsWhitespace(t *testing.T) {
-	tests := []struct {
-		name string
-		ok   bool
-		fn   func() bool
-	}{
-		{
-			name: "spotify client id whitespace",
-			fn: func() bool {
-				return Config{
-					Spotify: SpotifyConfig{ClientID: " ", ClientSecret: "secret"},
-				}.SpotifyEnabled()
-			},
-		},
-		{
-			name: "spotify client secret whitespace",
-			fn: func() bool {
-				return Config{
-					Spotify: SpotifyConfig{ClientID: "id", ClientSecret: " "},
-				}.SpotifyEnabled()
-			},
-		},
-		{
-			name: "tidal client id whitespace",
-			fn: func() bool {
-				return Config{
-					TIDAL: TIDALConfig{ClientID: " ", ClientSecret: "secret"},
-				}.TIDALEnabled()
-			},
-		},
-		{
-			name: "tidal client secret whitespace",
-			fn: func() bool {
-				return Config{
-					TIDAL: TIDALConfig{ClientID: "id", ClientSecret: " "},
-				}.TIDALEnabled()
-			},
-		},
-		{
-			name: "spotify trims valid credentials",
-			ok:   true,
-			fn: func() bool {
-				return Config{
-					Spotify: SpotifyConfig{ClientID: " id ", ClientSecret: " secret "},
-				}.SpotifyEnabled()
-			},
-		},
-		{
-			name: "tidal trims valid credentials",
-			ok:   true,
-			fn: func() bool {
-				return Config{
-					TIDAL: TIDALConfig{ClientID: " id ", ClientSecret: " secret "},
-				}.TIDALEnabled()
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.ok, tt.fn())
-		})
-	}
-}
-
-func TestDescribe(t *testing.T) {
-	tests := []struct {
-		name                     string
-		service                  ServiceName
-		aliases                  []string
-		supportsAlbumSource      bool
-		supportsAlbumTarget      bool
-		supportsSongSource       bool
-		supportsSongTarget       bool
-		supportsRuntimeSongInput bool
-	}{
-		{name: "spotify full runtime", service: ServiceSpotify, aliases: []string{"spotify"}, supportsAlbumSource: true, supportsAlbumTarget: true, supportsSongSource: true, supportsSongTarget: true, supportsRuntimeSongInput: true},
-		{name: "youtube music defers song hydration", service: ServiceYouTubeMusic, supportsAlbumSource: true, supportsAlbumTarget: true, supportsRuntimeSongInput: true},
-		{name: "amazon music is source only", service: ServiceAmazonMusic, supportsAlbumSource: true, supportsSongSource: true, supportsRuntimeSongInput: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			capabilities, ok := Describe(tt.service)
-			require.True(t, ok)
-			if tt.aliases != nil {
-				assert.Equal(t, tt.aliases, capabilities.Aliases)
-			}
-			assert.Equal(t, tt.supportsAlbumSource, capabilities.SupportsAlbumSource)
-			assert.Equal(t, tt.supportsAlbumTarget, capabilities.SupportsAlbumTarget)
-			assert.Equal(t, tt.supportsSongSource, capabilities.SupportsSongSource)
-			assert.Equal(t, tt.supportsSongTarget, capabilities.SupportsSongTarget)
-			assert.Equal(t, tt.supportsRuntimeSongInput, capabilities.SupportsRuntimeSongInputURL)
-		})
-	}
-}
-
-func TestDescribeEnabled(t *testing.T) {
-	tests := []struct {
-		name                string
-		config              Config
-		service             ServiceName
-		supportsAlbumTarget bool
-		supportsSongTarget  bool
-	}{
-		{name: "spotify without credentials disables targets", config: Config{}, service: ServiceSpotify},
-		{name: "spotify with credentials enables targets", config: Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, service: ServiceSpotify, supportsAlbumTarget: true, supportsSongTarget: true},
-		{name: "tidal without credentials disables targets", config: Config{}, service: ServiceTIDAL},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			capabilities, ok := DescribeEnabled(tt.config, tt.service)
-			require.True(t, ok)
-			assert.Equal(t, tt.supportsAlbumTarget, capabilities.SupportsAlbumTarget)
-			assert.Equal(t, tt.supportsSongTarget, capabilities.SupportsSongTarget)
-		})
-	}
-}
-
-func TestSupportedServiceLists(t *testing.T) {
-	assert.Equal(t, []ServiceName{
-		ServiceAppleMusic,
-		ServiceBandcamp,
-		ServiceDeezer,
-		ServiceSoundCloud,
-		ServiceYouTubeMusic,
-		ServiceSpotify,
-		ServiceTIDAL,
-	}, TargetServices(nil, EntityShapeAny))
-	assert.Equal(t, []ServiceName{
-		ServiceAppleMusic,
-		ServiceBandcamp,
-		ServiceDeezer,
-		ServiceSoundCloud,
-		ServiceSpotify,
-		ServiceTIDAL,
-	}, TargetServices(nil, EntityShapeSong))
-}
-
-const (
-	unknownTargetServiceMessage     = "\"unknown\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"
-	amazonMusicTargetServiceMessage = "\"amazonMusic\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"
-	spotifyTargetServiceMessage     = "\"spotify\" (expected one of the supported target services: appleMusic, bandcamp, deezer, soundcloud, youtubeMusic, spotify, tidal)"
-	youTubeMusicSongTargetMessage   = "\"youtubeMusic\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"
-	amazonMusicSongTargetMessage    = "\"amazonMusic\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"
-	tidalSongTargetMessage          = "\"tidal\" (enabled for songs: appleMusic, bandcamp, deezer, soundcloud)"
-)
-
-func TestProviderCatalogTargetServiceRequests(t *testing.T) {
-	tests := []struct {
-		name   string
-		config Config
-		raw    string
-		want   TargetServiceRequestDecision
-	}{
-		{name: "available alias", raw: "apple-music", want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
-		{name: "unknown", raw: "unknown", want: TargetServiceRequestDecision{Status: TargetServiceRequestUnknown, Message: unknownTargetServiceMessage}},
-		{name: "parse only", raw: "amazonMusic", want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly, Message: amazonMusicTargetServiceMessage}},
-		{name: "credentials required", raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestCredentialsRequired, Message: spotifyTargetServiceMessage}},
-		{name: "credentials configured", config: Config{Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"}}, raw: "spotify", want: TargetServiceRequestDecision{Service: ServiceSpotify, Status: TargetServiceRequestAvailable}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, EvaluateTarget(tt.config, tt.raw, EntityShapeAny))
-		})
-	}
-}
-
-func TestProviderCatalogSongTargetServiceRequests(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  Config
-		service ServiceName
-		want    TargetServiceRequestDecision
-	}{
-		{name: "available", service: ServiceAppleMusic, want: TargetServiceRequestDecision{Service: ServiceAppleMusic, Status: TargetServiceRequestAvailable}},
-		{name: "unsupported song target", service: ServiceYouTubeMusic, want: TargetServiceRequestDecision{Service: ServiceYouTubeMusic, Status: TargetServiceRequestUnsupported, Message: youTubeMusicSongTargetMessage}},
-		{name: "parse only", service: ServiceAmazonMusic, want: TargetServiceRequestDecision{Service: ServiceAmazonMusic, Status: TargetServiceRequestParseOnly, Message: amazonMusicSongTargetMessage}},
-		{name: "credentials required", service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestCredentialsRequired, Message: tidalSongTargetMessage}},
-		{name: "credentials configured", config: Config{TIDAL: TIDALConfig{ClientID: "id", ClientSecret: "secret"}}, service: ServiceTIDAL, want: TargetServiceRequestDecision{Service: ServiceTIDAL, Status: TargetServiceRequestAvailable}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, EvaluateTarget(tt.config, string(tt.service), EntityShapeSong))
-		})
-	}
-}
-
-func TestEnabledServiceLists(t *testing.T) {
-	empty := Config{}
-	assert.Equal(t, []ServiceName{
-		ServiceAppleMusic,
-		ServiceBandcamp,
-		ServiceDeezer,
-		ServiceSoundCloud,
-		ServiceYouTubeMusic,
-	}, TargetServices(&empty, EntityShapeAny))
-	assert.Equal(t, []ServiceName{
-		ServiceAppleMusic,
-		ServiceBandcamp,
-		ServiceDeezer,
-		ServiceSoundCloud,
-	}, TargetServices(&empty, EntityShapeSong))
-
-	config := Config{
-		Spotify: SpotifyConfig{ClientID: "id", ClientSecret: "secret"},
-		TIDAL:   TIDALConfig{ClientID: "tidal-id", ClientSecret: "tidal-secret"},
-	}
-	assert.Equal(t, []ServiceName{
-		ServiceAppleMusic,
-		ServiceBandcamp,
-		ServiceDeezer,
-		ServiceSoundCloud,
-		ServiceYouTubeMusic,
-		ServiceSpotify,
-		ServiceTIDAL,
-	}, TargetServices(&config, EntityShapeAny))
-	assert.Equal(t, []ServiceName{
-		ServiceAppleMusic,
-		ServiceBandcamp,
-		ServiceDeezer,
-		ServiceSoundCloud,
-		ServiceSpotify,
-		ServiceTIDAL,
-	}, TargetServices(&config, EntityShapeSong))
-
-	spotify, ok := DescribeEnabled(config, ServiceSpotify)
-	require.True(t, ok)
-	assert.True(t, spotify.SupportsAlbumTarget)
-	tidal, ok := DescribeEnabled(config, ServiceTIDAL)
-	require.True(t, ok)
-	assert.True(t, tidal.SupportsSongTarget)
-	spotify, ok = DescribeEnabled(empty, ServiceSpotify)
-	require.True(t, ok)
-	assert.False(t, spotify.SupportsAlbumTarget)
-	tidal, ok = DescribeEnabled(empty, ServiceTIDAL)
-	require.True(t, ok)
-	assert.False(t, tidal.SupportsSongTarget)
-}
-
 func TestNormalizedConfigDefaultsSongWeights(t *testing.T) {
-	config := normalizedConfig(Config{})
-	assert.NotEqual(t, SongScoreWeights{}, config.SongScoreWeights)
+	_, songWeights := ariadne.ConfigWeights(ariadne.NormalizedConfig(ariadne.Config{}))
+	assert.NotEqual(t, score.SongWeights{}, songWeights)
 }
 
 func TestMatchStrengthForScore(t *testing.T) {
 	tests := []struct {
 		score int
-		want  MatchStrength
+		want  ariadne.MatchStrength
 	}{
-		{score: 120, want: MatchStrengthStrong},
-		{score: 80, want: MatchStrengthProbable},
-		{score: 50, want: MatchStrengthWeak},
-		{score: 49, want: MatchStrengthVeryWeak},
+		{score: 120, want: ariadne.MatchStrengthStrong},
+		{score: 80, want: ariadne.MatchStrengthProbable},
+		{score: 50, want: ariadne.MatchStrengthWeak},
+		{score: 49, want: ariadne.MatchStrengthVeryWeak},
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.want, MatchStrengthForScore(tt.score))
+		assert.Equal(t, tt.want, ariadne.MatchStrengthForScore(tt.score))
 	}
 }
 
 func TestNewWithAdaptersResolveAlbum(t *testing.T) {
-	resolver := NewWithAdapters(AdapterSet{
-		AlbumSources: []SourceAdapter{newLibrarySourceAdapter()},
-		AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()},
+	resolver := NewWithAdapters(TestAdapters{
+		AlbumSources: []adapters.Adapter{newLibrarySourceAdapter()},
+		AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()},
 	})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
-	assert.Equal(t, ServiceDeezer, resolution.Source.Service)
-	match := resolution.Matches[ServiceSpotify]
+	assert.Equal(t, ariadne.ServiceDeezer, resolution.Source.Service)
+	match := resolution.Matches[ariadne.ServiceSpotify]
 	require.NotNil(t, match.Best)
 	assert.Equal(t, "spotify-1", match.Best.Candidate.CandidateID)
 }
@@ -359,8 +312,8 @@ func TestNewWithAdaptersResolveSong(t *testing.T) {
 
 	resolution, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 	require.NoError(t, err)
-	assert.Equal(t, ServiceSpotify, resolution.Source.Service)
-	match := resolution.Matches[ServiceAppleMusic]
+	assert.Equal(t, ariadne.ServiceSpotify, resolution.Source.Service)
+	match := resolution.Matches[ariadne.ServiceAppleMusic]
 	require.NotNil(t, match.Best)
 	assert.Equal(t, "apple-song-1", match.Best.Candidate.CandidateID)
 }
@@ -387,12 +340,12 @@ func TestResolveReturnsErrorForUninitializedResolver(t *testing.T) {
 		resolve func() error
 	}{
 		{name: "nil resolver album", resolve: func() error {
-			var resolver *Resolver
+			var resolver *ariadne.Resolver
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
 		{name: "missing song resolver", resolve: func() error {
-			resolver := &Resolver{}
+			resolver := &ariadne.Resolver{}
 			_, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 			return err
 		}},
@@ -400,29 +353,29 @@ func TestResolveReturnsErrorForUninitializedResolver(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.ErrorIs(t, tt.resolve(), ErrResolverNotInitialized)
+			assert.ErrorIs(t, tt.resolve(), ariadne.ErrResolverNotInitialized)
 		})
 	}
 }
 
-func TestResolveReturnsPublicSentinelWhenCustomSourceViolatesContract(t *testing.T) {
+func TestResolveSurfacesAdapterContractViolations(t *testing.T) {
 	tests := []struct {
 		name     string
 		resolve  func() error
 		sentinel error
 	}{
-		{name: "album source returns nil parsed url", sentinel: ErrSourceAdapterReturnedNilParsedURL, resolve: func() error {
-			resolver := NewWithAdapters(AdapterSet{AlbumSources: []SourceAdapter{newNilParsedSourceAdapter()}, AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()}})
+		{name: "album source returns nil parsed url", sentinel: resolve.ErrSourceAdapterReturnedNilParsedURL, resolve: func() error {
+			resolver := NewWithAdapters(TestAdapters{AlbumSources: []adapters.Adapter{newNilParsedSourceAdapter()}, AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
-		{name: "album source returns nil album", sentinel: ErrSourceAdapterReturnedNilAlbum, resolve: func() error {
-			resolver := NewWithAdapters(AdapterSet{AlbumSources: []SourceAdapter{newNilAlbumSourceAdapter()}, AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()}})
+		{name: "album source returns nil album", sentinel: resolve.ErrSourceAdapterReturnedNilAlbum, resolve: func() error {
+			resolver := NewWithAdapters(TestAdapters{AlbumSources: []adapters.Adapter{newNilAlbumSourceAdapter()}, AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()}})
 			_, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 			return err
 		}},
-		{name: "song source returns nil song", sentinel: ErrSourceAdapterReturnedNilSong, resolve: func() error {
-			resolver := NewWithAdapters(AdapterSet{SongSources: []SongSourceAdapter{newNilSongSourceAdapter()}, SongTargets: []SongTargetAdapter{newLibrarySongTargetAdapter()}})
+		{name: "song source returns nil song", sentinel: resolve.ErrSourceAdapterReturnedNilSong, resolve: func() error {
+			resolver := NewWithAdapters(TestAdapters{SongSources: []adapters.Adapter{newNilSongSourceAdapter()}, SongTargets: []adapters.Adapter{newLibrarySongTargetAdapter()}})
 			_, err := resolver.ResolveSong(context.Background(), "https://fixture.test/songs/1")
 			return err
 		}},
@@ -436,7 +389,7 @@ func TestResolveReturnsPublicSentinelWhenCustomSourceViolatesContract(t *testing
 }
 
 func TestResolveSongReturnsDeferredRuntimeForParseOnlyServices(t *testing.T) {
-	resolver := New(DefaultConfig())
+	resolver := ariadne.New(ariadne.DefaultConfig())
 	tests := []struct {
 		name       string
 		inputURL   string
@@ -445,42 +398,42 @@ func TestResolveSongReturnsDeferredRuntimeForParseOnlyServices(t *testing.T) {
 		{
 			name:       "youtube music",
 			inputURL:   "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
-			serviceErr: ErrYouTubeMusicDeferred,
+			serviceErr: ariadne.ErrYouTubeMusicDeferred,
 		},
 		{
 			name:       "amazon music",
 			inputURL:   "https://music.amazon.com/albums/B0064UPU4G?trackAsin=B0064TRACK",
-			serviceErr: ErrAmazonMusicDeferred,
+			serviceErr: ariadne.ErrAmazonMusicDeferred,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.True(t, SupportsRuntimeSongInputURL(tt.inputURL))
+			assert.True(t, wiring.Default.SupportsRuntimeSongInputURL(tt.inputURL))
 
 			resolution, err := resolver.ResolveSong(context.Background(), tt.inputURL)
 			require.Error(t, err)
 			assert.Nil(t, resolution)
-			assert.ErrorIs(t, err, ErrRuntimeDeferred)
+			assert.ErrorIs(t, err, ariadne.ErrRuntimeDeferred)
 			assert.ErrorIs(t, err, tt.serviceErr)
 		})
 	}
 }
 
 func TestResolveAlbumPreservesCustomTargetErrors(t *testing.T) {
-	resolver := NewWithAdapters(AdapterSet{AlbumSources: []SourceAdapter{newLibrarySourceAdapter()}, AlbumTargets: []TargetAdapter{newFailingLibraryTargetAdapter()}})
+	resolver := NewWithAdapters(TestAdapters{AlbumSources: []adapters.Adapter{newLibrarySourceAdapter()}, AlbumTargets: []adapters.Adapter{newFailingLibraryTargetAdapter()}})
 
 	resolution, err := resolver.ResolveAlbum(context.Background(), testLibrarySourceURL)
 	require.NoError(t, err)
 	require.NotNil(t, resolution)
-	assert.ErrorIs(t, resolution.Matches[ServiceSpotify].Err, errLibraryTargetBoom)
+	assert.ErrorIs(t, resolution.Matches[ariadne.ServiceSpotify].Err, errLibraryTargetBoom)
 }
 
-func newTestEntityResolver() *Resolver {
-	return NewWithAdapters(AdapterSet{
-		AlbumSources: []SourceAdapter{newLibrarySourceAdapter()},
-		AlbumTargets: []TargetAdapter{newLibraryTargetAdapter()},
-		SongSources:  []SongSourceAdapter{newLibrarySongSourceAdapter()},
-		SongTargets:  []SongTargetAdapter{newLibrarySongTargetAdapter()},
+func newTestEntityResolver() *ariadne.Resolver {
+	return NewWithAdapters(TestAdapters{
+		AlbumSources: []adapters.Adapter{newLibrarySourceAdapter()},
+		AlbumTargets: []adapters.Adapter{newLibraryTargetAdapter()},
+		SongSources:  []adapters.Adapter{newLibrarySongSourceAdapter()},
+		SongTargets:  []adapters.Adapter{newLibrarySongTargetAdapter()},
 	})
 }

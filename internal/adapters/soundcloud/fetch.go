@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/htmlx"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -17,12 +18,12 @@ func (a *Adapter) FetchAlbum(ctx context.Context, parsed model.ParsedAlbumURL) (
 	if err != nil {
 		return nil, fmt.Errorf("fetch soundcloud page: %w", err)
 	}
-	playlist, err := extractPlaylistHydration(body, parsed.CanonicalURL)
+	playlist, err := ExtractPlaylistHydration(body, parsed.CanonicalURL)
 	if err != nil {
 		return nil, fmt.Errorf("extract soundcloud playlist hydration: %w", err)
 	}
-	a.maybeCacheClientIDFromPage(body)
-	return toCanonicalAlbum(*playlist), nil
+	a.clientIDs.Observe(extractClientID(body))
+	return ToCanonicalAlbum(*playlist), nil
 }
 
 func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model.CanonicalSong, error) {
@@ -33,32 +34,32 @@ func (a *Adapter) FetchSong(ctx context.Context, parsed model.ParsedURL) (*model
 	if err != nil {
 		return nil, fmt.Errorf("fetch soundcloud page: %w", err)
 	}
-	track, err := extractTrackHydration(body, parsed.CanonicalURL)
+	track, err := ExtractTrackHydration(body, parsed.CanonicalURL)
 	if err != nil {
 		return nil, fmt.Errorf("extract soundcloud track hydration: %w", err)
 	}
-	a.maybeCacheClientIDFromPage(body)
-	return toCanonicalSong(*track), nil
+	a.clientIDs.Observe(extractClientID(body))
+	return ToCanonicalSong(*track), nil
 }
 
 func (a *Adapter) fetchPage(ctx context.Context, requestURL string) ([]byte, error) {
 	//nolint:wrapcheck // Page fetcher supplies request/status/read context.
-	return adapterutil.PageFetcher{
+	return httpx.PageFetcher{
 		Client:       a.client,
-		UserAgent:    adapterutil.BrowserUserAgent,
+		UserAgent:    httpx.BrowserUserAgent,
 		BuildError:   "build soundcloud request",
 		ExecuteError: "execute soundcloud request",
-		StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudStatus),
+		StatusError:  httpx.StatusError(errUnexpectedSoundCloudStatus),
 		ReadError:    "read soundcloud response",
 	}.Fetch(ctx, requestURL)
 }
 
-func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {
+func ExtractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist, error) {
 	return extractHydrationEntity(
 		body,
 		canonicalURL,
 		"playlist",
-		errSoundCloudPlaylistNotFound,
+		ErrSoundCloudPlaylistNotFound,
 		"decode soundcloud playlist hydration",
 		func(playlist soundPlaylist) string {
 			return playlist.PermalinkURL
@@ -66,14 +67,14 @@ func extractPlaylistHydration(body []byte, canonicalURL string) (*soundPlaylist,
 	)
 }
 
-func extractTrackHydration(body []byte, canonicalURL string) (*soundTrack, error) {
+func ExtractTrackHydration(body []byte, canonicalURL string) (*SoundTrack, error) {
 	return extractHydrationEntity(
 		body,
 		canonicalURL,
 		"sound",
-		errSoundCloudTrackNotFound,
+		ErrSoundCloudTrackNotFound,
 		"decode soundcloud track hydration",
-		func(track soundTrack) string {
+		func(track SoundTrack) string {
 			return track.PermalinkURL
 		},
 	)
@@ -118,7 +119,7 @@ func extractHydrationEntity[T any](
 }
 
 func extractHydrationEntries(body []byte) ([]hydrationEnvelope, error) {
-	return adapterutil.DecodeJSONBlock[[]hydrationEnvelope](
+	return htmlx.DecodeJSONBlock[[]hydrationEnvelope](
 		body,
 		hydrationPattern,
 		errSoundCloudHydrationNotFound,

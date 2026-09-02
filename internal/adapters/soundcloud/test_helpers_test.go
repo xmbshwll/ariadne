@@ -1,4 +1,4 @@
-package soundcloud
+package soundcloud_test
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	soundcloud "github.com/xmbshwll/ariadne/internal/adapters/soundcloud"
 
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +23,7 @@ const (
 )
 
 type testFixture struct {
-	adapter       *Adapter
+	adapter       *soundcloud.Adapter
 	server        *httptest.Server
 	sourcePayload []byte
 	trackPayload  []byte
@@ -77,7 +79,7 @@ func newTestFixture(t *testing.T) testFixture {
 	))
 
 	return testFixture{
-		adapter:       New(server.Client(), WithSiteBaseURL(server.URL), WithAPIBaseURL(server.URL)),
+		adapter:       soundcloud.New(server.Client(), soundcloud.WithSiteBaseURL(server.URL), soundcloud.WithAPIBaseURL(server.URL)),
 		server:        server,
 		sourcePayload: sourcePayload,
 		trackPayload:  trackPayload,

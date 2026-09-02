@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/xmbshwll/ariadne/cmd/internal/validation"
 )
 
 const (
@@ -110,15 +110,15 @@ func collectValidationArtifacts(ctx context.Context, inputs validationInputs) (v
 }
 
 func fetchTIDALAlbum(ctx context.Context, client *http.Client, inputs validationInputs, accessToken string) ([]byte, tidalAlbumDocument, error) {
-	albumURL := fmt.Sprintf("%s/albums/%s?countryCode=%s&include=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.PathEscape(inputs.parsed.ID), url.QueryEscape(inputs.countryCode), url.QueryEscape("artists,items,coverArt"))
+	albumURL := validation.JoinURL(inputs.opts.apiBaseURL, "albums", inputs.parsed.ID) + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&include=" + url.QueryEscape("artists,items,coverArt")
 	albumBody, err := getAPI(ctx, client, albumURL, accessToken)
 	if err != nil {
 		return nil, tidalAlbumDocument{}, fmt.Errorf("fetch tidal album payload: %w", err)
 	}
 
 	var album tidalAlbumDocument
-	if err := json.Unmarshal(albumBody, &album); err != nil {
-		return nil, tidalAlbumDocument{}, fmt.Errorf("decode tidal album payload: %w", err)
+	if err := validation.DecodeJSONInto(albumBody, &album, "decode tidal album payload"); err != nil {
+		return nil, tidalAlbumDocument{}, err
 	}
 	if strings.TrimSpace(album.Data.ID) == "" {
 		return nil, tidalAlbumDocument{}, errTIDALAlbumPayloadMissing
@@ -127,7 +127,7 @@ func fetchTIDALAlbum(ctx context.Context, client *http.Client, inputs validation
 }
 
 func buildTIDALQuery(title string, artistNames []string, albumID string) string {
-	query := strings.TrimSpace(strings.Join([]string{title, firstArtist(artistNames)}, " "))
+	query := strings.TrimSpace(strings.Join([]string{title, firstNonEmpty(artistNames...)}, " "))
 	if query != "" {
 		return query
 	}
@@ -135,7 +135,7 @@ func buildTIDALQuery(title string, artistNames []string, albumID string) string 
 }
 
 func fetchTIDALAlbumSearch(ctx context.Context, client *http.Client, inputs validationInputs, accessToken, query string) ([]byte, error) {
-	searchURL := fmt.Sprintf("%s/searchResults?countryCode=%s&filter[query]=%s&include=albums", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(query))
+	searchURL := validation.JoinURL(inputs.opts.apiBaseURL, "searchResults") + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&filter[query]=" + url.QueryEscape(query) + "&include=albums"
 	searchBody, err := getAPI(ctx, client, searchURL, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("search tidal albums: %w", err)
@@ -147,7 +147,7 @@ func addTIDALUPCArtifact(ctx context.Context, client *http.Client, inputs valida
 	if upc == "" {
 		return nil
 	}
-	upcSearchURL := fmt.Sprintf("%s/albums?countryCode=%s&filter[barcodeId]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(upc))
+	upcSearchURL := validation.JoinURL(inputs.opts.apiBaseURL, "albums") + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&filter[barcodeId]=" + url.QueryEscape(upc)
 	upcSearchBody, err := getAPI(ctx, client, upcSearchURL, accessToken)
 	if err != nil {
 		return fmt.Errorf("search tidal albums by upc: %w", err)
@@ -160,7 +160,7 @@ func addTIDALISRCArtifact(ctx context.Context, client *http.Client, inputs valid
 	if len(trackISRCs) == 0 {
 		return nil
 	}
-	isrcSearchURL := fmt.Sprintf("%s/tracks?countryCode=%s&filter[isrc]=%s", strings.TrimRight(inputs.opts.apiBaseURL, "/"), url.QueryEscape(inputs.countryCode), url.QueryEscape(trackISRCs[0]))
+	isrcSearchURL := validation.JoinURL(inputs.opts.apiBaseURL, "tracks") + "?countryCode=" + url.QueryEscape(inputs.countryCode) + "&filter[isrc]=" + url.QueryEscape(trackISRCs[0])
 	isrcSearchBody, err := getAPI(ctx, client, isrcSearchURL, accessToken)
 	if err != nil {
 		return fmt.Errorf("search tidal tracks by isrc: %w", err)
@@ -170,70 +170,31 @@ func addTIDALISRCArtifact(ctx context.Context, client *http.Client, inputs valid
 }
 
 func fetchAccessToken(ctx context.Context, client *http.Client, authBaseURL string, clientID string, clientSecret string) (string, error) {
-	form := url.Values{}
-	form.Set("client_id", clientID)
-	form.Set("client_secret", clientSecret)
-	form.Set("grant_type", "client_credentials")
-
-	endpoint := strings.TrimRight(authBaseURL, "/") + "/oauth2/token"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", fmt.Errorf("build tidal token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute tidal token request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read tidal token response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%w %d: %s", errTIDALTokenStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var payload struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", fmt.Errorf("decode tidal token response: %w", err)
-	}
-	if strings.TrimSpace(payload.AccessToken) == "" {
-		return "", errTIDALTokenMissing
-	}
-	return payload.AccessToken, nil
+	return validation.FetchClientCredentialsToken(ctx, validation.TokenRequest{
+		Client:       client,
+		Endpoint:     validation.JoinURL(authBaseURL, "oauth2/token"),
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		ContentType:  "application/x-www-form-urlencoded; charset=UTF-8",
+		BuildError:   "build tidal token request",
+		ExecuteError: "execute tidal token request",
+		StatusError:  errTIDALTokenStatus,
+		DecodeError:  "decode tidal token response",
+		MissingError: errTIDALTokenMissing,
+	})
 }
 
 func getAPI(ctx context.Context, client *http.Client, endpoint string, accessToken string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("build tidal api request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.api+json")
-	req.Header.Set("User-Agent", "ariadne/0.1 (+https://github.com/xmbshwll/ariadne)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("execute tidal api request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read tidal api response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w %d: %s", errTIDALAPIStatus, resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	return body, nil
+	return validation.AuthenticatedGet(ctx, validation.GetRequest{
+		Client:       client,
+		URL:          endpoint,
+		Token:        accessToken,
+		Headers:      map[string]string{"Accept": "application/vnd.api+json"},
+		BuildError:   "build tidal api request",
+		ExecuteError: "execute tidal api request",
+		StatusError:  errTIDALAPIStatus,
+		ReadError:    "read tidal api response",
+	})
 }
 
 func collectIncludedNames(included []tidalIncludedResource, typ string) []string {
@@ -305,13 +266,6 @@ func collectIncludedValues(included []tidalIncludedResource, typ string, limit i
 
 func includedISRC(attrs tidalAttributes) string {
 	return strings.TrimSpace(attrs.ISRC)
-}
-
-func firstArtist(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
 }
 
 func firstNonEmpty(values ...string) string {

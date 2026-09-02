@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -46,7 +46,7 @@ func (a *Adapter) fetchAlbumByID(ctx context.Context, albumID string, canonicalU
 	if parsed.CanonicalURL == "" {
 		parsed.CanonicalURL = canonicalCollectionURL(payload.Results[0].CollectionViewURL, "")
 	}
-	return toCanonicalAlbum(parsed, payload.Results), nil
+	return ToCanonicalAlbum(parsed, payload.Results), nil
 }
 
 func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL string, storefront string) (*model.CanonicalSong, error) {
@@ -57,12 +57,12 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 	}
 	track, ok := firstSongLookupItem(payload.Results)
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", errAppleMusicSongNotFound, songID)
+		return nil, fmt.Errorf("%w: %s", ErrAppleMusicSongNotFound, songID)
 	}
 
 	parsed := model.ParsedURL{
 		Service:      model.ServiceAppleMusic,
-		EntityType:   entitySong,
+		EntityType:   EntitySong,
 		ID:           songID,
 		CanonicalURL: canonicalURL,
 		RegionHint:   a.storefrontFor(storefront),
@@ -75,14 +75,14 @@ func (a *Adapter) fetchSongByID(ctx context.Context, songID string, canonicalURL
 
 func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
 	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
 			Client:       a.client,
 			URL:          requestURL,
-			UserAgent:    adapterutil.DefaultUserAgent,
+			UserAgent:    httpx.DefaultUserAgent,
 			BuildError:   "build apple music request",
 			ExecuteError: "execute apple music request",
-			StatusError:  adapterutil.StatusError(errUnexpectedAppleMusicStatus),
+			StatusError:  httpx.StatusError(errUnexpectedAppleMusicStatus),
 		},
 		DecodeError: "decode apple music response",
 	}, target)
@@ -93,7 +93,7 @@ func firstSongLookupItem(items []lookupItem) (lookupItem, bool) {
 		if item.TrackID == 0 {
 			continue
 		}
-		if item.WrapperType != wrapperTypeTrack || item.Kind != entitySong {
+		if item.WrapperType != wrapperTypeTrack || item.Kind != EntitySong {
 			continue
 		}
 		return item, true

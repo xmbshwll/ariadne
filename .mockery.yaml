@@ -2,27 +2,17 @@ with-expecter: true
 disable-version-string: true
 issue-845-fix: true
 resolve-type-alias: false
+testonly: false
 
-_anchors: &mockery_inpackage
-  dir: "{{.InterfaceDir}}"
-  filename: "{{.InterfaceNameSnake}}_mock_test.go"
-  mockname: "Mock{{.InterfaceName}}"
-  outpkg: "{{.PackageName}}"
-  inpackage: true
-  testonly: true
+# The Adapter interface is declared once, in internal/adapters, and every Music
+# Service adapter implements it. One generated mock serves every consumer that
+# needs a stand-in adapter.
+dir: "{{.ConfigDir}}/internal/mocks"
+filename: "{{.InterfaceNameSnake}}_mock.go"
+mockname: "Mock{{.InterfaceName}}"
+outpkg: mocks
 
 packages:
-  github.com/xmbshwll/ariadne:
-    config: *mockery_inpackage
+  github.com/xmbshwll/ariadne/internal/adapters:
     interfaces:
-      SourceAdapter:
-      TargetAdapter:
-      SongSourceAdapter:
-      SongTargetAdapter:
-  github.com/xmbshwll/ariadne/internal/resolve:
-    config: *mockery_inpackage
-    interfaces:
-      SourceAdapter:
-      TargetAdapter:
-      SongSourceAdapter:
-      SongTargetAdapter:
+      Adapter:

@@ -8,12 +8,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/canonical"
+	"github.com/xmbshwll/ariadne/internal/httpx"
 	"github.com/xmbshwll/ariadne/internal/model"
 	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
 	query := metadataQuery(album)
 	if query == "" {
 		return nil, nil
@@ -25,7 +26,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 		}
 		return nil, fmt.Errorf("search soundcloud metadata: %w", err)
 	}
-	results, err := adapterutil.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		payload.Collection,
 		searchLimit,
@@ -52,12 +53,12 @@ func (a *Adapter) SearchSongByMetadata(ctx context.Context, song model.Canonical
 		}
 		return nil, fmt.Errorf("search soundcloud song metadata: %w", err)
 	}
-	results, err := adapterutil.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		payload.Collection,
 		searchLimit,
 		soundCloudSongCandidateID,
-		func(_ context.Context, track soundTrack) (model.CandidateSong, error) {
+		func(_ context.Context, track SoundTrack) (model.CandidateSong, error) {
 			return soundCloudSongSearchCandidate(track)
 		},
 	)
@@ -71,7 +72,7 @@ func validSoundCloudPlaylistSearchHit(playlist soundPlaylist) bool {
 	return playlist.Kind == "playlist" && strings.TrimSpace(playlist.PermalinkURL) != "" && strings.TrimSpace(playlist.Title) != ""
 }
 
-func validSoundCloudTrackSearchHit(track soundTrack) bool {
+func validSoundCloudTrackSearchHit(track SoundTrack) bool {
 	return strings.TrimSpace(track.PermalinkURL) != "" && strings.TrimSpace(track.Title) != ""
 }
 
@@ -82,7 +83,7 @@ func soundCloudPlaylistCandidateID(playlist soundPlaylist) string {
 	return soundCloudCandidateID(playlist.PermalinkURL)
 }
 
-func soundCloudSongCandidateID(track soundTrack) string {
+func soundCloudSongCandidateID(track SoundTrack) string {
 	if !validSoundCloudTrackSearchHit(track) {
 		return ""
 	}
@@ -98,27 +99,56 @@ func soundCloudCandidateID(rawURL string) string {
 }
 
 func soundCloudAlbumSearchCandidate(playlist soundPlaylist) (model.CandidateAlbum, error) {
-	canonical := toCanonicalAlbum(playlist)
-	return toCandidateAlbum(*canonical), nil
+	mapped := ToCanonicalAlbum(playlist)
+	return canonical.CandidateAlbum(*mapped), nil
 }
 
-func soundCloudSongSearchCandidate(track soundTrack) (model.CandidateSong, error) {
-	canonical := toCanonicalSong(track)
-	return toCandidateSong(*canonical), nil
+func soundCloudSongSearchCandidate(track SoundTrack) (model.CandidateSong, error) {
+	mapped := ToCanonicalSong(track)
+	return canonical.CandidateSong(*mapped), nil
+}
+
+// isSoundCloudClientIDError answers whether a search error means the cached
+// client id was rejected and must be rediscovered.
+func isSoundCloudClientIDError(err error) bool {
+	if statusErr, ok := errors.AsType[httpx.HTTPStatusError](err); ok {
+		switch statusErr.HTTPStatusCode() {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return true
+		}
+	}
+	if !errors.Is(err, errUnexpectedSoundCloudAPIStatus) {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "client_id") || strings.Contains(message, "client id")
+}
+
+// discoverClientID finds the SoundCloud web client id: fetch the site root,
+// then follow asset scripts until the id appears.
+func (a *Adapter) discoverClientID(ctx context.Context) (string, error) {
+	body, err := a.fetchPage(ctx, a.siteBaseURL)
+	if err != nil {
+		return "", err
+	}
+	return a.findClientID(ctx, body)
 }
 
 func (a *Adapter) getSearchJSON(ctx context.Context, path string, query string, target any) error {
-	clientID, err := a.clientIdentifier(ctx)
+	clientID, err := a.clientIDs.Credential(ctx)
 	if err != nil {
 		return classifySoundCloudTargetSearchError(err)
 	}
-	if err := a.getSearchJSONWithClientID(ctx, path, query, clientID, target); err == nil {
+	err = a.getSearchJSONWithClientID(ctx, path, query, clientID, target)
+	if err == nil {
 		return nil
-	} else if !isSoundCloudClientIDError(err) {
+	}
+	if !a.clientIDs.ShouldInvalidate(err) {
 		return err
 	}
+	a.clientIDs.Invalidate()
 
-	clientID, err = a.refreshClientIdentifier(ctx)
+	clientID, err = a.clientIDs.Credential(ctx)
 	if err != nil {
 		return classifySoundCloudTargetSearchError(err)
 	}
@@ -138,80 +168,6 @@ func classifySoundCloudTargetSearchError(err error) error {
 
 func (a *Adapter) searchURL(path string, query string, clientID string) string {
 	return fmt.Sprintf("%s%s?q=%s&client_id=%s&limit=%d", a.apiBaseURL, path, url.QueryEscape(query), url.QueryEscape(clientID), searchLimit)
-}
-
-func (a *Adapter) refreshClientIdentifier(ctx context.Context) (string, error) {
-	a.clientIDMu.Lock()
-	a.clientID = ""
-	a.clientIDMu.Unlock()
-	return a.clientIdentifier(ctx)
-}
-
-func isSoundCloudClientIDError(err error) bool {
-	var statusErr adapterutil.HTTPStatusError
-	if errors.As(err, &statusErr) {
-		switch statusErr.HTTPStatusCode() {
-		case http.StatusUnauthorized, http.StatusForbidden:
-			return true
-		}
-	}
-	if !errors.Is(err, errUnexpectedSoundCloudAPIStatus) {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "client_id") || strings.Contains(message, "client id")
-}
-
-func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
-	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
-	return adapterutil.GetJSON(ctx, adapterutil.JSONRequest{
-		RequestSpec: adapterutil.RequestSpec{
-			Client:       a.client,
-			URL:          requestURL,
-			UserAgent:    adapterutil.DefaultUserAgent,
-			BuildError:   "build soundcloud api request",
-			ExecuteError: "execute soundcloud api request",
-			StatusError:  adapterutil.StatusError(errUnexpectedSoundCloudAPIStatus),
-		},
-		DecodeError: "decode soundcloud api response",
-	}, target)
-}
-
-func (a *Adapter) clientIdentifier(ctx context.Context) (string, error) {
-	a.clientIDMu.Lock()
-	cachedClientID := a.clientID
-	a.clientIDMu.Unlock()
-	if cachedClientID != "" {
-		return cachedClientID, nil
-	}
-
-	body, err := a.fetchPage(ctx, a.siteBaseURL)
-	if err != nil {
-		return "", err
-	}
-	clientID, err := a.findClientID(ctx, body)
-	if err != nil {
-		return "", err
-	}
-	a.clientIDMu.Lock()
-	defer a.clientIDMu.Unlock()
-	if a.clientID != "" {
-		return a.clientID, nil
-	}
-	a.clientID = clientID
-	return a.clientID, nil
-}
-
-func (a *Adapter) maybeCacheClientIDFromPage(body []byte) {
-	clientID := extractClientID(body)
-	if clientID == "" {
-		return
-	}
-	a.clientIDMu.Lock()
-	defer a.clientIDMu.Unlock()
-	if a.clientID == "" {
-		a.clientID = clientID
-	}
 }
 
 func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error) {
@@ -240,6 +196,21 @@ func (a *Adapter) findClientID(ctx context.Context, body []byte) (string, error)
 		}
 	}
 	return "", errSoundCloudClientIDNotFound
+}
+
+func (a *Adapter) getJSON(ctx context.Context, requestURL string, target any) error {
+	//nolint:wrapcheck // HTTP exchange spec supplies request/status/decode context.
+	return httpx.GetJSON(ctx, httpx.JSONRequest{
+		RequestSpec: httpx.RequestSpec{
+			Client:       a.client,
+			URL:          requestURL,
+			UserAgent:    httpx.DefaultUserAgent,
+			BuildError:   "build soundcloud api request",
+			ExecuteError: "execute soundcloud api request",
+			StatusError:  httpx.StatusError(errUnexpectedSoundCloudAPIStatus),
+		},
+		DecodeError: "decode soundcloud api response",
+	}, target)
 }
 
 func resolveSoundCloudAssetURL(baseURL string, assetURL string) (string, error) {

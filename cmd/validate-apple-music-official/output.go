@@ -1,7 +1,6 @@
 package main
 
 import (
-	"path/filepath"
 	"time"
 
 	"github.com/xmbshwll/ariadne/cmd/internal/validation"
@@ -52,37 +51,14 @@ func addValidationArtifactPath(paths map[string]string, key, outputDir, name str
 }
 
 func writeValidationArtifacts(outputDir string, artifacts validationArtifacts) error {
-	if err := writePrettyJSONArtifact(outputDir, appleMusicSourcePayloadFile, artifacts.albumBody); err != nil {
-		return err
-	}
-	if err := writePrettyJSONArtifact(outputDir, appleMusicSearchMetadataFile, artifacts.metadataBody); err != nil {
-		return err
-	}
-	if err := writeOptionalPrettyJSONArtifact(outputDir, appleMusicSearchUPCFile, artifacts.upcBody); err != nil {
-		return err
-	}
-	if err := writeOptionalPrettyJSONArtifact(outputDir, appleMusicSearchISRCFile, artifacts.isrcBody); err != nil {
-		return err
-	}
-
-	summaryPath := filepath.Join(outputDir, appleMusicOfficialSummaryFile)
-	//nolint:wrapcheck // validation.WriteJSON already includes file-path context.
-	return validation.WriteJSON(summaryPath, artifacts.summary)
-}
-
-func writeOptionalPrettyJSONArtifact(outputDir, name string, body []byte) error {
-	if len(body) == 0 {
-		return nil
-	}
-	return writePrettyJSONArtifact(outputDir, name, body)
-}
-
-func writePrettyJSONArtifact(outputDir, name string, body []byte) error {
-	path := filepath.Join(outputDir, name)
-	//nolint:wrapcheck // validation.WritePrettyJSON already includes file-path context.
-	return validation.WritePrettyJSON(path, body)
+	return validation.WriteArtifacts(outputDir, []validation.Artifact{
+		{Name: appleMusicSourcePayloadFile, Body: artifacts.albumBody},
+		{Name: appleMusicSearchMetadataFile, Body: artifacts.metadataBody},
+		{Name: appleMusicSearchUPCFile, Body: artifacts.upcBody},
+		{Name: appleMusicSearchISRCFile, Body: artifacts.isrcBody},
+	}, appleMusicOfficialSummaryFile, artifacts.summary)
 }
 
 func validationArtifactPath(outputDir, name string) string {
-	return filepath.ToSlash(filepath.Join(outputDir, name))
+	return validation.JoinArtifactPath(outputDir, name)
 }

@@ -1,4 +1,4 @@
-package youtubemusic
+package youtubemusic_test
 
 import (
 	"fmt"
@@ -9,14 +9,17 @@ import (
 	"strings"
 	"testing"
 
+	youtubemusic "github.com/xmbshwll/ariadne/internal/adapters/youtubemusic"
+
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 const (
 	youtubeMusicBrowsePath        = "/browse/MPREb_tQfaWH32ovE"
 	youtubeMusicSearchPath        = "/search"
-	youtubeMusicBrokenPageHTML    = `<html><head></head><body>broken</body></html>`
+	youtubeMusicBrokenFixturePath = "testdata/broken-page.html"
 	youtubeMusicSourceFixturePath = "testdata/source-page.html"
 	youtubeMusicSearchFixturePath = "testdata/search-page.html"
 	youtubeMusicAbbeyRoadTitle    = "Abbey Road"
@@ -40,8 +43,8 @@ func newYouTubeMusicTestServer(routes map[string][]byte) *httptest.Server {
 	}))
 }
 
-func newYouTubeMusicTestAdapter(server *httptest.Server) *Adapter {
-	return New(server.Client(), WithBaseURL(server.URL))
+func newYouTubeMusicTestAdapter(server *httptest.Server) *youtubemusic.Adapter {
+	return youtubemusic.New(server.Client(), youtubemusic.WithBaseURL(server.URL))
 }
 
 func newYouTubeMusicAlbumSource(baseURL string) model.ParsedAlbumURL {
@@ -71,7 +74,7 @@ func mustReadYouTubeMusicSearchPage(t *testing.T) []byte {
 }
 
 func youTubeMusicBrokenBrowsePage() []byte {
-	return []byte(youtubeMusicBrokenPageHTML)
+	return readYouTubeMusicFixture(youtubeMusicBrokenFixturePath)
 }
 
 func youTubeMusicAlbumSearchPage(results ...youTubeMusicSearchResult) []byte {
@@ -96,5 +99,14 @@ func mustReadYouTubeMusicFixture(t *testing.T, relativePath string) []byte {
 	path := filepath.Clean(relativePath)
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
+	return content
+}
+
+func readYouTubeMusicFixture(relativePath string) []byte {
+	path := filepath.Clean(relativePath)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
 	return content
 }

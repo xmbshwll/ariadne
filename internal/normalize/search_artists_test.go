@@ -1,7 +1,9 @@
-package normalize
+package normalize_test
 
 import (
 	"testing"
+
+	normalize "github.com/xmbshwll/ariadne/internal/normalize"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +38,7 @@ func TestSearchArtistVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, SearchArtistVariants(tt.input))
+			assert.Equal(t, tt.want, normalize.SearchArtistVariants(tt.input))
 		})
 	}
 }

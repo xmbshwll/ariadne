@@ -1,17 +1,19 @@
-package amazonmusic
+package amazonmusic_test
 
 import (
 	"context"
 	"testing"
 
+	amazonmusic "github.com/xmbshwll/ariadne/internal/adapters/amazonmusic"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
-	"github.com/xmbshwll/ariadne/internal/resolve"
+
+	"github.com/xmbshwll/ariadne/internal/adapters"
 )
 
 func TestAdapter(t *testing.T) {
-	adapter := New(nil)
+	adapter := amazonmusic.New(nil)
 
 	parsed, err := adapter.ParseAlbumURL("https://music.amazon.com/albums/B0064UPU4G")
 	require.NoError(t, err)
@@ -19,8 +21,8 @@ func TestAdapter(t *testing.T) {
 	assert.Equal(t, "B0064UPU4G", parsed.ID)
 
 	_, err = adapter.FetchAlbum(context.Background(), *parsed)
-	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
-	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
+	require.ErrorIs(t, err, amazonmusic.ErrDeferredRuntimeAdapter)
+	assert.ErrorIs(t, err, adapters.ErrRuntimeDeferred)
 
 	song, err := adapter.ParseSongURL("https://music.amazon.com/albums/B0064UPU4G?trackAsin=B0064TRACK")
 	require.NoError(t, err)
@@ -28,8 +30,9 @@ func TestAdapter(t *testing.T) {
 	assert.Equal(t, "B0064TRACK", song.ID)
 
 	_, err = adapter.FetchSong(context.Background(), *song)
-	require.ErrorIs(t, err, ErrDeferredRuntimeAdapter)
-	assert.ErrorIs(t, err, adapterutil.ErrRuntimeDeferred)
+	require.ErrorIs(t, err, amazonmusic.ErrDeferredRuntimeAdapter)
+	assert.ErrorIs(t, err, adapters.ErrRuntimeDeferred)
 
-	assert.NotImplements(t, (*resolve.UPCSearcher)(nil), adapter)
+	_, err = adapter.SearchAlbumByUPC(context.Background(), "00602537184945")
+	assert.ErrorIs(t, err, adapters.ErrUnsupported)
 }

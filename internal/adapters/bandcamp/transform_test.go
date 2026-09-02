@@ -1,32 +1,36 @@
-package bandcamp
+package bandcamp_test
 
 import (
 	"testing"
 
+	bandcamp "github.com/xmbshwll/ariadne/internal/adapters/bandcamp"
+	"github.com/xmbshwll/ariadne/internal/canonical"
+
 	"github.com/stretchr/testify/assert"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
 func TestParseISODurationMillisecondsAccumulatesTotalMinutes(t *testing.T) {
-	assert.Equal(t, 5400000, parseISODurationMilliseconds("PT90M"))
-	assert.Equal(t, 9000000, parseISODurationMilliseconds("PT1H90M"))
+	assert.Equal(t, 5400000, canonical.ISODurationMilliseconds("PT90M"))
+	assert.Equal(t, 9000000, canonical.ISODurationMilliseconds("PT1H90M"))
 }
 
 func TestParseISODurationMillisecondsEdgeCases(t *testing.T) {
-	assert.Equal(t, 0, parseISODurationMilliseconds(""))
-	assert.Equal(t, 1500, parseISODurationMilliseconds("PT1.5S"))
-	assert.Equal(t, 3723000, parseISODurationMilliseconds("PT1H2M3S"))
-	assert.Equal(t, 0, parseISODurationMilliseconds("invalid"))
+	assert.Equal(t, 0, canonical.ISODurationMilliseconds(""))
+	assert.Equal(t, 1500, canonical.ISODurationMilliseconds("PT1.5S"))
+	assert.Equal(t, 3723000, canonical.ISODurationMilliseconds("PT1H2M3S"))
+	assert.Equal(t, 0, canonical.ISODurationMilliseconds("invalid"))
 }
 
 func TestToCanonicalAlbumSkipsEmptyArtist(t *testing.T) {
-	album := toCanonicalAlbum(model.ParsedAlbumURL{ID: "album-id", CanonicalURL: "https://example.com/album-id", RegionHint: "gb"}, &schemaAlbum{
+	album := bandcamp.ToCanonicalAlbum(model.ParsedAlbumURL{ID: "album-id", CanonicalURL: "https://example.com/album-id", RegionHint: "gb"}, &bandcamp.SchemaAlbum{
 		Name:      "Example Album",
-		ByArtist:  schemaMusicGroup{Name: ""},
-		Publisher: schemaMusicGroup{Name: "Example Label"},
-		Track: schemaTrackList{ItemListElement: []schemaTrackItem{{
+		ByArtist:  bandcamp.SchemaMusicGroup{Name: ""},
+		Publisher: bandcamp.SchemaMusicGroup{Name: "Example Label"},
+		Track: bandcamp.SchemaTrackList{ItemListElement: []bandcamp.SchemaTrackItem{{
 			Position: 1,
-			Item: schemaMusicRecording{
+			Item: bandcamp.SchemaMusicRecording{
 				Name:     "Intro",
 				Duration: "PT1M",
 			},
@@ -40,15 +44,15 @@ func TestToCanonicalAlbumSkipsEmptyArtist(t *testing.T) {
 }
 
 func TestToCanonicalSongUsesAlbumArtistAndRegionHint(t *testing.T) {
-	song := toCanonicalSong(model.ParsedURL{ID: "track-id", CanonicalURL: "https://example.com/track-id", RegionHint: "us"}, &schemaAlbum{
+	song := bandcamp.ToCanonicalSong(model.ParsedURL{ID: "track-id", CanonicalURL: "https://example.com/track-id", RegionHint: "us"}, &bandcamp.SchemaAlbum{
 		Name:          "Track Name",
-		ByArtist:      schemaMusicGroup{Name: "Track Artist"},
+		ByArtist:      bandcamp.SchemaMusicGroup{Name: "Track Artist"},
 		DatePublished: "27 Sep 2019 00:00:00 GMT",
 		Duration:      "PT1M",
-		InAlbum: schemaAlbumRelation{
+		InAlbum: bandcamp.SchemaAlbumRelation{
 			ID:       "https://example.bandcamp.com/album/example-album",
 			Name:     "Compilation Album",
-			ByArtist: schemaMusicGroup{Name: "Various Artists"},
+			ByArtist: bandcamp.SchemaMusicGroup{Name: "Various Artists"},
 		},
 	})
 
@@ -58,11 +62,11 @@ func TestToCanonicalSongUsesAlbumArtistAndRegionHint(t *testing.T) {
 }
 
 func TestToCanonicalSongLeavesAlbumArtistsEmptyWithoutAlbumArtist(t *testing.T) {
-	song := toCanonicalSong(model.ParsedURL{ID: "track-id", CanonicalURL: "https://example.com/track-id"}, &schemaAlbum{
+	song := bandcamp.ToCanonicalSong(model.ParsedURL{ID: "track-id", CanonicalURL: "https://example.com/track-id"}, &bandcamp.SchemaAlbum{
 		Name:     "Track Name",
-		ByArtist: schemaMusicGroup{Name: "Track Artist"},
+		ByArtist: bandcamp.SchemaMusicGroup{Name: "Track Artist"},
 		Duration: "PT1M",
-		InAlbum:  schemaAlbumRelation{ID: "https://example.bandcamp.com/album/example-album", Name: "Album"},
+		InAlbum:  bandcamp.SchemaAlbumRelation{ID: "https://example.bandcamp.com/album/example-album", Name: "Album"},
 	})
 
 	assert.Empty(t, song.AlbumArtists)

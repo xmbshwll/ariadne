@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/xmbshwll/ariadne/internal/adapters/base"
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -16,35 +17,43 @@ const (
 var (
 	errUnexpectedDeezerService = errors.New("unexpected deezer service")
 	errUnexpectedDeezerStatus  = errors.New("unexpected deezer status")
-	errMalformedDeezerResponse = errors.New("malformed deezer response")
+	ErrMalformedDeezerResponse = errors.New("malformed deezer response")
 	errDeezerAlbumNotFound     = errors.New("deezer album not found")
 	errDeezerTrackNotFound     = errors.New("deezer track not found")
 )
 
+// Option customizes a Deezer adapter.
+type Option func(*Adapter)
+
+// WithBaseURL redirects every Deezer API request to baseURL, for tests.
+func WithBaseURL(baseURL string) Option {
+	return func(a *Adapter) {
+		a.baseURL = baseURL
+	}
+}
+
 // Adapter implements Deezer source operations.
 type Adapter struct {
+	base.Unsupported
+
 	baseURL string
 	client  *http.Client
 }
 
 // New creates a Deezer adapter.
-func New(client *http.Client) *Adapter {
-	return newAdapter(client, defaultBaseURL)
-}
-
-func newAdapter(client *http.Client, baseURL string) *Adapter {
+func New(client *http.Client, opts ...Option) *Adapter {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	return &Adapter{
-		baseURL: baseURL,
-		client:  client,
+	adapter := &Adapter{
+		Unsupported: base.Unsupported{ServiceName: model.ServiceDeezer},
+		baseURL:     defaultBaseURL,
+		client:      client,
 	}
-}
-
-// Service returns the service implemented by this adapter.
-func (a *Adapter) Service() model.ServiceName {
-	return model.ServiceDeezer
+	for _, opt := range opts {
+		opt(adapter)
+	}
+	return adapter
 }
 
 // ParseAlbumURL parses a Deezer album URL.

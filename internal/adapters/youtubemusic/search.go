@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/xmbshwll/ariadne/internal/adapters/adapterutil"
+	"github.com/xmbshwll/ariadne/internal/canonical"
 	"github.com/xmbshwll/ariadne/internal/model"
+	"github.com/xmbshwll/ariadne/internal/normalize"
+	"github.com/xmbshwll/ariadne/internal/targetsearch"
 )
 
-func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
-	query := adapterutil.PrimaryMetadataQuery(album.Title, album.Artists)
+func (a *Adapter) SearchAlbumByMetadata(ctx context.Context, album model.CanonicalAlbum) ([]model.CandidateAlbum, error) {
+	query := normalize.SearchPrimaryQuery(album.Title, album.Artists)
 	if query == "" {
 		return nil, nil
 	}
@@ -22,7 +24,7 @@ func (a *Adapter) SearchByMetadata(ctx context.Context, album model.CanonicalAlb
 	}
 
 	candidates := extractSearchCandidates(body)
-	results, err := adapterutil.CollectCandidates(
+	results, err := targetsearch.CollectCandidates(
 		ctx,
 		candidates,
 		searchLimit,
@@ -40,12 +42,12 @@ func youTubeMusicSearchCandidateID(candidate searchCandidate) string {
 }
 
 func (a *Adapter) hydrateYouTubeMusicAlbumSearchCandidate(ctx context.Context, candidate searchCandidate) (model.CandidateAlbum, error) {
-	canonical, err := a.fetchAlbumByBrowseID(ctx, candidate.BrowseID)
+	mapped, err := a.fetchAlbumByBrowseID(ctx, candidate.BrowseID)
 	if err != nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, err)
 	}
-	if canonical == nil {
+	if mapped == nil {
 		return model.CandidateAlbum{}, fmt.Errorf("hydrate youtube music album %s: %w", candidate.BrowseID, errNilYouTubeMusicCanonicalAlbum)
 	}
-	return toCandidateAlbum(*canonical), nil
+	return canonical.CandidateAlbum(*mapped), nil
 }

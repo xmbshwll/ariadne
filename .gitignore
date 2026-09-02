@@ -4,3 +4,8 @@ bin/
 .DS_Store
 coverage.out
 service-samples
+.pi/
+.agents/
+.claude/
+cmd/ariadne/ariadne
+validate-*/validate-*

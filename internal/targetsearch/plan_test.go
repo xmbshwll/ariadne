@@ -1,4 +1,4 @@
-package targetsearch
+package targetsearch_test
 
 import (
 	"context"
@@ -7,8 +7,11 @@ import (
 	"net/url"
 	"testing"
 
+	targetsearch "github.com/xmbshwll/ariadne/internal/targetsearch"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/xmbshwll/ariadne/internal/model"
 )
 
@@ -25,14 +28,11 @@ const (
 	targetSearchAlbum3 = "album-3"
 )
 
-type testTarget struct{}
-
 func TestPlanPreservesOrderAndDeduplicates(t *testing.T) {
-	plan := Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+	plan := targetsearch.Plan[model.CandidateAlbum]{
+		Target:       string(model.ServiceSpotify),
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
 				Name:    "disabled",
 				Enabled: false,
@@ -98,21 +98,20 @@ func TestPlanSkipsLayerTimeoutsWhenParentContextIsActive(t *testing.T) {
 	}
 }
 
-func planWithRecoverableTimeout(err error) Plan[model.CandidateAlbum] {
-	return Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+func planWithRecoverableTimeout(err error) targetsearch.Plan[model.CandidateAlbum] {
+	return targetsearch.Plan[model.CandidateAlbum]{
+		Target:       string(model.ServiceSpotify),
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
-				Name:    "SearchByUPC",
+				Name:    "SearchAlbumByUPC",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return nil, err
 				},
 			},
 			{
-				Name:    "SearchByMetadata",
+				Name:    "SearchAlbumByMetadata",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return []model.CandidateAlbum{{CandidateID: targetSearchAlbum1, CanonicalAlbum: model.CanonicalAlbum{Service: model.ServiceSpotify}}}, nil
@@ -125,13 +124,12 @@ func planWithRecoverableTimeout(err error) Plan[model.CandidateAlbum] {
 func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
-	plan := Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+	plan := targetsearch.Plan[model.CandidateAlbum]{
+		Target:       string(model.ServiceSpotify),
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
-				Name:    "SearchByMetadata",
+				Name:    "SearchAlbumByMetadata",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return nil, context.DeadlineExceeded
@@ -147,13 +145,12 @@ func TestPlanKeepsParentContextDeadlineFatal(t *testing.T) {
 }
 
 func TestPlanWrapsLayerErrors(t *testing.T) {
-	plan := Plan[model.CandidateAlbum]{
-		Target:       testTarget{},
-		Service:      string(model.ServiceSpotify),
-		CandidateKey: albumCandidateKey,
-		Layers: []Layer[model.CandidateAlbum]{
+	plan := targetsearch.Plan[model.CandidateAlbum]{
+		Target:       string(model.ServiceSpotify),
+		CandidateKey: model.CandidateAlbum.SearchKey,
+		Layers: []targetsearch.Layer[model.CandidateAlbum]{
 			{
-				Name:    "SearchByUPC",
+				Name:    "SearchAlbumByUPC",
 				Enabled: true,
 				Search: func(context.Context) ([]model.CandidateAlbum, error) {
 					return nil, errTargetSearchLayerBoom
@@ -166,12 +163,5 @@ func TestPlanWrapsLayerErrors(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errTargetSearchLayerBoom)
-	assert.Contains(t, err.Error(), "SearchByUPC spotify")
-}
-
-func albumCandidateKey(candidate model.CandidateAlbum) string {
-	if candidate.CandidateID != "" {
-		return string(candidate.Service) + ":id:" + candidate.CandidateID
-	}
-	return string(candidate.Service) + ":url:" + candidate.MatchURL
+	assert.Contains(t, err.Error(), "SearchAlbumByUPC spotify")
 }

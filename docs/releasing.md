@@ -16,6 +16,7 @@ make verify
 make verify-release
 ```
 
+
 Then confirm tree is clean:
 
 ```bash
@@ -147,7 +148,10 @@ go list -m github.com/xmbshwll/ariadne/cmd@cmd/vX.Y.Z
 
 ```bash
 go install github.com/xmbshwll/ariadne/cmd/ariadne@latest
+ariadne --version
 ```
+
+`ariadne --version` prints both the CLI and library module versions the binary was built against; confirm they match the tags just pushed.
 
 ### pkg.go.dev
 
