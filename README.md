@@ -21,7 +21,7 @@ Use Ariadne when you need to:
 
 ## Current status
 
-Public Go API releases are at `v0.7.0` (library) and `cmd/v0.7.0` (CLI), approaching `v1.0.0`; the exported surface is kept deliberately small.
+Public Go API releases are at `v1.0.0` (library) and `cmd/v1.0.0` (CLI); the exported surface is kept deliberately small.
 
 - Spotify, Apple Music, and Deezer are strongest services today
 - Bandcamp, SoundCloud, YouTube Music, and TIDAL are more likely to break or drift
