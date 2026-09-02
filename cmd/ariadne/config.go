@@ -1,5 +1,7 @@
 package main
 
+// CLI configuration loading: config file discovery and parsing, environment overlay, and the debug log of effective values.
+
 import (
 	"errors"
 	"fmt"
@@ -9,7 +11,6 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-
 	"github.com/xmbshwll/ariadne"
 )
 
