@@ -2,7 +2,31 @@
 
 All notable changes to Ariadne are documented here.
 
-## Unreleased
+## v1.0.0 - 2026-09-02
+
+### Added
+- first-class library stability with semver-go module versioning (v1.0.0 release)
+- consolidated adapter interface contracts with pinned capability sets across all providers
+- comprehensive error sentinels for all provider adapters (ErrUnsupported, ErrRuntimeDeferred, and service-specific sentinels)
+- generic result types ScoredMatchOf[C], MatchResultOf[C], and ResolutionOf[P, E, C] in the resolve package, re-exported at the library root
+- adapterutil.NewClientCredentialsTokenSource owning client-credentials token-source wiring defaults (credentials closure, trim-space empty-token check, singleflight key)
+
+### Changed
+- resolved long-standing adapter compatibility issues across Spotify, Apple Music, Deezer, TIDAL, Bandcamp, SoundCloud
+- unified entity resolution pipeline across all services (album and song flows consolidated onto generic types)
+- improved CLI output consistency and formatting (album/song output forks consolidated)
+- public adapter interface aliases UPCSearcher, ISRCSearcher, MetadataSearcher, SongISRCSearcher, SongMetadataSearcher as exported type aliases
+- per-request target timeouts no longer abort overall resolution while the context remains active
+
+### Fixed
+- fixed adapter initialization race conditions
+- resolved metadata parsing edge cases across providers (ISRC/UPC/barcode handling)
+- corrected URL handling for boundary service formats (SoundCloud client_id discovery, TIDAL query path migration)
+- Bandcamp no longer pre-ranks with hardcoded default weights and truncates to five candidates
+- empty autocomplete responses exercise HTML fallback path
+- MetadataQueryTargetSearch returns initialized empty slice for empty query sets
+- SoundCloud metadata search scans all discovered homepage script assets for client_id
+- TIDAL metadata Target Search migrated to current GET /v2/searchResults?filter[query]=... contract after TIDAL retired query-in-path search
 
 ## v0.7.0 - 2026-08-13
 
