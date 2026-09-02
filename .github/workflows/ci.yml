@@ -45,13 +45,13 @@ jobs:
       - name: Run golangci-lint (root module)
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11.4
+          version: v2.13.2
           args: --config .golangci.yml ./...
 
       - name: Run golangci-lint (cmd module)
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11.4
+          version: v2.13.2
           working-directory: cmd
           args: --config ../.golangci.yml ./...
 
