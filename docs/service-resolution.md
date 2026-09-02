@@ -59,6 +59,8 @@ Resolve(url)
 
 Use `--album` when the input is definitely an album and you want to skip the song-parser pass.
 
+Before any of this runs, the CLI validates every requested target service through the Provider Catalog and prints the per-service credential caveats in `ariadne help resolve`. A failing target service never fails the whole run: its result carries the error while other services resolve normally, and the CLI exits non-zero only when every target failed.
+
 ## Source adapter parse order
 
 Ariadne tests source adapters in a fixed order. First adapter that parses the URL owns the source fetch.
@@ -501,6 +503,8 @@ Target song search
 
 ## Scoring and ranking
 
+There are two scoring layers. Provider adapters may pre-select which wire candidates are worth hydrating (Bandcamp ranks autocomplete results before fetching pages), but the final score always comes from the weighted Score Signals below, applied by Entity Resolution.
+
 Album candidates are scored from multiple signals:
 
 ```text
@@ -545,3 +549,7 @@ Ranking sorts candidates by descending score. Equal album scores break by candid
 | SoundCloud | Yes | Yes | Yes | Yes | metadata only | public page / API-v2 based |
 | YouTube Music | Yes | Yes | Parse only | No | album metadata only | song fetch matches `ErrRuntimeDeferred` + `ErrYouTubeMusicDeferred` |
 | Amazon Music | Parse only | No | Parse only | No | none | runtime fetch matches `ErrRuntimeDeferred` + `ErrAmazonMusicDeferred` |
+
+## Errors
+
+Resolution failures are exported sentinels; branch with `errors.Is`, never string matching. The full table lives in the [README](../README.md#error-handling).
