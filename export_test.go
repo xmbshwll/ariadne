@@ -5,32 +5,28 @@ import (
 	"github.com/xmbshwll/ariadne/internal/score"
 )
 
-// Test-only seams for the external ariadne_test package: configuration
-// normalization is internal behavior with no public surface.
+// Test-only seams for the external ariadne_test package.
+
+// NormalizedConfig exposes configuration normalization, which is internal
+// behavior with no public surface.
 var NormalizedConfig = normalizedConfig
 
-// TestAdapters is the test-only counterpart of the built-in adapter set.
-//
-// The public API deliberately has no adapter-authoring seam: ariadne.Resolver
-// is built from the Provider Catalog via New, and internal/adapters.Adapter is
-// internal. Tests that need to pin Resolver behavior around adapter contract
-// violations (nil parsed URL, nil entity, a failing Target Search) build mocks
-// of that internal interface and hand them here.
-type TestAdapters struct {
-	AlbumSources []adapters.Adapter
-	AlbumTargets []adapters.Adapter
-	SongSources  []adapters.Adapter
-	SongTargets  []adapters.Adapter
-}
-
-// NewWithAdapters builds a Resolver from test-supplied adapters with the
-// built-in Scoring weights, which no caller overrides.
-func NewWithAdapters(set TestAdapters) *Resolver {
+// NewResolverForTest builds a Resolver from test-supplied adapters. It exists
+// so ariadne_test can pin Resolver behavior around adapter contract violations
+// (nil parsed URL, nil entity, a failing Target Search): the public API has no
+// adapter-authoring seam, so tests reach the constructor directly. Zero
+// weights use the built-in Scoring defaults.
+func NewResolverForTest(
+	albumSources []adapters.Adapter,
+	albumTargets []adapters.Adapter,
+	songSources []adapters.Adapter,
+	songTargets []adapters.Adapter,
+) *Resolver {
 	return newResolver(
-		set.AlbumSources,
-		set.AlbumTargets,
-		set.SongSources,
-		set.SongTargets,
+		albumSources,
+		albumTargets,
+		songSources,
+		songTargets,
 		score.DefaultWeights(),
 		score.DefaultSongWeights(),
 	)
